@@ -44,8 +44,8 @@ class GenericStore(StoreBase):
 
 	def poke(self, objname, obj, record):
 		objname = self.formatRecordName(objname)
-		if type(obj) in self.by_native_type:
-			storable = self.byNativeType(type(obj)).asVersion()
+		if self.hasNativeType(obj):
+			storable = self.byNativeType(obj).asVersion()
 			self.pokeStorable(storable, objname, obj, record)
 		else:
 			self.pokeNative(objname, obj, record)
@@ -104,8 +104,10 @@ def peek_with_new(native_type, exposes):
 			except AttributeError:
 				if hasattr(obj, '__dict__'):
 					obj.__dict__[attr] = val
+					if attr == 'cell_adjacency':
+						print(getattr(obj, attr))
 				else:
-					raise AttributeError('{} defines both `__slots__` and properties ({})'.format(type(val), attr))
+					raise AttributeError('{} defines both `__slots__` and properties ({})'.format(val.__class__, attr))
 			attrs.remove(attr)
 		for attr in attrs:
 			setattr(obj, attr, None)
@@ -201,8 +203,8 @@ def fail_peek(unsupported_type):
 	return peek
 
 function_storables = [\
-	Storable(type(print), handlers=StorableHandler(poke=fake_poke, peek=fail_peek)), \
-	Storable(type(poke), handlers=StorableHandler(poke=fake_poke, peek=fail_peek))]
+	Storable(len.__class__, handlers=StorableHandler(poke=fake_poke, peek=fail_peek)), \
+	Storable(poke.__class__, handlers=StorableHandler(poke=fake_poke, peek=fail_peek))]
 
 
 # scipy.sparse storable instances

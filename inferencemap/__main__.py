@@ -65,12 +65,12 @@ def render(args):
 	plot_points(stats.coordinates, stats, min_count=min_cell_count)
 	plot_voronoi(tess, stats)
 	plt.title(method_name + '-based voronoi')
-	if args.output or args.print:
+	if args.output or args['print']:
 		filename, figext = io.path.splitext(args.output)
 		if figext and figext in fig_formats:
 			pass
-		elif args.print:
-			figext = args.print
+		elif args['print']:
+			figext = args['print']
 		else:
 			figext = 'svg'
 		if not filename:
@@ -83,7 +83,7 @@ def render(args):
 		plt.hist(stats.cell_count, range=(0,600), bins=20)
 		plt.title(method_title)
 		plt.xlabel('cell count')
-		if args.output or args.print:
+		if args.output or args['print']:
 			plt.savefig(filename + 'cnt' + figext)
 
 	if args.histogram and 'd' in args.histogram:
@@ -103,7 +103,7 @@ def render(args):
 			plt.plot((dmax, dmax), plt.ylim(), 'r-')
 		plt.title(method_title)
 		plt.xlabel('inter-centroid distance (log)')
-		if args.output or args.print:
+		if args.output or args['print']:
 			plt.savefig(filename + 'icd' + figext)
 
 	if args.histogram and 'p' in args.histogram:
@@ -117,10 +117,10 @@ def render(args):
 			plt.plot((dmax, dmax), plt.ylim(), 'r-')
 		plt.title(method_title)
 		plt.xlabel('inter-point distance (log)')
-		if args.output or args.print:
+		if args.output or args['print']:
 			plt.savefig(filename + 'pwd' + figext)
 
-	if not args.print:
+	if not args['print']:
 		plt.show()
 
 
@@ -156,8 +156,8 @@ def tesselate(args):
 
 		# initialize a Tesselation object
 		tess = method(scaler, min_distance=min_distance, max_distance=max_distance, \
-			min_probability=args.cell_count / n_pts, \
-			avg_probability=args.min_cell_count / n_pts, \
+			min_probability=float(args.cell_count) / n_pts, \
+			avg_probability=float(args.min_cell_count) / n_pts, \
 			verbose=args.verbose)
 
 		# grow the tesselation

@@ -3,7 +3,7 @@ import scipy.sparse as sparse
 from .exception import *
 
 
-class Graph:
+class Graph(object):
 	'''Abstract class for node-centered graph implementations. Here the concept of edge is limited to
 	labels and retrieving the nodes that a given edge connects may be a very inefficient operation.'''
 	__slots__ = ['node_defaults', 'edge_defaults']

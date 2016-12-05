@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 
-class Scaler:
+class Scaler(object):
 	""":class:`Scaler` scales data points, point differences (vectors) or distances.
 	It initializes itself with the first provided sample, and then scales equally the next samples.
 	It manages a constraint in the calculation of the scaling parameters, forcing a common factors

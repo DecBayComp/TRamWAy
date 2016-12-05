@@ -8,7 +8,7 @@ import scipy.spatial as spatial
 from inferencemap.spatial.scaler import *
 
 
-class CellStats:
+class CellStats(object):
 	"""Container datatype for various results related to a sample and a tesselation."""
 	__slots__ = ['coordinates', 'cell_index', 'cell_count', 'cell_to_point', 'bounding_box', \
 		'param']
@@ -71,7 +71,7 @@ def point_adjacency_matrix(tess, stats, symetric=True, cell_labels=None, adjacen
 
 
 
-class Tesselation:
+class Tesselation(object):
 	"""Abstract class for tesselations. Main methods to be implemented are :meth:`tesselate` and
 	:meth:`cellIndex`. :meth:`cellStats` is for convenience."""
 	def __init__(self, scaler=Scaler()):

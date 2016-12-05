@@ -1,11 +1,13 @@
 
 from copy import deepcopy
+import six
+from warnings import warn
 
 class ConflictingVersionWarning(Warning):
 	pass
 
 
-class StorableHandler:
+class StorableHandler(object):
 	'''Defines how to store an object of the class described by `Storable` `_parent`'''
 	__slots__ = ['version', 'exposes', 'poke', 'peek', '_parent']
 
@@ -32,7 +34,7 @@ class StorableHandler:
 
 
 
-class Storable:
+class Storable(object):
 	'''Describes a storable class'''
 	__slots__ = ['native_type', 'storable_type', '_handlers']
 
@@ -41,7 +43,9 @@ class Storable:
 		return self._handlers
 
 	@handlers.setter
-	def handlers(self, handlers):
+	def handlers(self, handlers): # in PY2, setters work only in new style classes
+		#if not isinstance(handlers, list):
+		#	handlers = [handlers]
 		for h in handlers:
 			h._parent = self
 		self._handlers = handlers
@@ -49,6 +53,7 @@ class Storable:
 	def __init__(self, python_type, key=None, handlers=[]):
 		self.native_type = python_type
 		self.storable_type = key
+		self._handlers = [] # PY2?
 		if not isinstance(handlers, list):
 			handlers = [handlers]
 		self.handlers = handlers
@@ -70,7 +75,7 @@ class Storable:
 
 
 
-class StorableService:
+class StorableService(object):
 	__slots__ = ['by_native_type', 'by_storable_type']
 
 	def __init__(self):
@@ -84,7 +89,7 @@ class StorableService:
 		if storable.storable_type is None:
 			module = storable.native_type.__module__
 			name = storable.native_type.__name__
-			if module is 'builtins':
+			if module in ['__builtin__', 'builtins']:
 				storable.storable_type = name
 			elif module.endswith(name):
 				storable.storable_type = module
@@ -103,25 +108,36 @@ class StorableService:
 			raise TypeError('Native type already exists')
 		else:
 			existing = deepcopy(storable)
-			existing.handlers = []
+			existing._handlers = []
 		# .. and add the other/new handlers
 		for h in storable.handlers:
+			h._parent = existing # PY2 requires to use `_handlers` instead of `handlers`
 			if existing.hasVersion(h.version):
 				if replace:
-					existing.handlers = [ h if h.version is h0.version else h0 \
+					existing._handlers = [ h if h.version is h0.version else h0 \
 						for h0 in existing.handlers ]
 				else:
-					warn((storable.storable_type, h.version), ConflictingVersionWarning)
+					warn(str((storable.storable_type, h.version)), ConflictingVersionWarning)
 			else:
-				existing.handlers.append(h)
+				existing._handlers.append(h)
 		# place/replace the storable in the double dictionary
 		self.by_native_type[storable.native_type] = existing
 		self.by_storable_type[storable.storable_type] = existing
 
 	def byNativeType(self, t):
+		if not isinstance(t, type):
+			try:
+				t = t.__class__
+			except AttributeError:
+				t = type(t)
 		return self.by_native_type[t]
 
 	def hasNativeType(self, t):
+		if not isinstance(t, type):
+			try:
+				t = t.__class__
+			except AttributeError:
+				t = type(t)
 		return t in self.by_native_type
 
 	def byStorableType(self, t):
