@@ -4,10 +4,12 @@ from .storable import *
 from collections import deque
 from scipy.sparse import bsr_matrix, coo_matrix, csc_matrix, csr_matrix, \
 	dia_matrix, dok_matrix, lil_matrix
+import copy
 
 
 class GenericStore(StoreBase):
 	__slots__ = StoreBase.__slots__
+	__slots__.append('verbose')
 
 	def registerStorable(self, storable):
 		if not storable.handlers:
@@ -37,7 +39,7 @@ class GenericStore(StoreBase):
 		raise TypeError('record not supported')
 
 	def pokeStorable(self, storable, objname, obj, container):
-		print((objname, storable.storable_type))
+		#print((objname, storable.storable_type)) # debug
 		storable.poke(self, objname, obj, container)
 		record = self.getRecord(objname, container)
 		self.setRecordAttr('type', storable.storable_type, record)
@@ -45,7 +47,11 @@ class GenericStore(StoreBase):
 			self.setRecordAttr('version', from_version(storable.version), record)
 
 	def poke(self, objname, obj, record):
-		print((objname, type(obj), self.hasPythonType(obj)))
+		if self.verbose:
+			if self.hasPythonType(obj):
+				typetype = 'storable'
+			else:	typetype = 'native'
+			print('writing `{}` ({} type: {})'.format(objname, typetype, type(obj).__name__))
 		if obj is not None:
 			objname = self.formatRecordName(objname)
 			if self.hasPythonType(obj):
@@ -111,12 +117,12 @@ def default_peek(python_type, exposes):
 			#print((attr, attr in container)) # debugging
 			if attr in container:
 				val = store.peek(attr, container)
-				try:
-					setattr(obj, attr, val)
-				except AttributeError as e:
-					raise AttributeError("`setattr` failed with attribute {} in {} instance\nAttributeError: {}".format(attr, python_type, e))
 			else:
-				setattr(obj, attr, None)
+				val = None
+			try:
+				setattr(obj, attr, val)
+			except AttributeError as e:
+				raise AttributeError("can't set attribute '{}' ({})".format(attr, python_type))
 		return obj
 	return peek
 
@@ -238,13 +244,27 @@ def mk_dia(shape, data, offsets):
 	return dia_matrix((data, offsets), shape=shape)
 dia_handler = handler(mk_dia, dia_exposes)
 
+# previously
 def dok_recommend(*vargs):
-	raise TypeErrorWithAlternative('coo_matrix', 'dok_matrix')
+	raise TypeErrorWithAlternative('dok_matrix', 'coo_matrix')
 dok_handler = StorableHandler(poke=dok_recommend, peek=dok_recommend)
+# now
+def dok_poke(service, matname, mat, container):
+	coo_handler.poke(service, matname, mat.tocoo(), container)
+def dok_peek(service, container):
+	return coo_handler.peek(service, container).todok()
+dok_handler = StorableHandler(poke=dok_poke, peek=dok_peek)
 
+# previously
 def lil_recommend(*vargs):
-	raise TypeErrorWithAlternative(('csr_matrix', 'csc_matrix'), 'dok_matrix')
+	raise TypeErrorWithAlternative('lil_matrix', ('csr_matrix', 'csc_matrix'))
 lil_handler = StorableHandler(poke=lil_recommend, peek=lil_recommend)
+# now
+def lil_poke(service, matname, mat, container):
+	csr_handler.poke(service, matname, mat.tocsr(), container)
+def lil_peek(service, container):
+	return csr_handler.peek(service, container).tolil()
+lil_handler = StorableHandler(poke=lil_poke, peek=lil_peek)
 
 
 sparse_storables = [Storable(bsr_matrix, handlers=bsr_handler), \

@@ -12,8 +12,8 @@ class CellStats(object):
 	"""Container datatype for various results related to a sample and a tesselation."""
 	__slots__ = ['coordinates', 'cell_index', 'cell_count', 'bounding_box', 'param']
 
-	def __init__(self, cell_index=None, cell_count=None, cell_mask=None, \
-		point_mask=None, bounding_box=None, coordinates=None, param={}):
+	def __init__(self, cell_index=None, cell_count=None, bounding_box=None, coordinates=None, \
+		param={}):
 		self.coordinates = coordinates
 		self.cell_index = cell_index
 		self.cell_count = cell_count
@@ -119,28 +119,31 @@ class Tesselation(object):
 			bounding_box.index = ['min', 'max']
 		else:
 			bounding_box = np.vstack([xmin, xmax]).T.flatten()
-		return CellStats(cell_index, cell_count, cell_to_point=center_to_point, \
+		return CellStats(cell_index=cell_index, cell_count=cell_count, \
 			bounding_box=bounding_box, coordinates=points)
 
+	# cell_label property
 	@property
 	def cell_label(self):
 		return self._cell_label
-
-	@property
-	def cell_adjacency(self):
-		return self._cell_adjacency
-
-	@property
-	def adjacency_label(self):
-		return self._adjacency_label
 
 	@cell_label.setter
 	def cell_label(self, label):
 		self._cell_label = label
 
+	# cell_adjacency property
+	@property
+	def cell_adjacency(self):
+		return self._cell_adjacency
+
 	@cell_adjacency.setter
 	def cell_adjacency(self, matrix):
 		self._cell_adjacency = matrix
+
+	# adjacency_label property
+	@property
+	def adjacency_label(self):
+		return self._adjacency_label
 
 	@adjacency_label.setter
 	def adjacency_label(self, label):
@@ -167,6 +170,7 @@ class Delaunay(Tesselation):
 		else:
 			return np.argmin(D, axis=1)
 
+	# cell_centers property
 	@property
 	def cell_centers(self):
 		if isinstance(self.scaler.factor, pd.Series):
@@ -186,6 +190,7 @@ class Voronoi(Delaunay):
 		self._cell_vertices = None
 		self._ridge_vertices = None
 
+	# cell_vertices property
 	@property
 	def cell_vertices(self):
 		if self._cell_centers is not None and self._cell_vertices is None:
@@ -200,6 +205,7 @@ class Voronoi(Delaunay):
 	def cell_vertices(self, vertices):
 		self._cell_vertices = self.scaler.scalePoint(vertices)
 
+	# cell_adjacency property
 	@property
 	def cell_adjacency(self):
 		if self._cell_centers is not None and self._cell_adjacency is None:
@@ -211,6 +217,7 @@ class Voronoi(Delaunay):
 	def cell_adjacency(self, matrix):
 		self._cell_adjacency = matrix
 
+	# ridge_vertices property
 	@property
 	def ridge_vertices(self):
 		if self._cell_centers is not None and self._ridge_vertices is None:
@@ -281,10 +288,16 @@ class RegularMesh(Voronoi):
 	def _postprocess(self):
 		pass
 
+	# cell_centers property
 	@property
 	def cell_centers(self):
 		return self._cell_centers
 
+	@cell_centers.setter
+	def cell_centers(self, centers):
+		self._cell_centers = centers
+
+	# cell_vertices property
 	@property
 	def cell_vertices(self):
 		if self._cell_vertices is None:
@@ -292,6 +305,11 @@ class RegularMesh(Voronoi):
 			self._cell_vertices = np.column_stack([ v.flatten() for v in vs ])
 		return self._cell_vertices
 
+	@cell_vertices.setter
+	def cell_vertices(self, vertices):
+		self._cell_vertices = vertices
+
+	# cell_adjacency property
 	@property
 	def cell_adjacency(self):
 		if self._cell_adjacency is None:
@@ -303,6 +321,11 @@ class RegularMesh(Voronoi):
 				np.abs(c2 + c2.T - 2 * np.dot(cix, cix.T) - 1.0) < 1e-6)
 		return self._cell_adjacency
 
+	@cell_adjacency.setter # copy/paste
+	def cell_adjacency(self, matrix):
+		self._cell_adjacency = matrix
+
+	# ridge_vertices property
 	@property
 	def ridge_vertices(self):
 		if self._ridge_vertices is None:
@@ -314,11 +337,7 @@ class RegularMesh(Voronoi):
 			self._ridge_vertices = np.column_stack((vix.row, vix.col))
 		return self._ridge_vertices
 
-	@cell_centers.setter
-	def cell_centers(self, centers):
-		self._cell_centers = centers
-
-	@cell_vertices.setter
-	def cell_vertices(self, vertices):
-		self._cell_vertices = vertices
+	@ridge_vertices.setter # copy/paste
+	def ridge_vertices(self, ridges):
+		self._ridge_vertices = ridges
 

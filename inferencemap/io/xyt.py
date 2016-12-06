@@ -27,7 +27,7 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
 	for f in paths:
 		try:
 			if verbose:
-				print('loading {}...'.format(f))
+				print('loading file: {}'.format(f))
 			dff = pd.read_table(f, names=columns)
 			if dff['n'].min() < index_max:
 				dff['n'] += index_max

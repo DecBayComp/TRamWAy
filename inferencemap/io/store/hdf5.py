@@ -24,6 +24,11 @@ else:
 to_attr = string_
 from_attr = from_bytes
 
+def native_poke(service, objname, obj, container):
+	container.create_dataset(objname, data=obj)
+
+def string_poke(service, objname, obj, container):
+	container.create_dataset(objname, data=string_(obj))
 
 def vlen_poke(service, objname, obj, container):
 	dt = h5py.special_dtype(vlen=type(obj))
@@ -31,6 +36,13 @@ def vlen_poke(service, objname, obj, container):
 
 def native_peek(service, container):
 	return container[...]
+
+def binary_peek(service, container):
+	return container[...].tostring()
+
+def text_peek(service, container):
+	return container[...].tostring().decode('utf-8')
+	
 
 def mk_vlen_poke(f):
 	def poke(service, objname, obj, container):
@@ -43,6 +55,7 @@ def mk_native_peek(f):
 	def peek(service, container):
 		return f(container[...])
 	return peek
+
 
 
 def _debug(f):
@@ -80,12 +93,10 @@ def poke_Pandas(service, objname, obj, to_table):
 
 string_storables = [\
 	Storable(six.binary_type, key='Python.bytes', \
-		handlers=StorableHandler(peek=native_peek, poke=vlen_poke)), \
-#	Storable(six.binary_type, key='Python.str', \
-#		handlers=StorableHandler(peek=mk_native_peek(six.b), poke=mk_vlen_poke(from_bytes))), \
+		handlers=StorableHandler(poke=string_poke, peek=binary_peek)), \
 	Storable(six.text_type, key='Python.unicode', \
-		handlers=StorableHandler(peek=native_peek, poke=vlen_poke))]
-numpy_storables = []
+		handlers=StorableHandler(poke=string_poke, peek=text_peek))]
+numpy_storables = [Storable(ndarray, handlers=StorableHandler(poke=native_poke, peek=native_peek))]
 pandas_storables = [Storable(Series, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas)), \
 	Storable(DataFrame, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas)), \
 	Storable(Panel, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas))]
@@ -114,8 +125,9 @@ def hdf5_storable(storable, **kwargs):
 class HDF5Store(GenericStore):
 	__slots__ = GenericStore.__slots__ + ['store']
 
-	def __init__(self, resource, mode='auto'):
+	def __init__(self, resource, mode='auto', verbose=False):
 		GenericStore.__init__(self, hdf5_service)
+		self.verbose = verbose
 		if isinstance(resource, h5py.File): # either h5py.File or tables.File
 			self.store = resource
 		else:
@@ -168,7 +180,7 @@ class HDF5Store(GenericStore):
 			try:
 				container.create_dataset(objname, data=obj)
 			except:
-				# try: self.pokeStorable(default_storable(obj), objname, obj, container)
+				#try: self.pokeStorable(default_storable(obj), objname, obj, container)
 				raise TypeError('unsupported type {!s} for object {}'.format(\
 					obj.__class__, objname))
 
@@ -179,9 +191,12 @@ class HDF5Store(GenericStore):
 
 	def peekNative(self, record):
 		try:
-			return record[...]
+			obj = record[...]
+			if obj.shape is ():
+				obj = list(obj.flat)[0]
+			return obj
 		except AttributeError as e:
-			# try: self.peekStorable(default_storable(??), container)
+			#try: self.peekStorable(default_storable(??), container)
 			raise AttributeError('hdf5.peekNative', record.name, *e.args)
 
 

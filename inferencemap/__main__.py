@@ -51,7 +51,6 @@ def render(args):
 	# load the data
 	hdf = HDF5Store(args.input[0], 'r')
 	stats = hdf.peek('points')
-	print(stats.param)
 	tess = hdf.peek('mesh')
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'regular grid'), \
@@ -78,7 +77,10 @@ def render(args):
 		if not filename:
 			filename, _ = io.path.splitext(args.input[0])
 			filename, _ = io.path.splitext(filename)
-		fig0.savefig(filename + 'vor' + figext)
+		vor_file = filename + 'vor' + figext
+		if args.verbose:
+			print('writing file: {}'.format(vor_file))
+		fig0.savefig(vor_file)
 
 	if args.histogram and 'c' in args.histogram:
 		# plot a histogram of the number of points per cell
@@ -88,7 +90,10 @@ def render(args):
 		plt.title(method_title)
 		plt.xlabel('cell count')
 		if args.output or args.__dict__['print']:
-			fig1.savefig(filename + 'cnt' + figext)
+			cnt_file = filename + 'cnt' + figext
+			if args.verbose:
+				print('writing file: {}'.format(cnt_file))
+			fig1.savefig(cnt_file)
 
 	if args.histogram and 'd' in args.histogram:
 		# plot a histogram of the distance between adjacent cell centers
@@ -109,7 +114,10 @@ def render(args):
 		plt.title(method_title)
 		plt.xlabel('inter-centroid distance (log)')
 		if args.output or args.__dict__['print']:
-			fig2.savefig(filename + 'icd' + figext)
+			icd_file = filename + 'icd' + figext
+			if args.verbose:
+				print('writing file: {}'.format(icd_file))
+			fig2.savefig(icd_file)
 
 	if args.histogram and 'p' in args.histogram:
 		adj = point_adjacency_matrix(tess, stats, symetric=False)
@@ -124,7 +132,10 @@ def render(args):
 		plt.title(method_title)
 		plt.xlabel('inter-point distance (log)')
 		if args.output or args.__dict__['print']:
-			fig3.savefig(filename + 'pwd' + figext)
+			pwd_file = filename + 'pwd' + figext
+			if args.verbose:
+				print('writing file: {}'.format(pwd_file))
+			fig3.savefig(pwd_file)
 
 	if not args.__dict__['print']:
 		plt.show()
@@ -192,12 +203,12 @@ def tesselate(args):
 		else:
 			imt_path += imt_extensions[0]
 
-	store = HDF5Store(imt_path, 'w')
+	store = HDF5Store(imt_path, 'w', args.verbose)
+	if args.verbose:
+		print('writing file: {}'.format(imt_path))
 	store.poke('points', stats)
 	store.poke('mesh', tess)
 	store.close()
-	if args.verbose:
-		print('{} written'.format(imt_path))
 
 	sys.exit(0)
 
