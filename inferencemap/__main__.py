@@ -17,6 +17,7 @@ from .io import *
 hdf_extensions = ['.h5', '.hdf', '.hdf5']
 imt_extensions = [ '.imt' + ext for ext in hdf_extensions ]
 fig_formats = ['png', 'pdf', 'ps', 'eps', 'svg']
+sub_extensions = ['imt', 'vor', 'cnt', 'icd', 'pwd']
 
 
 def render(args):
@@ -54,6 +55,7 @@ def render(args):
 	tess = hdf.peek('mesh')
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'regular grid'), \
+		QTreeMesh: ('qtree', 'quad-tree-based tesselation'), \
 		KMeansMesh: ('kmeans', 'k-means-based tesselation'), \
 		GasMesh: ('gwr', 'gwr-based tesselation')}
 	method_name, method_title = method_name[type(tess)]
@@ -67,17 +69,21 @@ def render(args):
 	plot_voronoi(tess, stats)
 	plt.title(method_name + '-based voronoi')
 	if args.output or args.__dict__['print']:
-		filename, figext = io.path.splitext(args.output)
-		if figext and figext in fig_formats:
-			pass
-		elif args.__dict__['print']:
-			figext = args.__dict__['print']
+		if args.output:
+			filename, figext = os.path.splitext(args.output)
+			if args.__dict__['print']:
+				figext = args.__dict__['print']
+			elif figext and figext[1:] in fig_formats:
+				figext = figext[1:]
+			else:
+				figext = fig_formats[0]
 		else:
-			figext = 'svg'
-		if not filename:
-			filename, _ = io.path.splitext(args.input[0])
-			filename, _ = io.path.splitext(filename)
-		vor_file = filename + 'vor' + figext
+			figext = args.__dict__['print']
+			filename, _ = os.path.splitext(args.input[0])
+		subname, subext = os.path.splitext(filename)
+		if subext and subext[1:] in sub_extensions:
+			filename = subname
+		vor_file = filename + '.vor.' + figext
 		if args.verbose:
 			print('writing file: {}'.format(vor_file))
 		fig0.savefig(vor_file)
@@ -90,7 +96,7 @@ def render(args):
 		plt.title(method_title)
 		plt.xlabel('cell count')
 		if args.output or args.__dict__['print']:
-			cnt_file = filename + 'cnt' + figext
+			cnt_file = filename + '.cnt.' + figext
 			if args.verbose:
 				print('writing file: {}'.format(cnt_file))
 			fig1.savefig(cnt_file)
@@ -114,7 +120,7 @@ def render(args):
 		plt.title(method_title)
 		plt.xlabel('inter-centroid distance (log)')
 		if args.output or args.__dict__['print']:
-			icd_file = filename + 'icd' + figext
+			icd_file = filename + '.icd.' + figext
 			if args.verbose:
 				print('writing file: {}'.format(icd_file))
 			fig2.savefig(icd_file)
@@ -132,7 +138,7 @@ def render(args):
 		plt.title(method_title)
 		plt.xlabel('inter-point distance (log)')
 		if args.output or args.__dict__['print']:
-			pwd_file = filename + 'pwd' + figext
+			pwd_file = filename + '.pwd.' + figext
 			if args.verbose:
 				print('writing file: {}'.format(pwd_file))
 			fig3.savefig(pwd_file)
@@ -161,7 +167,7 @@ def tesselate(args):
 		min_distance = 0.8 * avg_distance
 		max_distance = 2.0 * avg_distance
 
-		methods = dict(grid=RegularMesh, kmeans=KMeansMesh, gwr=GasMesh)
+		methods = dict(grid=RegularMesh, qtree=QTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
 		method = methods[args.method]
 		if args.w:
 			args.scaling = 'whiten'
