@@ -168,6 +168,7 @@ class HDF5Store(GenericStore):
 			try:
 				container.create_dataset(objname, data=obj)
 			except:
+				# try: self.pokeStorable(default_storable(obj), objname, obj, container)
 				raise TypeError('unsupported type {!s} for object {}'.format(\
 					obj.__class__, objname))
 
@@ -180,6 +181,7 @@ class HDF5Store(GenericStore):
 		try:
 			return record[...]
 		except AttributeError as e:
+			# try: self.peekStorable(default_storable(??), container)
 			raise AttributeError('hdf5.peekNative', record.name, *e.args)
 
 

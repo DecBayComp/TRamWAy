@@ -51,6 +51,7 @@ def render(args):
 	# load the data
 	hdf = HDF5Store(args.input[0], 'r')
 	stats = hdf.peek('points')
+	print(stats.param)
 	tess = hdf.peek('mesh')
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'regular grid'), \
@@ -62,29 +63,32 @@ def render(args):
 	min_cell_count = stats.param.get('min_cell_count', 0)
 
 	# plot the data points together with the tesselation
+	fig0 = plt.figure()
 	plot_points(stats.coordinates, stats, min_count=min_cell_count)
 	plot_voronoi(tess, stats)
 	plt.title(method_name + '-based voronoi')
-	if args.output or args['print']:
+	if args.output or args.__dict__['print']:
 		filename, figext = io.path.splitext(args.output)
 		if figext and figext in fig_formats:
 			pass
-		elif args['print']:
-			figext = args['print']
+		elif args.__dict__['print']:
+			figext = args.__dict__['print']
 		else:
 			figext = 'svg'
 		if not filename:
 			filename, _ = io.path.splitext(args.input[0])
 			filename, _ = io.path.splitext(filename)
-		plt.savefig(filename + 'vor' + figext)
+		fig0.savefig(filename + 'vor' + figext)
 
 	if args.histogram and 'c' in args.histogram:
 		# plot a histogram of the number of points per cell
-		plt.hist(stats.cell_count, range=(0,600), bins=20)
+		fig1 = plt.figure()
+		plt.hist(stats.cell_count, bins=np.arange(0, min_cell_count*20, min_cell_count))
+		plt.plot((min_cell_count, min_cell_count), plt.ylim(), 'r-')
 		plt.title(method_title)
 		plt.xlabel('cell count')
-		if args.output or args['print']:
-			plt.savefig(filename + 'cnt' + figext)
+		if args.output or args.__dict__['print']:
+			fig1.savefig(filename + 'cnt' + figext)
 
 	if args.histogram and 'd' in args.histogram:
 		# plot a histogram of the distance between adjacent cell centers
@@ -95,20 +99,7 @@ def render(args):
 			j = j[tess.adjacency_label[k] == 3]
 		pts = np.asarray(tess.cell_centers)
 		dist = la.norm(pts[i,:] - pts[j,:], axis=1)
-		plt.hist(np.log(dist), bins=20)
-		if max_distance:
-			dmin = np.log(min_distance)
-			dmax = np.log(max_distance)
-			plt.plot((dmin, dmin), plt.ylim(), 'r-')
-			plt.plot((dmax, dmax), plt.ylim(), 'r-')
-		plt.title(method_title)
-		plt.xlabel('inter-centroid distance (log)')
-		if args.output or args['print']:
-			plt.savefig(filename + 'icd' + figext)
-
-	if args.histogram and 'p' in args.histogram:
-		adj = point_adjacency_matrix(tess, stats, symetric=False)
-		dist = adj.data
+		fig2 = plt.figure()
 		plt.hist(np.log(dist), bins=50)
 		if max_distance:
 			dmin = np.log(min_distance)
@@ -116,11 +107,26 @@ def render(args):
 			plt.plot((dmin, dmin), plt.ylim(), 'r-')
 			plt.plot((dmax, dmax), plt.ylim(), 'r-')
 		plt.title(method_title)
-		plt.xlabel('inter-point distance (log)')
-		if args.output or args['print']:
-			plt.savefig(filename + 'pwd' + figext)
+		plt.xlabel('inter-centroid distance (log)')
+		if args.output or args.__dict__['print']:
+			fig2.savefig(filename + 'icd' + figext)
 
-	if not args['print']:
+	if args.histogram and 'p' in args.histogram:
+		adj = point_adjacency_matrix(tess, stats, symetric=False)
+		dist = adj.data
+		fig3 = plt.figure()
+		plt.hist(np.log(dist), bins=100)
+		if max_distance:
+			dmin = np.log(min_distance)
+			dmax = np.log(max_distance)
+			plt.plot((dmin, dmin), plt.ylim(), 'r-')
+			plt.plot((dmax, dmax), plt.ylim(), 'r-')
+		plt.title(method_title)
+		plt.xlabel('inter-point distance (log)')
+		if args.output or args.__dict__['print']:
+			fig3.savefig(filename + 'pwd' + figext)
+
+	if not args.__dict__['print']:
 		plt.show()
 
 
@@ -150,8 +156,8 @@ def tesselate(args):
 			args.scaling = 'whiten'
 		elif args.scaling is None:
 			args.scaling = 'none'
-		scalers = dict(none=Scaler(), whiten=whiten, unit=unitrange)
-		scaler = scalers[args.scaling]
+		scalers = dict(none=Scaler, whiten=whiten, unit=unitrange)
+		scaler = scalers[args.scaling]()
 		n_pts = df.shape[0]
 
 		# initialize a Tesselation object

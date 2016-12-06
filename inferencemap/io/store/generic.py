@@ -11,7 +11,8 @@ class GenericStore(StoreBase):
 
 	def registerStorable(self, storable):
 		if not storable.handlers:
-			storable.handlers = [handler(storable.native_type, storable.exposes)]
+			storable = default_storable(storable.python_type, version=storable.version, \
+				exposes=storable.exposes, storable_type=storable.storable_type)
 		StoreBase.registerStorable(self, storable)
 
 	def formatRecordName(self, objname):
@@ -36,6 +37,7 @@ class GenericStore(StoreBase):
 		raise TypeError('record not supported')
 
 	def pokeStorable(self, storable, objname, obj, container):
+		print((objname, storable.storable_type))
 		storable.poke(self, objname, obj, container)
 		record = self.getRecord(objname, container)
 		self.setRecordAttr('type', storable.storable_type, record)
@@ -43,12 +45,14 @@ class GenericStore(StoreBase):
 			self.setRecordAttr('version', from_version(storable.version), record)
 
 	def poke(self, objname, obj, record):
-		objname = self.formatRecordName(objname)
-		if self.hasNativeType(obj):
-			storable = self.byNativeType(obj).asVersion()
-			self.pokeStorable(storable, objname, obj, record)
-		else:
-			self.pokeNative(objname, obj, record)
+		print((objname, type(obj), self.hasPythonType(obj)))
+		if obj is not None:
+			objname = self.formatRecordName(objname)
+			if self.hasPythonType(obj):
+				storable = self.byPythonType(obj).asVersion()
+				self.pokeStorable(storable, objname, obj, record)
+			else:
+				self.pokeNative(objname, obj, record)
 
 	def peekNative(self, record):
 		raise TypeError('record not supported')
@@ -61,9 +65,11 @@ class GenericStore(StoreBase):
 		if self.isStorable(record):
 			t = self.getRecordAttr('type', record)
 			v = self.getRecordAttr('version', record)
+			#print((objname, self.byStorableType(t).storable_type)) # debugging
 			storable = self.byStorableType(t).asVersion(v)
 			return self.peekStorable(storable, record)
 		else:
+			#print(objname) # debugging
 			return self.peekNative(record)
 
 
@@ -93,24 +99,24 @@ def poke_assoc(store, objname, assoc, container):
 
 
 # peeks
-def peek_with_new(native_type, exposes):
+def default_peek(python_type, exposes):
 	def peek(store, container):
-		obj = native_type.__new__(native_type)
+		try:
+			obj = python_type()
+		except TypeError:
+			obj = python_type.__new__(python_type)
 		attrs = list(exposes)
-		for attr in container:
-			val = store.peek(attr, container)
-			try:
-				setattr(obj, attr, val)
-			except AttributeError:
-				if hasattr(obj, '__dict__'):
-					obj.__dict__[attr] = val
-					if attr == 'cell_adjacency':
-						print(getattr(obj, attr))
-				else:
-					raise AttributeError('{} defines both `__slots__` and properties ({})'.format(val.__class__, attr))
-			attrs.remove(attr)
-		for attr in attrs:
-			setattr(obj, attr, None)
+		#print(attrs) # debugging
+		for attr in attrs: # force order instead of directly iterating over `container`
+			#print((attr, attr in container)) # debugging
+			if attr in container:
+				val = store.peek(attr, container)
+				try:
+					setattr(obj, attr, val)
+				except AttributeError as e:
+					raise AttributeError("`setattr` failed with attribute {} in {} instance\nAttributeError: {}".format(attr, python_type, e))
+			else:
+				setattr(obj, attr, None)
 		return obj
 	return peek
 
@@ -137,6 +143,7 @@ def peek_assoc(store, container):
 	try:
 		for i in container:
 			assoc.append((i, store.peek(i, container)))
+		#print(assoc) # debugging
 	except TypeError as e:
 		try:
 			for i in container:
@@ -147,22 +154,17 @@ def peek_assoc(store, container):
 	return assoc
 
 
-# handlers
-def handler(init, exposes):
-	return StorableHandler(poke=poke(exposes), peek=peek(init, exposes))
-
-
 # default storable with __new__ and __slots__
-def storable_with_new(python_type, exposes=None, version=None, storable_type=None):
+def default_storable(python_type, exposes=None, version=None, storable_type=None):
 	if exposes is None:
 		try:
 			exposes = python_type.__slots__
 		except:
+			# take __dict__ and sort out the class methods
 			raise AttributeError('either define the `exposes` argument or the `__slots__` attribute for type: {!r}'.format(python_type))
 	return Storable(python_type, key=storable_type, \
 		handlers=StorableHandler(version=version, exposes=exposes, \
-		poke=poke(exposes), peek=peek_with_new(python_type, exposes)))
-
+		poke=poke(exposes), peek=default_peek(python_type, exposes)))
 
 
 # standard sequences
@@ -206,6 +208,9 @@ function_storables = [\
 	Storable(len.__class__, handlers=StorableHandler(poke=fake_poke, peek=fail_peek)), \
 	Storable(poke.__class__, handlers=StorableHandler(poke=fake_poke, peek=fail_peek))]
 
+
+def handler(init, exposes):
+	return StorableHandler(poke=poke(exposes), peek=peek(init, exposes))
 
 # scipy.sparse storable instances
 bsr_exposes = ['shape', 'data', 'indices', 'indptr']

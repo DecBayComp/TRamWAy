@@ -12,10 +12,10 @@ class StorableHandler(object):
 	__slots__ = ['version', 'exposes', 'poke', 'peek', '_parent']
 
 	@property
-	def native_type(self):
+	def python_type(self):
 		if self._parent is None:
 			raise RuntimeError('corrupted handlers in Storable')
-		else:	return self._parent.native_type
+		else:	return self._parent.python_type
 
 	@property
 	def storable_type(self):
@@ -36,7 +36,7 @@ class StorableHandler(object):
 
 class Storable(object):
 	'''Describes a storable class'''
-	__slots__ = ['native_type', 'storable_type', '_handlers']
+	__slots__ = ['python_type', 'storable_type', '_handlers']
 
 	@property
 	def handlers(self):
@@ -51,7 +51,7 @@ class Storable(object):
 		self._handlers = handlers
 
 	def __init__(self, python_type, key=None, handlers=[]):
-		self.native_type = python_type
+		self.python_type = python_type
 		self.storable_type = key
 		self._handlers = [] # PY2?
 		if not isinstance(handlers, list):
@@ -71,15 +71,15 @@ class Storable(object):
 		self.asVersion(kwargs.pop('version', None)).poke(*vargs, **kwargs)
 
 	def peek(self, *vargs, **kwargs):
-		self.asVersion(kwargs.pop('version', None)).peek(*vargs, **kwargs)
+		return self.asVersion(kwargs.pop('version', None)).peek(*vargs, **kwargs)
 
 
 
 class StorableService(object):
-	__slots__ = ['by_native_type', 'by_storable_type']
+	__slots__ = ['by_python_type', 'by_storable_type'] # what about native_type?
 
 	def __init__(self):
-		self.by_native_type = {}
+		self.by_python_type = {}
 		self.by_storable_type = {}
 
 	def registerStorable(self, storable, replace=False, agnostic=False):
@@ -87,8 +87,8 @@ class StorableService(object):
 		if not all([ isinstance(h.version, tuple) for h in storable.handlers ]):
 			raise TypeError('`Storable`''s version should be a tuple of numerical scalars')
 		if storable.storable_type is None:
-			module = storable.native_type.__module__
-			name = storable.native_type.__name__
+			module = storable.python_type.__module__
+			name = storable.python_type.__name__
 			if module in ['__builtin__', 'builtins']:
 				storable.storable_type = name
 			elif module.endswith(name):
@@ -102,9 +102,9 @@ class StorableService(object):
 		# get the existing storable with its handlers or make a storable with a single handler..
 		if self.hasStorableType(storable.storable_type):
 			existing = self.by_storable_type[storable.storable_type]
-			if storable.native_type is not existing.native_type:
+			if storable.python_type is not existing.python_type:
 				raise TypeError('Storable type already exists')
-		elif self.hasNativeType(storable.native_type):
+		elif self.hasPythonType(storable.python_type):
 			raise TypeError('Native type already exists')
 		else:
 			existing = deepcopy(storable)
@@ -121,24 +121,35 @@ class StorableService(object):
 			else:
 				existing._handlers.append(h)
 		# place/replace the storable in the double dictionary
-		self.by_native_type[storable.native_type] = existing
+		self.by_python_type[storable.python_type] = existing
 		self.by_storable_type[storable.storable_type] = existing
 
-	def byNativeType(self, t):
-		if not isinstance(t, type):
+	def byPythonType(self, t):
+		if isinstance(t, type):
 			try:
-				t = t.__class__
-			except AttributeError:
-				t = type(t)
-		return self.by_native_type[t]
+				return self.by_python_type[t]
+			except KeyError:
+				return None
+		else:
+			if type(t) in self.by_python_type:
+				return self.by_python_type[type(t)]
+			else:
+				try:
+					return self.by_python_type[t.__class__]
+				except (AttributeError, KeyError):
+					return None
 
-	def hasNativeType(self, t):
-		if not isinstance(t, type):
-			try:
-				t = t.__class__
-			except AttributeError:
-				t = type(t)
-		return t in self.by_native_type
+	def hasPythonType(self, t):
+		if isinstance(t, type):
+			return t in self.by_python_type
+		else:
+			if type(t) in self.by_python_type:
+				return True
+			else:
+				try:
+					return t.__class__ in self.by_python_type
+				except AttributeError:
+					return False
 
 	def byStorableType(self, t):
 		return self.by_storable_type[t]
@@ -156,18 +167,18 @@ class StoreBase(StorableService):
 		self.storables = storables
 
 	@property
-	def by_native_type(self):
-		return self.storables.by_native_type
+	def by_python_type(self):
+		return self.storables.by_python_type
 
 	@property
 	def by_storable_type(self):
 		return self.storables.by_storable_type
 
-	def byNativeType(self, t):
-		return self.storables.byNativeType(t)
+	def byPythonType(self, t):
+		return self.storables.byPythonType(t)
 
-	def hasNativeType(self, t):
-		return self.storables.hasNativeType(t)
+	def hasPythonType(self, t):
+		return self.storables.hasPythonType(t)
 
 	def byStorableType(self, t):
 		return self.storables.byStorableType(t)

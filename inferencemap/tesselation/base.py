@@ -10,62 +10,66 @@ from inferencemap.spatial.scaler import *
 
 class CellStats(object):
 	"""Container datatype for various results related to a sample and a tesselation."""
-	__slots__ = ['coordinates', 'cell_index', 'cell_count', 'cell_to_point', 'bounding_box', \
-		'param']
+	__slots__ = ['coordinates', 'cell_index', 'cell_count', 'bounding_box', 'param']
 
-	def __init__(self, cell_index=None, cell_count=None, cell_mask=None, cell_to_point=None, \
+	def __init__(self, cell_index=None, cell_count=None, cell_mask=None, \
 		point_mask=None, bounding_box=None, coordinates=None, param={}):
 		self.coordinates = coordinates
 		self.cell_index = cell_index
 		self.cell_count = cell_count
-		self.cell_to_point = cell_to_point
 		self.bounding_box = bounding_box
 		self.param = param
 
 
 def point_adjacency_matrix(tess, stats, symetric=True, cell_labels=None, adjacency_labels=None):
+	"""returns an adjacency matrix of data points where a given pair of points is defined as
+	adjacent iif they belong to adjacent and distinct cells.
+	"""
 	x = np.asarray(stats.coordinates)
+	ij = np.arange(x.shape[0])
 	x2 = np.sum(x * x, axis=1)
+	x2.shape = (x2.size, 1)
 	I = []
 	J = []
 	D = []
 	n = []
 	for i in np.arange(tess.cell_adjacency.shape[0]):
-		if cell_labels and not cell_labels(tess.cell_label[i]):
+		if cell_labels is not None and not cell_labels(tess.cell_label[i]):
 			continue
 		_, js, k = sparse.find(tess.cell_adjacency[i])
-		if not js:
+		if js.size == 0:
 			continue
 		k = k[i < js]
 		js = js[i < js]
-		if not js:
+		if js.size == 0:
 			continue
-		if adjacency_labels:
+		if adjacency_labels is not None:
 			js = js[adjacency_labels(k)]
-			if not js:
+			if js.size == 0:
 				continue
-		if cell_labels:
+		if cell_labels is not None:
 			js = js[cell_labels(tess.cell_label[js])]
-			if not js:
+			if js.size == 0:
 				continue
-		xi = stats.coordinates[stats.cell_index == i, :]
+		ii = ij[stats.cell_index == i]
+		xi = np.asarray(stats.coordinates)[stats.cell_index == i]
 		x2i = x2[stats.cell_index == i]
 		for j in js:
-			xj = stats.coordinates[stats.cell_index == j, :]
+			xj = np.asarray(stats.coordinates)[stats.cell_index == j]
 			x2j = x2[stats.cell_index == j]
-			d = np.sqrt(x2i + x2j.T - 2 * np.dot(xi, xj))
-			I.append(i)
-			J.append(j)
-			D.append(d)
-			n.append(d.size)
+			d2 = x2i + x2j.T - 2 * np.dot(xi, xj.T)
+			jj = ij[stats.cell_index == j]
+			i2, j2 = np.meshgrid(ii, jj, indexing='ij')
+			I.append(i2.flatten())
+			J.append(j2.flatten())
+			D.append(d2.flatten())
 			if symetric:
-				I.append(j)
-				J.append(i)
-				D.append(d)
-				n.append(d.size)
-	I = np.repeat(I, n)
-	J = np.repeat(J, n)
-	D = np.concatenate(D)
+				I.append(j2.flatten())
+				J.append(i2.flatten())
+				D.append(d2.flatten())
+	I = np.concatenate(I)
+	J = np.concatenate(J)
+	D = np.sqrt(np.concatenate(D))
 	n = stats.coordinates.shape[0]
 	return sparse.csr_matrix((D, (I, J)), shape=(n, n))
 
@@ -184,7 +188,7 @@ class Voronoi(Delaunay):
 
 	@property
 	def cell_vertices(self):
-		if self._cell_vertices is None:
+		if self._cell_centers is not None and self._cell_vertices is None:
 			self._postprocess()
 		if isinstance(self.scaler.factor, pd.Series):
 			return self.scaler.unscalePoint(pd.DataFrame(self._cell_vertices, \
@@ -192,15 +196,26 @@ class Voronoi(Delaunay):
 		else:
 			return self.scaler.unscalePoint(self._cell_vertices)
 
-	@property
-	def ridge_vertices(self):
-		if self._ridge_vertices is None:
-			self._postprocess()
-		return self._ridge_vertices
-
 	@cell_vertices.setter
 	def cell_vertices(self, vertices):
 		self._cell_vertices = self.scaler.scalePoint(vertices)
+
+	@property
+	def cell_adjacency(self):
+		if self._cell_centers is not None and self._cell_adjacency is None:
+			self._postprocess()
+		return self._cell_adjacency
+
+	# whenever you redefine a getter you have to redefine the corresponding setter
+	@cell_adjacency.setter # copy/paste
+	def cell_adjacency(self, matrix):
+		self._cell_adjacency = matrix
+
+	@property
+	def ridge_vertices(self):
+		if self._cell_centers is not None and self._ridge_vertices is None:
+			self._postprocess()
+		return self._ridge_vertices
 
 	@ridge_vertices.setter
 	def ridge_vertices(self, ridges):
@@ -214,7 +229,7 @@ class Voronoi(Delaunay):
 			self._cell_vertices = voronoi.vertices
 			n_centers = self._cell_centers.shape[0]
 			self._ridge_vertices = np.asarray(voronoi.ridge_vertices)
-			if self.cell_adjacency is None:
+			if self._cell_adjacency is None:
 				n_ridges = voronoi.ridge_points.shape[0]
 				self._cell_adjacency = sparse.csr_matrix((\
 					np.arange(0, n_ridges * 2, dtype=np.uint), (\
@@ -260,7 +275,7 @@ class RegularMesh(Voronoi):
 			grid = pd.concat([self.lower_bound, self.upper_bound, self.count_per_dim + 1], axis=1).T
 			self.grid = [ np.linspace(*col.values) for _, col in grid.iteritems() ]
 		else: raise NotImplementedError
-		cs = np.meshgrid(*[ (g[:-1] + g[1:]) / 2 for g in self.grid ])
+		cs = np.meshgrid(*[ (g[:-1] + g[1:]) / 2 for g in self.grid ], indexing='ij')
 		self._cell_centers = np.column_stack([ c.flatten() for c in cs ])
 
 	def _postprocess(self):
@@ -273,14 +288,15 @@ class RegularMesh(Voronoi):
 	@property
 	def cell_vertices(self):
 		if self._cell_vertices is None:
-			vs = np.meshgrid(*self.grid)
+			vs = np.meshgrid(*self.grid, indexing='ij')
 			self._cell_vertices = np.column_stack([ v.flatten() for v in vs ])
 		return self._cell_vertices
 
 	@property
 	def cell_adjacency(self):
 		if self._cell_adjacency is None:
-			cix = np.meshgrid(*[ np.arange(0, len(g) - 1) for g in self.grid ])
+			cix = np.meshgrid(*[ np.arange(0, len(g) - 1) for g in self.grid ], \
+				indexing='ij')
 			cix = np.column_stack([ g.flatten() for g in cix ])
 			c2  = np.atleast_2d(np.sum(cix * cix, axis=1))
 			self._cell_adjacency = sparse.csr_matrix(\
@@ -290,7 +306,8 @@ class RegularMesh(Voronoi):
 	@property
 	def ridge_vertices(self):
 		if self._ridge_vertices is None:
-			vix = np.meshgrid(*[ np.arange(0, len(g)) for g in self.grid ])
+			vix = np.meshgrid(*[ np.arange(0, len(g)) for g in self.grid ], \
+				indexing='ij')
 			vix = np.column_stack([ g.flatten() for g in vix ])
 			v2  = np.atleast_2d(np.sum(vix * vix, axis=1))
 			vix = sparse.coo_matrix(np.abs(v2 + v2.T - 2 * np.dot(vix, vix.T) - 1.0) < 1e-6)

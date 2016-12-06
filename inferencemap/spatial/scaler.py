@@ -78,7 +78,8 @@ def _whiten(x):
 	scaling_factor = x.std(axis=0)
 	return (scaling_center, scaling_factor)
 
-whiten = Scaler(_whiten)
+def whiten(): # should be a function so that each new instance is a distinct one
+	return Scaler(_whiten)
 
 
 def _unitrange(x):
@@ -88,5 +89,6 @@ def _unitrange(x):
 	scaling_factor = x.max(axis=0) - scaling_center
 	return (scaling_center, scaling_factor)
 
-unitrange = Scaler(_unitrange)
+def unitrange():
+	return Scaler(_unitrange)
 

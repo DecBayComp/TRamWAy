@@ -9,14 +9,14 @@ import itertools
 def plot_points(points, stats=None, tess=None, min_count=None, style='.', size=8, color=None):
 	if tess:
 		if tess.cell_label:
-			label = tess.cell_label[stats.cell_to_point]
+			label = tess.cell_label[stats.cell_index]
 		else:
 			if stats is None:
 				stats = tess.cellStats(points)
 			label = stats.ce
 	elif min_count:
 		cell_mask = min_count <= stats.cell_count
-		label = cell_mask[stats.cell_to_point]
+		label = cell_mask[stats.cell_index]
 	elif stats:
 		label = stats.cell_index
 	else:	label = None
