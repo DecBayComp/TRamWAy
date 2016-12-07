@@ -28,7 +28,7 @@ class Gas(Graph):
 	"""
 	__slots__ = ['graph', 'insertion_threshold', 'trust', 'learning_rate', \
 		'habituation_threshold', 'habituation_initial', 'habituation_alpha', \
-		'habituation_tau', 'edge_lifetime', 'batch_size', 'collapse_below']
+		'habituation_tau', 'edge_lifetime', 'batch_size', 'collapse_below', 'knn']
 
 	def connect(self, n1, n2, **kwargs):
 		self.graph.connect(n1, n2, **kwargs)
@@ -102,8 +102,9 @@ class Gas(Graph):
 		self.batch_size = 1000 # should be an order of magnitude or two below the total
 		# sample size
 		self.collapse_below = None
+		self.knn = None
 
-	def insertionThreshold(self, eta, node):
+	def insertionThreshold(self, eta, node, *vargs):
 		"""Can be overwritten with:
 		.. code-block:: python
 			def insertion_threshold(eta, node):
@@ -111,7 +112,12 @@ class Gas(Graph):
 			gas.insertionThreshold = insertion_threshold
 		"""
 		##TODO: handle time more explicitly
-		return self.insertion_threshold
+		if self.knn:
+			return max(self.insertion_threshold[0], \
+				min(vargs[0], \
+					self.insertion_threshold[1]))
+		else:
+			return self.insertion_threshold
 
 	def collapseThreshold(self, eta, node):
 		"""Same concept like :meth:`insertionThreshold`."""
@@ -177,13 +183,19 @@ class Gas(Graph):
 		if self.standsAlone(node):
 			self.delNode(node)
 
-	def batchTrain(self, sample):
+
+	def batchTrain(self, sample, eta_square=None, radius=None):
 		"""This method grows the gas for a batch of data and implements the core GWR algorithm.
 		:meth:`train` should be called instead."""
-		eta_square = np.sum(sample * sample, axis=1)
+		if eta_square is None:
+			eta_square = np.sum(sample * sample, axis=1)
+		if radius is None:
+			r = []
 		errors = []
 		for k in np.arange(0, sample.shape[0]):
 			eta = sample[k]
+			if radius is not None:
+				r = [radius[k]]
 			# find nearest and second nearest nodes
 			dist2, index_to_node = self.squareDistance('weight', eta, eta2=eta_square[k])
 			i = np.argsort(dist2)
@@ -194,11 +206,11 @@ class Gas(Graph):
 			activity = exp(-dist_min)
 			habituation = self.habituation(nearest)
 			w = self.getWeight(nearest)
-			if activity < self.insertionThreshold(eta, w) and \
+			if activity < self.insertionThreshold(eta, w, *r) and \
 				habituation < self.habituation_threshold:
 				# insert a new node and connect it with the two nearest nodes
 				self.disconnect(nearest, second_nearest)
-				l = .5 + self.trust / 2 # mixing coefficient in the range [.5, 1]
+				l = .5 + self.trust * .5 # mixing coefficient in the range [.5, 1]
 				new_node = self.addNode(weight=(1.0 - l) * w + l * eta)
 				self.connect(new_node, nearest)
 				self.connect(new_node, second_nearest)
@@ -214,8 +226,10 @@ class Gas(Graph):
 			self.habituate(nearest) # also habituates neighbors
 		return errors
 
+
 	def train(self, sample, pass_count=None, residual_max=None, error_count_tol=1e-6, \
-		min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=True, **kwargs):
+		min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=True, step=10000, \
+		**kwargs):
 		""":meth:`train` splits the sample into batches, successively calls :meth:`batchTrain` on
 		these batches of data, collapses the gas if necessary and stops if stopping criteria are 
 		met.
@@ -254,6 +268,13 @@ class Gas(Graph):
 		if residual_max:
 			if error_count_tol < 1:
 				error_count_tol = ceil(error_count_tol * float(n))
+		# local radius
+		if self.knn:
+			if not isinstance(self.insertion_threshold, tuple):
+				self.insertion_threshold = (self.insertion_threshold, \
+					self.insertion_threshold * 4)
+			eta_square = np.sum(sample * sample, axis=1)
+			radius = self.boundedRadius(sample, *self.insertion_threshold)
 		# loop
 		t = []
 		i = 0
@@ -262,7 +283,11 @@ class Gas(Graph):
 			i += 1
 			if verbose:
 				t0 = time.time()
-			r = self.batchTrain(sample[np.random.choice(n, size=self.batch_size),:])
+			batch = np.random.choice(n, size=self.batch_size)
+			if self.knn:
+				r = self.batchTrain(sample[batch], eta_square[batch], radius[batch])
+			else:
+				r = self.batchTrain(sample[batch])
 			residuals += r
 			l_prev = l
 			l = self.size
@@ -327,6 +352,29 @@ class Gas(Graph):
 			print('Elapsed:  mean: {:.0f} ms  std: {:.0f} ms'.format(np.mean(t) * 1e3, \
 									np.std(t) * 1e3))
 		return residuals
+
+
+	def boundRadius(self, sample, dmin, dmax):
+		eta_square.shape = (eta_square.size, 1)
+		w = sample.astype(np.float32)
+		w2 = eta_square.astype(np.float32) * 0.5
+		D = []
+		for i in np.arange(0, n, step):
+			j = range(i, min(i + step, n))
+			t = time.time()
+			d = np.dot(w, w[j].T)
+			d -= w2
+			d -= w2[j].T
+			print("Elapsed: {:.0f} ms".format((time.time() - t) * 1e3))
+			t = time.time()
+			d.sort(axis=0)
+			print("Elapsed: {:.0f} ms".format((time.time() - t) * 1e3))
+			d = d[(n - 1) - (self.knn + 1)].astype(sample.dtype)
+			d = np.sqrt(-2.0 * d)
+			D.append(d)
+		radius = np.concatenate(D)
+		return radius
+
 
 	def collapse(self):
 		for n in list(self.iterNodes()):

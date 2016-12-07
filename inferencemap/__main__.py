@@ -159,13 +159,13 @@ def tesselate(args):
 	if args.method:
 		if args.distance is None:
 			b = np.asarray(jumps(df)[['x','y']]) # slow
-			avg_distance = np.nanmean(np.sqrt(np.sum(b * b, axis=1)))
+			jump_length = np.nanmean(np.sqrt(np.sum(b * b, axis=1)))
 			if args.verbose:
-				print('average jump distance: {}'.format(avg_distance))
+				print('average jump distance: {}'.format(jump_length))
 		else:
-			avg_distance = args.distance
-		min_distance = 0.8 * avg_distance
-		max_distance = 2.0 * avg_distance
+			jump_length = args.distance
+		min_distance = 0.8 * jump_length
+		avg_distance = 2.0 * jump_length
 
 		methods = dict(grid=RegularMesh, qtree=QTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
 		method = methods[args.method]
@@ -175,10 +175,10 @@ def tesselate(args):
 			args.scaling = 'none'
 		scalers = dict(none=Scaler, whiten=whiten, unit=unitrange)
 		scaler = scalers[args.scaling]()
-		n_pts = df.shape[0]
+		n_pts = float(df.shape[0])
 
 		# initialize a Tesselation object
-		tess = method(scaler, min_distance=min_distance, max_distance=max_distance, \
+		tess = method(scaler, min_distance=min_distance, avg_distance=avg_distance, \
 			min_probability=float(args.cell_count) / n_pts, \
 			avg_probability=float(args.min_cell_count) / n_pts, \
 			verbose=args.verbose)
@@ -191,9 +191,9 @@ def tesselate(args):
 
 	# partition the dataset into the cells of the tesselation
 	stats = tess.cellStats(df[['x', 'y']])
+	stats.param['jump_length'] = jump_length
 	stats.param['min_distance'] = min_distance
 	stats.param['avg_distance'] = avg_distance
-	stats.param['max_distance'] = max_distance
 	stats.param['min_cell_count'] = args.min_cell_count
 	stats.param['avg_cell_count'] = args.cell_count
 	stats.param['method'] = args.method

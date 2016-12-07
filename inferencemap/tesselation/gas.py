@@ -10,22 +10,37 @@ from inferencemap.spatial.gas import Gas
 
 class GasMesh(Voronoi):
 	"""GWR based tesselation."""
-	def __init__(self, scaler=Scaler(), min_distance=None, max_distance=None, **kwargs):
+	def __init__(self, scaler=Scaler(), min_distance=None, avg_distance=None, max_distance=None, \
+		avg_probability=None, **kwargs):
 		Voronoi.__init__(self, scaler)
 		self.gas = None
 		self._min_distance = min_distance
-		self._max_distance = max_distance
+		if avg_distance or not max_distance:
+			self._avg_distance = avg_distance
+		else:
+			self._avg_distance = max_distance * 0.25
+		if max_distance or not avg_distance:
+			self._max_distance = max_distance
+		else:
+			self._max_distance = avg_distance * 4
+		self.avg_probability = avg_probability
 
 	def _preprocess(self, points, batch_size=10000, tau=333.0, trust=1.0, lifetime=50, **kwargs):
 		init = self.scaler.init
 		points = Voronoi._preprocess(self, points)
 		if init:
 			self._min_distance = self.scaler.scaleDistance(self._min_distance)
+			self._avg_distance = self.scaler.scaleDistance(self._avg_distance)
 			self._max_distance = self.scaler.scaleDistance(self._max_distance)
 		if self.gas is None:
 			self.gas = Gas(np.asarray(points))
 			if self._max_distance:
-				self.gas.insertion_threshold = exp(-self._max_distance / 2.0)
+				self.gas.insertion_threshold = (exp(-self._avg_distance * 0.5), \
+					exp(-self._max_distance * 0.5))
+				if self.avg_probability:
+					self.gas.knn = round(self.avg_probability * points.shape[0])
+				else:
+					self.gas.knn = 20
 			self.gas.trust = trust
 			self.gas.batch_size = batch_size
 			if not isinstance(tau, tuple):
@@ -33,7 +48,7 @@ class GasMesh(Voronoi):
 			self.gas.habituation_tau = tau
 			self.gas.edge_lifetime = lifetime
 			if self._min_distance:
-				self.gas.collapse_below = self._min_distance * .9
+				self.gas.collapse_below = self._min_distance * 0.9
 		return points
 
 	def tesselate(self, points, pass_count=(1,3), residual_factor=.7, error_count_tol=5e-3, \
