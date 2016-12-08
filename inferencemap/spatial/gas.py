@@ -5,6 +5,8 @@ import numpy.linalg as la
 from .graph import *
 #from .graph.array import ArrayGraph
 import matplotlib.pyplot as plt
+import matplotlib.colors as clr
+import matplotlib.patches as patches
 import time
 
 
@@ -78,13 +80,15 @@ class Gas(Graph):
 			raise ValueError
 		if graph:
 			if isinstance(graph, type):
-				self.graph = graph({'weight': None, 'habituation_counter': 0}, \
+				self.graph = graph({'weight': None, 'habituation_counter': 0, \
+						'radius': 0.0}, \
 					{'age': 0})
 			else:
 				self.graph = graph
 		else:
 			from .graph.array import ArrayGraph # default implementation
-			self.graph = ArrayGraph({'weight': None, 'habituation_counter': 0}, \
+			self.graph = ArrayGraph({'weight': None, 'habituation_counter': 0, \
+					'radius': 0.0}, \
 				{'age': 0})
 		n1 = self.addNode(weight=w1)
 		n2 = self.addNode(weight=w2)
@@ -116,12 +120,19 @@ class Gas(Graph):
 			return max(self.insertion_threshold[0], \
 				min(vargs[0], \
 					self.insertion_threshold[1]))
+			# insertion_threshold are already radii (diameters / 2)
 		else:
 			return self.insertion_threshold
 
-	def collapseThreshold(self, eta, node):
+	def collapseThreshold(self, node1, node2):
 		"""Same concept like :meth:`insertionThreshold`."""
-		return self.collapse_below
+		if self.knn:
+			radius1 = self.getNodeAttr(node1, 'radius')
+			radius2 = self.getNodeAttr(node2, 'radius')
+			return self.collapse_below / self.insertion_threshold[0] * \
+				max(radius1, radius2)
+		else:
+			return self.collapse_below
 
 	def habituationFunction(self, t, i=0):
 		"""Returns the habituation for a given time/counter."""
@@ -203,15 +214,18 @@ class Gas(Graph):
 			nearest, second_nearest = index_to_node(i[:2])
 			errors.append(dist_min)
 			# test activity and habituation against thresholds
-			activity = exp(-dist_min)
+			activity = dist_min
 			habituation = self.habituation(nearest)
 			w = self.getWeight(nearest)
-			if activity < self.insertionThreshold(eta, w, *r) and \
+			activity_threshold = self.insertionThreshold(eta, w, *r)
+			if activity_threshold < activity and \
 				habituation < self.habituation_threshold:
 				# insert a new node and connect it with the two nearest nodes
 				self.disconnect(nearest, second_nearest)
 				l = .5 + self.trust * .5 # mixing coefficient in the range [.5, 1]
 				new_node = self.addNode(weight=(1.0 - l) * w + l * eta)
+				if self.knn:
+					self.setNodeAttr(new_node, radius=activity_threshold)
 				self.connect(new_node, nearest)
 				self.connect(new_node, second_nearest)
 			else:
@@ -228,8 +242,8 @@ class Gas(Graph):
 
 
 	def train(self, sample, pass_count=None, residual_max=None, error_count_tol=1e-6, \
-		min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=True, step=10000, \
-		**kwargs):
+		min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=True, \
+		plot=False, **kwargs):
 		""":meth:`train` splits the sample into batches, successively calls :meth:`batchTrain` on
 		these batches of data, collapses the gas if necessary and stops if stopping criteria are 
 		met.
@@ -274,7 +288,8 @@ class Gas(Graph):
 				self.insertion_threshold = (self.insertion_threshold, \
 					self.insertion_threshold * 4)
 			eta_square = np.sum(sample * sample, axis=1)
-			radius = self.boundedRadius(sample, *self.insertion_threshold)
+			radius = self.boxedRadius(sample, self.knn, self.insertion_threshold[0], \
+				self.insertion_threshold[1], plot)
 		# loop
 		t = []
 		i = 0
@@ -354,22 +369,117 @@ class Gas(Graph):
 		return residuals
 
 
-	def boundRadius(self, sample, dmin, dmax):
-		eta_square.shape = (eta_square.size, 1)
+	def boxedRadius(self, sample, knn, rmin, rmax, plot=False):
+		n = sample.shape[0]
+		radius = rmin * np.ones(n, dtype=sample.dtype)
+		# bounding box(es)
+		smin = sample.min(axis=0)
+		smax = sample.max(axis=0)
+		unit = rmin * sqrt(2.0)
+		max_n_units = ceil(2.0 * rmax / unit)
+		ix = np.arange(n)
+		# grid
+		bounding_box = [(smin, smax), (smin + unit * 0.5, smax - unit * 0.5)]
+		for bmin, bmax in bounding_box:
+			bmax_ = np.ceil(bmax / unit) * unit + np.spacing(1)
+			x_grid = np.arange(bmin[0], bmax_[0], unit)
+			#x_grid[-1] = bmax[0] + np.spacing(1)
+			y_grid = np.arange(bmin[1], bmax_[1], unit)
+			#y_grid[-1] = bmax[1] + np.spacing(1)
+			# partition strategy
+			if x_grid.size <= y_grid.size:
+				grid0 = x_grid
+				grid1 = y_grid
+				x0 = sample[:, 0]
+				x1 = sample[:, 1]
+			else:
+				grid0 = y_grid
+				grid1 = x_grid
+				x0 = sample[:, 1]
+				x1 = sample[:, 0]
+			n0 = grid0.size - 1
+			n1 = grid1.size - 1
+			# partition
+			cell = dict()
+			icell = dict()
+			undefined = []
+			lower0 = np.ones(n, dtype=np.bool)
+			for i in range(n0):
+				upper0 = x0 < grid0[i+1]
+				mask0 = np.logical_and(lower0, upper0)
+				xi = x1[mask0]
+				ix0 = ix[mask0]
+				lower0 = np.logical_not(upper0)
+				ni = xi.shape[0]
+				lower1 = np.ones(ni, dtype=np.bool)
+				for j in range(n1):
+					upper1 = xi < grid1[j+1]
+					ix1 = ix0[np.logical_and(lower1, upper1)]
+					xj = sample[ix1]
+					cell[(i,j)] = xj
+					if 0 < xj.size and xj.shape[0] < knn:
+						undefined.append((i,j))
+						icell[(i,j)] = ix1
+					lower1 = np.logical_not(upper1)
+			#print(len(undefined))
+			# compute radius where point density is low
+			for i, j in undefined:
+				nij = 0
+				m = 0
+				while nij < knn:
+					m += 1
+					Xij = [ cell[(k,l)] for k in range(i-m,i+m) for l in range(j-m,j+m) \
+						if 0 <= k and k < n0 and 0 <= l and l < n1 ]
+					nij = sum([ x.shape[0] for x in Xij ])
+				Xij = np.concatenate(Xij, axis=0)
+				xij = cell[(i,j)]
+				D = np.dot(xij, Xij.T)
+				x2 = np.sum(xij * xij, axis=1)
+				x2.shape = (x2.size, 1)
+				D -= 0.5 * x2
+				X2 = np.sum(Xij * Xij, axis=1)
+				X2.shape = (1, X2.size)
+				D -= 0.5 * X2
+				D.sort()
+				r = D[:, (nij - 1) - knn]
+				del D
+				r = np.sqrt(-2.0 * r)
+				r[np.isnan(r)] = 0.0
+				#if any(r < rmin):
+				#	print(r)
+				radius[icell[(i,j)]] = np.maximum(radius[icell[(i,j)]], r)
+		# plot local radius
+		if plot:
+			color = np.minimum((radius - rmin) / (rmax - rmin), 1.0) * 0.9
+			cmap = plt.get_cmap('RdPu')
+			fig = plt.figure()
+			ax = fig.add_subplot(111, aspect='equal')
+			for i in range(n):
+				c = color[i]
+				if np.spacing(1) < c:
+					ax.add_artist(patches.Circle(sample[i], radius[i], \
+						color=cmap(1 - c), alpha=0.2))
+			plt.plot(sample[:,0], sample[:,1], 'k+')
+			plt.show()
+		return radius
+
+	def exactRadius(self, sample, eta_square, knn, step, *vargs):
+		n = sample.shape[0]
 		w = sample.astype(np.float32)
 		w2 = eta_square.astype(np.float32) * 0.5
+		w2.shape = (w2.size, 1)
 		D = []
-		for i in np.arange(0, n, step):
+		for i in range(0, n, step):
 			j = range(i, min(i + step, n))
 			t = time.time()
-			d = np.dot(w, w[j].T)
-			d -= w2
-			d -= w2[j].T
+			d = np.dot(w[j], w.T)
+			d -= w2[j]
+			d -= w2.T
 			print("Elapsed: {:.0f} ms".format((time.time() - t) * 1e3))
 			t = time.time()
-			d.sort(axis=0)
+			d.sort() # along last axis if faster
 			print("Elapsed: {:.0f} ms".format((time.time() - t) * 1e3))
-			d = d[(n - 1) - (self.knn + 1)].astype(sample.dtype)
+			d = d[:, (n - 1) - (self.knn + 1)].astype(sample.dtype)
 			d = np.sqrt(-2.0 * d)
 			D.append(d)
 		radius = np.concatenate(D)
@@ -386,8 +496,8 @@ class Gas(Graph):
 						np.vstack([ self.getWeight(n)
 							for n in neighbors ]), axis=1)
 					k = np.argmin(dist)
-					if dist[k] < self.collapse_below:
-						neighbor = neighbors[k]
+					neighbor = neighbors[k]
+					if dist[k] < self.collapseThreshold(n, neighbor):
 						#print((n, neighbor))
 						self.collapseNodes(n, neighbor)
 

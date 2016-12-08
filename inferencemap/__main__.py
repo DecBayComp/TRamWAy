@@ -60,7 +60,7 @@ def render(args):
 		GasMesh: ('gwr', 'gwr-based tesselation')}
 	method_name, method_title = method_name[type(tess)]
 	min_distance = stats.param.get('min_distance', 0)
-	max_distance = stats.param.get('max_distance', None)
+	avg_distance = stats.param.get('avg_distance', None)
 	min_cell_count = stats.param.get('min_cell_count', 0)
 
 	# plot the data points together with the tesselation
@@ -112,9 +112,9 @@ def render(args):
 		dist = la.norm(pts[i,:] - pts[j,:], axis=1)
 		fig2 = plt.figure()
 		plt.hist(np.log(dist), bins=50)
-		if max_distance:
+		if avg_distance:
 			dmin = np.log(min_distance)
-			dmax = np.log(max_distance)
+			dmax = np.log(avg_distance)
 			plt.plot((dmin, dmin), plt.ylim(), 'r-')
 			plt.plot((dmax, dmax), plt.ylim(), 'r-')
 		plt.title(method_title)
@@ -130,9 +130,9 @@ def render(args):
 		dist = adj.data
 		fig3 = plt.figure()
 		plt.hist(np.log(dist), bins=100)
-		if max_distance:
+		if avg_distance:
 			dmin = np.log(min_distance)
-			dmax = np.log(max_distance)
+			dmax = np.log(avg_distance)
 			plt.plot((dmin, dmin), plt.ylim(), 'r-')
 			plt.plot((dmax, dmax), plt.ylim(), 'r-')
 		plt.title(method_title)
@@ -180,11 +180,10 @@ def tesselate(args):
 		# initialize a Tesselation object
 		tess = method(scaler, min_distance=min_distance, avg_distance=avg_distance, \
 			min_probability=float(args.cell_count) / n_pts, \
-			avg_probability=float(args.min_cell_count) / n_pts, \
-			verbose=args.verbose)
+			avg_probability=float(args.min_cell_count) / n_pts)
 
 		# grow the tesselation
-		tess.tesselate(df[['x', 'y']])
+		tess.tesselate(df[['x', 'y']], verbose=args.verbose)
 
 	else:
 		raise NotImplementedError

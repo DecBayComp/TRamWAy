@@ -159,7 +159,7 @@ class Delaunay(Tesselation):
 		self._cell_centers = self._preprocess(points)
 
 	def cellIndex(self, points, knn=None):
-		D = cdist(np.asarray(self.scaler.scalePoint(points.copy(deep=False))), \
+		D = cdist(np.asarray(self.scaler.scalePoint(points, inplace=False)), \
 				self._cell_centers)
 		if knn:
 			I = np.argsort(D, axis=0)[:knn].flatten()

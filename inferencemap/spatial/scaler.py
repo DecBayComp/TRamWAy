@@ -27,7 +27,7 @@ class Scaler(object):
 	@property
 	def ready(self): return not (self.function and self.init)
 
-	def scalePoint(self, points):
+	def scalePoint(self, points, inplace=True):
 		if self.function:
 			if self.init:
 				self.center, self.factor = self.function(points)
@@ -38,33 +38,41 @@ class Scaler(object):
 						xyz = points[:,self.euclidian]
 					_, self.factor[self.euclidian] = self.function(xyz.flatten())
 				self.init = False
+			if not inplace:
+				points = points.copy(deep=False)
 			if self.center is not None:
 				points -= self.center
 			if self.factor is not None:
 				points /= self.factor
 		return points
 
-	def unscalePoint(self, points):
+	def unscalePoint(self, points, inplace=True):
 		if self.function:
 			if self.init: raise AttributeError('scaler has not been initialized')
+			if not inplace:
+				points = points.copy(deep=False)
 			if self.factor is not None:
 				points *= self.factor
 			if self.center is not None:
 				points += self.center
 		return points
 
-	def scaleVector(self, vect):
+	def scaleVector(self, vect, inplace=True):
 		if self.function:
 			if self.init: raise AttributeError('scaler has not been initialized')
+			if not inplace:
+				vect = vect.copy(deep=False)
 			if self.factor is not None:
 				vect /= self.factor
 		return vect
 
-	def scaleDistance(self, dist):
+	def scaleDistance(self, dist, inplace=True):
 		if self.function:
 			if self.init: raise AttributeError('scaler has not been initialized')
 			if self.factor is not None:
 				if self.euclidian:
+					if not inplace:
+						dist = dist.copy(deep=False)
 					dist /= self.factor[self.euclidian[0]]
 				else:
 					raise AttributeError('distance cannot be scaled because no euclidian variables have been designated')

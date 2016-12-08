@@ -52,7 +52,7 @@ def plot_voronoi(tess, stats, color=None, style='-', centroid_style='r+'):
 		if tess.adjacency_label is None:
 			color = 'r'
 		else:
-			color = 'wgyr'
+			color = 'wgyrb'
 	# plot voronoi
 	for edge_ix, vert_ids in enumerate(tess.ridge_vertices):
 		if all(0 <= vert_ids):
