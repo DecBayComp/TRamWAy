@@ -2,8 +2,7 @@
 
 This re-implementation of InferenceMAP for now focuses on meshing the space of the moving particles, as a preliminary step for infering spatial maps of diffusivity and potential.
 
-**Disclaimer**
-
+**Disclaimer:**
 This implementation is under heavy development and is not yet suitable even for testing purposes!
 To get the official implementation, please follow [this link](https://research.pasteur.fr/en/software/inferencemap/ "research.pasteur.fr/en/software/inferencemap").
 
@@ -11,9 +10,9 @@ To get the official implementation, please follow [this link](https://research.p
 
 You will need Python >= 2.7 or >= 3.5.
 
-> git clone https://github.com/influencecell/inferencemap
-> cd inferencemap
-> pip install .
+	git clone https://github.com/influencecell/inferencemap
+	cd inferencemap
+	pip install .
 
 ## General usage
 
