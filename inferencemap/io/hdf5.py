@@ -15,7 +15,8 @@ hdf5_storable(default_storable(Gas), agnostic=True)
 from inferencemap.spatial.graph.array import ArrayGraph
 hdf5_storable(default_storable(ArrayGraph), agnostic=True)
 
-from inferencemap.tesselation import CellStats, Delaunay, Voronoi, RegularMesh, KMeansMesh, GasMesh
+from inferencemap.tesselation import CellStats, Delaunay, Voronoi, RegularMesh, KDTreeMesh, KMeansMesh, \
+	GasMesh
 # CellStats
 hdf5_storable(default_storable(CellStats), agnostic=True)
 # Delaunay
@@ -29,6 +30,10 @@ hdf5_storable(default_storable(Voronoi, exposes=voronoi_exposes), agnostic=True)
 regular_mesh_exposes = voronoi_exposes + ['lower_bound', 'upper_bound', 'count_per_dim', \
 	'min_probability', 'max_probability', 'avg_probability']
 hdf5_storable(default_storable(RegularMesh, exposes=regular_mesh_exposes), agnostic=True)
+# KDTreeMesh
+kdtree_mesh_exposes = voronoi_exposes + ['lower_bound', 'upper_bound', '_min_distance', \
+	'min_probability', 'width', 'origin', 'max_level', 'level']
+hdf5_storable(default_storable(KDTreeMesh, exposes=kdtree_mesh_exposes), agnostic=True)
 # KMeansMesh
 kmeans_mesh_exposes = voronoi_exposes + ['avg_probability']
 hdf5_storable(default_storable(KMeansMesh, exposes=kmeans_mesh_exposes), agnostic=True)

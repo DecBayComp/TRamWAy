@@ -255,7 +255,7 @@ class RegularMesh(Voronoi):
 		self.max_probability = max_probability
 		self.avg_probability = avg_probability
 
-	def tesselate(self, points):
+	def tesselate(self, points, **kwargs):
 		#points = self._preprocess(points)
 		if self.lower_bound is None:
 	 		self.lower_bound = points.min(axis=0)

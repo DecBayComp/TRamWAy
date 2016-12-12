@@ -23,7 +23,7 @@ class KMeansMesh(Voronoi):
 		self._cell_centers = grid._cell_centers
 		return points
 
-	def tesselate(self, points, tol=1e-3):
+	def tesselate(self, points, tol=1e-3, **kwargs):
 		points = self._preprocess(points)
 		self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
 			thresh=tol)

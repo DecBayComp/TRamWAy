@@ -55,7 +55,7 @@ def render(args):
 	tess = hdf.peek('mesh')
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'regular grid'), \
-		QTreeMesh: ('qtree', 'quad-tree-based tesselation'), \
+		KDTreeMesh: ('kdtree', 'kD-tree-based tesselation'), \
 		KMeansMesh: ('kmeans', 'k-means-based tesselation'), \
 		GasMesh: ('gwr', 'gwr-based tesselation')}
 	method_name, method_title = method_name[type(tess)]
@@ -167,7 +167,7 @@ def tesselate(args):
 		min_distance = 0.8 * jump_length
 		avg_distance = 2.0 * jump_length
 
-		methods = dict(grid=RegularMesh, qtree=QTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
+		methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
 		method = methods[args.method]
 		if args.w:
 			args.scaling = 'whiten'
@@ -179,8 +179,8 @@ def tesselate(args):
 
 		# initialize a Tesselation object
 		tess = method(scaler, min_distance=min_distance, avg_distance=avg_distance, \
-			min_probability=float(args.cell_count) / n_pts, \
-			avg_probability=float(args.min_cell_count) / n_pts)
+			min_probability=float(args.min_cell_count) / n_pts, \
+			avg_probability=float(args.cell_count) / n_pts)
 
 		# grow the tesselation
 		tess.tesselate(df[['x', 'y']], verbose=args.verbose)
@@ -243,7 +243,7 @@ if __name__ == '__main__':
 	tesselate_parser = sub.add_parser('tesselate')
 	tesselate_parser.set_defaults(func=tesselate)
 	tesselate_group1 = tesselate_parser.add_mutually_exclusive_group(required=True)
-	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'qtree', 'kmeans', 'gwr'])
+	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'])
 	tesselate_group1.add_argument('-r', '--reuse', \
 		#nargs='?', type=argparse.FileType('r'), default=sys.stdin, \
 		help='apply precomputed tesselation from file')
