@@ -71,8 +71,8 @@ For more options:
 
 ## Plotting
 
-	python -i data/glycine_receptor.imt.h5 render
-	python -i data/glycine_receptor.imt.h5 render -H cdp
-	python -i data/glycine_receptor.imt.h5 render --print png
+	python -m inferencemap -i data/glycine_receptor.imt.h5 render
+	python -m inferencemap -i data/glycine_receptor.imt.h5 render -H cdp
+	python -m inferencemap -i data/glycine_receptor.imt.h5 render --print png
 (to do)
 
