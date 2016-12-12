@@ -52,7 +52,7 @@ Example:
 
 > python -m inferencemap -v -i data/glycine_receptor.trxyt tesselate -m gwr -d 0.1843
 
-Another key parameter is `-knn`. It combines with any of the above methods and allows to impose an upper bound on the number of points (or nearest neighbors) associated to each cell of the mesh, independently of the way the mesh has been grown.
+Another key parameter is `-knn`. It combines with any of the above methods and allows to impose an upper bound on the number of points (or nearest neighbors) associated with each cell of the mesh, independently of the way the mesh has been grown.
 
 For more options:
 
