@@ -37,8 +37,7 @@ class GasMesh(Voronoi):
 		if self.gas is None:
 			self.gas = Gas(np.asarray(points))
 			if self._max_distance:
-				self.gas.insertion_threshold = (self._avg_distance * 0.5, \
-					self._max_distance * 0.5)
+				self.gas.insertion_threshold = (self._avg_distance, self._max_distance)
 				if self.avg_probability:
 					self.gas.knn = int(round(2.0 * self.avg_probability * \
 						points.shape[0]))
@@ -110,12 +109,10 @@ class GasMesh(Voronoi):
 					xj = points[ix == J[k]]
 					if xi.size and xj.size:
 						dij = np.dot(xi, xj.T)
-						xi2 = np.sum(xi * xi, axis=1)
-						xi2.shape = (xi2.size, 1)
+						xi2 = np.sum(xi * xi, axis=1, keepdims=True)
 						dij -= 0.5 * xi2
-						xj2 = np.sum(xj * xj, axis=1)
-						xj2.shape = (1, xj2.size)
-						dij -= 0.5 * xj2
+						xj2 = np.sum(xj * xj, axis=1, keepdims=True)
+						dij -= 0.5 * xj2.T
 						dij = dij.flatten()
 						dij.sort()
 						dij = dij[-self.gas.knn/4]

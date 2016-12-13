@@ -158,9 +158,9 @@ class Delaunay(Tesselation):
 	def tesselate(self, points):
 		self._cell_centers = self._preprocess(points)
 
-	def cellIndex(self, points, knn=None):
+	def cellIndex(self, points, knn=None, metric='euclidian', **kwargs):
 		D = cdist(np.asarray(self.scaler.scalePoint(points, inplace=False)), \
-				self._cell_centers)
+				self._cell_centers, metric, **kwargs)
 		if knn:
 			I = np.argsort(D, axis=0)[:knn].flatten()
 			J = np.repeat(range(0, D.shape[1]), knn)

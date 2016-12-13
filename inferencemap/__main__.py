@@ -165,7 +165,8 @@ def tesselate(args):
 		else:
 			jump_length = args.distance
 		min_distance = 0.8 * jump_length
-		avg_distance = 2.0 * jump_length
+		avg_distance = 1.0 * jump_length
+		#max_distance = 2.0 * jump_length
 
 		methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
 		method = methods[args.method]
@@ -179,6 +180,7 @@ def tesselate(args):
 
 		# initialize a Tesselation object
 		tess = method(scaler, min_distance=min_distance, avg_distance=avg_distance, \
+			#max_distance=max_distance, \
 			min_probability=float(args.min_cell_count) / n_pts, \
 			avg_probability=float(args.cell_count) / n_pts)
 
@@ -193,6 +195,7 @@ def tesselate(args):
 	stats.param['jump_length'] = jump_length
 	stats.param['min_distance'] = min_distance
 	stats.param['avg_distance'] = avg_distance
+	#stats.param['max_distance'] = max_distance
 	stats.param['min_cell_count'] = args.min_cell_count
 	stats.param['avg_cell_count'] = args.cell_count
 	stats.param['method'] = args.method
