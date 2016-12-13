@@ -42,7 +42,7 @@ A `data/glycine_receptor.imt.h5` file will be generated. This file contains some
 The `-m` option controls the tesselation method. The following methods are available:
 
 * Regular mesh: `-m grid`
-* k-d-tree (or quadtree in the 2D case); `-m kdtree` (warning! still crashes!)
+* k-d-tree (or quadtree in the 2D case); `-m kdtree`
 * k-means-based mesh: `-m kmeans`
 * Growing When Required-based mesh: `-m gwr`
 

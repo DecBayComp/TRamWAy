@@ -29,7 +29,7 @@ class KDTreeMesh(Voronoi):
 		self.max_level = None
 
 	def cellIndex(self, points, knn=None, metric='chebyshev', **kwargs):
-		return Delaunay.cellIndex(self, points, knn, metric=metric, **kwargs)
+		return Delaunay.cellIndex(self, points, knn=knn, metric=metric, **kwargs)
 
 	def tesselate(self, points, **kwargs):
 		init = self.scaler.init
@@ -65,7 +65,7 @@ class KDTreeMesh(Voronoi):
 			return np.sum(face_normal * (face_vertex - vertex), axis=1, keepdims=True) == 0
 		self.exterior = np.concatenate([ onface(self.unit_hypercube, v, n) \
 			for v, n in zip(self.face_vertex, self.face_normal) ], axis=1)
-		self.scale = 2.0 ** np.arange(0, -self.max_level-1, -1)
+		self.scale = 2.0 ** np.arange(0, -self.max_level-2, -1)
 		self.subset = {0: np.asarray(points)}
 		self.subset_counter = 1
 		self.subset_lock = Lock()
@@ -163,9 +163,9 @@ class KDTreeMesh(Voronoi):
 		#level = len(path)
 		points = self.subset[ss_ref]
 		ok = level < self.max_level and self.min_count < points.shape[0]
+		level += 1
 		if ok:
 			# split and check that every subarea has at least min_count points
-			level += 1
 			ss_refs = dict()
 			lower = dict()
 			for i, step in enumerate(self.unit_hypercube): # could be parallelized

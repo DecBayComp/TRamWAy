@@ -2,7 +2,6 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-#from ..mesh.tesselation import *
 import itertools
 
 
@@ -13,7 +12,7 @@ def plot_points(points, stats=None, tess=None, min_count=None, style='.', size=8
 		else:
 			if stats is None:
 				stats = tess.cellStats(points)
-			label = stats.ce
+			label = stats.cell_index
 	elif min_count:
 		cell_mask = min_count <= stats.cell_count
 		label = cell_mask[stats.cell_index]
@@ -46,7 +45,7 @@ def plot_points(points, stats=None, tess=None, min_count=None, style='.', size=8
 				style, color=color[i], markersize=size)
 
 
-def plot_voronoi(tess, stats, color=None, style='-', centroid_style='r+'):
+def plot_voronoi(tess, stats, color=None, style='-', centroid_style='g+'):
 	vertices = np.asarray(tess.cell_vertices)
 	if not color:
 		if tess.adjacency_label is None:
