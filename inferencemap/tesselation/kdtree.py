@@ -17,7 +17,7 @@ def face_hash(v1, n1):
 class KDTreeMesh(Voronoi):
 	"""k-dimensional tree (quad tree in 2D) based tesselation."""
 	def __init__(self, scaler=None, lower_bound=None, upper_bound=None, min_distance=None, \
-		min_probability=None, max_probability=None, **kwargs):
+		min_probability=None, max_probability=None, lower_levels=None, **kwargs):
 		Voronoi.__init__(self, Scaler())
 		self.lower_bound = lower_bound
 		self.upper_bound = upper_bound
@@ -26,10 +26,24 @@ class KDTreeMesh(Voronoi):
 		if min_probability and not max_probability:
 			max_probability = 10.0 * min_probability
 		self.max_probability = max_probability
+		self.min_level = 0
 		self.max_level = None
+		self.lower_levels = lower_levels
 
 	def cellIndex(self, points, knn=None, metric='chebyshev', **kwargs):
-		return Delaunay.cellIndex(self, points, knn=knn, metric=metric, **kwargs)
+		if metric == 'chebyshev':
+			D = cdist(np.asarray(self.scaler.scalePoint(points, inplace=False)), \
+					self._cell_centers, metric, **kwargs)
+			dmax = self.width * self.scale[self.level[np.newaxis,:] + 1]
+			I, J = np.nonzero(D <= dmax)
+			if I[0] == 0 and I.size == points.shape[0] and I[-1] == points.shape[0] - 1:
+				return J
+			else:
+				K = -np.ones(points.shape[0], dtype=J.dtype)
+				K[I] = J
+				return K
+		else:
+			return Delaunay.cellIndex(self, points, knn=knn, metric=metric, **kwargs)
 
 	def tesselate(self, points, **kwargs):
 		init = self.scaler.init
@@ -48,8 +62,13 @@ class KDTreeMesh(Voronoi):
 			lower = np.asarray(self.lower_bound)
 			upper = np.asarray(self.upper_bound)
 			self.width = np.max(upper - lower)
-			self.origin = 0.5 * (lower + upper - self.width)
-			self.max_level = int(floor((log(self.width) - log(self._min_distance)) / log(2)))
+			self.max_level = int(ceil((log(self.width) - log(self._min_distance)) / log(2.0)))
+			if self.lower_levels:
+				self.min_level = self.max_level - self.lower_levels
+			del self.lower_levels
+			center = 0.5 * (lower + upper)
+			self.width = self._min_distance * 2.0 ** self.max_level
+			self.origin = center - 0.5 * self.width
 		self.min_count = int(round(self.min_probability * points.shape[0]))
 		self.max_count = int(round(self.max_probability * points.shape[0]))
 		self.dim = points.shape[1]
@@ -164,7 +183,7 @@ class KDTreeMesh(Voronoi):
 		points = self.subset[ss_ref]
 		ok = level < self.max_level and self.min_count < points.shape[0]
 		level += 1
-		if ok:
+		if ok or level <= self.min_level:
 			# split and check that every subarea has at least min_count points
 			ss_refs = dict()
 			lower = dict()
@@ -182,7 +201,7 @@ class KDTreeMesh(Voronoi):
 			counts = [ self.subset[r].shape[0] for r in ss_refs.values() ]
 			ok = any([ self.max_count < c for c in counts ]) or \
 				all([ self.min_count < c for c in counts ])
-		if ok:
+		if ok or level <= self.min_level:
 			interior_cells = dict()
 			exterior_cells = dict()
 			# split

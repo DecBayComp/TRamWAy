@@ -177,12 +177,18 @@ def tesselate(args):
 		scalers = dict(none=Scaler, whiten=whiten, unit=unitrange)
 		scaler = scalers[args.scaling]()
 		n_pts = float(df.shape[0])
+		if args.max_cell_count:
+			max_probability = float(args.max_cell_count) / n_pts
+		else:
+			max_probability = None
 
 		# initialize a Tesselation object
 		tess = method(scaler, min_distance=min_distance, avg_distance=avg_distance, \
 			#max_distance=max_distance, \
 			min_probability=float(args.min_cell_count) / n_pts, \
-			avg_probability=float(args.cell_count) / n_pts)
+			avg_probability=float(args.cell_count) / n_pts, \
+			max_probability=max_probability, \
+			lower_levels=args.lower_levels)
 
 		# grow the tesselation
 		tess.tesselate(df[['x', 'y']], verbose=args.verbose)
@@ -198,7 +204,10 @@ def tesselate(args):
 	#stats.param['max_distance'] = max_distance
 	stats.param['min_cell_count'] = args.min_cell_count
 	stats.param['avg_cell_count'] = args.cell_count
+	stats.param['max_cell_count'] = args.max_cell_count
 	stats.param['method'] = args.method
+	if args.method == 'kdtree':
+		stats.param['lower_levels'] = args.lower_levels
 
 	# save `stats` and `tess`
 	if args.output is None:
@@ -253,16 +262,23 @@ if __name__ == '__main__':
 	tesselate_parser.add_argument('-n', '--knn', type=int, \
 		help='maximum number of nearest neighbors')
 	tesselate_parser.add_argument('-d', '--distance', type=float, help='average jump distance')
+	#tesselate_parser.add_argument('-r', '--frame-rate', type=float, help='frame rate')
+	#tesselate_parser.add_argument('-t', '--time-regularization', 
 	tesselate_group2 = tesselate_parser.add_mutually_exclusive_group()
 	tesselate_group2.add_argument('-w', action='store_true', help='whiten the input data')
 	tesselate_group2.add_argument('--scaling', choices=['whiten', 'unit'])
 	tesselate_parser.add_argument('-s', '--min-cell-count', type=int, default=20, \
 		help='minimum number of points per cell')
+	kdtree_parser = tesselate_parser
+	kdtree_parser.add_argument('-S', '--max-cell-count', type=int, \
+		help='maximum number of points per cell [kdtree]')
+	kdtree_parser.add_argument('-l', '--lower-levels', type=int, \
+		help='number of levels below the smallest one [kdtree]')
 	grid_parser = tesselate_parser
-	grid_parser.add_argument('-S', '--cell-count', type=int, default=80, \
+	grid_parser.add_argument('-c', '--cell-count', type=int, default=80, \
 		help='average number of points per cell [grid|kmeans]')
 	#gwr_parser = tesselate_parser
-	#gwr_parser.add_argument('-S', '--cell-count', type=int, default=80, \
+	#gwr_parser.add_argument('-c', '--cell-count', type=int, default=80, \
 	#	help='average number of points per cell [gwr]')
 	
 	# parse
