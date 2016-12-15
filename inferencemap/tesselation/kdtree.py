@@ -112,6 +112,18 @@ class KDTreeMesh(Voronoi):
 		n = origin.shape[0]
 		self._cell_vertices = []
 		self._ridge_vertices = []
+		## new implementation
+		#def unique_rows(data):
+		#	uniq = np.unique(data.view(data.dtype.descr * data.shape[1]))
+		#	return uniq.view(data.dtype).reshape(-1, data.shape[1])
+		#def unique_rows(data):
+		#	rows = [tuple(row) for row in data]
+		#	return np.unique(rows)
+		#def unique_rows(data):
+		#	ind = np.lexsort(data.T)
+		#	return data[np.concatenate(([True], \
+		#		np.any(data[ind[1:]] != data[ind[:-1]], axis=1)))]
+		##
 		for i, v1 in enumerate(self.unit_hypercube):
 			self._cell_vertices.append(origin + \
 				self.width * np.float_(v1) * self.scale[self.level[:, np.newaxis]])
