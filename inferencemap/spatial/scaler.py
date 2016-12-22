@@ -7,22 +7,22 @@ class Scaler(object):
 	""":class:`Scaler` scales data points, point differences (vectors) or distances.
 	It initializes itself with the first provided sample, and then scales equally the next samples.
 	It manages a constraint in the calculation of the scaling parameters, forcing a common factors
-	over a subset of dimensions. Attribute :attr:`euclidian` controls the selection of this subset.
+	over a subset of dimensions. Attribute :attr:`euclidean` controls the selection of this subset.
         Distances are scaled and unscaled only in this subspace, if it is defined.
 	A default `Scaler()` instance does not scale, neither raises errors.
 
 	Beware that when possible data are scaled in place."""
-	__slots__ = ['init', 'center', 'factor', 'function', 'euclidian']
+	__slots__ = ['init', 'center', 'factor', 'function', 'euclidean']
 
-	def __init__(self, scale=None, euclidian=None):
+	def __init__(self, scale=None, euclidean=None):
 		self.init   = True
 		self.center = None
 		self.factor = None
 		self.function = scale
-		if euclidian and not \
-			(isinstance(euclidian, list) and euclidian[1:]):
-			raise TypeError('`euclidian` should be a multi-element list')
-		self.euclidian = euclidian
+		if euclidean and not \
+			(isinstance(euclidean, list) and euclidean[1:]):
+			raise TypeError('`euclidean` should be a multi-element list')
+		self.euclidean = euclidean
 
 	@property
 	def ready(self): return not (self.function and self.init)
@@ -31,12 +31,12 @@ class Scaler(object):
 		if self.function:
 			if self.init:
 				self.center, self.factor = self.function(points)
-				if self.euclidian:
+				if self.euclidean:
 					if isinstance(points, pd.DataFrame):
-						xyz = points[self.euclidian].values
+						xyz = points[self.euclidean].values
 					else:
-						xyz = points[:,self.euclidian]
-					_, self.factor[self.euclidian] = self.function(xyz.flatten())
+						xyz = points[:,self.euclidean]
+					_, self.factor[self.euclidean] = self.function(xyz.flatten())
 				self.init = False
 			if not inplace:
 				points = points.copy(deep=False)
@@ -70,12 +70,12 @@ class Scaler(object):
 		if self.function:
 			if self.init: raise AttributeError('scaler has not been initialized')
 			if self.factor is not None:
-				if self.euclidian:
+				if self.euclidean:
 					if not inplace:
 						dist = dist.copy(deep=False)
-					dist /= self.factor[self.euclidian[0]]
+					dist /= self.factor[self.euclidean[0]]
 				else:
-					raise AttributeError('distance cannot be scaled because no euclidian variables have been designated')
+					raise AttributeError('distance cannot be scaled because no euclidean variables have been designated')
 		return dist
 
 

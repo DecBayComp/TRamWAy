@@ -85,21 +85,21 @@ class Tesselation(object):
 		self._adjacency_label = None
 
 	def _preprocess(self, points):
-		if self._cell_centers is None and self.scaler.euclidian is None:
+		if self._cell_centers is None and self.scaler.euclidean is None:
 			# initialize
 			if isinstance(points, pd.DataFrame):
-				self.scaler.euclidian = ['x', 'y']
+				self.scaler.euclidean = ['x', 'y']
 				if not ('x' in points and 'y' in points): # enforce presence of 'x' and 'y'
 					raise AttributeError('missing ''x'' or ''y'' in input dataframe.')
 				if 'z' in points:
-					self.scaler.euclidian.append('z')
-			else:	self.scaler.euclidian = np.arange(0, points.shape[1])
+					self.scaler.euclidean.append('z')
+			else:	self.scaler.euclidean = np.arange(0, points.shape[1])
 		return self.scaler.scalePoint(points)
 
 	def tesselate(self, points, **kwargs):
 		''':meth:`tesselate` takes a :class:`pandas.core.frame.DataFrame` or :class:`numpy.array`.
 		Columns of the `DataFrame` are treated according to their name: 'x', 'y' and 'z' are 
-		spatial variables and are included in :attr:`~mesh.scaler.Scaler.euclidian`.'''
+		spatial variables and are included in :attr:`~mesh.scaler.Scaler.euclidean`.'''
 		raise NotImplementedError
 
 	def cellIndex(self, points):
@@ -158,7 +158,7 @@ class Delaunay(Tesselation):
 	def tesselate(self, points):
 		self._cell_centers = self._preprocess(points)
 
-	def cellIndex(self, points, knn=None, metric='euclidian', **kwargs):
+	def cellIndex(self, points, knn=None, metric='euclidean', **kwargs):
 		D = cdist(np.asarray(self.scaler.scalePoint(points, inplace=False)), \
 				self._cell_centers, metric, **kwargs)
 		if knn:
