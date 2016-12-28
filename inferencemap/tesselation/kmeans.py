@@ -5,19 +5,25 @@ from math import *
 import numpy as np
 import pandas as pd
 from scipy.cluster.vq import kmeans
+from scipy.spatial.distance import cdist
 
 
 class KMeansMesh(Voronoi):
 	"""K-Means and Voronoi based tesselation."""
-	def __init__(self, scaler=Scaler(), min_probability=None, avg_probability=None, **kwargs):
+	def __init__(self, scaler=Scaler(), min_probability=None, avg_probability=None, \
+		min_distance=None, **kwargs):
 		Voronoi.__init__(self, scaler)
 		#self.min_probability = min_probability
 		#self.max_probability = None
 		self.avg_probability = avg_probability
 		#self.local_probability = None
+		self._min_distance = min_distance
 
 	def _preprocess(self, points):
+		init = self.scaler.init
 		points = Voronoi._preprocess(self, points)
+		if init:
+			self._min_distance = self.scaler.scaleDistance(self._min_distance)
 		grid = RegularMesh(avg_probability=self.avg_probability)
 		grid.tesselate(points)
 		self._cell_centers = grid._cell_centers
@@ -31,9 +37,8 @@ class KMeansMesh(Voronoi):
 		points = self._preprocess(points)
 		self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
 			thresh=tol)
-		if False:
+		if True:
 			from sklearn.svm import OneClassSVM
-			#self._postprocess()
 			if self.roi_subset_size < points.shape[0]:
 				permutation = np.random.permutation(points.shape[0])
 				subsets = [ np.asarray(points)[permutation[i*self.roi_subset_size:(i+1)*self.roi_subset_size]] \
@@ -42,12 +47,51 @@ class KMeansMesh(Voronoi):
 				subsets = [np.asarray(points)]
 			self.roi = []
 			selected_centers = np.zeros(self._cell_centers.shape[0], dtype=bool)
+			selected_vertices = np.zeros(self.cell_vertices.shape[0], dtype=bool)
 			for subset in subsets:
 				roi = OneClassSVM(nu=0.01, kernel='rbf', gamma=1, max_iter=1e5)
 				roi.fit(subset)
 				selected_centers = np.logical_or(selected_centers, roi.predict(self._cell_centers) == 1)
+				selected_vertices = np.logical_or(selected_vertices, roi.predict(self._cell_vertices) == 1)
 				self.roi.append(roi)
-			if True:#plot:
+			self._postprocess()
+			self._adjacency_label = np.ones(self._cell_adjacency.data.size, dtype=bool)
+			# copy/paste from tesselation.gas
+			points = np.asarray(points)
+			ix = np.argmin(cdist(points, self._cell_centers), axis=1)
+			I = np.repeat(np.arange(self._cell_adjacency.indptr.size - 1), \
+				np.diff(self._cell_adjacency.indptr))
+			J = self._cell_adjacency.indices
+			#
+			for edge, ridge in enumerate(self.ridge_vertices):
+				v0, v1 = ridge
+				if not (selected_vertices[v0] and selected_vertices[v1]):
+					if (not selected_vertices[v0]) and (not selected_vertices[v1]):
+						# delete link
+						self._adjacency_label[edge] = False
+					else:
+						# check just like tesselation.gas
+						xi = points[ix == I[edge]]
+						xj = points[ix == J[edge]]
+						if xi.size and xj.size:
+							dij = np.dot(xi, xj.T)
+							xi2 = np.sum(xi * xi, axis=1, keepdims=True)
+							dij -= 0.5 * xi2
+							xj2 = np.sum(xj * xj, axis=1, keepdims=True)
+							dij -= 0.5 * xj2.T
+							dij = dij.flatten()
+							dij.sort()
+							try:
+								dij = dij[-10] # 10 hard coded!
+							except: # disconnect
+								self._adjacency_label[edge] = False
+								continue
+							dij = np.sqrt(-2.0 * dij)
+							if self._min_distance < dij: # disconnect
+								self._adjacency_label[edge] = False
+						elif verbose:
+							print((edge, I[edge], J[edge], xi.shape, xj.shape))
+			if plot:
 				if points.shape[1] == 2:
 					import matplotlib.pyplot as plt
 					if isinstance(self.lower_bound, pd.DataFrame):

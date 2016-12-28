@@ -13,7 +13,7 @@ import time
 class GasMesh(Voronoi):
 	"""GWR based tesselation."""
 	def __init__(self, scaler=Scaler(), min_distance=None, avg_distance=None, max_distance=None, \
-		avg_probability=None, **kwargs):
+		min_probability=None, avg_probability=None, **kwargs):
 		Voronoi.__init__(self, scaler)
 		self.gas = None
 		self._min_distance = min_distance
@@ -25,7 +25,8 @@ class GasMesh(Voronoi):
 			self._max_distance = max_distance
 		else:
 			self._max_distance = avg_distance * 4
-		self.avg_probability = avg_probability
+		self.min_probability = min_probability
+		#self.avg_probability = avg_probability
 
 	def _preprocess(self, points, batch_size=10000, tau=333.0, trust=1.0, lifetime=50, **kwargs):
 		init = self.scaler.init
@@ -38,8 +39,8 @@ class GasMesh(Voronoi):
 			self.gas = Gas(np.asarray(points))
 			if self._max_distance:
 				self.gas.insertion_threshold = (self._avg_distance, self._max_distance)
-				if self.avg_probability:
-					self.gas.knn = int(round(2.0 * self.avg_probability * \
+				if self.min_probability:
+					self.gas.knn = int(round(2.0 * self.min_probability * \
 						points.shape[0]))
 				else:
 					self.gas.knn = 40
@@ -115,10 +116,12 @@ class GasMesh(Voronoi):
 						dij -= 0.5 * xj2.T
 						dij = dij.flatten()
 						dij.sort()
-						dij = dij[-self.gas.knn/4]
+						dij = dij[-ceil(self.gas.knn/4)]
 						dij = np.sqrt(-2.0 * dij)
 						if dij < self._min_distance:
 							self._adjacency_label[e] = 4
 					elif verbose:
 						print((k, I[k], J[k], xi.shape, xj.shape))
+		new_labels = np.array([0,-1,-2,1,2])
+		self._adjacency_label = new_labels[self._adjacency_label]
 

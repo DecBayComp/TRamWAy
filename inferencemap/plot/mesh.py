@@ -51,7 +51,11 @@ def plot_voronoi(tess, stats, color=None, style='-', centroid_style='g+'):
 		if tess.adjacency_label is None:
 			color = 'r'
 		else:
-			color = 'wgyrb'
+			neg_color = 'yg'
+			pos_color = 'rb'
+			labels = np.unique(tess.adjacency_label).tolist()
+			neg_labels = [ l for l in labels if l < 0 ]
+			color = neg_color[:len(neg_labels)] + pos_color
 	# plot voronoi
 	for edge_ix, vert_ids in enumerate(tess.ridge_vertices):
 		if all(0 <= vert_ids):
@@ -59,7 +63,7 @@ def plot_voronoi(tess, stats, color=None, style='-', centroid_style='g+'):
 			if tess.adjacency_label is None:
 				c = 0
 			else:
-				c = int(tess.adjacency_label[edge_ix])
+				c = labels.index(int(tess.adjacency_label[edge_ix]))
 			plt.plot(x, y, style, color=color[c], linewidth=1)
 
 	centroids = np.asarray(tess.cell_centers)
