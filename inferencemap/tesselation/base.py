@@ -107,11 +107,18 @@ class Tesselation(object):
 
 	def cellStats(self, points, **kwargs):
 		cell_index = self.cellIndex(points, **kwargs)
-		valid_cell_centers, center_to_point, _cell_count = \
-			np.unique(cell_index, return_inverse=True, return_counts=True)
-		cell_count = np.zeros(self._cell_centers.shape[0], dtype=_cell_count.dtype)
-		cell_count[valid_cell_centers] = _cell_count
-		center_to_point = valid_cell_centers[center_to_point]
+		if isinstance(cell_index, tuple):
+			ci = sparse.csr_matrix((np.ones_like(cell_index[0], dtype=bool), \
+				cell_index), shape=(points.shape[0], self._cell_centers.shape[0]))
+			cell_count = np.diff(ci.indptr)
+		elif sparse.issparse(cell_index):
+			cell_count = np.diff(cell_index.tocsr().indptr)
+		else:
+			valid_cell_centers, center_to_point, _cell_count = \
+				np.unique(cell_index, return_inverse=True, return_counts=True)
+			cell_count = np.zeros(self._cell_centers.shape[0], dtype=_cell_count.dtype)
+			cell_count[valid_cell_centers] = _cell_count
+			#center_to_point = valid_cell_centers[center_to_point]
 		xmin = points.min(axis=0)
 		xmax = points.max(axis=0)
 		if isinstance(points, pd.DataFrame):
@@ -158,17 +165,41 @@ class Delaunay(Tesselation):
 	def tesselate(self, points):
 		self._cell_centers = self._preprocess(points)
 
-	def cellIndex(self, points, knn=None, metric='euclidean', **kwargs):
+	def cellIndex(self, points, knn=None, metric='euclidean', prefered='index', **kwargs):
+		"""`prefered` can be either 'force index', 'index' (default), 'pair' or 'sparse'.
+		'force index' and 'index': the output is single vector of cell indices with size the 
+		number of points.
+		'pair': the output is a pair of vectors (say U an V); at index i, U[i] is the index of a
+		point and V[i] is the index of a cell.
+		'sparse': the output is a COO sparse matrix with size (# points, # cells) and a non-zero
+		where a point falls into a cell.
+		A single vector representation of the point-cell association may not be possible with
+		`knn` set, for example, because any point can be associated to multiple cells. If such
+		a condition holds and `prefered` is 'index', then 'pair' will be used as a fallback."""
 		D = cdist(np.asarray(self.scaler.scalePoint(points, inplace=False)), \
 				self._cell_centers, metric, **kwargs)
 		if knn:
 			I = np.argsort(D, axis=0)[:knn].flatten()
-			J = np.repeat(range(0, D.shape[1]), knn)
-			K = np.argmin(D, axis=1)[I]
-			I[J != K] = -1
-			return I
+			J = np.tile(range(0, D.shape[1]), knn)
+			if prefered.endswith('index'):
+				K = sparse.csr_matrix((np.ones_like(I, dtype=bool), (I, J)), \
+					shape=D.shape)
+				cell_count_per_point = np.diff(K.tocsr().indptr)
+				if all(cell_count_per_point < 2): # faster
+					K = -np.ones(points.shape[0], dtype=int)
+					K[I] = J
+				elif prefered.startswith('force'): # more generic
+					K = np.argmin(D, axis=1)
+					K[cell_count_per_point == 0] = -1
+			else:
+				K = (I, J)
 		else:
-			return np.argmin(D, axis=1)
+			K = np.argmin(D, axis=1)
+			if not prefered.endswith('index'):
+				K = (np.arange(K.size), K)
+		if prefered == 'sparse':
+			K = sparse.coo_matrix((np.ones_like(K[0], dtype=bool), K), shape=D.shape)
+		return K
 
 	# cell_centers property
 	@property
@@ -239,7 +270,7 @@ class Voronoi(Delaunay):
 			if self._cell_adjacency is None:
 				n_ridges = voronoi.ridge_points.shape[0]
 				self._cell_adjacency = sparse.csr_matrix((\
-					np.arange(0, n_ridges * 2, dtype=np.uint), (\
+					np.tile(np.arange(0, n_ridges, dtype=np.uint), 2), (\
 					voronoi.ridge_points.flatten(), \
 					np.fliplr(voronoi.ridge_points).flatten())), \
 					shape=(n_centers, n_centers))

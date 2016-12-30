@@ -65,9 +65,16 @@ def render(args):
 
 	# plot the data points together with the tesselation
 	fig0 = plt.figure()
-	plot_points(stats.coordinates, stats, min_count=min_cell_count)
-	plot_voronoi(tess, stats)
+	if 'knn' in stats.param: # if knn <= min_count, min_count is actually ignored
+		plot_points(stats)
+	else:
+		plot_points(stats, min_count=min_cell_count)
+	if args.delaunay:
+		plot_delaunay(tess, stats)
+	else:
+		plot_voronoi(tess, stats)
 	plt.title(method_name + '-based voronoi')
+
 	if args.output or args.__dict__['print']:
 		if args.output:
 			filename, figext = os.path.splitext(args.output)
@@ -106,8 +113,8 @@ def render(args):
 		A = tess.cell_adjacency.tocoo()
 		i, j, k = A.row, A.col, A.data
 		if tess.adjacency_label is not None:
-			i = i[tess.adjacency_label[k] == 3]
-			j = j[tess.adjacency_label[k] == 3]
+			i = i[0 < tess.adjacency_label[k]]
+			j = j[0 < tess.adjacency_label[k]]
 		pts = np.asarray(tess.cell_centers)
 		dist = la.norm(pts[i,:] - pts[j,:], axis=1)
 		fig2 = plt.figure()
@@ -188,7 +195,8 @@ def tesselate(args):
 			min_probability=float(args.min_cell_count) / n_pts, \
 			avg_probability=float(args.cell_count) / n_pts, \
 			max_probability=max_probability, \
-			lower_levels=args.lower_levels)
+			#lower_levels=args.lower_levels, \ # in args
+			**args.__dict__)
 
 		# grow the tesselation
 		tess.tesselate(df[['x', 'y']], verbose=args.verbose)
@@ -197,17 +205,21 @@ def tesselate(args):
 		raise NotImplementedError
 
 	# partition the dataset into the cells of the tesselation
-	stats = tess.cellStats(df[['x', 'y']])
+	if args.overlap:
+		stats = tess.cellStats(df[['x', 'y']], knn=args.knn)
+	else:
+		stats = tess.cellStats(df[['x', 'y']], knn=args.knn, prefered='force index')
 	stats.param['jump_length'] = jump_length
 	stats.param['min_distance'] = min_distance
 	stats.param['avg_distance'] = avg_distance
 	#stats.param['max_distance'] = max_distance
-	stats.param['min_cell_count'] = args.min_cell_count
 	stats.param['avg_cell_count'] = args.cell_count
-	stats.param['max_cell_count'] = args.max_cell_count
-	stats.param['method'] = args.method
+	args_ = ['min_cell_count', 'max_cell_count', 'method', 'knn']
 	if args.method == 'kdtree':
-		stats.param['lower_levels'] = args.lower_levels
+		args_.append('lower_levels')
+	for arg in args_:
+		if args.__dict__[arg] is not None:
+			stats.param[arg] = args.__dict__[arg]
 
 	# save `stats` and `tess`
 	if args.output is None:
@@ -248,6 +260,7 @@ if __name__ == '__main__':
 	render_parser.set_defaults(func=render)
 	render_parser.add_argument('-s', '--min-cell-count', type=int, default=20, \
 		help='minimum number of points per cell')
+	render_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
 	render_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of points from distinct neighboring centers)")
 	render_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
@@ -261,6 +274,7 @@ if __name__ == '__main__':
 		help='apply precomputed tesselation from file')
 	tesselate_parser.add_argument('-n', '--knn', type=int, \
 		help='maximum number of nearest neighbors')
+	tesselate_parser.add_argument('--overlap', action='store_true', help='allow cells to overlap (useful with knn)')
 	tesselate_parser.add_argument('-d', '--distance', type=float, help='average jump distance')
 	#tesselate_parser.add_argument('-r', '--frame-rate', type=float, help='frame rate')
 	#tesselate_parser.add_argument('-t', '--time-regularization', 

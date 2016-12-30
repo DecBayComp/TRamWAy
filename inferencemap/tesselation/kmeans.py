@@ -37,7 +37,7 @@ class KMeansMesh(Voronoi):
 		points = self._preprocess(points)
 		self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
 			thresh=tol)
-		if True:
+		if False:
 			from sklearn.svm import OneClassSVM
 			if self.roi_subset_size < points.shape[0]:
 				permutation = np.random.permutation(points.shape[0])
@@ -45,6 +45,7 @@ class KMeansMesh(Voronoi):
 					for i in range(min(self.roi_subset_count, floor(points.shape[0]/self.roi_subset_size))) ]
 			else:
 				subsets = [np.asarray(points)]
+			#self._postprocess()
 			self.roi = []
 			selected_centers = np.zeros(self._cell_centers.shape[0], dtype=bool)
 			selected_vertices = np.zeros(self.cell_vertices.shape[0], dtype=bool)
@@ -54,7 +55,6 @@ class KMeansMesh(Voronoi):
 				selected_centers = np.logical_or(selected_centers, roi.predict(self._cell_centers) == 1)
 				selected_vertices = np.logical_or(selected_vertices, roi.predict(self._cell_vertices) == 1)
 				self.roi.append(roi)
-			self._postprocess()
 			self._adjacency_label = np.ones(self._cell_adjacency.data.size, dtype=bool)
 			# copy/paste from tesselation.gas
 			points = np.asarray(points)
@@ -82,12 +82,12 @@ class KMeansMesh(Voronoi):
 							dij = dij.flatten()
 							dij.sort()
 							try:
-								dij = dij[-10] # 10 hard coded!
+								dij = dij[-5] # 10 hard coded!
 							except: # disconnect
 								self._adjacency_label[edge] = False
 								continue
 							dij = np.sqrt(-2.0 * dij)
-							if self._min_distance < dij: # disconnect
+							if self._min_distance * 5 < dij: # disconnect
 								self._adjacency_label[edge] = False
 						elif verbose:
 							print((edge, I[edge], J[edge], xi.shape, xj.shape))
@@ -115,5 +115,18 @@ class KMeansMesh(Voronoi):
 					plt.show()
 				else:
 					raise AttributeError('can plot only 2D data')
-
+		if True:
+			from scipy.linalg import norm
+			A = self.cell_adjacency.tocoo()
+			i, j, k = A.row, A.col, A.data
+			if self._adjacency_label is None:
+				self._adjacency_label = np.ones(self._cell_adjacency.data.size, dtype=bool)
+			else:
+				l = 0 < self._adjacency_label[k]
+				i, j, k = i[l], j[l], k[l]
+			x = self._cell_centers
+			dist = norm(x[i,:] - x[j,:], axis=1)
+			d0 = np.median(dist)
+			edge = k[d0 * 3 < dist] # edges to be discarded
+			self._adjacency_label[edge] = False
 
