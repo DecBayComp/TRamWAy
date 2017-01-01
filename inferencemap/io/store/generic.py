@@ -41,10 +41,14 @@ class GenericStore(StoreBase):
 	def pokeStorable(self, storable, objname, obj, container):
 		#print((objname, storable.storable_type)) # debug
 		storable.poke(self, objname, obj, container)
-		record = self.getRecord(objname, container)
-		self.setRecordAttr('type', storable.storable_type, record)
-		if storable.version is not None:
-			self.setRecordAttr('version', from_version(storable.version), record)
+		try:
+			record = self.getRecord(objname, container)
+			self.setRecordAttr('type', storable.storable_type, record)
+			if storable.version is not None:
+				self.setRecordAttr('version', from_version(storable.version), record)
+		except KeyError:
+			# fake storable; silently skip
+			pass
 
 	def poke(self, objname, obj, record):
 		if self.verbose:

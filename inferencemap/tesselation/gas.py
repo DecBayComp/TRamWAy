@@ -51,7 +51,7 @@ class GasMesh(Voronoi):
 			self.gas.habituation_tau = tau
 			self.gas.edge_lifetime = lifetime
 			if self._min_distance:
-				self.gas.collapse_below = self._min_distance * 0.9
+				self.gas.collapse_below = self._min_distance# * 0.9
 		return points
 
 	def tesselate(self, points, pass_count=(1,3), residual_factor=.7, error_count_tol=5e-3, \
@@ -63,8 +63,8 @@ class GasMesh(Voronoi):
 		the scaled `max_distance` if available."""
 		#np.random.seed(15894754) # to benchmark and compare between Graph implementations
 		points = self._preprocess(points, **kwargs)
-		if self._max_distance:
-			residual_factor *= self._max_distance # important: do this after _preprocess!
+		if self._avg_distance:
+			residual_factor *= self._avg_distance # important: do this after _preprocess!
 		self.residuals = self.gas.train(np.asarray(points), \
 			pass_count=pass_count, \
 			residual_max=residual_factor, \
@@ -76,7 +76,7 @@ class GasMesh(Voronoi):
 		# build alternative representation of the gas (or Delaunay graph)
 		[self._cell_adjacency, V, _] = self.gas.export()
 		self._cell_centers = V['weight']
-		self._cell_adjacency.data = np.ones_like(self._cell_adjacency.data, dtype=np.int)
+		self._cell_adjacency.data = np.ones_like(self._cell_adjacency.data, dtype=int)
 		self._postprocess(points, verbose)
 
 	def _postprocess(self, points=None, verbose=False):
@@ -84,8 +84,9 @@ class GasMesh(Voronoi):
 		voronoi = Voronoi._postprocess(self)
 		# clean and extend the adjacency matrix with the Delaunay graph
 		adjacency = self._cell_adjacency
-		delaunay = sparse.csr_matrix(([2] * voronoi.ridge_points.shape[0], \
-			(voronoi.ridge_points[:,0], voronoi.ridge_points[:,1])), shape=adjacency.shape)
+		delaunay = sparse.csr_matrix(([2] * (voronoi.ridge_points.shape[0] * 2), \
+			(voronoi.ridge_points.flatten(), np.fliplr(voronoi.ridge_points).flatten())), \
+			shape=adjacency.shape)
 		adjacency += delaunay
 		self._adjacency_label = adjacency.data # 1=gas only, 2=voronoi only, 3=both
 		adjacency.data = np.arange(0, self._adjacency_label.size) # edge indices for _adjacency_label and _ridge_vertices
@@ -101,13 +102,11 @@ class GasMesh(Voronoi):
 			#t = time.time()
 			points = np.asarray(points)
 			ix = np.argmin(cdist(points, self._cell_centers), axis=1)
-			I = np.repeat(np.arange(self._cell_adjacency.indptr.size - 1), \
-				np.diff(self._cell_adjacency.indptr))
-			J = self._cell_adjacency.indices
-			for k, e in enumerate(self._cell_adjacency.data):
-				if self._adjacency_label[e] == 2:
-					xi = points[ix == I[k]]
-					xj = points[ix == J[k]]
+			A = sparse.tril(self._cell_adjacency, format='coo') # in future scipy version, check that tril does not remove explicit zeros
+			for i, j, k in zip(A.row, A.col, A.data):
+				if self._adjacency_label[k] == 2: # only in Voronoi
+					xi = points[ix == i]
+					xj = points[ix == j]
 					if xi.size and xj.size:
 						dij = np.dot(xi, xj.T)
 						xi2 = np.sum(xi * xi, axis=1, keepdims=True)
@@ -116,12 +115,17 @@ class GasMesh(Voronoi):
 						dij -= 0.5 * xj2.T
 						dij = dij.flatten()
 						dij.sort()
-						dij = dij[-ceil(self.gas.knn/4)]
+						dij = dij[-int(ceil(self.gas.knn/4))]
 						dij = np.sqrt(-2.0 * dij)
 						if dij < self._min_distance:
-							self._adjacency_label[e] = 4
+							self._adjacency_label[k] = 4 # mark edge as 'not congruent but valid'
 					elif verbose:
-						print((k, I[k], J[k], xi.shape, xj.shape))
+						# TODO: readable output
+						print((k, i, j, xi.shape, xj.shape))
 		new_labels = np.array([0,-1,-2,1,2])
+		# before: 0=[none], 1=not congruent (gas only), 2=not congruent (voronoi only), 
+		#         3=congruent, 4=voronoi added
+		# after: -2=not congruent (voronoi only), -1=not congruent (gas only), 0=[none], 
+		#         1=congruent, 2=voronoi added
 		self._adjacency_label = new_labels[self._adjacency_label]
 

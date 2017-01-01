@@ -33,11 +33,12 @@ class KMeansMesh(Voronoi):
 		self.roi_subset_count = 10
 		return points
 
-	def tesselate(self, points, tol=1e-3, plot=False, **kwargs):
+	def tesselate(self, points, tol=1e-3, prune=True, plot=False, **kwargs):
 		points = self._preprocess(points)
 		self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
 			thresh=tol)
-		if False:
+
+		if False: # one-class SVM based ROIs for pruning; slow and not efficient
 			from sklearn.svm import OneClassSVM
 			if self.roi_subset_size < points.shape[0]:
 				permutation = np.random.permutation(points.shape[0])
@@ -115,18 +116,20 @@ class KMeansMesh(Voronoi):
 					plt.show()
 				else:
 					raise AttributeError('can plot only 2D data')
-		if True:
-			from scipy.linalg import norm
-			A = self.cell_adjacency.tocoo()
+
+		if prune: # inter-center-distance-based pruning
+			A = sparse.tril(self.cell_adjacency, format='coo')
 			i, j, k = A.row, A.col, A.data
 			if self._adjacency_label is None:
-				self._adjacency_label = np.ones(self._cell_adjacency.data.size, dtype=bool)
+				self._adjacency_label = np.ones(np.max(k)+1, dtype=bool)
 			else:
 				l = 0 < self._adjacency_label[k]
 				i, j, k = i[l], j[l], k[l]
 			x = self._cell_centers
-			dist = norm(x[i,:] - x[j,:], axis=1)
-			d0 = np.median(dist)
-			edge = k[d0 * 3 < dist] # edges to be discarded
-			self._adjacency_label[edge] = False
+			d = x[i] - x[j]
+			d = np.sum(d * d, axis=1) # square distance
+			d0 = np.median(d)
+			edge = k[d0 * 9 < d] # edges to be discarded
+			if edge.size:
+				self._adjacency_label[edge] = False
 

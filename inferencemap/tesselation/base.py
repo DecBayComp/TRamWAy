@@ -112,7 +112,7 @@ class Tesselation(object):
 				cell_index), shape=(points.shape[0], self._cell_centers.shape[0]))
 			cell_count = np.diff(ci.indptr)
 		elif sparse.issparse(cell_index):
-			cell_count = np.diff(cell_index.tocsr().indptr)
+			cell_count = np.diff(cell_index.tocsc().indptr)
 		else:
 			valid_cell_centers, center_to_point, _cell_count = \
 				np.unique(cell_index, return_inverse=True, return_counts=True)
@@ -267,10 +267,11 @@ class Voronoi(Delaunay):
 			self._cell_vertices = voronoi.vertices
 			n_centers = self._cell_centers.shape[0]
 			self._ridge_vertices = np.asarray(voronoi.ridge_vertices)
+			# TODO: ridge_points and ridge_vertices may not match although they could
 			if self._cell_adjacency is None:
 				n_ridges = voronoi.ridge_points.shape[0]
 				self._cell_adjacency = sparse.csr_matrix((\
-					np.tile(np.arange(0, n_ridges, dtype=np.uint), 2), (\
+					np.tile(np.arange(0, n_ridges, dtype=int), 2), (\
 					voronoi.ridge_points.flatten(), \
 					np.fliplr(voronoi.ridge_points).flatten())), \
 					shape=(n_centers, n_centers))

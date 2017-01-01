@@ -11,7 +11,7 @@ import scipy.sparse as sparse
 
 def face_hash(v1, n1):
 	'''key that identify a same face.'''
-	return (*v1, *n1)
+	return tuple(v1) + tuple(n1)
 
 
 class KDTreeMesh(Voronoi):
@@ -32,8 +32,9 @@ class KDTreeMesh(Voronoi):
 
 	def cellIndex(self, points, knn=None, metric='chebyshev', **kwargs):
 		if metric == 'chebyshev':
+			# TODO: pass relevant kwargs to cdist
 			D = cdist(np.asarray(self.scaler.scalePoint(points, inplace=False)), \
-					self._cell_centers, metric, **kwargs)
+					self._cell_centers, metric) # , **kwargs
 			dmax = self.width * self.scale[self.level[np.newaxis,:] + 1]
 			I, J = np.nonzero(D <= dmax)
 			if I[0] == 0 and I.size == points.shape[0] and I[-1] == points.shape[0] - 1:
@@ -112,7 +113,7 @@ class KDTreeMesh(Voronoi):
 		def unique_rows(data, *args, **kwargs):
 			uniq = np.unique(data.view(data.dtype.descr * data.shape[1]), *args, **kwargs)
 			if isinstance(uniq, tuple):
-				return (uniq[0].view(data.dtype).reshape(-1, data.shape[1]), *uniq[1:])
+				return (uniq[0].view(data.dtype).reshape(-1, data.shape[1]),) + tuple(uniq[1:])
 			else:
 				return uniq.view(data.dtype).reshape(-1, data.shape[1])
 		n = origin.shape[0]
@@ -135,8 +136,8 @@ class KDTreeMesh(Voronoi):
 
 	def mergeFaces(self, face1, face2, axis):
 		dims = np.logical_not(axis)
-		cell1 = [ (c, *self.cell[c]) for c in face1 ]
-		cell2 = [ (c, *self.cell[c]) for c in face2 ]
+		cell1 = [ (c,) + self.cell[c] for c in face1 ]
+		cell2 = [ (c,) + self.cell[c] for c in face2 ]
 		ok1 = np.ones(len(cell1), dtype=bool)
 		ok2 = np.ones(len(cell2), dtype=bool)
 		for i in range(len(cell1)):

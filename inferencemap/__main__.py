@@ -72,7 +72,10 @@ def render(args):
 	if args.delaunay:
 		plot_delaunay(tess, stats)
 	else:
-		plot_voronoi(tess, stats)
+		if method_name in ['kmeans']: # scipy.spatial.Voronoi based ridge_vertices (buggy)
+			plot_voronoi(tess, stats, color='rrrr', negative=True)
+		else:
+			plot_voronoi(tess, stats)
 	plt.title(method_name + '-based voronoi')
 
 	if args.output or args.__dict__['print']:
@@ -172,7 +175,7 @@ def tesselate(args):
 		else:
 			jump_length = args.distance
 		min_distance = 0.8 * jump_length
-		avg_distance = 1.0 * jump_length
+		avg_distance = 2.0 * jump_length
 		#max_distance = 2.0 * jump_length
 
 		methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
