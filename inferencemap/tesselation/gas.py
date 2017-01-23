@@ -38,12 +38,14 @@ class GasMesh(Voronoi):
 		if self.gas is None:
 			self.gas = Gas(np.asarray(points))
 			if self._max_distance:
-				self.gas.insertion_threshold = (self._avg_distance, self._max_distance)
+				# distances are diameters, while insertion thresholds should be radii
+				self.gas.insertion_threshold = (self._avg_distance * 0.5, \
+					self._max_distance * 0.5)
 				if self.min_probability:
-					self.gas.knn = int(round(2.0 * self.min_probability * \
+					self.gas.knn = int(round(self.min_probability * \
 						points.shape[0]))
 				else:
-					self.gas.knn = 40
+					self.gas.knn = 20
 			self.gas.trust = trust
 			self.gas.batch_size = batch_size
 			if not isinstance(tau, tuple):
@@ -108,20 +110,26 @@ class GasMesh(Voronoi):
 					xi = points[ix == i]
 					xj = points[ix == j]
 					if xi.size and xj.size:
-						dij = np.dot(xi, xj.T)
-						xi2 = np.sum(xi * xi, axis=1, keepdims=True)
-						dij -= 0.5 * xi2
-						xj2 = np.sum(xj * xj, axis=1, keepdims=True)
-						dij -= 0.5 * xj2.T
-						dij = dij.flatten()
+						dij = cdist(xi, xj).flatten()
+						#dij = np.dot(xi, xj.T)
+						#xi2 = np.sum(xi * xi, axis=1, keepdims=True)
+						#dij -= 0.5 * xi2
+						#xj2 = np.sum(xj * xj, axis=1, keepdims=True)
+						#dij -= 0.5 * xj2.T
+						#dij = dij.flatten()
 						dij.sort()
-						dij = dij[-int(ceil(self.gas.knn/4))]
-						dij = np.sqrt(-2.0 * dij)
-						if dij < self._min_distance:
+						try:
+							#dij = dij[-int(ceil(self.gas.knn/4))]
+							dij = dij[int(ceil(self.gas.knn/4))-1]
+						except IndexError:
+							if verbose:
+								print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d}): number of between-cell pairs = {:d} (expected: {:d})'.format(k, i, xi.shape[0], j, xj.shape[0], dij.size, int(ceil(self.gas.knn/4))))
+							continue
+						#dij = np.sqrt(-2.0 * dij)
+						if dij < self._avg_distance:
 							self._adjacency_label[k] = 4 # mark edge as 'not congruent but valid'
 					elif verbose:
-						# TODO: readable output
-						print((k, i, j, xi.shape, xj.shape))
+						print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d})'.format(k, i, xi.shape[0], j, xj.shape[0]))
 		new_labels = np.array([0,-1,-2,1,2])
 		# before: 0=[none], 1=not congruent (gas only), 2=not congruent (voronoi only), 
 		#         3=congruent, 4=voronoi added

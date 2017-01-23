@@ -46,33 +46,27 @@ The `-m` option controls the tesselation method. The following methods are avail
 * k-means-based mesh: `-m kmeans`
 * Growing When Required-based mesh: `-m gwr`
 
-A preliminary step to meshing consists in calculating the average jump distance. Currently this step may take a while in completing (will be optimized some day) and it is recommended to perform this calculation once with the `-v` verbose flag, note the printed value down and then provide it into the `inferencemap` command line with the `-d` option for further processing on the same input data file.
-
-Example:
-
-> python -m inferencemap -v -i data/glycine_receptor.trxyt tesselate -m gwr -d 0.1843
-
-Another key parameter is `-knn`. It combines with any of the above methods and allows to impose an upper bound on the number of points (or nearest neighbors) associated with each cell of the mesh, independently of the way the mesh has been grown.
+A key parameter is `-knn`. It combines with any of the above methods and allows to impose an upper bound on the number of points (or nearest neighbors) associated with each cell of the mesh, independently of the way the mesh has been grown.
 
 For more options:
 
 	python -m inferencemap tesselate -h
 
 ### Data file structure
-* `points`:
-	* `coordinates`: point coordinates (size `n` x `d`)
+* `cells`:
+	* `points`: point coordinates (original data; size `n` x `d+`)
 	* `cell_index`: index (from `0` to `c - 1`) of the containing cell (size `n`)
 	* `cell_count`: number of points per cell (size `c`)
 	* etc (to do)
-* `mesh`:
-	* `cell_centers`: centroid coordinates (size `c` x `d`)
-	* `cell_adjacency`: CSR sparse matrix representing the adjacency relationship between cells (size `c` x `c`)
-	* etc (to do)
+	* `tesselation`:
+		* `cell_centers`: centroid coordinates (size `c` x `d`)
+		* `cell_adjacency`: CSR sparse matrix representing the adjacency relationship between cells (size `c` x `c`)
+		* etc (to do)
 
 ## Plotting
 
-	python -m inferencemap -i data/glycine_receptor.imt.h5 render
-	python -m inferencemap -i data/glycine_receptor.imt.h5 render -H cdp
-	python -m inferencemap -i data/glycine_receptor.imt.h5 render --print png
+	python -m inferencemap -i data/glycine_receptor.imt.h5 show-cells
+	python -m inferencemap -i data/glycine_receptor.imt.h5 show-cells -H cdp
+	python -m inferencemap -i data/glycine_receptor.imt.h5 show-cells --print png
 (to do)
 

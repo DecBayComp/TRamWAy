@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import matplotlib.patches as patches
 import time
+from scipy.spatial.distance import cdist
+from scipy.special import gamma
+from .dichotomy import Dichotomy
 
 
 class Gas(Graph):
@@ -242,7 +245,7 @@ class Gas(Graph):
 
 
 	def train(self, sample, pass_count=None, residual_max=None, error_count_tol=1e-6, \
-		min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=True, \
+		min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=False, \
 		plot=False, **kwargs):
 		""":meth:`train` splits the sample into batches, successively calls :meth:`batchTrain` on
 		these batches of data, collapses the gas if necessary and stops if stopping criteria are 
@@ -289,7 +292,7 @@ class Gas(Graph):
 					self.insertion_threshold * 4)
 			eta_square = np.sum(sample * sample, axis=1)
 			radius = self.boxedRadius(sample, self.knn, self.insertion_threshold[0], \
-				self.insertion_threshold[1], plot)
+				self.insertion_threshold[1], verbose, plot)
 		# loop
 		t = []
 		i = 0
@@ -327,7 +330,7 @@ class Gas(Graph):
 					continue
 				elif pass_count[1] * k1 <= k:
 					if verbose:
-						print('upper bound for `pass_count` reached')
+						print('stopping criterion: upper bound for `pass_count` reached')
 					break # do = False
 			if residual_max:
 				error_count = len([ residual for residual in r
@@ -338,13 +341,13 @@ class Gas(Graph):
 				growth = float(l - l_prev) / float(l_prev)
 				if growth < min_growth:
 					if verbose:
-						print('relative growth: {:.0f}%'.format(growth * 100))
+						print('stopping criterion: relative growth: {:.0f}%'.format(growth * 100))
 					break
 			if self.collapse_below and collapse_tol:
 				collapse_rel = float(dl) / float(l)
 				if collapse_tol < collapse_rel:
 					if verbose:
-						print('relative collapse: {:.0f}%'.format(collapse_rel * 100))
+						print('stopping criterion: relative collapse: {:.0f}%'.format(collapse_rel * 100))
 					break
 			# exclusive criteria
 			if stopping_criterion is 1:
@@ -369,7 +372,158 @@ class Gas(Graph):
 		return residuals
 
 
-	def boxedRadius(self, sample, knn, rmin, rmax, plot=False):
+	def boxedRadius(self, sample, knn, rmin, rmax, verbose=False, plot=False):
+		#plot = True
+		d = sample.shape[1]
+		#if d == 2:
+		#	return self.boxedRadius2d(sample, knn, rmin, rmax, plot) # faster
+		if verbose:
+			t0 = 0
+			t = time.time()
+		# bounding box(es)
+		sample = np.asarray(sample)
+		smin = sample.min(axis=0)
+		smax = sample.max(axis=0)
+		unit = rmin / sqrt(d) # min radius will be the diagonal of the hypercube
+		# volume ratio of the unit hypercube (1) and the inscribed d-ball
+		dim_penalty = 1 / (pi ** (float(d) / 2.0) / gamma(float(d) / 2.0 + 1.0) * 0.5 ** d)
+		max_n_units = ceil(2.0 * rmax / unit * dim_penalty) # max number of "circles" where to look for neighbors
+		bmin, bmax = smin, smax # multiple names because of copying/pasting
+		dim = np.ceil((bmax - bmin) / unit) - 1
+		adjusted_bmax = bmin + dim * unit # bmin and adjusted_bmax are the lower vertices (origins) of the end cubes
+		dim = [ int(d) + 1 for d in dim ]
+		# partition
+		cell = dict()
+		cell_indices = dict()
+		count = np.zeros(dim, dtype=int)
+		grid = Dichotomy(sample, base_edge=unit, origin=bmin, max_level=0)
+		grid.split()
+		for j in grid.cell:
+			i, _, k = grid.cell[j]
+			ids, pts = grid.subset[k]
+			if ids.size:
+				i = tuple([ int(n) for n in np.round((i - bmin) / unit) ])
+				cell[i] = pts
+				if ids.size < knn + 1:
+					cell_indices[i] = ids
+				try:
+					count[i] = ids.size
+				except IndexError as e:
+					print((count.shape, i))
+					raise e
+		# counts are density estimate; check how good/poor they are
+		if d == 2 and plot:
+			if verbose:
+				t0 += time.time() - t
+			plt.imshow(count.T)
+			plt.gca().invert_yaxis()
+			plt.show()
+			if verbose:
+				t = time.time()
+		# count_threshold is useful for saving computation time, 
+		# skipping poorly populated cells with populated neighbor cells.
+		# lower threshold means higher skip frequency (more approximations)
+		count_threshold = np.zeros_like(count)
+		for i in range(d):
+			a = np.swapaxes(count_threshold, 0, i) # view (numpy >= 1.10)
+			b = np.swapaxes(count, 0, i) # view
+			a[:-1,...] += b[1::,...]
+			a[1::,...] += b[:-1,...]
+		count_threshold = (knn + 1) - count_threshold / (d * 2) # average number of points in neighbor cells
+		# count_threshold should depend on space dimension
+		count_threshold *= 2 # hard-coded, empirical, actually not even adjusted
+		# adjust the requested number of neighbors (k)
+		k = int(round(float(knn) * dim_penalty)) # request more neighbors in the cube so that the inscribed ball should contain knn as expected (hypothesis: that points are homogeneously distributed
+		k *= 2 # gwr actually works better with higher k; hard-coded factor; empirical
+		scale = {}
+		n = sample.shape[0]
+		radius = rmin * np.ones(n, dtype=sample.dtype)
+		for i in cell_indices:
+			if count_threshold[i] < count[i]:
+				continue # consider that local radius are minimal (saves time)
+			m = 0
+			while True: # do..while
+				m += 1
+				I = [ np.arange(max(0, k - m), min(k + m + 1, d)) \
+					for k, d in zip(i, dim) ]
+				I = np.meshgrid(*I, indexing='ij')
+				I = np.column_stack([ i.flatten() for i in I ])
+				p = np.sum(count[tuple(I.T)])
+				if not (p < k + 1 and m < max_n_units):
+					break
+			scale[i] = m
+			if p < k + 1:
+				# `m` has reached `max_n_units`
+				radius[j] = rmax
+				continue
+			X = [ cell[tuple(i)] for i in I if tuple(i) in cell ]
+			X = np.concatenate(X, axis=0)
+			x = cell[i]
+			# dist with SciPy
+			D = cdist(X, x)
+			D.sort(axis=0)
+			r = D[k]
+			# and without SciPy (better for bigger matrices)
+			#D = np.dot(X, x.T)
+			#x2 = np.sum(x * x, axis=1, keepdims=True)
+			#D -= 0.5 * x2.T
+			#X2 = np.sum(X * X, axis=1, keepdims=True)
+			#D -= 0.5 * X2
+			#D.sort(axis=0)
+			#r = D[-(k+1)]
+			#r = np.sqrt(-2.0 * r)
+			#r[np.isnan(r)] = 0.0 # numeric precision errors => negative square distances => NaN distances
+			#
+			del D
+			j = cell_indices[i]
+			radius[j] = r
+		if verbose:
+			print('estimating density: elapsed time {:d} ms'.format(round((t0 + time.time() - t) * 1000)))
+		# plot local radius
+		#plot = True
+		if d == 2 and plot:
+			color = (radius - rmin) / (rmax - rmin)
+			r = self.collapse_below * 0.5 # collapse_below defines a diameter
+			cmap = plt.get_cmap('RdPu')
+			fig = plt.figure()
+			ax = fig.add_subplot(111, aspect='equal')
+			for x in np.arange(smin[0], smax[0], unit):
+				plt.plot([x, x], [smin[1], smax[1]], 'y-')
+			for y in np.arange(smin[1], smax[1], unit):
+				plt.plot([smin[0], smax[0]], [y, y], 'y-')
+			for i in range(n):
+				c = color[i]
+				if rmax < radius[i]:
+					ax.add_artist(patches.Circle(sample[i], r * 4, \
+						color=cmap(0.0), alpha=0.1))
+				elif radius[i] < rmin - np.spacing(1):
+					ax.add_artist(patches.Circle(sample[i], r * 0.25, \
+						color=cmap(1.0)))
+				elif rmin + np.spacing(1) < radius[i]:
+					ax.add_artist(patches.Circle(sample[i], r, \
+						color=cmap(1.0 - c)))
+			plt.plot(sample[:,0], sample[:,1], 'k+')
+			for i, x in cell.items():
+				center = smin + (np.asarray(list(i)) + 0.5) * unit
+				count = x.shape[0]
+				if count < knn + 1:
+					color = 'm'
+					txt = "{:d}\n{:d}".format(count, scale.get(i, 0))
+				else:
+					color = 'c'
+					txt = str(count)
+				plt.text(center[0], center[1], txt, color=color, \
+					horizontalalignment='center', verticalalignment='center')
+			try:
+				plt.show()
+			except AttributeError: # window has been closed; go on
+				pass
+		return radius
+
+
+	def boxedRadius2d(self, sample, knn, rmin, rmax, plot=False):
+		# deprecated: too many approximations here
+		t = time.time()
 		n = sample.shape[0]
 		radius = rmin * np.ones(n, dtype=sample.dtype)
 		# bounding box(es)
@@ -379,13 +533,14 @@ class Gas(Graph):
 		max_n_units = ceil(2.0 * rmax / unit)
 		ix = np.arange(n)
 		# grid
-		bounding_box = [(smin, smax), (smin + unit * 0.5, smax - unit * 0.5)]
+		bounding_box = [(smin, smax), \
+			(smin + unit * 0.25, smax - unit * 0.75), \
+			(smin + unit * 0.5,  smax - unit * 0.5 ), \
+			(smin + unit * 0.75, smax - unit * 0.25)]
 		for bmin, bmax in bounding_box:
 			bmax_ = np.ceil(bmax / unit) * unit + np.spacing(1)
 			x_grid = np.arange(bmin[0], bmax_[0], unit)
-			#x_grid[-1] = bmax[0] + np.spacing(1)
 			y_grid = np.arange(bmin[1], bmax_[1], unit)
-			#y_grid[-1] = bmax[1] + np.spacing(1)
 			# partition strategy
 			if x_grid.size <= y_grid.size:
 				grid0 = x_grid
@@ -448,6 +603,7 @@ class Gas(Graph):
 				#if any(r < rmin):
 				#	print(r)
 				radius[icell[(i,j)]] = np.maximum(radius[icell[(i,j)]], r)
+		print('elapsed time {:d} ms'.format(round((time.time() - t) * 1000)))
 		# plot local radius
 		if plot:
 			color = np.minimum((radius - rmin) / (rmax - rmin), 1.0) * 0.9
@@ -464,6 +620,7 @@ class Gas(Graph):
 		return radius
 
 	def exactRadius(self, sample, eta_square, knn, step, *vargs):
+		# deprecated: extremely slow
 		n = sample.shape[0]
 		w = sample.astype(np.float32)
 		w2 = eta_square.astype(np.float32) * 0.5

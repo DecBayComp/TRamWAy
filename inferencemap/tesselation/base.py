@@ -10,22 +10,26 @@ from inferencemap.spatial.scaler import *
 
 class CellStats(object):
 	"""Container datatype for various results related to a sample and a tesselation."""
-	__slots__ = ['coordinates', 'cell_index', 'cell_count', 'bounding_box', 'param']
+	__slots__ = ['points', 'cell_index', 'cell_count', 'bounding_box', 'param', 'tesselation']
 
-	def __init__(self, cell_index=None, cell_count=None, bounding_box=None, coordinates=None, \
-		param={}):
-		self.coordinates = coordinates
+	def __init__(self, cell_index=None, cell_count=None, bounding_box=None, points=None, \
+		tesselation=None, param={}):
+		self.points = points
 		self.cell_index = cell_index
 		self.cell_count = cell_count
 		self.bounding_box = bounding_box
 		self.param = param
+		self.tesselation = tesselation
+
+	def descriptors(self, *vargs, **kwargs):
+		return self.tesselation.descriptors(*vargs, **kwargs)
 
 
-def point_adjacency_matrix(tess, stats, symetric=True, cell_labels=None, adjacency_labels=None):
+def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_labels=None):
 	"""returns an adjacency matrix of data points where a given pair of points is defined as
 	adjacent iif they belong to adjacent and distinct cells.
 	"""
-	x = np.asarray(stats.coordinates)
+	x = cells.descriptors(cells.points, asarray=True)
 	ij = np.arange(x.shape[0])
 	x2 = np.sum(x * x, axis=1)
 	x2.shape = (x2.size, 1)
@@ -33,10 +37,10 @@ def point_adjacency_matrix(tess, stats, symetric=True, cell_labels=None, adjacen
 	J = []
 	D = []
 	n = []
-	for i in np.arange(tess.cell_adjacency.shape[0]):
-		if cell_labels is not None and not cell_labels(tess.cell_label[i]):
+	for i in np.arange(cells.tesselation.cell_adjacency.shape[0]):
+		if cell_labels is not None and not cell_labels(cells.tesselation.cell_label[i]):
 			continue
-		_, js, k = sparse.find(tess.cell_adjacency[i])
+		_, js, k = sparse.find(cells.tesselation.cell_adjacency[i])
 		if js.size == 0:
 			continue
 		k = k[i < js]
@@ -48,17 +52,17 @@ def point_adjacency_matrix(tess, stats, symetric=True, cell_labels=None, adjacen
 			if js.size == 0:
 				continue
 		if cell_labels is not None:
-			js = js[cell_labels(tess.cell_label[js])]
+			js = js[cell_labels(cells.tesselation.cell_label[js])]
 			if js.size == 0:
 				continue
-		ii = ij[stats.cell_index == i]
-		xi = np.asarray(stats.coordinates)[stats.cell_index == i]
-		x2i = x2[stats.cell_index == i]
+		ii = ij[cells.cell_index == i]
+		xi = x[cells.cell_index == i]
+		x2i = x2[cells.cell_index == i]
 		for j in js:
-			xj = np.asarray(stats.coordinates)[stats.cell_index == j]
-			x2j = x2[stats.cell_index == j]
+			xj = x[cells.cell_index == j]
+			x2j = x2[cells.cell_index == j]
 			d2 = x2i + x2j.T - 2 * np.dot(xi, xj.T)
-			jj = ij[stats.cell_index == j]
+			jj = ij[cells.cell_index == j]
 			i2, j2 = np.meshgrid(ii, jj, indexing='ij')
 			I.append(i2.flatten())
 			J.append(j2.flatten())
@@ -70,7 +74,7 @@ def point_adjacency_matrix(tess, stats, symetric=True, cell_labels=None, adjacen
 	I = np.concatenate(I)
 	J = np.concatenate(J)
 	D = np.sqrt(np.concatenate(D))
-	n = stats.coordinates.shape[0]
+	n = cells.points.shape[0]
 	return sparse.csr_matrix((D, (I, J)), shape=(n, n))
 
 
@@ -87,7 +91,7 @@ class Tesselation(object):
 	def _preprocess(self, points):
 		if self._cell_centers is None and self.scaler.euclidean is None:
 			# initialize
-			if isinstance(points, pd.DataFrame):
+			if isstructured(points):
 				self.scaler.euclidean = ['x', 'y']
 				if not ('x' in points and 'y' in points): # enforce presence of 'x' and 'y'
 					raise AttributeError('missing ''x'' or ''y'' in input dataframe.')
@@ -127,7 +131,7 @@ class Tesselation(object):
 		else:
 			bounding_box = np.vstack([xmin, xmax]).T.flatten()
 		return CellStats(cell_index=cell_index, cell_count=cell_count, \
-			bounding_box=bounding_box, coordinates=points)
+			bounding_box=bounding_box, points=points, tesselation=self)
 
 	# cell_label property
 	@property
@@ -156,6 +160,16 @@ class Tesselation(object):
 	def adjacency_label(self, label):
 		self._adjacency_label = label
 
+	def descriptors(self, points, asarray=False):
+		"""Returns the columns of `points` which the tesselation was grown on basis of."""
+		try:
+			return self.scaler.scaled(points, asarray)
+		except:
+			if asarray:
+				return np.asarray(points)
+			else:
+				return points
+
 
 class Delaunay(Tesselation):
 	def __init__(self, scaler=Scaler()):
@@ -176,8 +190,9 @@ class Delaunay(Tesselation):
 		A single vector representation of the point-cell association may not be possible with
 		`knn` set, for example, because any point can be associated to multiple cells. If such
 		a condition holds and `prefered` is 'index', then 'pair' will be used as a fallback."""
-		D = cdist(np.asarray(self.scaler.scalePoint(points, inplace=False)), \
-				self._cell_centers, metric, **kwargs)
+		points = self.scaler.scalePoint(points, inplace=False)
+		D = cdist(self.descriptors(points, asarray=True), \
+			self._cell_centers, metric, **kwargs)
 		if knn:
 			I = np.argsort(D, axis=0)[:knn].flatten()
 			J = np.tile(range(0, D.shape[1]), knn)
@@ -288,7 +303,7 @@ class RegularMesh(Voronoi):
 		self.avg_probability = avg_probability
 
 	def tesselate(self, points, **kwargs):
-		#points = self._preprocess(points)
+		points = self._preprocess(points)
 		if self.lower_bound is None:
 	 		self.lower_bound = points.min(axis=0)
 		elif isinstance(points, pd.DataFrame) and not isinstance(self.lower_bound, pd.Series):
@@ -372,4 +387,7 @@ class RegularMesh(Voronoi):
 	@ridge_vertices.setter # copy/paste
 	def ridge_vertices(self, ridges):
 		self._ridge_vertices = ridges
+
+	def descriptors(self, points, asarray=False):
+		return self.scaler.scaled(points, asarray)
 

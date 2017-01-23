@@ -5,6 +5,7 @@ from collections import deque
 from scipy.sparse import bsr_matrix, coo_matrix, csc_matrix, csr_matrix, \
 	dia_matrix, dok_matrix, lil_matrix
 import copy
+import pandas
 
 
 class GenericStore(StoreBase):
@@ -101,11 +102,25 @@ def poke_assoc(store, objname, assoc, container):
 		sub_container = store.newContainer(objname, assoc, container)
 	except:
 		raise ValueError('generic poke not supported by store')
+	verbose = store.verbose
+	reported_item_counter = 0
+	escaped_key_counter = 0
 	try:
 		for iobjname, iobj in assoc:
-			store.poke(iobjname, iobj, sub_container)
+			if isinstance(iobjname, str) or isinstance(iobjname, bytes):
+				store.poke(iobjname, iobj, sub_container)
+			else: # escape key
+				store.poke(str(escaped_key_counter), (iobjname, iobj), sub_container)
+				store.setRecordAttr('key', 'escaped', sub_container)
+				escaped_key_counter += 1
+			if store.verbose:
+				reported_item_counter += 1
+				if reported_item_counter == 9:
+					store.verbose = False
+					print('...')
 	except TypeError:
 		raise TypeError('wrong type for keys in associative list')
+	store.verbose = verbose
 
 
 # peeks
@@ -135,7 +150,7 @@ def unsafe_peek(init):
 		return init(*[ store.peek(attr, container) for attr in container ])
 	return peek
 
-def peek_with_kwargs(init, vargs):
+def peek_with_kwargs(init, vargs=[]):
 	def peek(store, container):
 		return init(\
 			*[ store.peek(attr, container) for attr in vargs ], \
@@ -152,7 +167,10 @@ def peek_assoc(store, container):
 	assoc = []
 	try:
 		for i in container:
-			assoc.append((i, store.peek(i, container)))
+			if store.getRecordAttr('key', container) == 'escaped':
+				assoc.append(store.peek(i, container))
+			else:
+				assoc.append((i, store.peek(i, container)))
 		#print(assoc) # debugging
 	except TypeError as e:
 		try:
@@ -175,6 +193,19 @@ def default_storable(python_type, exposes=None, version=None, storable_type=None
 	return Storable(python_type, key=storable_type, \
 		handlers=StorableHandler(version=version, exposes=exposes, \
 		poke=poke(exposes), peek=default_peek(python_type, exposes)))
+
+
+def kwarg_storable(python_type, exposes=None, version=None, storable_type=None, init=None, vargs=[]):
+	if init is None:
+		init = python_type
+	if exposes is None:
+		try:
+			exposes = python_type.__slots__
+		except:
+			# take __dict__ and sort out the class methods
+			raise AttributeError('either define the `exposes` argument or the `__slots__` attribute for type: {!r}'.format(python_type))
+	return Storable(python_type, key=storable_type, handlers=StorableHandler(version=version, \
+		poke=poke(exposes), peek=peek_with_kwargs(init, vargs), exposes=exposes))
 
 
 # standard sequences
@@ -279,4 +310,12 @@ sparse_storables = [Storable(bsr_matrix, handlers=bsr_handler), \
 	Storable(dok_matrix, handlers=dok_handler), \
 	Storable(lil_matrix, handlers=lil_handler)]
 
+
+def poke_index(service, name, obj, container):
+	poke_seq(service, name, obj.tolist(), container)
+def peek_index(service, container):
+	return pandas.Index(peek_list(service, container))
+
+pandas_storables = [Storable(pandas.Index, \
+	handlers=StorableHandler(poke=poke_index, peek=peek_index))]
 

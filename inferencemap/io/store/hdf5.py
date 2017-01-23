@@ -97,7 +97,7 @@ string_storables = [\
 	Storable(six.text_type, key='Python.unicode', \
 		handlers=StorableHandler(poke=string_poke, peek=text_peek))]
 numpy_storables = [Storable(ndarray, handlers=StorableHandler(poke=native_poke, peek=native_peek))]
-pandas_storables = [Storable(Series, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas)), \
+pandas_storables += [Storable(Series, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas)), \
 	Storable(DataFrame, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas)), \
 	Storable(Panel, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas))]
 
