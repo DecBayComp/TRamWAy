@@ -1,35 +1,56 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import re
 import os
 import sys
+import six
 import argparse
+if six.PY2:
+	#import importlib2 as importlib
+	#importlib2.hook.install()
+	import urllib as request
+	fullmatch = re.match
+else:
+	import urllib.request as request
+	fullmatch = re.fullmatch
 import importlib
-import urllib.request
 from pathlib import Path
 #from inferencemap.helper.tesselation import *
 
 
 def main():
-	demo_dir = 'demo'
+	demo_dir = 'examples'
 	demo_path = demo_dir.replace(os.pathsep, '.')
 	pattern = re.compile(r'[a-zA-Z].*[.]py')
 	candidate_demos = [ os.path.splitext(fn)[0] \
 		for fn in os.listdir(demo_dir) \
-		if re.fullmatch(pattern, fn) is not None ]
+		if fullmatch(pattern, fn) is not None ]
 	demos = {}
 	for demo in candidate_demos:
 		path = '{}.{}'.format(demo_path, demo)
-		spec = importlib.util.find_spec(path)
-		if spec is not None:
-			#print('importing {}...'.format(demo))
-			module = importlib.util.module_from_spec(spec)
-			spec.loader.exec_module(module)
-			if hasattr(module, 'demo_name'):
-				demo = module.demo_name
-			else:
-				demo = demo.replace('_', '-')
-			demos[demo] = module
+		if six.PY2:
+			if True:#try:
+				module = importlib.import_module(path)
+				if hasattr(module, 'demo_name'):
+					demo = module.demo_name
+				else:
+					demo = demo.replace('_', '-')
+				demos[demo] = module
+			#except ImportError:
+			#	pass
+		else:
+			spec = importlib.util.find_spec(path)
+			if spec is not None:
+				#print('importing {}...'.format(demo))
+				module = importlib.util.module_from_spec(spec)
+				spec.loader.exec_module(module)
+				if hasattr(module, 'demo_name'):
+					demo = module.demo_name
+				else:
+					demo = demo.replace('_', '-')
+				demos[demo] = module
 
 	parser = argparse.ArgumentParser(prog='inferencemap-demo', \
 		description='InferenceMAP demo launcher.', \
@@ -63,7 +84,7 @@ def main():
 		if not local.exists() and hasattr(module, 'data_server'):
 			print('downloading {}... '.format(module.data_file), end='')
 			try:
-				urllib.request.urlretrieve(os.path.join(module.data_server, \
+				request.urlretrieve(os.path.join(module.data_server, \
 						module.data_file), local.name)
 				print('[done]')
 			except:

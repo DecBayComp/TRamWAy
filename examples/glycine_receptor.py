@@ -1,13 +1,14 @@
 
 from pathlib import Path
-import urllib.request
+#import urllib.request # only in PY3
 from inferencemap.helper.tesselation import *
 
 #demo_name = 'glycine-receptor'
 
 short_description = 'various tesselations of glycine receptor data'
 
-data_server = 'http://157.99.149.144/'
+#data_server = 'http://157.99.149.144/'
+data_server = 'http://dl.pasteur.fr/fop/jod5vvB5/'
 data_file = 'glycine_receptor.trxyt'
 data_dir = ''
 
@@ -17,9 +18,9 @@ if __name__ == '__main__':
 def main():
 	local = Path(data_dir, data_file)
 
-	# download data file if missing
-	if not local.exists():
-		urllib.request.urlretrieve(data_server + data_file, local.name)
+	## download data file if missing
+	#if not local.exists():
+	#	urllib.request.urlretrieve(data_server + data_file, local.name)
 
 	output_basename, _ = os.path.splitext(local.name)
 	def out(method, extension):

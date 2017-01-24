@@ -4,6 +4,16 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
+install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables', 'h5py']
+try:
+	import pathlib
+except ImportError:
+	install_requires.append('pathlib')
+try:
+	import importlib.util
+except ImportError:
+	install_requires.append('importlib2')
+
 pwd = path.abspath(path.dirname(__file__))
 
 ## Get the long description from the README file
@@ -12,7 +22,7 @@ pwd = path.abspath(path.dirname(__file__))
 
 setup(
 	name = 'inferencemap',
-	version = '0.0.1',
+	version = '0.1',
 	description = 'InferenceMAP',
 	#long_description = long_description,
 	url = 'https://github.com/influencecell/inferencemap',
@@ -26,8 +36,8 @@ setup(
 		'Programming Language :: Python :: 3.5',
 	],
 	keywords = '',
-	packages = find_packages(exclude=['data', 'demo']),
-	install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables', 'h5py'],
+	packages = find_packages(exclude=['doc', 'examples']),
+	install_requires = install_requires,
 	extras_require = {},
 	package_data = {},
 	entry_points = {},

@@ -375,6 +375,7 @@ class Gas(Graph):
 	def boxedRadius(self, sample, knn, rmin, rmax, verbose=False, plot=False):
 		#plot = True
 		d = sample.shape[1]
+		d = int(d) # PY2
 		#if d == 2:
 		#	return self.boxedRadius2d(sample, knn, rmin, rmax, plot) # faster
 		if verbose:
@@ -384,14 +385,14 @@ class Gas(Graph):
 		sample = np.asarray(sample)
 		smin = sample.min(axis=0)
 		smax = sample.max(axis=0)
-		unit = rmin / sqrt(d) # min radius will be the diagonal of the hypercube
+		unit = rmin / sqrt(float(d)) # min radius will be the diagonal of the hypercube
 		# volume ratio of the unit hypercube (1) and the inscribed d-ball
 		dim_penalty = 1 / (pi ** (float(d) / 2.0) / gamma(float(d) / 2.0 + 1.0) * 0.5 ** d)
 		max_n_units = ceil(2.0 * rmax / unit * dim_penalty) # max number of "circles" where to look for neighbors
 		bmin, bmax = smin, smax # multiple names because of copying/pasting
 		dim = np.ceil((bmax - bmin) / unit) - 1
 		adjusted_bmax = bmin + dim * unit # bmin and adjusted_bmax are the lower vertices (origins) of the end cubes
-		dim = [ int(d) + 1 for d in dim ]
+		dim = [ int(_d) + 1 for _d in dim ] # _d for PY2
 		# partition
 		cell = dict()
 		cell_indices = dict()
@@ -402,7 +403,7 @@ class Gas(Graph):
 			i, _, k = grid.cell[j]
 			ids, pts = grid.subset[k]
 			if ids.size:
-				i = tuple([ int(n) for n in np.round((i - bmin) / unit) ])
+				i = tuple([ int(_n) for _n in np.round((i - bmin) / unit) ])
 				cell[i] = pts
 				if ids.size < knn + 1:
 					cell_indices[i] = ids
@@ -444,10 +445,10 @@ class Gas(Graph):
 			m = 0
 			while True: # do..while
 				m += 1
-				I = [ np.arange(max(0, k - m), min(k + m + 1, d)) \
-					for k, d in zip(i, dim) ]
+				I = [ np.arange(max(0, _k - m), min(_k + m + 1, _d)) \
+					for _k, _d in zip(i, dim) ] # _k, _d for PY2
 				I = np.meshgrid(*I, indexing='ij')
-				I = np.column_stack([ i.flatten() for i in I ])
+				I = np.column_stack([ _i.flatten() for _i in I ]) # _i for PY2
 				p = np.sum(count[tuple(I.T)])
 				if not (p < k + 1 and m < max_n_units):
 					break
@@ -456,7 +457,7 @@ class Gas(Graph):
 				# `m` has reached `max_n_units`
 				radius[j] = rmax
 				continue
-			X = [ cell[tuple(i)] for i in I if tuple(i) in cell ]
+			X = [ cell[tuple(_i)] for _i in I if tuple(_i) in cell ] # _i for PY2
 			X = np.concatenate(X, axis=0)
 			x = cell[i]
 			# dist with SciPy
@@ -478,7 +479,7 @@ class Gas(Graph):
 			j = cell_indices[i]
 			radius[j] = r
 		if verbose:
-			print('estimating density: elapsed time {:d} ms'.format(round((t0 + time.time() - t) * 1000)))
+			print('estimating density: elapsed time {:d} ms'.format(int(round((t0 + time.time() - t) * 1000)))) # int for PY2
 		# plot local radius
 		#plot = True
 		if d == 2 and plot:
