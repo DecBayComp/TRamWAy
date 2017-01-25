@@ -6,6 +6,8 @@ This re-implementation of InferenceMAP for now focuses on meshing the space of t
 This implementation is under heavy development and is not yet suitable even for testing purposes!
 To get the official implementation, please follow [this link](https://research.pasteur.fr/en/software/inferencemap/ "research.pasteur.fr/en/software/inferencemap").
 
+The [official documentation](http://inferencemap.readthedocs.io/en/latest/) is now on [readthedocs](http://inferencemap.readthedocs.io/en/latest/).
+
 ## Installation
 
 You will need Python >= 2.7 or >= 3.5.
