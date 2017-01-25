@@ -30,28 +30,28 @@ def main():
 	# grid + knn
 	print("\nfirst approach: regular grid + knn=40")
 	method = 'grid'
-	grid = tesselate(local.name, method, output_file=out(method, '.h5'), knn=40, verbose=True)
+	grid = tesselate(local, method, output_file=out(method, '.h5'), knn=40, verbose=True)
 	cell_plot(grid, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=False, \
 		verbose=True)
 
 	# kd-tree
 	print("\nsecond approach: kd-tree")
 	method = 'kdtree'
-	kdtree = tesselate(local.name, method, output_file=out(method, '.h5'), verbose=True)
+	kdtree = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
 	cell_plot(kdtree, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
 		verbose=True)
 
 	# k-means
 	print("\nthird approach: k-means")
 	method = 'kmeans'
-	kmeans = tesselate(local.name, method, output_file=out(method, '.h5'), verbose=True)
+	kmeans = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
 	cell_plot(kmeans, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
 		verbose=True)
 
 	# gwr
 	print("\nfourth approach: GWR + knn=40 + overlap")
 	method = 'gwr'
-	gwr = tesselate(local.name, method, output_file=out(method, '.h5'), knn=40, overlap=True, \
+	gwr = tesselate(local, method, output_file=out(method, '.h5'), knn=40, overlap=True, \
 		verbose=True)
 	cell_plot(gwr, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
 		verbose=True)

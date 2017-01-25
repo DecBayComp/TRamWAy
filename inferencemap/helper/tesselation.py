@@ -368,6 +368,8 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			plt.title(pp_method_name + ' based delaunay')
 		elif xy_layer == 'voronoi':
 			if method_name in ['kmeans']: # scipy.spatial.Voronoi based ridge_vertices (buggy)
+				if verbose:
+					print('all Voronoi edges are shown in red, including those discarded by ``KMeansMesh.tesselate(..., prune=True)``.')
 				plot_voronoi(cells, color='rrrr', negative=True)
 			else:
 				plot_voronoi(cells)

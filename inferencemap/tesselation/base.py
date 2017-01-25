@@ -250,7 +250,6 @@ class Tesselation(object):
 	@property
 	def cell_label(self):
 		"""Cell labels, :class:`numpy.ndarray` with as many elements as there are cells."""
-		_adjacency_label (array, optional): inter-cell edge labels (as many elements as edges).
 		return self._cell_label
 
 	@cell_label.setter

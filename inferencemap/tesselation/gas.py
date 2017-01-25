@@ -157,13 +157,13 @@ class GasMesh(Voronoi):
 							#dij = dij[-int(ceil(self.gas.knn/4))]
 							dij = dij[int(ceil(self.gas.knn/4))-1]
 						except IndexError:
-							if verbose:
+							if 1 < verbose:
 								print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d}): number of between-cell pairs = {:d} (expected: {:d})'.format(k, i, xi.shape[0], j, xj.shape[0], dij.size, int(ceil(self.gas.knn/4))))
 							continue
 						#dij = np.sqrt(-2.0 * dij)
 						if dij < self._avg_distance:
 							self._adjacency_label[k] = 4 # mark edge as 'not congruent but valid'
-					elif verbose:
+					elif 1 < verbose:
 						print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d})'.format(k, i, xi.shape[0], j, xj.shape[0]))
 		new_labels = np.array([0,-1,-2,1,2])
 		# before: 0=[none], 1=not congruent (gas only), 2=not congruent (voronoi only), 
