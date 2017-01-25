@@ -45,8 +45,10 @@ def main():
 	print("\nthird approach: k-means")
 	method = 'kmeans'
 	kmeans = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
+	print('overlaying Delaunay graph instead of Voronoi')
 	cell_plot(kmeans, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
-		verbose=True)
+		verbose=True, xy_layer='delaunay')
+	# Voronoi in KMeansMesh is a little buggy (this affects only plotting).
 
 	# gwr
 	print("\nfourth approach: GWR + knn=40 + overlap")
