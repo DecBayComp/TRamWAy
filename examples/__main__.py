@@ -16,7 +16,7 @@ else:
 	import urllib.request as request
 	fullmatch = re.fullmatch
 import importlib
-from pathlib import Path
+#from pathlib import Path
 #from inferencemap.helper.tesselation import *
 
 
@@ -80,12 +80,12 @@ def main():
 			data_dir = module.data_dir
 		else:
 			data_dir = ''
-		local = Path(module.data_dir, module.data_file)
-		if not local.exists() and hasattr(module, 'data_server'):
+		local = os.path.join(module.data_dir, module.data_file)
+		if not os.path.exists(local) and hasattr(module, 'data_server'):
 			print('downloading {}... '.format(module.data_file), end='')
 			try:
 				request.urlretrieve(os.path.join(module.data_server, \
-						module.data_file), local.name)
+						module.data_file), local)
 				print('[done]')
 			except:
 				print('[failed]')

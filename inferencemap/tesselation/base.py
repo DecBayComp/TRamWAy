@@ -9,7 +9,48 @@ from inferencemap.spatial.scaler import *
 
 
 class CellStats(object):
-	"""Container datatype for various results related to a sample and a tesselation."""
+	"""Container datatype for various results related to spatially distributed data points.
+
+	This datatype is first returned by :meth:`Tesselation.cellStats`. At this stage, a `CellStats`
+	instance stores the tesselation and the partition of the data, together with a few statistics
+	over this partition.
+
+	The partition :attr:`cell_index` may be in any of the following formats:
+
+	array:
+		It has as many elements as data points, and each
+		element is a cell index or ``0`` (if not assigned to any cell).
+
+	pair of arrays:
+		It is a sparse representation ``(point_index, cell_index)`` such that for all ``i``
+		``point_index[i]`` point is in ``cell_index[i]``.
+
+	sparse matrix (:mod:`scipy.sparse`):
+		It is a ``number_of_points * number_of_cells`` matrix with nonzero element wherever
+		the corresponding point is in the corresponding cell.
+		
+
+	Attributes:
+		points (array-like): the original point coordinates, unchanged.
+
+		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
+			Data partition.
+
+		cell_count (numpy.ndarray): ``cell_count[i]`` is the number of points in cell ``i``.
+
+		bounding_box (array-like):
+			``2 * D`` array with lower values in first row and upper values in second row,
+			where ``D`` is the dimension of the point data.
+
+		param (dict):
+			Arguments involved in the tesselation as key-value pairs. Not any argument is
+			required to be stored in `param`.
+
+		tesselation (Tesselation):
+			The tesselation that defined the partition.
+
+	"""
+
 	__slots__ = ['points', 'cell_index', 'cell_count', 'bounding_box', 'param', 'tesselation']
 
 	def __init__(self, cell_index=None, cell_count=None, bounding_box=None, points=None, \
@@ -22,12 +63,34 @@ class CellStats(object):
 		self.tesselation = tesselation
 
 	def descriptors(self, *vargs, **kwargs):
+		"""Proxy method for :meth:`inferencemap.Tesselation.descriptors`."""
 		return self.tesselation.descriptors(*vargs, **kwargs)
 
 
 def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_labels=None):
-	"""returns an adjacency matrix of data points where a given pair of points is defined as
+	"""
+	Adjacency matrix of data points such that a given pair of points is defined as
 	adjacent iif they belong to adjacent and distinct cells.
+
+	Arguments:
+		cells (CellStats):
+			CellStats with both partition and tesselation defined.
+
+		symetric (bool, optional):
+			If ``False``, the returned matrix will not be symetric, i.e. wherever i->j is
+			defined, j->i is not.
+
+		cell_labels (function handler, optional):
+			Takes an array of cell labels as input (see :obj:`cells.tesselation.cell_label`)
+			and returns a bool array of equal shape.
+
+		adjacency_labels (function handler, optional):
+			Takes an array of edge labels as input (see 
+			:obj:`cells.tesselation.adjacency_label`) and returns a bool array of equal
+			shape.
+
+	Returns:
+		scipy.sparse.csr_matrix: Sparse square matrix with as many rows as data points.
 	"""
 	x = cells.descriptors(cells.points, asarray=True)
 	ij = np.arange(x.shape[0])
@@ -43,11 +106,14 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 		_, js, k = sparse.find(cells.tesselation.cell_adjacency[i])
 		if js.size == 0:
 			continue
+		# the upper triangular part of the adjacency matrix should be defined...
 		k = k[i < js]
 		js = js[i < js]
 		if js.size == 0:
 			continue
 		if adjacency_labels is not None:
+			if cells.tesselation.adjacency_label is not None:
+				k = cells.tesselation.adjacency_label
 			js = js[adjacency_labels(k)]
 			if js.size == 0:
 				continue
@@ -80,8 +146,24 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
 
 class Tesselation(object):
-	"""Abstract class for tesselations. Main methods to be implemented are :meth:`tesselate` and
-	:meth:`cellIndex`. :meth:`cellStats` is for convenience."""
+	"""Abstract class for tesselations.
+
+	The methods to be implemented are :meth:`tesselate` and :meth:`cellIndex`.
+
+	Attributes:
+		scaler (Scaler): scaler.
+
+	Other Attributes:
+		_cell_adjacency: square adjacency matrix for cells.
+			If `_adjacency_label` is defined, `_cell_adjacency` should be sparse and the
+			explicit elements should be indices in `_adjacency_label`.
+		_cell_label (numpy.ndarray, optional): cell labels with as many elements as cells.
+		_adjacency_label (numpy.ndarray, optional): inter-cell edge labels with as many elements
+			as there are edges.
+
+	Arguments:
+		scaler (Scaler): scaler.
+	"""
 	def __init__(self, scaler=Scaler()):
 		self.scaler = scaler
 		self._cell_adjacency = None
@@ -89,6 +171,12 @@ class Tesselation(object):
 		self._adjacency_label = None
 
 	def _preprocess(self, points):
+		"""
+		Identify euclidian variables (usually called 'x', 'y', 'z') and scale the coordinates.
+
+		See also:
+			:mod:`inferencemap.spatial.scaler`.
+		"""
 		if self._cell_centers is None and self.scaler.euclidean is None:
 			# initialize
 			if isstructured(points):
@@ -101,15 +189,40 @@ class Tesselation(object):
 		return self.scaler.scalePoint(points)
 
 	def tesselate(self, points, **kwargs):
-		''':meth:`tesselate` takes a :class:`pandas.core.frame.DataFrame` or :class:`numpy.array`.
-		Columns of the `DataFrame` are treated according to their name: 'x', 'y' and 'z' are 
-		spatial variables and are included in :attr:`~mesh.scaler.Scaler.euclidean`.'''
+		"""
+		Grow the tesselation.
+
+		Arguments:
+			points (array-like): point coordinates.
+
+		Admits keyword arguments.
+		"""
 		raise NotImplementedError
 
 	def cellIndex(self, points):
+		"""
+		Partition.
+
+		Arguments:
+			points (array-like): point coordinates.
+
+		Returns:
+			Any datatype suitable for :attr:`CellStats.cell_index`.
+		"""
 		raise NotImplementedError
 
 	def cellStats(self, points, **kwargs):
+		"""
+		Partition on top of :meth:`cellIndex` and fill the extra :class:`CellStats` attributes.
+
+		Arguments:
+			points (array-like): point coordinates.
+
+		Returns:
+			CellStats: partition object.
+
+		Admits keyword arguments to be provided to :meth:`cellIndex`.
+		"""
 		cell_index = self.cellIndex(points, **kwargs)
 		if isinstance(cell_index, tuple):
 			ci = sparse.csr_matrix((np.ones_like(cell_index[0], dtype=bool), \
@@ -136,6 +249,8 @@ class Tesselation(object):
 	# cell_label property
 	@property
 	def cell_label(self):
+		"""Cell labels, :class:`numpy.ndarray` with as many elements as there are cells."""
+		_adjacency_label (array, optional): inter-cell edge labels (as many elements as edges).
 		return self._cell_label
 
 	@cell_label.setter
@@ -145,6 +260,9 @@ class Tesselation(object):
 	# cell_adjacency property
 	@property
 	def cell_adjacency(self):
+		"""Squre cell adjacency matrix. If :attr:`adjacency_label` is defined, 
+		:attr:`cell_adjacency` is sparse and the explicit elements are indices in 
+		:attr:`adjacency_label`."""
 		return self._cell_adjacency
 
 	@cell_adjacency.setter
@@ -154,6 +272,7 @@ class Tesselation(object):
 	# adjacency_label property
 	@property
 	def adjacency_label(self):
+		"""Inter-cell edge labels, :class:`numpy.ndarray` with as many elements as edges."""
 		return self._adjacency_label
 
 	@adjacency_label.setter
@@ -161,7 +280,18 @@ class Tesselation(object):
 		self._adjacency_label = label
 
 	def descriptors(self, points, asarray=False):
-		"""Returns the columns of `points` which the tesselation was grown on basis of."""
+		"""Keep the data columns that were involved in growing the tesselation.
+
+		Arguments:
+			points (array-like): point coordinates.
+			asarray (bool, optional): returns a :class:`numpy.ndarray`.
+
+		Returns:
+			array-like: coordinates. If equal to `points`, may be truly identical.
+
+		See also:
+			:meth:`inferencemap.spatial.scaler.Scaler.scaled`.
+		"""
 		try:
 			return self.scaler.scaled(points, asarray)
 		except:
@@ -172,6 +302,14 @@ class Tesselation(object):
 
 
 class Delaunay(Tesselation):
+	"""
+	Delaunay graph.
+
+	Implements the `knn` feature and support for cell overlap.
+
+	Other Attributes:
+		_cell_centers (numpy.ndarray): scaled coordinates of the cell centers.
+	"""
 	def __init__(self, scaler=Scaler()):
 		Tesselation.__init__(self, scaler)
 		self._cell_centers = None
@@ -180,16 +318,27 @@ class Delaunay(Tesselation):
 		self._cell_centers = self._preprocess(points)
 
 	def cellIndex(self, points, knn=None, metric='euclidean', prefered='index', **kwargs):
-		"""`prefered` can be either 'force index', 'index' (default), 'pair' or 'sparse'.
+		"""
+		Arguments:
+			points: see :meth:`Tesselation.cellIndex`.
+			knn (int, optional): number of nearest neighbors per cell center.
+			prefered ({'index', 'force-index', 'pair', 'sparse'}, optional):
+				prefered representation of the partition.
+
+		Returns:
+			see :meth:`Tesselation.cellIndex`.
+
+		A single vector representation of the point-cell association may not be possible with
+		`knn` set, for example, because any point can be associated to multiple cells. If such
+		a condition holds and `prefered` is 'index', then 'pair' will be used as a fallback.
+
+		`prefered` can be either 'force index', 'index' (default), 'pair' or 'sparse'.
 		'force index' and 'index': the output is single vector of cell indices with size the 
 		number of points.
 		'pair': the output is a pair of vectors (say U an V); at index i, U[i] is the index of a
 		point and V[i] is the index of a cell.
 		'sparse': the output is a COO sparse matrix with size (# points, # cells) and a non-zero
-		where a point falls into a cell.
-		A single vector representation of the point-cell association may not be possible with
-		`knn` set, for example, because any point can be associated to multiple cells. If such
-		a condition holds and `prefered` is 'index', then 'pair' will be used as a fallback."""
+		where a point falls into a cell."""
 		points = self.scaler.scalePoint(points, inplace=False)
 		D = cdist(self.descriptors(points, asarray=True), \
 			self._cell_centers, metric, **kwargs)
@@ -219,6 +368,7 @@ class Delaunay(Tesselation):
 	# cell_centers property
 	@property
 	def cell_centers(self):
+		"""Unscaled coordinates of the cell centers (numpy.ndarray)."""
 		if isinstance(self.scaler.factor, pd.Series):
 			return self.scaler.unscalePoint(pd.DataFrame(self._cell_centers, \
 				columns=self.scaler.factor.index))
@@ -231,6 +381,18 @@ class Delaunay(Tesselation):
 
 
 class Voronoi(Delaunay):
+	"""
+	Voronoi graph.
+
+	Adds a Voronoi graph as cell boundaries, on top of the Delaunay graph.
+	Implements possibly-lazy construction of this additional graph using 
+	:class:`scipy.spatial.Voronoi`.
+
+	Other Attributes:
+		_cell_vertices (numpy.ndarray): scaled coordinates of the Voronoi vertices.
+		_ridge_vertices (numpy.ndarray): 2-column adjacency matrix specifying an edge as a pair
+			of indices in :attr:`cell_vertices`.
+	"""
 	def __init__(self, scaler=Scaler()):
 		Delaunay.__init__(self, scaler)
 		self._cell_vertices = None
@@ -239,6 +401,7 @@ class Voronoi(Delaunay):
 	# cell_vertices property
 	@property
 	def cell_vertices(self):
+		"""Unscaled coordinates of the Voronoi vertices (numpy.ndarray)."""
 		if self._cell_centers is not None and self._cell_vertices is None:
 			self._postprocess()
 		if isinstance(self.scaler.factor, pd.Series):
@@ -275,6 +438,11 @@ class Voronoi(Delaunay):
 		self._ridge_vertices = ridges
 
 	def _postprocess(self):
+		"""Compute the Voronoi.
+
+		This private method may be called anytime by :attr:`cell_vertices` or 
+		:attr:`ridge_vertices`.
+		"""
 		if self._cell_centers is None:
 			raise NameError('`cell_centers` not defined; tesselation has not been grown yet')
 		else:
@@ -293,6 +461,17 @@ class Voronoi(Delaunay):
 			return voronoi
 
 class RegularMesh(Voronoi):
+	"""Regular k-D grid.
+
+	Attributes:
+		lower_bound:
+		upper_bound:
+		count_per_dim:
+		min_probability:
+		avg_probability:
+		max_probability:
+
+	Rather slow. May be reimplemented some day."""
 	def __init__(self, scaler=None, lower_bound=None, upper_bound=None, count_per_dim=None, min_probability=None, max_probability=None, avg_probability=None, **kwargs):
 		Voronoi.__init__(self) # just ignore `scaler`
 		self.lower_bound = lower_bound
@@ -388,6 +567,4 @@ class RegularMesh(Voronoi):
 	def ridge_vertices(self, ridges):
 		self._ridge_vertices = ridges
 
-	def descriptors(self, points, asarray=False):
-		return self.scaler.scaled(points, asarray)
 

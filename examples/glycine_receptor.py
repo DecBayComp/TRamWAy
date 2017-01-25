@@ -1,5 +1,6 @@
 
-from pathlib import Path
+import os
+#from pathlib import Path
 #import urllib.request # only in PY3
 from inferencemap.helper.tesselation import *
 
@@ -16,13 +17,13 @@ if __name__ == '__main__':
 	main()
 
 def main():
-	local = Path(data_dir, data_file)
+	local = os.path.join(data_dir, data_file)
 
 	## download data file if missing
-	#if not local.exists():
-	#	urllib.request.urlretrieve(data_server + data_file, local.name)
+	#if not os.path.exists(local):
+	#	urllib.request.urlretrieve(data_server + data_file, local)
 
-	output_basename, _ = os.path.splitext(local.name)
+	output_basename, _ = os.path.splitext(local)
 	def out(method, extension):
 		return '{}.{}{}'.format(output_basename, method, extension)
 

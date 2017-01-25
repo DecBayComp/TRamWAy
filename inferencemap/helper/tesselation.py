@@ -31,80 +31,93 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
 	min_cell_count=20, avg_cell_count=None, max_cell_count=None, \
 	**kwargs):
-	"""Tesselation for clouds or series of points
+	"""
+	Tesselation for clouds or series of points.
 
 	This helper routine is a high-level interface to the various tesselation techniques 
 	implemented in InferenceMAP.
 
-	Returns a :class:`inferencemap.tesselation.base.CellStats` instance. See :ref:`imt file format <imt_format>`.
+	Arguments:
+		xyt_data (str or matrix):
+			Path to a `.trxyt` file or raw data in the shape of :class:`pandas.DataFrame` 
+			(or any data format documented in :mod:`inferencemap.spatial.descriptor`).
 
-	Apart from the parameters defined below, extra input arguments are admited and passed to the
+
+		method ({'grid', 'kdtree', 'kmeans', 'gwr'}, optional):
+			Tesselation method.
+			See respectively 
+			:class:`~inferencemap.tesselation.RegularMesh`, 
+			:class:`~inferencemap.tesselation.KDTreeMesh`, 
+			:class:`~inferencemap.tesselation.KMeansMesh` and 
+			:class:`~inferencemap.tesselation.GasMesh`.
+
+		output_file (str, optional):
+			Path to a `.h5` file. The resulting tesselation and data partition will be 
+			stored in this file. If `xyt_data` is a path to a file and `output_file` is not 
+			defined, then `output_file` will be adapted from `xyt_data` with extension 
+			`.imt.h5`.
+
+		verbose (bool, optional): Verbose output.
+
+		scaling (bool or str, optional):
+			Normalization of the data.
+			Any of 'unitrange', 'whiten' or other methods defined in 
+			:mod:`inferencemap.spatial.scaler`.
+
+		time_scale (bool or float, optional): 
+			If this argument is defined and intepretable as ``True``, the time axis is 
+			scaled by this factor and used as a space variable for the tesselation (2D+T or 
+			3D+T, for example).
+			This is equivalent to manually scaling the ``t`` column and passing 
+			``scaling=True``.
+
+		knn (int, optional):
+			After growing the tesselation, a maximum number knn of nearest neighbors of 
+			each cell center can be used instead of the entire cell population. See also 
+			`spatial_overlap`.
+
+		spatial_overlap (bool, optional):
+			In combination with non-negative `knn`, allows cell overlapping when `knn` is 
+			greater than the number of points in a cell.
+
+		ref_distance (float, optional):
+			Supposed to be the average jump distance. Can be modified so that the cells are
+			smaller or larger.
+
+		rel_min_distance (float, optional):
+			Multiplies with `ref_distance` to define the minimum inter-cell distance.
+
+		rel_avg_distance (float, optional):
+			Multiplies with `ref_distance` to define an upper on the average inter-cell 
+			distance.
+
+		rel_max_distance (float, optional):
+			Multiplies with `ref_distance` to define the maximum inter-cell distance.
+
+		min_cell_count (int, optional):
+			Minimum number of points per cell. Depending on the method, can be strictly
+			enforced or interpreted as a hint.
+
+		avg_cell_count (int, optional):
+			Hint of the average number of points per cell. Per default set to four times
+			`min_cell_count`.
+
+		max_cell_count (int, optional):
+			Maximum number of points per cell. This is used only by `kdtree`.
+
+
+	Returns:
+		inferencemap.tesselation.CellStats: A partition of the data with 
+			:attr:`~inferencemap.tesselation.CellStats.tesselation` attribute set.
+
+
+	Apart from the parameters defined above, extra input arguments are admitted and passed to the
 	initializer of the selected tesselation method. See the individual documentation of these 
 	methods for more information.
 
-	Parameters
-	----------
-	xyt_data: string or matrix, required
-		Path to a .trxyt file or raw data in the shape of :class:`pandas.DataFrame` 
-		(or any data format documented in :mod:`inferencemap.spatial.descriptor`)
 
-	method: string, optional, default 'gwr'
-		Any of 'grid', 'kdtree', 'kmeans' or 'gwr'.
-		'grid' is a regular grid (see :class:`inferencemap.tesselation.base.RegularMesh`)
-		'kdtree' is a dichotomy-like k-d tree (see :class:`inferencemap.tesselation.kdtree.KDTreeMesh`)
-		'kmeans' is based on k-means clustering (see :class:`inferencemap.tesselation.kmeans.KMeansMesh`)
-		'gwr' is based on Growing-When-Required self-organizing "gas" (see :class:`inferencemap.tesselation.gas.GasMesh`)
-
-	output_file: string, optional
-		Path to a .h5 file. The resulting tesselation and data partition will be stored in this
-		file. If xyt_data is a path to a file and output_file is not defined, then output_file
-		will be adapted from xyt_data with extension .imt.h5.
-
-	verbose: boolean, optional, default False
-
-	scaling: boolean or string, optional
-		Any of 'unitrange' or 'whiten'. See :mod:`inferencemap.spatial.scaler`.
-
-	time_scale: boolean or float, optional
-		If this argument is defined and intepretable as True, the time axis is scaled by this
-		factor and used as a space variable for the tesselation (2D+T or 3D+T, for example).
-		This is equivalent to manually scaling the `t` column and passing `scaling=True`.
-
-	knn: int, optional
-		After growing the tesselation, a maximum number knn of nearest neighbors of each cell
-		center can be used instead of the entire cell population. See also `spatial_overlap`.
-
-	spatial_overlap: boolean, optional, default False
-		In combination with non-negative knn, allows cell overlapping when knn is greater than
-		the number of points in a cell.
-
-	ref_distance: float, optional
-		Supposed to be the average jump distance. Can be modified so that the cells are smaller
-		or larger.
-
-	rel_min_distance: float, optional, default 0.8
-		Multiplies with `ref_distance` to define the minimum inter-cell distance.
-
-	rel_avg_distance: float, optional, default 2
-		Multiplies with `ref_distance` to define an upper on the average inter-cell distance.
-
-	rel_max_distance: float, optional
-		Multiplies with `ref_distance` to define the maximum inter-cell distance.
-
-	min_cell_count: int, optional, default 20
-		Minimum number of points per cell. Depending on the method, can be strictly enforced or
-		interpreted as a hint.
-
-	avg_cell_count: int, optional
-		Hint of the average number of points per cell. Per default set to four times
-		`min_cell_count`.
-
-	max_cell_count: int, optional
-		Maximum number of points per cell. This is used only by `kdtree`.
-
-	Notes
-	-----
-	See demo/glycine_receptor.py for simple applications of the different methods.
+	Notes:
+		See :ref:`examples/glycine_receptor.py` for simple applications of the different methods.
 
 	"""
 	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, list):
@@ -241,56 +254,55 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, \
 	point_count_hist=False, cell_dist_hist=False, point_dist_hist=False):
-	"""Partition plots
+	"""
+	Partition plots.
 
 	Plots a spatial representation of the tesselation and partition if data are 2D, and optionally
 	histograms.
 
-	Parameters
-	----------
-	cells: string or CellStats, required
-		Path to a .imt.h5 file or CellStats instance.
+	Arguments:
+		cells (str or CellStats):
+			Path to a `.imt.h5` file or :class:`~inferencemap.tesselation.CellStats` 
+			instance.
 
-	xy_layer: string, optional, default 'voronoi'
-		Either 'delaunay', 'voronoi' or None. Overlay delaunay graph or voronoi over the data
-		points. For 2D data only.
+		xy_layer ({None, 'delaunay', 'voronoi'}, optional):
+			Overlay Delaunay or Voronoi graph over the data points. For 2D data only.
 
-	output_file: string, optional
-		Path to a file in which the figure will be saved. If `cells` is a path and `fig_format`
-		is defined, `output_file` is automatically set.
+		output_file (str, optional):
+			Path to a file in which the figure will be saved. If `cells` is a path and 
+			`fig_format` is defined, `output_file` is automatically set.
 
-	fig_format: string, optional
-		Any image format supported by :func:`matplotlib.pyplot.savefig`.
+		fig_format (str, optional):
+			Any image format supported by :func:`matplotlib.pyplot.savefig`.
 
-	show: boolean, optional, default False
-		Makes `cell_plot` show the figure(s) which is the default behavior if and only if the
-		figures are not saved.
+		show (bool, optional):
+			Makes `cell_plot` show the figure(s) which is the default behavior if and only 
+			if the figures are not saved.
 
-	verbose: boolean, optional, default False
+		verbose (bool, optional): Verbose output.
 
-	figsize: pair of floats, optional, default (24.0, 18.0)
-		Passed to :func:`matplotlib.pyplot.figure`. Applies only to the spatial representation
-		figure.
+		figsize (pair of floats, optional):
+			Passed to :func:`matplotlib.pyplot.figure`. Applies only to the spatial 
+			representation figure.
 
-	dpi: int, optional
-		Passed to :func:`matplotlib.pyplot.savefig`. Applies only to the spatial representation
-		figure.
+		dpi (int, optional):
+			Passed to :func:`matplotlib.pyplot.savefig`. Applies only to the spatial 
+			representation figure.
 
-	point_count_hist: boolean, optional, default False
-		Plot a histogram of point counts (per cell). If the figure is saved, the corresponding
-		file will have sub-extension .hpc.
+		point_count_hist (bool, optional):
+			Plot a histogram of point counts (per cell). If the figure is saved, the 
+			corresponding file will have sub-extension `.hpc`.
 
-	cell_dist_hist: boolean, optional, default False
-		Plot a histogram of distances between neighbor centroids. If the figure is saved, the
-		corresponding file will have sub-extension .hcd.
+		cell_dist_hist (bool, optional):
+			Plot a histogram of distances between neighbor centroids. If the figure is 
+			saved, the corresponding file will have sub-extension `.hcd`.
 
-	point_dist_hist: boolean, optional, default False
-		Plot a histogram of distances between points from neighbor cells. If the figure is saved,
-		the corresponding file will have sub-extension .hpd.
+		point_dist_hist (bool, optional):
+			Plot a histogram of distances between points from neighbor cells. If the figure 
+			is saved, the corresponding file will have sub-extension `.hpd`.
 
-	Notes
-	-----
-	See also :mod:`inferencemap.plot.mesh`.
+	Notes:
+		See also :mod:`inferencemap.plot.mesh`.
 
 	"""
 	if isinstance(cells, CellStats):

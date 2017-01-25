@@ -11,7 +11,21 @@ import time
 
 
 class GasMesh(Voronoi):
-	"""GWR based tesselation."""
+	"""GWR based tesselation.
+
+	Attributes:
+		gas (:class:`~inferencemap.spatial.gas.Gas`):
+			internal graph representation of the gas.
+		min_probability (float):
+			minimum probability of a point to be in any given cell.
+
+	Other Attributes:
+		_min_distance (float):
+			scaled minimum distance between adjacent cell centers.
+		_avg_distance (float):
+			upper bound on the average scaled distance between adjacent cell centers.
+		_max_distance (float):
+			scaled maximum distance between adjacent cell centers."""
 	def __init__(self, scaler=Scaler(), min_distance=None, avg_distance=None, max_distance=None, \
 		min_probability=None, avg_probability=None, **kwargs):
 		Voronoi.__init__(self, scaler)
@@ -59,10 +73,31 @@ class GasMesh(Voronoi):
 	def tesselate(self, points, pass_count=(1,3), residual_factor=.7, error_count_tol=5e-3, \
 		min_growth=1e-4, collapse_tol=.01, stopping_criterion=0, verbose=False, \
 		plot=False, **kwargs):
-		"""See :meth:`inferencemap.spatial.gas.Gas.train` for more information on the input
-		parameters.
-		`residual_max` is replaced by `residual_factor` which conveniently multiplies with 
-		the scaled `max_distance` if available."""
+		"""Grow the tesselation.
+
+		Arguments:
+			points: see :meth:`~inferencemap.tesselation.base.Tesselation.tesselate`.
+			pass_count (pair of floats): minimum and maximum numbers of times the data
+				should (in principle) be consumed.
+			residual_factor (float): multiplies with `_max_distance` to determine 
+				`residual_max` in :meth:`~inferencemap.spatial.gas.Gas.train`.
+			error_count_tol (float): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
+			min_growth (float): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
+			collapse_tol (float): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
+			stopping_criterion (int): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
+			verbose (bool): verbose output.
+			batch_size (int): (see :class:`~inferencemap.spatial.gas.Gas`)
+			tau (float): (see :class:`~inferencemap.spatial.gas.Gas`)
+			trust (float): (see :class:`~inferencemap.spatial.gas.Gas`)
+			lifetime (int): (see :class:`~inferencemap.spatial.gas.Gas`)
+
+		Returns:
+			See :meth:`~inferencemap.tesselation.base.Tesselation.tesselate`.
+
+		See also:
+			:class:`inferencemap.spatial.gas.Gas` and 
+			:meth:`inferencemap.spatial.gas.Gas.train`.
+		"""
 		#np.random.seed(15894754) # to benchmark and compare between Graph implementations
 		points = self._preprocess(points, **kwargs)
 		if self._avg_distance:

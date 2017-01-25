@@ -112,11 +112,7 @@ class Gas(Graph):
 		self.knn = None
 
 	def insertionThreshold(self, eta, node, *vargs):
-		"""Can be overwritten with:
-		.. code-block:: python
-			def insertion_threshold(eta, node):
-				...
-			gas.insertionThreshold = insertion_threshold
+		"""
 		"""
 		##TODO: handle time more explicitly
 		if self.knn:
@@ -128,7 +124,8 @@ class Gas(Graph):
 			return self.insertion_threshold
 
 	def collapseThreshold(self, node1, node2):
-		"""Same concept like :meth:`insertionThreshold`."""
+		"""
+		"""
 		if self.knn:
 			radius1 = self.getNodeAttr(node1, 'radius')
 			radius2 = self.getNodeAttr(node2, 'radius')
@@ -138,7 +135,14 @@ class Gas(Graph):
 			return self.collapse_below
 
 	def habituationFunction(self, t, i=0):
-		"""Returns the habituation for a given time/counter."""
+		"""
+		Arguments:
+			t (int or float or array): counter or time.
+			i (int): proximity level (0=nearest, 1=second nearest).
+
+		Returns:
+			float or array: habituation.
+		"""
 		return self.habituation_initial - \
 			(1 - exp(-self.habituation_alpha[i] * t / self.habituation_tau[i])) / \
 			(self.habituation_alpha[i])
@@ -251,23 +255,26 @@ class Gas(Graph):
 		these batches of data, collapses the gas if necessary and stops if stopping criteria are 
 		met.
 		The input arguments that define stopping criteria are:
+
 		* `pass_count`: (min, max) numbers of times the algorithm should/can run on the full 
-		sample.
+		  sample.
 		* `residual_max`: a residual is calculated for each sample point, before fitting the gas
-		towards it, and `residual_max` is a threshold above which a residual is regarded as an
-		'error'. This parameter works together with `error_count_tol`.
+		  towards it, and `residual_max` is a threshold above which a residual is regarded as an
+		  'error'. This parameter works together with `error_count_tol`.
 		* `error_count_tol`: maximum proportion of 'errors' (number of errors in a batch over the
-		size of the batch). If this maximum is exceeded, then the :meth:`train` sample another
-		batch and keeps on training the gas. Otherwise, the next criteria apply.
+		  size of the batch). If this maximum is exceeded, then the :meth:`train` sample another
+		  batch and keeps on training the gas. Otherwise, the next criteria apply.
 		* `min_growth`: minimum relative increase in the number of nodes from an iteration to the
-		next.
+		  next.
 		* `collapse_tol`: maximum allowed ratio of the number of collapsed nodes over the total
-		number of nodes.
+		  number of nodes.
 		* `stopping_criterion`: (provisional) `int`
+
 			* `1`: performs a linear regression for the pre-fitting residual across time, and
-			'tests' whether the trend is not negative.
+			  'tests' whether the trend is not negative.
 			* `2`: stops if the average residual for the current batch is greater than that 
-			of the previous batch.
+			  of the previous batch.
+
 		"""
 		## TODO: clarify the code
 		n = sample.shape[0]

@@ -1,0 +1,7 @@
+Library reference
+=================
+
+.. toctree::
+
+    inferencemap
+

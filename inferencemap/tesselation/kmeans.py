@@ -9,7 +9,15 @@ from scipy.spatial.distance import cdist
 
 
 class KMeansMesh(Voronoi):
-	"""K-Means and Voronoi based tesselation."""
+	"""K-Means and Voronoi based tesselation.
+
+	Attributes:
+		avg_probability (float): probability of a point to be in a given cell (controls the
+			number of cells and indirectly their size).
+	
+	Other Attributes:
+		_min_distance (float): scaled minimum distance between adjacent cell centers.
+	"""
 	def __init__(self, scaler=Scaler(), min_probability=None, avg_probability=None, \
 		min_distance=None, **kwargs):
 		Voronoi.__init__(self, scaler)
@@ -35,6 +43,14 @@ class KMeansMesh(Voronoi):
 
 	def tesselate(self, points, tol=1e-3, prune=True, plot=False, **kwargs):
 		points = self._preprocess(points)
+		"""Grow the tesselation.
+
+		Attributes:
+			points: see :meth:`~inferencemap.tesselation.base.Tesselation.tesselate`.
+			tol (float, optional): error tolerance. 
+				Passed as `thresh` to :func:`scipy.cluster.vq.kmeans`.
+			prune (bool, optional): prunes the Voronoi and removes the longest edges.
+		"""
 		self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
 			thresh=tol)
 
@@ -83,7 +99,7 @@ class KMeansMesh(Voronoi):
 							dij = dij.flatten()
 							dij.sort()
 							try:
-								dij = dij[-5] # 10 hard coded!
+								dij = dij[-5] # 5 hard coded!
 							except: # disconnect
 								self._adjacency_label[edge] = False
 								continue
@@ -129,7 +145,7 @@ class KMeansMesh(Voronoi):
 			d = x[i] - x[j]
 			d = np.sum(d * d, axis=1) # square distance
 			d0 = np.median(d)
-			edge = k[d0 * 9 < d] # edges to be discarded
+			edge = k[d0 * 2 < d] # edges to be discarded
 			if edge.size:
 				self._adjacency_label[edge] = False
 

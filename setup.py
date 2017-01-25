@@ -5,14 +5,14 @@ from codecs import open
 from os import path
 
 install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables', 'h5py']
-try:
-	import pathlib
-except ImportError:
-	install_requires.append('pathlib')
-try:
-	import importlib.util
-except ImportError:
-	install_requires.append('importlib2')
+#try:
+#	import pathlib
+#except ImportError:
+#	install_requires.append('pathlib')
+#try:
+#	import importlib.util
+#except ImportError:
+#	install_requires.append('importlib2')
 
 pwd = path.abspath(path.dirname(__file__))
 
