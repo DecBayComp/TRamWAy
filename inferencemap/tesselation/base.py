@@ -18,23 +18,26 @@ class CellStats(object):
 	The partition :attr:`cell_index` may be in any of the following formats:
 
 	array
-		It has as many elements as data points, and each
-		element is a cell index or ``0`` (if not assigned to any cell).
+		Cell index of size the number of data points. The element at index ``i`` is the cell
+		index of point ``i`` or ``-1`` (if point ``i`` is not assigned to any cell).
 
 	pair of arrays
-		It is a sparse representation ``(point_index, cell_index)`` such that for all ``i``
-		``point_index[i]`` point is in ``cell_index[i]``.
+		Point-cell association in the shape of a sparse representation 
+		``(point_index, cell_index)`` such that for all ``i`` ``point_index[i]`` point is in 
+		``cell_index[i]`` cell.
 
 	sparse matrix (:mod:`scipy.sparse`)
-		It is a ``number_of_points * number_of_cells`` matrix with nonzero element wherever
+		 ``number_of_points * number_of_cells`` matrix with nonzero element wherever
 		the corresponding point is in the corresponding cell.
+
+	See also :meth:`Delaunay.cellIndex`.
 		
 
 	Attributes:
 		points (array-like): the original point coordinates, unchanged.
 
 		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
-			Data partition.
+			Point-cell association (or data partition).
 
 		cell_count (numpy.ndarray): ``cell_count[i]`` is the number of points in cell ``i``.
 
@@ -246,7 +249,7 @@ class Tesselation(object):
 			bounding_box = pd.concat([xmin, xmax], axis=1).T
 			bounding_box.index = ['min', 'max']
 		else:
-			bounding_box = np.vstack([xmin, xmax]).T.flatten()
+			bounding_box = np.vstack([xmin, xmax]).flatten('F')
 		return CellStats(cell_index=cell_index, cell_count=cell_count, \
 			bounding_box=bounding_box, points=points, tesselation=self)
 
@@ -320,28 +323,41 @@ class Delaunay(Tesselation):
 	def tesselate(self, points):
 		self._cell_centers = self._preprocess(points)
 
-	def cellIndex(self, points, knn=None, metric='euclidean', prefered='index', **kwargs):
+	def cellIndex(self, points, min_cell_size=None, max_cell_size=None, metric='euclidean', \
+		prefered='index', **kwargs):
 		"""
 		Arguments:
 			points: see :meth:`Tesselation.cellIndex`.
-			knn (int, optional): number of nearest neighbors per cell center.
+			min_cell_size (int, optional): minimum number of points per cell (or of nearest
+				neighbors to the cell center). If strictly positive, cells may overlap
+				and the returned cell index may be a sparse point-cell association.
+				See also the `prefered` argument.
+			max_cell_size (int, optional): maximum number of points per cell (or of nearest
+				neighbors to the cell center).
 			prefered ({'index', 'force-index', 'pair', 'sparse'}, optional):
-				prefered representation of the partition.
+				prefered representation of the point-cell association (or partition).
 
 		Returns:
 			see :meth:`Tesselation.cellIndex`.
 
 		A single vector representation of the point-cell association may not be possible with
-		`knn` set, for example, because any point can be associated to multiple cells. If such
-		a condition holds and `prefered` is 'index', then 'pair' will be used as a fallback.
+		`min_cell_set` defined, because a point can be associated to multiple cells. If such
+		a case happens and `prefered` is 'index', then 'pair' will be used as a fallback.
 
-		`prefered` can be either 'force index', 'index' (default), 'pair' or 'sparse'.
-		'force index' and 'index': the output is single vector of cell indices with size the 
-		number of points.
-		'pair': the output is a pair of vectors (say U an V); at index i, U[i] is the index of a
-		point and V[i] is the index of a cell.
-		'sparse': the output is a COO sparse matrix with size (# points, # cells) and a non-zero
-		where a point falls into a cell."""
+		`prefered` can be either 'index' (default), 'force index', 'pair' or 'sparse'.
+
+		'index' and 'force index'
+			the output is single vector of cell indices with size the number of points.
+
+		'pair'
+			the output is a pair of vectors (say U an V); at index i, U[i] is the index of a
+			point and V[i] is the index of a cell.
+
+		'sparse'
+			the output is a COO sparse matrix with size (# points, # cells) and a non-zero
+			where a point falls into a cell.
+
+		"""
 		points = self.scaler.scalePoint(points, inplace=False)
 		D = cdist(self.descriptors(points, asarray=True), \
 			self._cell_centers, metric, **kwargs)
@@ -457,14 +473,16 @@ class Voronoi(Delaunay):
 			voronoi = spatial.Voronoi(np.asarray(self._cell_centers))
 			self._cell_vertices = voronoi.vertices
 			n_centers = self._cell_centers.shape[0]
+			#if not (len(voronoi.ridge_vertices) == voronoi.ridge_points.shape[0] and \
+			#	all([ len(v) == 2 for v in voronoi.ridge_vertices ])):
+			#	raise ValueError('not all edges have exactly 2 ends')
 			self._ridge_vertices = np.asarray(voronoi.ridge_vertices)
-			# TODO: ridge_points and ridge_vertices may not match although they could
 			if self._cell_adjacency is None:
 				n_ridges = voronoi.ridge_points.shape[0]
 				self._cell_adjacency = sparse.csr_matrix((\
 					np.tile(np.arange(0, n_ridges, dtype=int), 2), (\
-					voronoi.ridge_points.flatten(), \
-					np.fliplr(voronoi.ridge_points).flatten())), \
+					voronoi.ridge_points.flatten('F'), \
+					np.fliplr(voronoi.ridge_points).flatten('F'))), \
 					shape=(n_centers, n_centers))
 			return voronoi
 

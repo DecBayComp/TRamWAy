@@ -134,7 +134,7 @@ class KMeansMesh(Voronoi):
 					raise AttributeError('can plot only 2D data')
 
 		if prune: # inter-center-distance-based pruning
-			A = sparse.triu(self.cell_adjacency, format='coo') # warning! tril does not suit
+			A = sparse.tril(self.cell_adjacency, format='coo')
 			i, j, k = A.row, A.col, A.data
 			if self._adjacency_label is None:
 				self._adjacency_label = np.ones(np.max(k)+1, dtype=bool)
@@ -145,7 +145,7 @@ class KMeansMesh(Voronoi):
 			d = x[i] - x[j]
 			d = np.sum(d * d, axis=1) # square distance
 			d0 = np.median(d)
-			edge = k[d0 * 9 < d] # edges to be discarded
+			edge = k[d0 * 2.5 < d] # edges to be discarded; 2.5 is empirical
 			if edge.size:
 				self._adjacency_label[edge] = False
 

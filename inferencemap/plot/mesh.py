@@ -84,13 +84,12 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 		#points = cells.descriptors(cells.points, asarray=True)
 	except:
 		special_edges = {}
+	c = 0 # if cells.tesselation.adjacency_label is None
 	# plot voronoi
 	for edge_ix, vert_ids in enumerate(cells.tesselation.ridge_vertices):
 		if all(0 <= vert_ids):
-			x, y = zip(*vertices[vert_ids])
-			if cells.tesselation.adjacency_label is None:
-				c = 0
-			else:
+			x, y = vertices[vert_ids].T
+			if cells.tesselation.adjacency_label is not None:
 				try:
 					c = labels.index(cells.tesselation.adjacency_label[edge_ix])
 				except ValueError:
@@ -119,7 +118,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 		plt.plot(centroids[:,0], centroids[:,1], centroid_style)
 
 	# resize window
-	plt.axis(cells.descriptors(cells.bounding_box, asarray=True).T.flatten())
+	plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
 
 
 def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None):
@@ -152,7 +151,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 					vert_ids = cells.tesselation.ridge_vertices[k]
 					if any(vert_ids < 0):
 						continue
-					x, y = zip(*voronoi[vert_ids])
+					x, y = voronoi[vert_ids].T
 		plt.plot(x, y, style, color=color[c], linewidth=1)
 
 	# plot cell centers
@@ -160,7 +159,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 		plt.plot(vertices[:,0], vertices[:,1], centroid_style)
 
 	# resize window
-	plt.axis(cells.descriptors(cells.bounding_box, asarray=True).T.flatten())
+	plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
 
 
 def _graph_theme(tess, labels, color, negative):

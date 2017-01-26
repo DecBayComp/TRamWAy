@@ -15,8 +15,9 @@ from .dichotomy import Dichotomy
 
 class Gas(Graph):
 	"""Implementation of the Growing When Required clustering algorithm, first inspired from
-	Marsland, S., Shapiro, J. and Nehmzow, U. (2002). A self-organising network that grows when required. Neural Networks 15, 1041-1058. doi: 10.1026/S0893-6080(02)00078-3
-	and then extensively modified.
+	[Marsland02]_ and then extensively modified.
+
+	.. [Marsland02] Marsland, S., Shapiro, J. and Nehmzow, U. (2002). A self-organising network that grows when required. Neural Networks 15, 1041-1058. doi:10.1026/S0893-6080(02)00078-3
 
 	Of note, :class:`Gas` features a :attr:`trust` attribute that enables faster learning when 
 	inserting new nodes. Instead of inserting a node at `(w + eta) / 2` (with `trust == 0`) like in
@@ -251,29 +252,42 @@ class Gas(Graph):
 	def train(self, sample, pass_count=None, residual_max=None, error_count_tol=1e-6, \
 		min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=False, \
 		plot=False, **kwargs):
-		""":meth:`train` splits the sample into batches, successively calls :meth:`batchTrain` on
-		these batches of data, collapses the gas if necessary and stops if stopping criteria are 
-		met.
-		The input arguments that define stopping criteria are:
+		"""
+		Grow the gas.
 
-		* `pass_count`: (min, max) numbers of times the algorithm should/can run on the full 
-		  sample.
-		* `residual_max`: a residual is calculated for each sample point, before fitting the gas
-		  towards it, and `residual_max` is a threshold above which a residual is regarded as an
-		  'error'. This parameter works together with `error_count_tol`.
-		* `error_count_tol`: maximum proportion of 'errors' (number of errors in a batch over the
-		  size of the batch). If this maximum is exceeded, then the :meth:`train` sample another
-		  batch and keeps on training the gas. Otherwise, the next criteria apply.
-		* `min_growth`: minimum relative increase in the number of nodes from an iteration to the
-		  next.
-		* `collapse_tol`: maximum allowed ratio of the number of collapsed nodes over the total
-		  number of nodes.
-		* `stopping_criterion`: (provisional) `int`
+		:meth:`train` splits the sample into batches, successively calls :meth:`batchTrain`
+		on these batches of data, collapses the gas if necessary and stops if stopping criteria 
+		are met.
 
-			* `1`: performs a linear regression for the pre-fitting residual across time, and
-			  'tests' whether the trend is not negative.
-			* `2`: stops if the average residual for the current batch is greater than that 
-			  of the previous batch.
+		The input arguments that define the stopping criteria are:
+
+		Arguments:
+
+			pass_count (pair of floats or None, optional):
+				(min, max) numbers of passes of the sample the algorithm should/can run.
+				Any bound can be set to ``None``.
+			residual_max (float, optional): 
+				a residual is calculated for each sample point, before fitting the gas 
+				towards it, and `residual_max` is a threshold above which a residual is 
+				regarded as an 'error'. This parameter works in combination with 
+				`error_count_tol`.
+			error_count_tol (float, optional): 
+				maximum proportion of 'errors' (number of errors in a batch over the
+				size of the batch). If this maximum is exceeded, then the :meth:`train` 
+				samples another batch and keeps on training the gas. Otherwise, the next
+				criteria apply.
+			min_growth (float, optional): 
+				minimum relative increase in the number of nodes from an iteration to 
+				the next.
+			collapse_tol (float, optional): 
+				maximum allowed ratio of the number of collapsed nodes over the total
+		  		number of nodes.
+			stopping_criterion (int, deprecated):
+
+				1. performs a linear regression for the pre-fitting residual across time
+				   and 'tests' whether the trend is not negative.
+				2. stops if the average residual for the current batch is greater than 
+				   that of the previous batch.
 
 		"""
 		## TODO: clarify the code
@@ -333,9 +347,9 @@ class Gas(Graph):
 			# enforce some stopping or continuing conditions
 			if pass_count:
 				k = i * self.batch_size
-				if k < pass_count[0] * k1:
+				if pass_count[0] and k < pass_count[0] * k1:
 					continue
-				elif pass_count[1] * k1 <= k:
+				elif pass_count[1] and pass_count[1] * k1 <= k:
 					if verbose:
 						print('stopping criterion: upper bound for `pass_count` reached')
 					break # do = False
