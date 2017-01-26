@@ -6,7 +6,8 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
-install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables', 'h5py']
+install_requires = ['six', 'numpy', 'scipy', 'pandas']
+extras_require = ['tables', 'h5py']
 #try:
 #	import pathlib
 #except ImportError:
@@ -40,7 +41,7 @@ setup(
 	keywords = '',
 	packages = find_packages(exclude=['doc', 'examples']),
 	install_requires = install_requires,
-	extras_require = {},
+	extras_require = extras_require,
 	package_data = {},
 	entry_points = {},
 )

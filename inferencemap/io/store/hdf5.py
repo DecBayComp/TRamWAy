@@ -1,10 +1,16 @@
 
 import os
 import six
-import h5py
+
+try:
+	import h5py
+	import tables
+	from pandas import read_hdf, Series, DataFrame, Panel, SparseSeries
+except ImportError:
+	import warnings
+	warnings.warn('missing HDF5 functionality', ImportWarning)
+
 from numpy import string_, ndarray#, MaskedArray
-from pandas import read_hdf, Series, DataFrame, Panel, SparseSeries
-import tables
 import tempfile
 import itertools
 from .storable import *
