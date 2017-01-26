@@ -7,7 +7,7 @@ from codecs import open
 from os import path
 
 install_requires = ['six', 'numpy', 'scipy', 'pandas']
-extras_require = ['tables', 'h5py']
+extras_require = {'tables': 'tables', 'h5py': 'h5py'}
 #try:
 #	import pathlib
 #except ImportError:
