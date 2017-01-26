@@ -79,6 +79,11 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None):
 	vertices = cells.tesselation.cell_vertices
 	labels, color = _graph_theme(cells.tesselation, labels, color, negative)
+	try:
+		special_edges = cells.tesselation.candidate_edges
+		#points = cells.descriptors(cells.points, asarray=True)
+	except:
+		special_edges = {}
 	# plot voronoi
 	for edge_ix, vert_ids in enumerate(cells.tesselation.ridge_vertices):
 		if all(0 <= vert_ids):
@@ -91,6 +96,22 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 				except ValueError:
 					continue
 			plt.plot(x, y, style, color=color[c], linewidth=1)
+
+			# extra debug steps
+			if edge_ix in special_edges:
+				#i, j, ii, jj = special_edges[edge_ix]
+				#try:
+				#	i = points[cells.cell_index == i][ii]
+				#	j = points[cells.cell_index == j][jj]
+				#except IndexError as e:
+				#	print(e)
+				#	continue
+				i, j = special_edges[edge_ix]
+				x_, y_ = zip(i, j)
+				plt.plot(x_, y_, 'c-')
+				x_, y_ = (i + j) / 2
+				plt.text(x_, y_, str(edge_ix), \
+					horizontalalignment='center', verticalalignment='center')
 
 	centroids = cells.tesselation.cell_centers
 	# plot cell centers

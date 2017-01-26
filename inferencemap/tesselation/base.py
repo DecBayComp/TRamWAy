@@ -17,15 +17,15 @@ class CellStats(object):
 
 	The partition :attr:`cell_index` may be in any of the following formats:
 
-	array:
+	array
 		It has as many elements as data points, and each
 		element is a cell index or ``0`` (if not assigned to any cell).
 
-	pair of arrays:
+	pair of arrays
 		It is a sparse representation ``(point_index, cell_index)`` such that for all ``i``
 		``point_index[i]`` point is in ``cell_index[i]``.
 
-	sparse matrix (:mod:`scipy.sparse`):
+	sparse matrix (:mod:`scipy.sparse`)
 		It is a ``number_of_points * number_of_cells`` matrix with nonzero element wherever
 		the corresponding point is in the corresponding cell.
 		
@@ -63,7 +63,7 @@ class CellStats(object):
 		self.tesselation = tesselation
 
 	def descriptors(self, *vargs, **kwargs):
-		"""Proxy method for :meth:`inferencemap.Tesselation.descriptors`."""
+		"""Proxy method for :meth:`Tesselation.descriptors`."""
 		return self.tesselation.descriptors(*vargs, **kwargs)
 
 
@@ -81,13 +81,14 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 			defined, j->i is not.
 
 		cell_labels (function handler, optional):
-			Takes an array of cell labels as input (see :obj:`cells.tesselation.cell_label`)
+			Takes an array of cell labels as input 
+			(see :attr:`Tesselation.cell_label`)
 			and returns a bool array of equal shape.
 
 		adjacency_labels (function handler, optional):
-			Takes an array of edge labels as input (see 
-			:obj:`cells.tesselation.adjacency_label`) and returns a bool array of equal
-			shape.
+			Takes an array of edge labels as input 
+			(see :attr:`Tesselation.adjacency_label`) 
+			and returns a bool array of equal shape.
 
 	Returns:
 		scipy.sparse.csr_matrix: Sparse square matrix with as many rows as data points.
@@ -153,13 +154,16 @@ class Tesselation(object):
 	Attributes:
 		scaler (Scaler): scaler.
 
-	Other Attributes:
-		_cell_adjacency: square adjacency matrix for cells.
-			If `_adjacency_label` is defined, `_cell_adjacency` should be sparse and the
-			explicit elements should be indices in `_adjacency_label`.
-		_cell_label (numpy.ndarray, optional): cell labels with as many elements as cells.
-		_adjacency_label (numpy.ndarray, optional): inter-cell edge labels with as many elements
-			as there are edges.
+		_cell_adjacency (private):
+			square adjacency matrix for cells.
+			If :attr:`_adjacency_label` is defined, :attr:`_cell_adjacency` should be 
+			sparse and the explicit elements should be indices in :attr:`_adjacency_label`.
+
+		_cell_label (numpy.ndarray, private):
+			cell labels with as many elements as cells.
+
+		_adjacency_label (numpy.ndarray, private):
+			inter-cell edge labels with as many elements as there are edges.
 
 	Arguments:
 		scaler (Scaler): scaler.
@@ -259,7 +263,7 @@ class Tesselation(object):
 	# cell_adjacency property
 	@property
 	def cell_adjacency(self):
-		"""Squre cell adjacency matrix. If :attr:`adjacency_label` is defined, 
+		"""Square cell adjacency matrix. If :attr:`adjacency_label` is defined, 
 		:attr:`cell_adjacency` is sparse and the explicit elements are indices in 
 		:attr:`adjacency_label`."""
 		return self._cell_adjacency
@@ -306,8 +310,8 @@ class Delaunay(Tesselation):
 
 	Implements the `knn` feature and support for cell overlap.
 
-	Other Attributes:
-		_cell_centers (numpy.ndarray): scaled coordinates of the cell centers.
+	Attributes:
+		_cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
 	"""
 	def __init__(self, scaler=Scaler()):
 		Tesselation.__init__(self, scaler)
@@ -387,10 +391,15 @@ class Voronoi(Delaunay):
 	Implements possibly-lazy construction of this additional graph using 
 	:class:`scipy.spatial.Voronoi`.
 
-	Other Attributes:
-		_cell_vertices (numpy.ndarray): scaled coordinates of the Voronoi vertices.
-		_ridge_vertices (numpy.ndarray): 2-column adjacency matrix specifying an edge as a pair
+	Attributes:
+
+		_cell_vertices (numpy.ndarray): 
+			scaled coordinates of the Voronoi vertices.
+
+		_ridge_vertices (numpy.ndarray): 
+			2-column adjacency matrix specifying an edge as a pair
 			of indices in :attr:`cell_vertices`.
+
 	"""
 	def __init__(self, scaler=Scaler()):
 		Delaunay.__init__(self, scaler)

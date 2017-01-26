@@ -18,13 +18,11 @@ class GasMesh(Voronoi):
 			internal graph representation of the gas.
 		min_probability (float):
 			minimum probability of a point to be in any given cell.
-
-	Other Attributes:
-		_min_distance (float):
+		_min_distance (float, private):
 			scaled minimum distance between adjacent cell centers.
-		_avg_distance (float):
+		_avg_distance (float, private):
 			upper bound on the average scaled distance between adjacent cell centers.
-		_max_distance (float):
+		_max_distance (float, private):
 			scaled maximum distance between adjacent cell centers."""
 	def __init__(self, scaler=Scaler(), min_distance=None, avg_distance=None, max_distance=None, \
 		min_probability=None, avg_probability=None, **kwargs):
@@ -76,7 +74,7 @@ class GasMesh(Voronoi):
 		"""Grow the tesselation.
 
 		Arguments:
-			points: see :meth:`~inferencemap.tesselation.base.Tesselation.tesselate`.
+			points: see :meth:`~inferencemap.tesselation.Tesselation.tesselate`.
 			pass_count (pair of floats): minimum and maximum numbers of times the data
 				should (in principle) be consumed.
 			residual_factor (float): multiplies with `_max_distance` to determine 
@@ -92,7 +90,7 @@ class GasMesh(Voronoi):
 			lifetime (int): (see :class:`~inferencemap.spatial.gas.Gas`)
 
 		Returns:
-			See :meth:`~inferencemap.tesselation.base.Tesselation.tesselate`.
+			See :meth:`~inferencemap.tesselation.Tesselation.tesselate`.
 
 		See also:
 			:class:`inferencemap.spatial.gas.Gas` and 
@@ -139,30 +137,42 @@ class GasMesh(Voronoi):
 			#t = time.time()
 			points = np.asarray(points)
 			ix = np.argmin(cdist(points, self._cell_centers), axis=1)
+			ref = int( ceil(float(self.gas.knn) / 6.0) ** 2 ) # int and float for PY2
+			#ref = -ref # with alternative to cdist, index from the end
+			ref -= 1 # with cdist, index
 			A = sparse.tril(self._cell_adjacency, format='coo') # in future scipy version, check that tril does not remove explicit zeros
 			for i, j, k in zip(A.row, A.col, A.data):
 				if self._adjacency_label[k] == 2: # only in Voronoi
 					xi = points[ix == i]
 					xj = points[ix == j]
 					if xi.size and xj.size:
-						dij = cdist(xi, xj).flatten()
+						dij = cdist(xi, xj)
 						#dij = np.dot(xi, xj.T)
 						#xi2 = np.sum(xi * xi, axis=1, keepdims=True)
 						#dij -= 0.5 * xi2
 						#xj2 = np.sum(xj * xj, axis=1, keepdims=True)
 						#dij -= 0.5 * xj2.T
-						#dij = dij.flatten()
+						dij = dij.flatten()
+						kij = dij.argsort()
 						dij.sort()
 						try:
-							#dij = dij[-int(ceil(self.gas.knn/4))]
-							dij = dij[int(ceil(self.gas.knn/4))-1]
+							dij = dij[ref]
 						except IndexError:
 							if 1 < verbose:
-								print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d}): number of between-cell pairs = {:d} (expected: {:d})'.format(k, i, xi.shape[0], j, xj.shape[0], dij.size, int(ceil(self.gas.knn/4))))
+								print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d}): number of between-cell pairs = {:d} (expected: {:d})'.format(k, i, xi.shape[0], j, xj.shape[0], dij.size, ref))
 							continue
 						#dij = np.sqrt(-2.0 * dij)
-						if dij < self._avg_distance:
+						if dij < self._min_distance:
 							self._adjacency_label[k] = 4 # mark edge as 'not congruent but valid'
+						#continue
+						# debug candidate edges
+						# comment out the above `continue` statement
+						# and uncomment the `argsort` line
+						cell_i_k, cell_j_k = np.unravel_index(kij[ref], (xi.shape[0], xj.shape[0]))
+						if not hasattr(self, 'candidate_edges'):
+							self.candidate_edges = {}
+						self.candidate_edges[k] = (xi[cell_i_k], xj[cell_j_k])
+						#
 					elif 1 < verbose:
 						print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d})'.format(k, i, xi.shape[0], j, xj.shape[0]))
 		new_labels = np.array([0,-1,-2,1,2])

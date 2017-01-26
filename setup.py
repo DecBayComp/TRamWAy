@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 ## see https://packaging.python.org/distributing/#setup-py
 
 from setuptools import setup, find_packages

@@ -27,35 +27,12 @@ def main():
 	def out(method, extension):
 		return '{}.{}{}'.format(output_basename, method, extension)
 
-	# grid + knn
-	print("\nfirst approach: regular grid + knn=40")
-	method = 'grid'
-	grid = tesselate(local, method, output_file=out(method, '.h5'), knn=40, verbose=True)
-	cell_plot(grid, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=False, \
-		verbose=True)
-
-	# kd-tree
-	print("\nsecond approach: kd-tree")
-	method = 'kdtree'
-	kdtree = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
-	cell_plot(kdtree, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
-		verbose=True)
-
-	# k-means
-	print("\nthird approach: k-means")
-	method = 'kmeans'
-	kmeans = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
-	print('overlaying Delaunay graph instead of Voronoi')
-	cell_plot(kmeans, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
-		verbose=True, xy_layer='delaunay')
-	# Voronoi in KMeansMesh is a little buggy (this affects only plotting).
-
 	# gwr
 	print("\nfourth approach: GWR + knn=40 + overlap")
 	method = 'gwr'
-	gwr = tesselate(local, method, output_file=out(method, '.h5'), knn=40, overlap=True, \
+	gwr = tesselate(local, method, output_file=out(method, '.h5'), \
 		verbose=True)
-	cell_plot(gwr, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
+	cell_plot(gwr, output_file=out(method, '.png'), show=True, \
 		verbose=True)
 
 

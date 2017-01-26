@@ -19,15 +19,13 @@ class KDTreeMesh(Voronoi):
 	"""k-dimensional tree (quad tree in 2D) based tesselation.
 
 	Attributes:
-		scaler: see :class:`~inferencemap.tesselation.base.Tesselation`.
+		scaler: see :class:`Tesselation`.
 		min_probability (float): minimum probability of a point to be in a given cell.
 		max_probability (float): maximum probability of a point to be in a given cell.
 		max_level (float): maximum level, considering that the smallest cells are at level 0
 			and the level increments each time the cell size doubles.
-
-	Other Attributes:
-		_min_distance (float): scaled minimum distance between neighbor cell centers.
-		_avg_distance (float): scaled average distance between neighbor cell centers.
+		_min_distance (float, private): scaled minimum distance between neighbor cell centers.
+		_avg_distance (float, private): scaled average distance between neighbor cell centers.
 	"""
 	def __init__(self, scaler=Scaler(), min_distance=None, avg_distance=None, \
 		min_probability=None, max_probability=None, max_level=None, **kwargs):
