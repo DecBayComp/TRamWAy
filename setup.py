@@ -23,10 +23,11 @@ import sys
 mock_ok = True
 try:
 	from unittest.mock import MagicMock
-except ImportError:
+except ImportError as e:
 	try:
 		from mock import Mock as MagicMock
 	except ImportError:
+		print(e)
 		mock_ok = False
 
 if mock_ok:
@@ -37,6 +38,8 @@ if mock_ok:
 
 	MOCK_MODULES = ['numpy', 'pandas', 'tables', 'h5py']
 	sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+	for mod_name in MOCK_MODULES:
+		install_requires.remove(mod_name)
 
 
 
