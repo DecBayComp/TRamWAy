@@ -6,32 +6,9 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
-install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables', 'h5py']
+# h5py mocked out in doc/conf.py
+install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables'] # , 'h5py'
 extras_require = {} 
-
-
-# mocking out h5py for readthedocs to successfully compile the project and generate the doc
-import sys
-mock_ok = True
-try:
-	from unittest.mock import MagicMock
-except ImportError as e:
-	try:
-		from mock import Mock as MagicMock
-	except ImportError:
-		print(e)
-		mock_ok = False
-
-if mock_ok:
-	class Mock(MagicMock):
-		@classmethod
-		def __getattr__(cls, name):
-			return MagicMock()
-
-	MOCK_MODULES = ['h5py']
-	sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
-	for mod_name in MOCK_MODULES:
-		install_requires.remove(mod_name)
 
 
 pwd = path.abspath(path.dirname(__file__))
