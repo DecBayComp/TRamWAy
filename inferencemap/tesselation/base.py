@@ -97,6 +97,8 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 	Returns:
 		scipy.sparse.csr_matrix: Sparse square matrix with as many rows as data points.
 	"""
+	if not isinstance(cells.cell_index, np.ndarray):
+		raise NotImplementedError('cell overlap support has not been implemented here')
 	x = cells.descriptors(cells.points, asarray=True)
 	ij = np.arange(x.shape[0])
 	x2 = np.sum(x * x, axis=1)

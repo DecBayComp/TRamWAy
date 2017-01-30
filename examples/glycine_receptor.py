@@ -28,33 +28,30 @@ def main():
 		return '{}.{}{}'.format(output_basename, method, extension)
 
 	# grid + knn
-	print("\nfirst approach: regular grid + knn=40")
+	print("\nfirst approach: regular grid + (knn <= 40)")
 	method = 'grid'
-	grid = tesselate(local, method, output_file=out(method, '.h5'), knn=40, verbose=True)
+	grid = tesselate(local, method, output_file=out(method, '.h5'), knn=(None, 40), verbose=True)
 	print('overlaying Voronoi graph')
-	cell_plot(grid, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=False, \
-		verbose=True)
+	cell_plot(grid, output_file=out(method, '.png'), verbose=True)
 
 	# kd-tree
 	print("\nsecond approach: kd-tree")
 	method = 'kdtree'
 	kdtree = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
 	print('overlaying Voronoi graph')
-	cell_plot(kdtree, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
-		verbose=True)
+	cell_plot(kdtree, output_file=out(method, '.png'), verbose=True)
 
 	# k-means
 	print("\nthird approach: k-means")
 	method = 'kmeans'
 	kmeans = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
 	print('overlaying Delaunay graph')
-	cell_plot(kmeans, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
-		verbose=True, xy_layer='delaunay')
+	cell_plot(kmeans, output_file=out(method, '.png'), verbose=True, xy_layer='delaunay')
 
 	# gwr
-	print("\nfourth approach: GWR + knn=40 + overlap")
+	print("\nfourth approach: GWR + (40 <= knn <= 60)")
 	method = 'gwr'
-	gwr = tesselate(local, method, output_file=out(method, '.h5'), knn=40, overlap=True, \
+	gwr = tesselate(local, method, output_file=out(method, '.h5'), knn=(40, 60), overlap=True, \
 		verbose=True, pass_count=1)
 	# `pass_count` above is a gwr-specific and controls the convergence (both accuracy and 
 	# calculation time) by defining bounds on the number of passes over the data.
@@ -62,7 +59,6 @@ def main():
 	# enough for the algorithm to visit every point once.
 	# For higher accuracy, set ``pass_count=3`` for example.
 	print('overlaying Delaunay graph')
-	cell_plot(gwr, output_file=out(method, '.png'), point_count_hist=True, cell_dist_hist=True, \
-		verbose=True, xy_layer='delaunay')
+	cell_plot(gwr, output_file=out(method, '.png'), verbose=True, xy_layer='delaunay')
 
 

@@ -16,8 +16,8 @@ Contents:
 
    introduction
    installation
-   command_line
-   file_format
+   commandline
+   fileformat
    api
 
 

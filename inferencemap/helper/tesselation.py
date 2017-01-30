@@ -76,8 +76,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			neighbors of each cell center can be used instead of the entire cell 
 			population. Let's denote ``min_nn, max_nn = knn``. Any of ``min_nn`` and 
 			``max_nn`` can be ``None``.
-			If a single `int` is supplied instead of a pair, then the actual `knn` will be
-			``min_nn, max_nn = knn, knn``.
+			If a single `int` is supplied instead of a pair, then `knn` becomes ``min_nn``.
 			``min_nn`` enables cell overlap and any point may be associated with several
 			cells.
 
@@ -193,14 +192,17 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		**kwargs)
 
 	# grow the tesselation
-	tess.tesselate(xyt_data[colnames], verbose=verbose)
+	tess.tesselate(xyt_data[colnames], verbose=verbose, **kwargs)
 
 	# partition the dataset into the cells of the tesselation
 	if isinstance(knn, tuple):
-		stats = tess.cellStats(xyt_data, min_cell_size=knn[0], max_cell_size=knn[1])
+		stats = tess.cellStats(xyt_data, min_cell_size=knn[0], max_cell_size=knn[1])#, \
+		#	inclusive_min_cell_size=min_cell_count)
+	elif knn is None:
+		stats = tess.cellStats(xyt_data)
 	else:
-		stats = tess.cellStats(xyt_data, min_cell_size=knn, max_cell_size=knn, \
-			prefered='force index')
+		stats = tess.cellStats(xyt_data, min_cell_size=knn)#, \
+		#	inclusive_min_cell_size=min_cell_count)
 
 	stats.param['method'] = method
 	if jump_length:
