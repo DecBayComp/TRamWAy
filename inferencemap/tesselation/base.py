@@ -39,7 +39,8 @@ class CellStats(object):
 		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
 			Point-cell association (or data partition).
 
-		cell_count (numpy.ndarray): ``cell_count[i]`` is the number of points in cell ``i``.
+		cell_count (numpy.ndarray): point count per cell; ``cell_count[i]`` is the number of 
+			points in cell ``i``.
 
 		bounding_box (array-like):
 			``2 * D`` array with lower values in first row and upper values in second row,
@@ -238,8 +239,7 @@ class Tesselation(object):
 		elif sparse.issparse(cell_index):
 			cell_count = np.diff(cell_index.tocsc().indptr)
 		else:
-			valid_cell_centers, center_to_point, _cell_count = \
-				np.unique(cell_index, return_inverse=True, return_counts=True)
+			valid_cell_centers, _cell_count = np.unique(cell_index, return_counts=True)
 			cell_count = np.zeros(self._cell_centers.shape[0], dtype=_cell_count.dtype)
 			cell_count[valid_cell_centers] = _cell_count
 			#center_to_point = valid_cell_centers[center_to_point]
@@ -311,7 +311,10 @@ class Delaunay(Tesselation):
 	"""
 	Delaunay graph.
 
-	Implements the `knn` feature and support for cell overlap.
+	A cell is represented by a centroid and an edge of the graph represents a neighbor relationship 
+	between two cells.
+
+	:class:`Delaunay` implements the nearest neighbor feature and support for cell overlap.
 
 	Attributes:
 		_cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
@@ -323,8 +326,8 @@ class Delaunay(Tesselation):
 	def tesselate(self, points):
 		self._cell_centers = self._preprocess(points)
 
-	def cellIndex(self, points, min_cell_size=None, max_cell_size=None, metric='euclidean', \
-		prefered='index', **kwargs):
+	def cellIndex(self, points, min_cell_size=None, max_cell_size=None, prefered='index', \
+		inclusive_min_cell_size=None, metric='euclidean', **kwargs):
 		"""
 		Arguments:
 			points: see :meth:`Tesselation.cellIndex`.
@@ -336,50 +339,92 @@ class Delaunay(Tesselation):
 				neighbors to the cell center).
 			prefered ({'index', 'force-index', 'pair', 'sparse'}, optional):
 				prefered representation of the point-cell association (or partition).
+			inclusive_min_cell_size (int, optional): minimum number of points for a cell to
+				be included in the labeling. This argument applies before 
+				`min_cell_size`. The points in these cells, if not associated with
+				another cell, are labeled ``-1``. The other cell labels do not change.
 
 		Returns:
 			see :meth:`Tesselation.cellIndex`.
 
 		A single vector representation of the point-cell association may not be possible with
-		`min_cell_set` defined, because a point can be associated to multiple cells. If such
+		`min_cell_size` defined, because a point can be associated to multiple cells. If such
 		a case happens and `prefered` is 'index', then 'pair' will be used as a fallback.
 
-		`prefered` can be either 'index' (default), 'force index', 'pair' or 'sparse'.
+		`prefered` can be either 'index' (default), 'force index' (deprecated), 'pair' or 
+		'sparse'.
 
 		'index' and 'force index'
-			the output is single vector of cell indices with size the number of points.
+			the output is a single vector of cell indices with size the number of points.
+			'force index' makes `cellIndex` ignore `min_cell_size`.
 
 		'pair'
-			the output is a pair of vectors (say U an V); at index i, U[i] is the index of a
-			point and V[i] is the index of a cell.
+			the output is a pair ``(point_index, cell_index)`` of vectors such that for all
+			``i``, the point with index ``point_index[i]`` is in the cell with index 
+			``cell_index[i]``.
 
 		'sparse'
-			the output is a COO sparse matrix with size (# points, # cells) and a non-zero
-			where a point falls into a cell.
+			the output is a COO sparse matrix with size ``(# points, # cells)`` and 
+			non-zeros to designate point-cell associations.
 
 		"""
 		points = self.scaler.scalePoint(points, inplace=False)
 		D = cdist(self.descriptors(points, asarray=True), \
 			self._cell_centers, metric, **kwargs)
-		if knn:
-			I = np.argsort(D, axis=0)[:knn].flatten()
-			J = np.tile(range(0, D.shape[1]), knn)
-			if prefered.endswith('index'):
-				K = sparse.csr_matrix((np.ones_like(I, dtype=bool), (I, J)), \
-					shape=D.shape)
-				cell_count_per_point = np.diff(K.tocsr().indptr)
-				if all(cell_count_per_point < 2): # faster
-					K = -np.ones(points.shape[0], dtype=int)
-					K[I] = J
-				elif prefered.startswith('force'): # more generic
-					K = np.argmin(D, axis=1)
-					K[cell_count_per_point == 0] = -1
-			else:
-				K = (I, J)
+		ncells = self._cell_centers.shape[0]
+		if prefered == 'force index':
+			min_cell_size = None
+		if max_cell_size or min_cell_size or inclusive_min_cell_size:
+			K = np.argmin(D, axis=1) # cell indices
+			nonempty, positive_count = np.unique(K, return_counts=True)
+			# max_cell_size:
+			# set K[i] = -1 for all point i in cells that are too large
+			if max_cell_size:
+				large, = (max_cell_size < positive_count).nonzero()
+				if large.size:
+					for c in nonempty[large]:
+						cell = K == c
+						I = np.argsort(D[cell, c])
+						cell, = cell.nonzero()
+						excess = cell[I[max_cell_size:]]
+						K[excess] = -1
+			# min_cell_size:
+			# switch to vector-pair representation if any cell is too small
+			if min_cell_size:
+				count = np.zeros(ncells, dtype=positive_count.dtype)
+				count[nonempty] = positive_count
+				small = count < min_cell_size
+				if inclusive_min_cell_size:
+					small = np.logical_and(small, inclusive_min_cell_size <= count)
+				if np.any(small):
+					# small and missing cells
+					I = np.argsort(D[:,small], axis=0)[:min_cell_size].flatten()
+					small, = small.nonzero()
+					J = np.tile(small, min_cell_size) # cell indices
+					# large-enough cells
+					if inclusive_min_cell_size:
+						small = count < min_cell_size
+					point_in_small_cells = np.any(
+						small[:,np.newaxis] == K[np.newaxis,:], axis=0)
+					Ic = np.logical_not(point_in_small_cells)
+					Jc = K[Ic]
+					Ic, = Ic.nonzero()
+					if max_cell_size:
+						Ic = Ic[0 <= Jc]
+						Jc = Jc[0 <= Jc]
+					#
+					K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
+			# inclusive_min_cell_size:
+			# set K[i] = -1 for all point i in cells that are too small
+			elif inclusive_min_cell_size:
+				excluded_cells = positive_count < inclusive_min_cell_size
+				if np.any(excluded_cells):
+					for c in nonempty[excluded_cells]:
+						K[K == c] = -1
 		else:
-			K = np.argmin(D, axis=1)
-			if not prefered.endswith('index'):
-				K = (np.arange(K.size), K)
+			K = np.argmin(D, axis=1) # cell indices
+		if isinstance(K, np.ndarray) and not prefered.endswith('index'):
+			K = (np.arange(K.size), K)
 		if prefered == 'sparse':
 			K = sparse.coo_matrix((np.ones_like(K[0], dtype=bool), K), shape=D.shape)
 		return K
@@ -403,9 +448,15 @@ class Voronoi(Delaunay):
 	"""
 	Voronoi graph.
 
-	Adds a Voronoi graph as cell boundaries, on top of the Delaunay graph.
-	Implements possibly-lazy construction of this additional graph using 
-	:class:`scipy.spatial.Voronoi`.
+	:class:`Voronoi` explicitly represents the cell boundaries, as a Voronoi graph, on top of the 
+	Delaunay graph that connects the cell centers.
+	It implements the construction of this additional graph using :class:`scipy.spatial.Voronoi`.
+	This default implementation is lazy. If vertices and ridges are available, they are stored in
+	private attributes :attr:`_cell_vertices` and :attr:`_ridge_vertices`. Otherwise, when
+	`cell_vertices` or `ridge_vertices` properties are called, the attributes are 
+	transparently made available calling the :meth:`_postprocess` private method.
+	Memory space can thus be freed again, setting `cell_vertices` and `ridge_vertices` to ``None``.
+	Note however that subclasses may override these on-time calculation mechanics.
 
 	Attributes:
 

@@ -38,8 +38,19 @@ class KDTreeMesh(Voronoi):
 		self.max_probability = max_probability
 		self.max_level = max_level
 
-	def cellIndex(self, points, knn=None, metric='chebyshev', **kwargs):
+	def cellIndex(self, points, min_cell_size=None, max_cell_size=None, prefered='index', \
+		inclusive_min_cell_size=None, metric='chebyshev', **kwargs):
+		if prefered == 'force index':
+			min_cell_size = None
+		if min_cell_size is not None:
+			raise NotImplementedError('kd-tree is not adapted to partitioning with min_cell_size constraint; use min_probability at tesselation time instead')
+		#if max_cell_size: # only if points are those the tesselation was grown with
+		#	t_max_cell_size = int(floor(self.max_probability * points.shape[0]))
+		#	if max_cell_size < t_max_cell_size:
+		#		max_cell_size = None
 		if metric == 'chebyshev':
+			if min_cell_size or max_cell_size or inclusive_min_cell_size:
+				raise NotImplementedError('knn support has evolved and KDTreeMesh still lacks a proper support of min_cell_size, max_cell_size and inclusive_min_cell_size. You can still call cellIndex with argument metric=\'euclidean\'')
 			# TODO: pass relevant kwargs to cdist
 			points = self.scaler.scalePoint(points, inplace=False)
 			D = cdist(self.descriptors(points, asarray=True), \
@@ -53,7 +64,10 @@ class KDTreeMesh(Voronoi):
 				K[I] = J
 				return K
 		else:
-			return Delaunay.cellIndex(self, points, knn=knn, metric=metric, **kwargs)
+			return Delaunay.cellIndex(self, points, min_cell_size=min_cell_size, \
+				max_cell_size=max_cell_size, prefered=prefered, \
+				inclusive_min_cell_size=inclusive_min_cell_size, metric=metric, \
+				**kwargs)
 
 	def tesselate(self, points, **kwargs):
 		init = self.scaler.init

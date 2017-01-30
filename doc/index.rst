@@ -14,10 +14,10 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   intro
-   install
-   commandline
-   fileformat
+   introduction
+   installation
+   command_line
+   file_format
    api
 
 

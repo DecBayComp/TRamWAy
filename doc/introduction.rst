@@ -8,3 +8,4 @@ This re-implementation of InferenceMAP for now focuses on meshing the space of t
 This implementation is under heavy development and is not yet suitable even for testing purposes!
 To get the official implementation, please follow [this link](https://research.pasteur.fr/en/software/inferencemap/ "research.pasteur.fr/en/software/inferencemap").
 
+Please first visit the install page.

@@ -27,12 +27,12 @@ class IgnoredInputWarning(UserWarning):
 
 def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaling=False, time_scale=None, \
-	knn=None, spatial_overlap=False, \
+	knn=None, \
 	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
 	min_cell_count=20, avg_cell_count=None, max_cell_count=None, \
 	**kwargs):
 	"""
-	Tesselation for clouds or series of points.
+	Tesselation from points series and partitioning.
 
 	This helper routine is a high-level interface to the various tesselation techniques 
 	implemented in InferenceMAP.
@@ -71,14 +71,15 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			This is equivalent to manually scaling the ``t`` column and passing 
 			``scaling=True``.
 
-		knn (int, optional):
-			After growing the tesselation, a maximum number knn of nearest neighbors of 
-			each cell center can be used instead of the entire cell population. See also 
-			`spatial_overlap`.
-
-		spatial_overlap (bool, optional):
-			In combination with non-negative `knn`, allows cell overlapping when `knn` is 
-			greater than the number of points in a cell.
+		knn (pair of ints, optional):
+			After growing the tesselation, a minimum and maximum numbers of nearest 
+			neighbors of each cell center can be used instead of the entire cell 
+			population. Let's denote ``min_nn, max_nn = knn``. Any of ``min_nn`` and 
+			``max_nn`` can be ``None``.
+			If a single `int` is supplied instead of a pair, then the actual `knn` will be
+			``min_nn, max_nn = knn, knn``.
+			``min_nn`` enables cell overlap and any point may be associated with several
+			cells.
 
 		ref_distance (float, optional):
 			Supposed to be the average jump distance. Can be modified so that the cells are
@@ -195,10 +196,11 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	tess.tesselate(xyt_data[colnames], verbose=verbose)
 
 	# partition the dataset into the cells of the tesselation
-	if spatial_overlap:
-		stats = tess.cellStats(xyt_data, knn=knn)
+	if isinstance(knn, tuple):
+		stats = tess.cellStats(xyt_data, min_cell_size=knn[0], max_cell_size=knn[1])
 	else:
-		stats = tess.cellStats(xyt_data, knn=knn, prefered='force index')
+		stats = tess.cellStats(xyt_data, min_cell_size=knn, max_cell_size=knn, \
+			prefered='force index')
 
 	stats.param['method'] = method
 	if jump_length:
@@ -219,8 +221,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		stats.param['max_cell_count'] = min_cell_count
 	if knn:
 		stats.param['knn'] = knn
-	if spatial_overlap:
-		stats.param['spatial_overlap'] = spatial_overlap
+	#if spatial_overlap: # deprecated
+	#	stats.param['spatial_overlap'] = spatial_overlap
 	if method == 'kdtree':
 		if 'max_level' in kwargs:
 			stats.param['max_level'] = kwargs['max_level']
