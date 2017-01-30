@@ -51,8 +51,7 @@ def main():
 	# gwr
 	print("\nfourth approach: GWR + (40 <= knn <= 60)")
 	method = 'gwr'
-	gwr = tesselate(local, method, output_file=out(method, '.h5'), knn=(40, 60), overlap=True, \
-		verbose=True, pass_count=1)
+	gwr = tesselate(local, method, output_file=out(method, '.h5'), knn=(40, 60), verbose=True, pass_count=1)
 	# `pass_count` above is a gwr-specific and controls the convergence (both accuracy and 
 	# calculation time) by defining bounds on the number of passes over the data.
 	# Note that the data are sampled with replacement. As a consequence ``pass_count=1`` is not

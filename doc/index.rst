@@ -6,13 +6,27 @@
 InferenceMAP documentation
 ==========================
 
-Welcome! This is the documentation for InferenceMAP.
+InferenceMAP helps you infer the diffusivity and potential of moving particles across space.
+
+**Disclaimer:**
+This implementation is under heavy development and is not yet suitable even for testing purposes!
+To get the official implementation, please follow [this link](https://research.pasteur.fr/en/software/inferencemap/ "research.pasteur.fr/en/software/inferencemap").
 
 
-Contents:
+Where to start
+--------------
+
+* :ref:`Installation <installation>`
+* :ref:`Quick-start guide <quickstart>`
+* :ref:`Reference library <api>`
+
+
+
+More contents
+-------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    introduction
    installation
@@ -21,10 +35,10 @@ Contents:
    api
 
 
-Indices and tables
-------------------
+.. Indices and tables
+.. ------------------
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. * :ref:`genindex`
+.. * :ref:`modindex`
+.. * :ref:`search`
 
