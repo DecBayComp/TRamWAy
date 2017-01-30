@@ -36,11 +36,10 @@ if mock_ok:
 		def __getattr__(cls, name):
 			return MagicMock()
 
-	MOCK_MODULES = ['numpy', 'pandas', 'tables', 'h5py']
+	MOCK_MODULES = ['numpy', 'scipy', 'pandas', 'tables', 'h5py']
 	sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 	for mod_name in MOCK_MODULES:
 		install_requires.remove(mod_name)
-
 
 
 pwd = path.abspath(path.dirname(__file__))
