@@ -1,3 +1,4 @@
+"""This module does not export any symbol. It implements the :class:`~inferencemap.io.store.storable.Storable` class for InferenceMAP datatypes."""
 
 from .store.storable import *
 from .store.generic import *

@@ -8,9 +8,13 @@ InferenceMAP documentation
 
 InferenceMAP helps you infer the diffusivity and potential of moving particles across space.
 
-**Disclaimer:**
-This implementation is under heavy development and is not yet suitable even for testing purposes!
-To get the official implementation, please follow [this link](https://research.pasteur.fr/en/software/inferencemap/ "research.pasteur.fr/en/software/inferencemap").
+.. warning::
+
+   This implementation is under heavy development and is not yet suitable even for testing purposes!
+
+   Most notably, the proper inference logic is not implemented yet!
+
+   To get the official implementation, please follow `this link <https://research.pasteur.fr/en/software/inferencemap/>`_.
 
 
 Where to start
@@ -22,8 +26,8 @@ Where to start
 
 
 
-More contents
--------------
+More (older) content
+--------------------
 
 .. toctree::
    :maxdepth: 1

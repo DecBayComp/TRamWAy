@@ -1,8 +1,9 @@
 
 """
-==============================================
-Alternative implementation for :class:`Graph`
-==============================================
+.. =============================================
+.. Alternative implementation for :class:`Graph`
+.. =============================================
+
 """
 
 from ..graph import *
@@ -14,13 +15,17 @@ import time
 
 
 class ArrayGraph(Graph):
-	"""With DictGraph backend for Gas:
-	%run glycine_receptor.py
-	Elapsed:  mean: 40106 ms  std: 5819 ms
-	With ArrayGraph backend:
-	%run glycine_receptor.py
-	Elapsed:  mean: 2937 ms  std: 304 ms
-	ratio: 13.6554
+	"""With DictGraph backend for Gas::
+
+		%run glycine_receptor.py
+		Elapsed:  mean: 40106 ms  std: 5819 ms
+
+	With ArrayGraph backend::
+
+		%run glycine_receptor.py
+		Elapsed:  mean: 2937 ms  std: 304 ms
+		ratio: 13.6554
+
 	"""
 	__slots__ = Graph.__slots__ + ['node_count_max', 'edge_count_max', '_node_counter', \
 		'_edge_counter', '_free_nodes', '_free_edges', 'nodes', 'edges', 'adjacency', \

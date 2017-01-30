@@ -5,3 +5,7 @@ inferencemap.helper package
     :members:
     :show-inheritance:
 
+.. toctree::
+
+    inferencemap.helper.tesselation
+

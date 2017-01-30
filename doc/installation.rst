@@ -13,7 +13,7 @@ You will need Python >= 2.7 or >= 3.5.
 
 The ``-e`` option is necessary if you intend to update or modify the code and have the modifications reflected in your installed *InferenceMAP*.
 
-``pip install`` will install some Python dependencies if missing, but you may still need to install the [HDF5 reference library](https://support.hdfgroup.org/downloads/index.html "support.hdfgroup.org/downloads").
+``pip install`` will install some Python dependencies if missing, but you may still need to install the `HDF5 reference library <https://support.hdfgroup.org/downloads/index.html>`_.
 
 To compile the documentation and get a local copy, after installing *InferenceMAP* do::
 

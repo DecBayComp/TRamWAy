@@ -27,19 +27,22 @@ class CellStats(object):
 		``cell_index[i]`` cell.
 
 	sparse matrix (:mod:`scipy.sparse`)
-		 ``number_of_points * number_of_cells`` matrix with nonzero element wherever
+		``number_of_points * number_of_cells`` matrix with nonzero element wherever
 		the corresponding point is in the corresponding cell.
 
+
 	See also :meth:`Delaunay.cellIndex`.
-		
+
 
 	Attributes:
+
 		points (array-like): the original point coordinates, unchanged.
 
 		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
 			Point-cell association (or data partition).
 
-		cell_count (numpy.ndarray): point count per cell; ``cell_count[i]`` is the number of 
+		cell_count (numpy.ndarray): 
+			point count per cell; ``cell_count[i]`` is the number of 
 			points in cell ``i``.
 
 		bounding_box (array-like):

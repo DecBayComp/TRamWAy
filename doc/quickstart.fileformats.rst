@@ -18,5 +18,5 @@ In Python, they can be loaded as follows::
 
 The tesselation/partition object is ``cells``.
 
-See :class:`~inferencemap.tesselation.base.CellStats` for further reference information about ``cells`` structure.
+See :class:`~inferencemap.tesselation.CellStats` for further reference information about ``cells`` structure.
 
