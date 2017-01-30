@@ -7,10 +7,10 @@ from codecs import open
 from os import path
 
 install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables', 'h5py']
-extras_require = {}#'tables': 'tables', 'h5py': 'h5py'} # HDF5-related libraries 
+extras_require = {} 
 
 
-# mocking out scipy and pandas to readthedocs to successfully compile the project and generate the doc
+# mocking out h5py for readthedocs to successfully compile the project and generate the doc
 import sys
 mock_ok = True
 try:
@@ -28,7 +28,7 @@ if mock_ok:
 		def __getattr__(cls, name):
 			return MagicMock()
 
-	MOCK_MODULES = []#'h5py'
+	MOCK_MODULES = ['h5py']
 	sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 	for mod_name in MOCK_MODULES:
 		install_requires.remove(mod_name)
