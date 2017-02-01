@@ -1,7 +1,7 @@
-inferencemap.spatial.motion module
-==================================
+inferencemap.spatial.translocation module
+=========================================
 
-.. automodule:: inferencemap.spatial.motion
+.. automodule:: inferencemap.spatial.translocation
     :members:
     :undoc-members:
     :show-inheritance:

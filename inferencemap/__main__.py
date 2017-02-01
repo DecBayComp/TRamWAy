@@ -32,14 +32,14 @@ def _tesselate(args):
 		kwargs['scaling'] = 'whiten'
 	avg_cell_count = kwargs.pop('cell_count', None)
 	max_level = kwargs.pop('lower_levels', None)
-	knn = kwargs.pop('knn', None)
-	min_nn, max_nn = knn, knn
-	min_nn = kwargs.pop('min_nn', min_nn)
-	max_nn = kwargs.pop('max_nn', max_nn)
+	min_nn = kwargs.pop('knn', None)
+	max_nn = kwargs.pop('max_nn', None)
 	if not (min_nn is None and max_nn is None):
 		knn = (min_nn, max_nn)
 	del kwargs['func']
-	del kwargs['reuse']
+	#del kwargs['reuse']
+	if kwargs['method'] == 'kdtree' and min_nn is not None:
+		kwargs['metric'] = 'euclidean'
 	tesselate(input_file, output_file=output_file, \
 		avg_cell_count=avg_cell_count, max_level=max_level, \
 		knn=knn, **kwargs)
@@ -72,16 +72,13 @@ if __name__ == '__main__':
 	tesselate_parser.set_defaults(func=_tesselate)
 	tesselate_group1 = tesselate_parser.add_mutually_exclusive_group(required=True)
 	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'])
-	tesselate_group1.add_argument('-r', '--reuse', \
-		#nargs='?', type=argparse.FileType('r'), default=sys.stdin, \
-		help='apply precomputed tesselation from file')
-	tesselate_parser.add_argument('--knn', type=int, \
-		help='number of nearest neighbors per cell center. This is equivalent to --min-nn N --max-nn N')
+	#tesselate_group1.add_argument('-r', '--reuse', \
+	#	#nargs='?', type=argparse.FileType('r'), default=sys.stdin, \
+	#	help='apply precomputed tesselation from file')
+	tesselate_parser.add_argument('-n', '--knn', '--min-nn', '--min-knn', '--knn-min', type=int, \
+		help='minimum number of nearest neighbors. Cells can overlap')
 	tesselate_parser.add_argument('--max-nn', '--max-knn', '--knn-max', type=int, \
 		help='maximum number of nearest neighbors')
-	tesselate_parser.add_argument('-n', '--min-nn', '--min-knn', '--knn-min', type=int, \
-		help='minimum number of nearest neighbors. Cells can overlap')
-	#tesselate_parser.add_argument('--overlap', action='store_true', help='allow cells to overlap (useful with knn)')
 	tesselate_parser.add_argument('-d', '--distance', type=float, help='average jump distance')
 	#tesselate_parser.add_argument('-r', '--frame-rate', type=float, help='frame rate')
 	#tesselate_parser.add_argument('-t', '--time-scale', type=float, nargs='+', help='time multiplier(s) for tesselation(s) 2/3d + t')

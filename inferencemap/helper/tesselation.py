@@ -197,14 +197,11 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	tess.tesselate(xyt_data[colnames], verbose=verbose, **kwargs)
 
 	# partition the dataset into the cells of the tesselation
-	if isinstance(knn, tuple):
-		cell_index = tess.cellIndex(xyt_data, min_cell_size=knn[0], max_cell_size=knn[1], \
-			inclusive_min_cell_size=min_cell_count)
-	elif knn is None:
+	if knn is None:
 		cell_index = tess.cellIndex(xyt_data)
 	else:
-		cell_index = tess.cellIndex(xyt_data, min_cell_size=knn, \
-			inclusive_min_cell_size=min_cell_count)
+		cell_index = tess.cellIndex(xyt_data, knn=knn, min_cell_size=min_cell_count, \
+			metric='euclidean')
 
 	stats = CellStats(cell_index, points=xyt_data, tesselation=tess)
 

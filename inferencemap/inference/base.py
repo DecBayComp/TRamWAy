@@ -138,6 +138,10 @@ class Distributed(object):
 		infered (:class:`~pandas.DataFrame`):
 			infered dynamic parameters.
 
+	Due to possible future change in the location of and access to the dynamic parameters 
+	(:attr:`infered` could become a lazy attribute, not suitable for setting parameters at 
+	individual cells), the :meth:`updateCell` method is maintained as an interface to these
+	specific parameters to guarantee compability in the future.
 	"""
 	def __init__(self, cells={}, adjacency=None, infered=None):
 		if isinstance(cells, CellStats):
@@ -195,5 +199,37 @@ class Distributed(object):
 			self.cells = cells
 			self.adjacency = adjacency
 		self.infered = infered
+
+
+	def updateCell(self, parameter, cell, update, *args, **kwargs):
+		"""
+		Update a dynamic parameter at one or more cells.
+
+		Arguments:
+
+			parameter (string):
+				name of the dynamic parameter.
+
+			cell (int or `Cell` or array-like):
+				cell index (or indices) which value to update.
+
+			update (float or array-like or function):
+				if function: takes the current parameter value(s) and return their
+				new value(s). Datatype and shape should be let unchanged.
+				if scalar or vector: new parameter value(s).
+
+		"""
+		if self.infered is None:
+			self.infered = pd.DataFrame(data=np.zeros(self.adjacency.shape[0]), \
+				columns=[parameter])
+		elif parameter_name not in self.infered:
+			self.infered[parameter] = np.zeros(self.adjacency.shape[0])
+		if isinstance(cell, Cell):
+			cell = cell.index
+		if callable(value):
+			self.infered[parameter][cell] = \
+				update(self.infered[parameter][cell], *args, **kwargs)
+		else:
+			self.infered[parameter][cell] = update
 
 

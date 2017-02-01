@@ -6,9 +6,9 @@
 InferenceMAP documentation
 ==========================
 
-|inferencemap| is aimed at analysing single molecule dynamics. It infers the diffusivity, drift, force and potential across space and time.
+|inferencemap| helps analyzing single molecule dynamics. It infers the diffusivity, drift, force and potential across space and time.
 
-|inferencemap| (as for its first version by now) is based on Bayesian analysis of Random Walks. In addition to estimating spatial maps of physical parameters, it can generate large amounts of trajectories in the inferred maps using the master equation approximation of the Fokker-Planck describing the motion.
+|inferencemap| as for its stable version by now is based on Bayesian analysis of Random Walks. In addition to estimating spatial maps of physical parameters, it can generate large amounts of trajectories in the inferred maps using the master equation approximation of the Fokker-Planck describing the motion.
 
 Finally, |inferencemap| provides multiple representations of both raw data and inferred fields.
 
@@ -18,17 +18,22 @@ Finally, |inferencemap| provides multiple representations of both raw data and i
 
    Most notably, the proper inference logic is not fully implemented yet!
 
-   To get the official implementation, please follow `this link <https://research.pasteur.fr/en/software/inferencemap/>`_.
+   You can get the stable version `here <https://research.pasteur.fr/en/software/inferencemap/>`_.
 
 
 Where to start
 --------------
 
-* :ref:`Installation <installation>`
-* :ref:`Quick-start guide <quickstart>`
-* :ref:`Reference library <api>`
+.. * :ref:`Installation <installation>`
+.. * :ref:`Quick-start guide <quickstart>`
+.. * :ref:`Reference library <api>`
 
+.. toctree::
+   :maxdepth: 2
 
+   installation
+   quickstart
+   api
 
 .. More (older) content
  --------------------

@@ -341,29 +341,31 @@ class Delaunay(Tesselation):
 	def tesselate(self, points):
 		self._cell_centers = self._preprocess(points)
 
-	def cellIndex(self, points, min_cell_size=None, max_cell_size=None, prefered='index', \
-		inclusive_min_cell_size=None, metric='euclidean', **kwargs):
+	def cellIndex(self, points, knn=None, prefered='index', \
+		min_cell_size=None, metric='euclidean', **kwargs):
 		"""
 		Arguments:
 			points: see :meth:`Tesselation.cellIndex`.
-			min_cell_size (int, optional): minimum number of points per cell (or of nearest
-				neighbors to the cell center). If strictly positive, cells may overlap
-				and the returned cell index may be a sparse point-cell association.
+			knn (int or pair of ints, optional):
+				minimum number of points per cell (or of nearest neighbors to the cell 
+				center). Cells may overlap and the returned cell index may be a sparse 
+				point-cell association.
+				can also be a pair of ints, in which case these ints define the minimum
+				and maximum number of points per cell respectively.
 				See also the `prefered` argument.
-			max_cell_size (int, optional): maximum number of points per cell (or of nearest
-				neighbors to the cell center).
 			prefered ({'index', 'force-index', 'pair', 'sparse'}, optional):
 				prefered representation of the point-cell association (or partition).
-			inclusive_min_cell_size (int, optional): minimum number of points for a cell to
-				be included in the labeling. This argument applies before 
-				`min_cell_size`. The points in these cells, if not associated with
-				another cell, are labeled ``-1``. The other cell labels do not change.
+			min_cell_size (int, optional):
+				minimum number of points for a cell to be included in the labeling. 
+				This argument applies before `knn`. The points in these cells, if not 
+				associated with	another cell, are labeled ``-1``. The other cell labels
+				do not change.
 
 		Returns:
 			see :meth:`Tesselation.cellIndex`.
 
 		A single vector representation of the point-cell association may not be possible with
-		`min_cell_size` defined, because a point can be associated to multiple cells. If such
+		`knn` defined, because a point can be associated to multiple cells. If such
 		a case happens and `prefered` is 'index', then 'pair' will be used as a fallback.
 
 		`prefered` can be either 'index' (default), 'force index' (deprecated), 'pair' or 
@@ -383,56 +385,60 @@ class Delaunay(Tesselation):
 			non-zeros to designate point-cell associations.
 
 		"""
+		if isinstance(knn, tuple):
+			min_nn, max_nn = knn
+		else:
+			min_nn, max_nn = knn, None
 		points = self.scaler.scalePoint(points, inplace=False)
 		D = cdist(self.descriptors(points, asarray=True), \
 			self._cell_centers, metric, **kwargs)
 		ncells = self._cell_centers.shape[0]
 		if prefered == 'force index':
-			min_cell_size = None
-		if max_cell_size or min_cell_size or inclusive_min_cell_size:
+			min_nn = None
+		if max_nn or min_nn or min_cell_size:
 			K = np.argmin(D, axis=1) # cell indices
 			nonempty, positive_count = np.unique(K, return_counts=True)
-			# max_cell_size:
+			# max_nn:
 			# set K[i] = -1 for all point i in cells that are too large
-			if max_cell_size:
-				large, = (max_cell_size < positive_count).nonzero()
+			if max_nn:
+				large, = (max_nn < positive_count).nonzero()
 				if large.size:
 					for c in nonempty[large]:
 						cell = K == c
 						I = np.argsort(D[cell, c])
 						cell, = cell.nonzero()
-						excess = cell[I[max_cell_size:]]
+						excess = cell[I[max_nn:]]
 						K[excess] = -1
-			# min_cell_size:
+			# min_nn:
 			# switch to vector-pair representation if any cell is too small
-			if min_cell_size:
+			if min_nn:
 				count = np.zeros(ncells, dtype=positive_count.dtype)
 				count[nonempty] = positive_count
-				small = count < min_cell_size
-				if inclusive_min_cell_size:
-					small = np.logical_and(small, inclusive_min_cell_size <= count)
+				small = count < min_nn
+				if min_cell_size:
+					small = np.logical_and(small, min_cell_size <= count)
 				if np.any(small):
 					# small and missing cells
-					I = np.argsort(D[:,small], axis=0)[:min_cell_size].flatten()
+					I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
 					small, = small.nonzero()
-					J = np.tile(small, min_cell_size) # cell indices
+					J = np.tile(small, min_nn) # cell indices
 					# large-enough cells
-					if inclusive_min_cell_size:
-						small = count < min_cell_size
+					if min_cell_size:
+						small = count < min_nn
 					point_in_small_cells = np.any(
 						small[:,np.newaxis] == K[np.newaxis,:], axis=0)
 					Ic = np.logical_not(point_in_small_cells)
 					Jc = K[Ic]
 					Ic, = Ic.nonzero()
-					if max_cell_size:
+					if max_nn:
 						Ic = Ic[0 <= Jc]
 						Jc = Jc[0 <= Jc]
 					#
 					K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
-			# inclusive_min_cell_size:
+			# min_cell_size:
 			# set K[i] = -1 for all point i in cells that are too small
-			elif inclusive_min_cell_size:
-				excluded_cells = positive_count < inclusive_min_cell_size
+			elif min_cell_size:
+				excluded_cells = positive_count < min_cell_size
 				if np.any(excluded_cells):
 					for c in nonempty[excluded_cells]:
 						K[K == c] = -1
