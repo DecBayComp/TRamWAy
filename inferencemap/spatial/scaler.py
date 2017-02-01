@@ -1,7 +1,7 @@
 
 import numpy as np
 import pandas as pd
-from .descriptor import *
+from ..core.namedcolumns import *
 
 
 class Scaler(object):
