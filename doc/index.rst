@@ -6,13 +6,17 @@
 InferenceMAP documentation
 ==========================
 
-InferenceMAP helps you infer the diffusivity and potential of moving particles across space.
+|inferencemap| is aimed at analysing single molecule dynamics. It infers the diffusivity, drift, force and potential across space and time.
+
+|inferencemap| (as for its first version by now) is based on Bayesian analysis of Random Walks. In addition to estimating spatial maps of physical parameters, it can generate large amounts of trajectories in the inferred maps using the master equation approximation of the Fokker-Planck describing the motion.
+
+Finally, |inferencemap| provides multiple representations of both raw data and inferred fields.
 
 .. warning::
 
    This implementation is under heavy development and is not yet suitable even for testing purposes!
 
-   Most notably, the proper inference logic is not implemented yet!
+   Most notably, the proper inference logic is not fully implemented yet!
 
    To get the official implementation, please follow `this link <https://research.pasteur.fr/en/software/inferencemap/>`_.
 
@@ -26,13 +30,13 @@ Where to start
 
 
 
-More (older) content
---------------------
+.. More (older) content
+ --------------------
 
-.. toctree::
-   :maxdepth: 1
+.. .. toctree::
+    :maxdepth: 1
 
-   introduction
+..    introduction
    installation
    commandline
    fileformat
@@ -45,4 +49,22 @@ More (older) content
 .. * :ref:`genindex`
 .. * :ref:`modindex`
 .. * :ref:`search`
+
+.. in quickstart.fileformats, 
+.. |txt| replace:: *.txt*
+.. in quickstart.commandline, quickstart.fileformats, 
+.. |xyt| replace:: *.xyt*
+.. |trxyt| replace:: *.trxyt*
+.. in quickstart, quickstart.helpers, quickstart.fileformats, 
+.. |h5| replace:: *.h5*
+.. in quickstart.fileformats, 
+.. |imtalone| replace:: *.imt*
+.. in quickstart.concepts, quickstart.fileformats, 
+.. |imt| replace:: *.imt.h5*
+.. |map| replace:: *.map.h5*
+.. in quickstart.fileformats, 
+.. |seconds| replace:: **seconds**
+.. |um| replace:: **µm**
+.. in index, installation, quickstart, quickstart.concepts, quickstart.fileformats, api, 
+.. |inferencemap| replace:: **InferenceMAP**
 

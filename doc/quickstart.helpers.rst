@@ -3,24 +3,17 @@
 High-level library helpers
 ==========================
 
-Input data
-----------
+Partitioning the tracking data
+------------------------------
 
-The input data usually are tracking data of single molecules.
-
-They can be provided as text files with four or five numerical columns, respectively the trajectory index, 2 or 3 spatial coordinates, and time in milliseconds.
-
-Partitioning the data points
-----------------------------
-
-The first step consists of tesselating the space and partitioning the data points into the cells of the tesselation.
+The first step consists of tesselating the space so that the point data can be partitioned in cells with an adequate number of points and spatial extent.
 
 :mod:`inferencemap.helper.tesselation` exposes the :func:`~inferencemap.helper.tesselation.tesselate` method that be called the following way::
 
 	path_to_tracking_data = 'example.trxyt'
 	cells = tesselate(path_to_tracking_data, 'grid', avg_cell_count=40)
 
-The input data space will be divided by a regular grid such that on average a cell will accomodate 40 points as specified by the ``avg_cell_count`` argument. This argument is optional with default value 80.
+The input data space will be divided by a regular grid such that on average a cell will accomodate 40 points as specified by the ``avg_cell_count`` argument. This argument is optional with default value 80 (more exactly ``4 * min_cell_count``).
 
 An ``example.imt.h5`` file will be generated.
 
@@ -32,7 +25,7 @@ The ``'grid'`` argument can be replaced by the following alternative method name
 
 .. note:: the ``avg_cell_count`` argument is equally useful with ``'kmeans'`` but not with the other methods.
 
-``'kmeans'`` and ``'gwr'`` methods run optimization on the data and consequently are vulnerable to numerical scaling. It is recommended to scale your data::
+``'kmeans'`` and ``'gwr'`` methods run optimization algorithms on the data and consequently are vulnerable to numerical errors. It is recommended to scale your data::
 
 	tesselate(path_to_tracking_data, method='kmeans', scaling=True)
 
@@ -42,11 +35,11 @@ To control the cell size at the partition step, a useful option ``knn`` (read "`
 
 	tesselate(path_to_tracking_data, method='gwr', scaling=True, knn=40)
 
-``'grid'`` and ``'kdtree'`` methods usually have several totally empty cells and it may not make sense to extend such cells until they contain the required number of points. An (undocumented, as of version *0.1*) option applies a threshold that determines whether as cell is included or not depending on the number of points it has::
+``'grid'`` and ``'kdtree'`` methods usually have several totally empty cells and it may not make sense to extend such cells until they contain the required number of points. The ``inclusive_min_cell_size`` argument determines how many points a cell should contain to be then extended if necessary. If there are too few points, the cell is ignored and not any point will be associated to this cell::
 
 	tesselate(path_to_tracking_data, method='grid', knn=40, inclusive_min_cell_size=1)
 
-In addition, ``'kdtree'`` requires an extra undocumented option so that the cells are not viewed as square or cubic areas which is not compatible with the concept of nearest neighbor::
+In addition, ``'kdtree'`` requires an extra argument so that the cells are not viewed as square or cubic areas. Indeed, square cells have such a variable size that a point in a cell may be closer to the center of another cell. This peculiarity is not compatible with the concept of nearest neighbor::
 
 	tesselate(path_to_tracking_data, method='kdtree', knn=40, inclusive_min_cell_size=1, metric='euclidean')
 
@@ -68,7 +61,7 @@ The Delaunay graph can be overlain instead of the Voronoi graph::
 
 	cell_plot(cells, xy_layer='delaunay')
 
-Here ``cells`` can equally be a path to a ``.h5`` tesselation file or the object returned by :func:`~inferencemap.helper.tesselation.tesselate`.
+Here ``cells`` can equally be a path to a |h5| tesselation file or the object returned by :func:`~inferencemap.helper.tesselation.tesselate`.
 
 The generated figure can be saved into a file instead of being shown on the screen::
 
@@ -82,5 +75,30 @@ or::
 Infering physical parameters
 ----------------------------
 
-This step is not implemented yet.
+The data should first be prepared::
+
+	from inferencemap.inference import *
+
+	prepared_map = Distributed(cells)
+
+For now only the diffusivity can be estimated::
+
+	diffusivity_map = inferD(prepared_map, localization_error=0.2)
+
+See also :mod:`inferencemap.inference`.
+
+Visualizing maps
+----------------
+
+::
+
+	from inferencemap.plot.map import *
+	import matplotlib.pyplot as plt
+
+	plot_scalar_2d(diffusivity_map)
+	plt.show()
+
+See also :mod:`inferencemap.plot.map`.
+
+.. |h5| replace:: *.h5*
 

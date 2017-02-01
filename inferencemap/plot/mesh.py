@@ -6,7 +6,7 @@ import itertools
 from copy import deepcopy
 import scipy.sparse as sparse
 from scipy.spatial.distance import cdist
-from ..spatial.descriptor import *
+from ..core import *
 
 
 def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None):

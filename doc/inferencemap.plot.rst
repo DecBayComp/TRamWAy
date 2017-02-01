@@ -9,4 +9,5 @@ inferencemap.plot package
 .. toctree::
 
     inferencemap.plot.mesh
+    inferencemap.plot.map
 

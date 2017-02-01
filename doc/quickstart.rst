@@ -3,16 +3,22 @@
 Quick Start Guide
 =================
 
-InferenceMAP is a feature-rich library written in Python. It is primarily intented to be imported as such. Its high-level routines are described in the :ref:`first section <quickstart.helpers>` of this page.
+|inferencemap| is a feature-rich library written in Python. Feel free to try its :ref:`demo scripts <quickstart.demos>`.
 
-InferenceMAP also features a :ref:`command-line interface <quickstart.commandline>` for limited usage outside of the Python language.
+|Inferencemap| is primarily intented to be imported as a library in a Python environment (see its :ref:`high-level interface <quickstart.helpers>`).
 
-In both cases, you may be interested in reading the generated ``.h5`` data files. Their format is described in the :ref:`last section <quickstart.formats>` of this page.
+It also features a :ref:`command-line interface <quickstart.commandline>` for limited usage outside of the Python language.
+
+In both cases, you may run into :ref:`common concepts <quickstart.concepts>`. You may also be interested in loading the generated :ref:`*.h5* data files <quickstart.fileformats>`.
 
 .. toctree::
    :maxdepth: 1
 
-   quickstart.helpers
+   quickstart.concepts
+   quickstart.demos
    quickstart.commandline
    quickstart.fileformats
+   quickstart.helpers
+
+.. |inferencemap| replace:: **InferenceMAP**
 

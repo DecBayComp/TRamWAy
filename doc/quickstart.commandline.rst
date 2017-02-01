@@ -8,7 +8,7 @@ Input data
 
 The input data are tracking data of single molecules, stored in a text file.
 
-The extension of input data files will usually be ``.trxyt`` but this is not required.
+The extension of input data files will usually be |xyt| or |trxyt| but this is not required.
 
 Partitioning the data points
 ----------------------------
@@ -45,3 +45,6 @@ To overlay the Delaunay graph instead of the Voronoi graph::
 
 	> python -m inferencemap -i example.imt.h5 show-cells -D
 
+
+.. |xyt| replace:: *.xyt*
+.. |trxyt| replace:: *.trxyt*

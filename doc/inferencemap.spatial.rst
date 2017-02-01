@@ -8,10 +8,9 @@ inferencemap.spatial package
 
 .. toctree::
 
-    inferencemap.spatial.descriptor
-    inferencemap.spatial.motion
+    inferencemap.spatial.translocation
     inferencemap.spatial.scaler
-    inferencemap.spatial.gas
-    inferencemap.spatial.graph
     inferencemap.spatial.dichotomy
+    inferencemap.spatial.graph
+    inferencemap.spatial.gas
 

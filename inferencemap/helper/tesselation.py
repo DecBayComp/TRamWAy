@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 import scipy.linalg as la
 import matplotlib.pyplot as plt
+from ..core import *
 from ..tesselation import *
 from ..spatial.scaler import *
-from ..spatial.motion import *
+from ..spatial.translocation import *
 from ..plot.mesh import *
 from ..io import *
 from warnings import warn
@@ -30,6 +31,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	knn=None, \
 	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
 	min_cell_count=20, avg_cell_count=None, max_cell_count=None, \
+	compress=False, \
 	**kwargs):
 	"""
 	Tesselation from points series and partitioning.
@@ -81,8 +83,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			cells.
 
 		ref_distance (float, optional):
-			Supposed to be the average jump distance. Can be modified so that the cells are
-			smaller or larger.
+			Supposed to be the average translocation distance. Can be modified so that the 
+			cells are smaller or larger.
 
 		rel_min_distance (float, optional):
 			Multiplies with `ref_distance` to define the minimum inter-cell distance.
@@ -127,13 +129,13 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		warn('TODO: test direct data input', UseCaseWarning)
 	
 	if ref_distance:
-		jump_length = None
+		transloc_length = None
 	else:
-		jump_xy = np.asarray(jumps(xyt_data))
-		jump_length = np.nanmean(np.sqrt(np.sum(jump_xy * jump_xy, axis=1)))
+		transloc_xy = np.asarray(translocations(xyt_data))
+		transloc_length = np.nanmean(np.sqrt(np.sum(transloc_xy * transloc_xy, axis=1)))
 		if verbose:
-			print('average jump distance: {}'.format(jump_length))
-		ref_distance = jump_length
+			print('average translocation distance: {}'.format(transloc_length))
+		ref_distance = transloc_length
 	min_distance = rel_min_distance * ref_distance
 	avg_distance = rel_avg_distance * ref_distance
 	if rel_max_distance:
@@ -196,17 +198,19 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	# partition the dataset into the cells of the tesselation
 	if isinstance(knn, tuple):
-		stats = tess.cellStats(xyt_data, min_cell_size=knn[0], max_cell_size=knn[1])#, \
-		#	inclusive_min_cell_size=min_cell_count)
+		cell_index = tess.cellIndex(xyt_data, min_cell_size=knn[0], max_cell_size=knn[1], \
+			inclusive_min_cell_size=min_cell_count)
 	elif knn is None:
-		stats = tess.cellStats(xyt_data)
+		cell_index = tess.cellIndex(xyt_data)
 	else:
-		stats = tess.cellStats(xyt_data, min_cell_size=knn)#, \
-		#	inclusive_min_cell_size=min_cell_count)
+		cell_index = tess.cellIndex(xyt_data, min_cell_size=knn, \
+			inclusive_min_cell_size=min_cell_count)
+
+	stats = CellStats(cell_index, points=xyt_data, tesselation=tess)
 
 	stats.param['method'] = method
-	if jump_length:
-		stats.param['jump_length'] = jump_length
+	if transloc_length:
+		stats.param['transloc_length'] = transloc_length
 	else:
 		stats.param['ref_distance'] = ref_distance
 	if min_distance:
@@ -240,12 +244,16 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 				imt_path = output_file
 			else:
 				imt_path += imt_extensions[0]
+		if compress:
+			stats_ = lightcopy(stats)
+		else:
+			stats_ = stats
 
 		try:
 			store = HDF5Store(imt_path, 'w', verbose and 1 < verbose)
 			if verbose:
 				print('writing file: {}'.format(imt_path))
-			store.poke('cells', stats)
+			store.poke('cells', stats_)
 			store.close()
 		except _:
 			warn('HDF5 libraries may not be installed', ImportWarning)

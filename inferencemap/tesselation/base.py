@@ -6,14 +6,15 @@ from scipy.spatial.distance import cdist
 import scipy.sparse as sparse
 import scipy.spatial as spatial
 from inferencemap.spatial.scaler import *
+from inferencemap.core import *
 
 
-class CellStats(object):
-	"""Container datatype for various results related to spatially distributed data points.
+class CellStats(Lazy):
+	"""Container datatype for a point dataset together with a tesselation.
 
-	This datatype is first returned by :meth:`Tesselation.cellStats`. At this stage, a `CellStats`
-	instance stores the tesselation and the partition of the data, together with a few statistics
-	over this partition.
+	A `CellStats` instance conveniently stores the tesselation (:attr:`tesselation`) and the 
+	partition of the data (:attr:`cell_index`) together with the data itself (:attr:`points`) and 
+	a few more intermediate results frequently derivated from a data partition.
 
 	The partition :attr:`cell_index` may be in any of the following formats:
 
@@ -41,37 +42,80 @@ class CellStats(object):
 		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
 			Point-cell association (or data partition).
 
-		cell_count (numpy.ndarray): 
+		tesselation (Tesselation):
+			The tesselation that defined the partition.
+
+		cell_count (numpy.ndarray, lazy): 
 			point count per cell; ``cell_count[i]`` is the number of 
 			points in cell ``i``.
 
-		bounding_box (array-like):
+		bounding_box (array-like, lazy):
 			``2 * D`` array with lower values in first row and upper values in second row,
 			where ``D`` is the dimension of the point data.
 
 		param (dict):
-			Arguments involved in the tesselation as key-value pairs. Not any argument is
-			required to be stored in `param`.
-
-		tesselation (Tesselation):
-			The tesselation that defined the partition.
+			Arguments involved in the tesselation and the partition steps, as key-value 
+			pairs. Such information is maintained in `CellStats` so that it can be stored
+			in `.imt.h5` files and retrieve for traceability.
 
 	"""
 
-	__slots__ = ['points', 'cell_index', 'cell_count', 'bounding_box', 'param', 'tesselation']
+	__slots__ = ['points', 'cell_index', '_cell_count', '_bounding_box', 'param', 'tesselation']
+	__lazy__ = ['cell_count', 'bounding_box']
 
 	def __init__(self, cell_index=None, cell_count=None, bounding_box=None, points=None, \
 		tesselation=None, param={}):
+		Lazy.__init__(self)
 		self.points = points
 		self.cell_index = cell_index
-		self.cell_count = cell_count
-		self.bounding_box = bounding_box
+		self._cell_count = cell_count
+		self._bounding_box = bounding_box
 		self.param = param
 		self.tesselation = tesselation
 
 	def descriptors(self, *vargs, **kwargs):
 		"""Proxy method for :meth:`Tesselation.descriptors`."""
 		return self.tesselation.descriptors(*vargs, **kwargs)
+
+	@property
+	def cell_count(self):
+		if self._cell_count is None:
+			ncells = self.tesselation._cell_centers.shape[0]
+			if isinstance(self.cell_index, tuple):
+				ci = sparse.csr_matrix((np.ones_like(self.cell_index[0], dtype=bool), \
+					self.cell_index), \
+					shape=(self.points.shape[0], ncells))
+				self._cell_count = np.diff(ci.indptr)
+			elif sparse.issparse(self.cell_index):
+				self._cell_count = np.diff(self.cell_index.tocsc().indptr)
+			else:
+				valid_cell_centers, _cell_count = np.unique(self.cell_index, \
+					return_counts=True)
+				self._cell_count = np.zeros(ncells, dtype=_cell_count.dtype)
+				self._cell_count[valid_cell_centers] = _cell_count
+				#center_to_point = valid_cell_centers[center_to_point]
+		return self._cell_count
+
+	@cell_count.setter
+	def cell_count(self, cc):
+		self.__lazysetter__(cc)
+
+	@property
+	def bounding_box(self):
+		if self._bounding_box is None:
+			xmin = self.points.min(axis=0)
+			xmax = self.points.max(axis=0)
+			if isinstance(self.points, pd.DataFrame):
+				self._bounding_box = pd.concat([xmin, xmax], axis=1).T
+				self._bounding_box.index = ['min', 'max']
+			else:
+				self._bounding_box = np.vstack([xmin, xmax]).flatten('F')
+		return self._bounding_box
+
+	@bounding_box.setter
+	def bounding_box(self, bb):
+		self.__lazysetter__(bb)
+
 
 
 def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_labels=None):
@@ -223,40 +267,6 @@ class Tesselation(object):
 			Any datatype suitable for :attr:`CellStats.cell_index`.
 		"""
 		raise NotImplementedError
-
-	def cellStats(self, points, **kwargs):
-		"""
-		Partition on top of :meth:`cellIndex` and fill the extra :class:`CellStats` attributes.
-
-		Arguments:
-			points (array-like): point coordinates.
-
-		Returns:
-			CellStats: partition object.
-
-		Admits keyword arguments to be provided to :meth:`cellIndex`.
-		"""
-		cell_index = self.cellIndex(points, **kwargs)
-		if isinstance(cell_index, tuple):
-			ci = sparse.csr_matrix((np.ones_like(cell_index[0], dtype=bool), \
-				cell_index), shape=(points.shape[0], self._cell_centers.shape[0]))
-			cell_count = np.diff(ci.indptr)
-		elif sparse.issparse(cell_index):
-			cell_count = np.diff(cell_index.tocsc().indptr)
-		else:
-			valid_cell_centers, _cell_count = np.unique(cell_index, return_counts=True)
-			cell_count = np.zeros(self._cell_centers.shape[0], dtype=_cell_count.dtype)
-			cell_count[valid_cell_centers] = _cell_count
-			#center_to_point = valid_cell_centers[center_to_point]
-		xmin = points.min(axis=0)
-		xmax = points.max(axis=0)
-		if isinstance(points, pd.DataFrame):
-			bounding_box = pd.concat([xmin, xmax], axis=1).T
-			bounding_box.index = ['min', 'max']
-		else:
-			bounding_box = np.vstack([xmin, xmax]).flatten('F')
-		return CellStats(cell_index=cell_index, cell_count=cell_count, \
-			bounding_box=bounding_box, points=points, tesselation=self)
 
 	# cell_label property
 	@property

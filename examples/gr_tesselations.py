@@ -6,7 +6,7 @@ from inferencemap.helper.tesselation import *
 
 #demo_name = 'glycine-receptor'
 
-short_description = 'various tesselations of glycine receptor data'
+short_description = 'various tesselations of the glycine receptor dataset'
 
 #data_server = 'http://157.99.149.144/'
 data_server = 'http://dl.pasteur.fr/fop/jod5vvB5/'

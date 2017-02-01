@@ -1,7 +1,8 @@
 
-import pandas
+#import numpy as np
+#import pandas as pd
 
-def jumps_impl0(df, sort=True): # very slow; may soon be deprecated
+def _translocations(df, sort=True): # very slow; may soon be deprecated
 	def diff(df):
 		df = df.sort_values('t')
 		t = df['t'][1:]
@@ -10,10 +11,10 @@ def jumps_impl0(df, sort=True): # very slow; may soon be deprecated
 		return df
 	return df.groupby(['n'], sort=False).apply(diff)
 
-def jumps(df, sort=False):
+def translocations(df, sort=False):
 	'''each trajectories should be represented by consecutive rows sorted by time.'''
 	if sort:
-		return jumps_impl0(df) # not exactly equivalent
+		return _translocations(df) # not exactly equivalent
 		#raise NotImplementedError
 	i = 'n'
 	xyz = ['x', 'y']
@@ -26,4 +27,5 @@ def jumps(df, sort=False):
 	#return df
 	jump = jump[jump[i] == 0][xyz]
 	return jump#np.sqrt(np.sum(jump * jump, axis=1))
+
 
