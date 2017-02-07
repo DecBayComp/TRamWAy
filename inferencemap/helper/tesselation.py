@@ -117,10 +117,6 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	initializer of the selected tesselation method. See the individual documentation of these 
 	methods for more information.
 
-
-	Notes:
-		See :ref:`examples/glycine_receptor.py` for simple applications of the different methods.
-
 	"""
 	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, list):
 		xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
@@ -351,7 +347,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			hdf = HDF5Store(input_file, 'r')
 			cells = hdf.peek('cells')
 			hdf.close()
-		except _:
+		except:
 			warn('HDF5 libraries may not be installed', ImportWarning)
 
 	# guess back some input parameters
@@ -465,4 +461,47 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 	if show or not print_figs:
 		plt.show()
 
+
+def find_imt(path, method=None, full_list=False):
+	if not isinstance(path, list):
+		path = [path]
+	paths = []
+	for p in path:
+		if os.path.isdir(p):
+			paths.append([ os.path.join(p, f) for f in os.listdir(p) if f.endswith('.h5') ])
+		else:
+			if p.endswith('.h5'):
+				ps = [p]
+			else:
+				d, p = os.path.split(p)
+				p, _ = os.path.splitext(p)
+				if d:
+					ps = [ os.path.join(d, f) for f in os.listdir(d) \
+						if f.startswith(p) and f.endswith('.h5') ]
+				else:
+					ps = [ f for f in os.listdir('.') \
+						if f.startswith(p) and f.endswith('.h5') ]
+			paths.append(ps)
+	paths = list(itertools.chain(*paths))
+	found = False
+	for path in paths:
+		try:
+			hdf = HDF5Store(path, 'r')
+			try:
+				cells = hdf.peek('cells')
+				if isinstance(cells, CellStats) and \
+					(method is None or cells.param['method'] == method):
+					found = True
+			except:
+				pass
+			hdf.close()
+		except:
+			pass
+		if found: break
+	if found:
+		if full_list:
+			path = paths
+		return (path, cells)
+	else:
+		return (paths, None)
 

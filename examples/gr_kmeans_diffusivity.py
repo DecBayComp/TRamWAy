@@ -1,9 +1,10 @@
 
 import os
-from inferencemap.helper import tesselate
+from inferencemap.helper import tesselate, find_imt
 from inferencemap.inference import *
 from inferencemap.plot.map import scalar_map_2d
 import matplotlib.pyplot as plt
+#import cProfile
 
 short_description = 'infer and plot a kmeans-based diffusivity map for glycine receptor dataset'
 
@@ -12,22 +13,33 @@ data_server = 'http://dl.pasteur.fr/fop/jod5vvB5/'
 data_file = 'glycine_receptor.trxyt'
 data_dir = ''
 
-if __name__ == '__main__':
-	main()
-
 def main():
 	local = os.path.join(data_dir, data_file)
 
 	# tesselate
 	method = 'kmeans'
-	kmeans = tesselate(local, method, verbose=True)
+	#kmeans = tesselate(local, method, verbose=True)
+	_, kmeans = find_imt(local, method)
 
-	# infer
-	localization_error = 0.0
+	# infer diffusivity
+	localization_error = 0.2
 	pre_map = Distributed(kmeans)
-	diffusivity = inferD(pre_map, localization_error)
+	#diffusivity = inferD(pre_map, localization_error)
 
 	# plot
-	scalar_map_2d(diffusivity)
+	#scalar_map_2d(diffusivity)
+	#plt.show()
+
+	# diffusivity+potential
+	priorD = 0.1
+	priorV = 0.1
+	dv = inferDV(pre_map, localization_error, priorD, priorV, options={maxiter=100, disp=True})
+	# and plot
+	scalar_map_2d(dv, 'D')
+	scalar_map_2d(dv, 'V')
 	plt.show()
+
+
+if __name__ == '__main__':
+	main()
 
