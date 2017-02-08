@@ -2,13 +2,13 @@
 import os
 import six
 
+import h5py
 try:
-	import h5py
 	import tables
-	from pandas import read_hdf, Series, DataFrame, Panel, SparseSeries
-except ImportError:
+except ImportError as e:
 	import warnings
-	warnings.warn('missing HDF5 functionality', ImportWarning)
+	warnings.warn(e.msg, ImportWarning)
+from pandas import read_hdf, Series, DataFrame, Panel, SparseSeries
 
 from numpy import string_, ndarray#, MaskedArray
 import tempfile
@@ -90,9 +90,13 @@ def peek_Pandas(service, from_table):
 
 def poke_Pandas(service, objname, obj, to_table):
 	_, tmpfilename = tempfile.mkstemp()
-	obj.to_hdf(tmpfilename, 'root')
-	from_table = h5py.File(tmpfilename, 'r', libver='latest')
-	copy_hdf(from_table, to_table, objname)
+	try:
+		obj.to_hdf(tmpfilename, 'root')
+		from_table = h5py.File(tmpfilename, 'r', libver='latest')
+		copy_hdf(from_table, to_table, objname)
+	except ImportError as e:
+		import warnings
+		warnings.warn(e.msg, ImportWarning)
 	os.remove(tmpfilename)
 	#_debug(to_table.file)
 

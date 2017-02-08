@@ -65,7 +65,7 @@ class Cell(Lazy):
 		self._time_col = None
 		self._space_cols = None
 		self.cache = None
-		self.translocations = (self.dxy, self.dt)
+		#self.translocations = (self.dxy, self.dt)
 
 	@property
 	def time_col(self):

@@ -7,7 +7,7 @@ from codecs import open
 from os import path
 
 # h5py mocked out in doc/conf.py
-install_requires = ['six', 'numpy', 'scipy', 'pandas', 'tables'] # , 'h5py'
+install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'tables'] # , 'h5py'
 extras_require = {} 
 
 

@@ -248,7 +248,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 				print('writing file: {}'.format(imt_path))
 			store.poke('cells', stats_)
 			store.close()
-		except _:
+		except:
 			warn('HDF5 libraries may not be installed', ImportWarning)
 
 	return stats
