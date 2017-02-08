@@ -77,7 +77,7 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 	result = 0.0
 	for i in cells.cells:
 		cell = cells.cells[i]
-		n = cell.translocations.shape[0]
+		n = cell.tcount
 		# gradient of potential
 		if cell.cache['vanders'] is None:
 			cell.cache['vanders'] = [ np.vander(col, 3)[...,:2] for col in cell.area.T ]
@@ -115,13 +115,13 @@ def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_pri
 	for i in cell.cells:
 		c = cell.cells[i]
 		initialD[i] = np.mean(c.dxy * c.dxy) / (2.0 * np.mean(c.dt))
-		initialV[i] = -log(float(c.translocations.shape[0]) / float(cell.tcount))
+		initialV[i] = -log(float(c.tcount) / float(cell.tcount))
 	dv = DV(initialD, initialV, priorD, priorV)
 	# initialize the caches
 	for c in cell.cells:
 		cell.cells[c].cache = dict(vanders=None, area=None)
 	# run the optimization routine
-	result = minimize(dv_neg_posterior, dv.both, method='BFGS', \
+	result = minimize(dv_neg_posterior, dv.both, method='TNC', bounds=[(0,None)]*dv.both.size, \
 		args=(dv, cell, localization_error * localization_error, jeffreys_prior), \
 		**kwargs)
 	# collect the result

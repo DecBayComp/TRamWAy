@@ -18,8 +18,9 @@ def main():
 
 	# tesselate
 	method = 'kmeans'
-	#kmeans = tesselate(local, method, verbose=True)
 	_, kmeans = find_imt(local, method)
+	if kmeans is None:
+		kmeans = tesselate(local, method, verbose=True)
 
 	# infer diffusivity
 	localization_error = 0.2
@@ -33,7 +34,7 @@ def main():
 	# diffusivity+potential
 	priorD = 0.1
 	priorV = 0.1
-	dv = inferDV(pre_map, localization_error, priorD, priorV, options={maxiter=100, disp=True})
+	dv = inferDV(pre_map, localization_error, priorD, priorV, options=dict(maxiter=1, disp=True))
 	# and plot
 	scalar_map_2d(dv, 'D')
 	scalar_map_2d(dv, 'V')

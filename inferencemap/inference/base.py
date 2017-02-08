@@ -39,6 +39,9 @@ class Cell(Lazy):
 		space_cols (list of ints or strings, lazy):
 			column indices for coordinates.
 
+		tcount (int):
+			number of translocations.
+
 ..		flags (array of bools, unused):
 			boolean flags for process control.
 
@@ -48,7 +51,7 @@ class Cell(Lazy):
 			is totally free and comes without support for concurrency.
 
 	"""
-	__slots__ = ['index', 'translocations', 'center', 'area', 'flags', \
+	__slots__ = ['index', 'translocations', 'tcount', 'center', 'area', 'flags', \
 		'_time_col', '_space_cols', 'cache']
 	__lazy__ = ['time_col', 'space_cols']
 
@@ -56,11 +59,13 @@ class Cell(Lazy):
 		Lazy.__init__(self)
 		self.index = index
 		self.translocations = translocations
+		self.tcount = translocations.shape[0]
 		self.center = center
 		self.area = area
 		self._time_col = None
 		self._space_cols = None
 		self.cache = None
+		self.translocations = (self.dxy, self.dt)
 
 	@property
 	def time_col(self):
@@ -102,6 +107,11 @@ class Cell(Lazy):
 
 	@property
 	def dt(self):
+		if not isinstance(self.translocations, tuple):
+			self.translocations = (self._dxy(), self._dt())
+		return self.translocations[1]
+
+	def _dt(self):
 		if isstructured(self.translocations):
 			return np.asarray(self.translocations[self.time_col])
 		else:
@@ -109,6 +119,11 @@ class Cell(Lazy):
 
 	@property
 	def dxy(self):
+		if not isinstance(self.translocations, tuple):
+			self.translocations = (self._dxy(), self._dt())
+		return self.translocations[0]
+
+	def _dxy(self):
 		if isstructured(self.translocations):
 			return np.asarray(self.translocations[self.space_cols])
 		else:
