@@ -23,8 +23,8 @@ def main():
 		kmeans = tesselate(local, method, verbose=True)
 
 	# infer diffusivity
-	localization_error = 0.2
-	pre_map = Distributed(kmeans)
+	localization_error = 0.21
+	pre_map = distributed(kmeans)
 	#diffusivity = inferD(pre_map, localization_error)
 
 	# plot

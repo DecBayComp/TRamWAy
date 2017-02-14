@@ -43,7 +43,7 @@ def inferD(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
 class DV(ArrayChain):
 	def __init__(self, diffusivity, potential, priorD=None, priorV=None):
 		ArrayChain.__init__(self, D=diffusivity, V=potential)
-		self.both = np.empty(self.shape)
+		self.combined = np.empty(self.shape)
 		self.D = diffusivity
 		self.V = potential
 		self.priorD = priorD
@@ -51,22 +51,22 @@ class DV(ArrayChain):
 
 	@property
 	def D(self):
-		return self.get(self.both, 'D')
+		return self.get(self.combined, 'D')
 
 	@property
 	def V(self):
-		return self.get(self.both, 'V')
+		return self.get(self.combined, 'V')
 
 	@D.setter
 	def D(self, diffusivity):
-		self.set(self.both, 'D', diffusivity)
+		self.set(self.combined, 'D', diffusivity)
 
 	@V.setter
 	def V(self, potential):
-		self.set(self.both, 'V', potential)
+		self.set(self.combined, 'V', potential)
 
 	def update(self, x):
-		self.both = x
+		self.combined = x
 
 
 def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
@@ -104,11 +104,13 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 			result += dv.priorD * np.dot(gradD * gradD, cell.cache['area'])
 		if jeffreys_prior:
 			result += 2.0 * (log(D[i] * np.mean(cell.dt) + sq_loc_err) - log(D[i]))
+	print(result)
 	return result
 
 
 def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_prior=False, **kwargs):
 	ncells = cell.adjacency.shape[0]
+	sq_loc_err = localization_error * localization_error
 	# initial values
 	initialD = np.zeros(ncells)
 	initialV = np.zeros(ncells)
@@ -121,11 +123,14 @@ def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_pri
 	for c in cell.cells:
 		cell.cells[c].cache = dict(vanders=None, area=None)
 	# run the optimization routine
-	result = minimize(dv_neg_posterior, dv.both, method='TNC', bounds=[(0,None)]*dv.both.size, \
-		args=(dv, cell, localization_error * localization_error, jeffreys_prior), \
+	result = minimize(dv_neg_posterior, dv.combined, method='L-BFGS-B', \
+		bounds=[(0, None)] * dv.combined.size, \
+		args=(dv, cell, sq_loc_err, jeffreys_prior), \
 		**kwargs)
 	# collect the result
-	cell.infered['D'] = dv.D
-	cell.infered['V'] = dv.V
+	#cell.infered['D'] = dv.D
+	#cell.infered['V'] = dv.V
+	cell.infered = pd.DataFrame(np.stack((dv.D, dv.V), axis=-1), \
+		index=list(cell.cells.keys()), columns=['D', 'V'])
 	return cell # useless
 
