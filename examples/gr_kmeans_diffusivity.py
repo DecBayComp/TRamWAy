@@ -36,23 +36,27 @@ def main():
 	plt.show()
 
 
-	# diffusivity and potential (DV mode)
-	dvfile = os.path.splitext(local)[0] + '.dv.h5' # store result
+	# infer diffusivity and potential (DV mode)
+	dvfile = os.path.splitext(local)[0] + '.dv.h5' # store result in file
 	if os.path.isfile(dvfile): # if result file exists, load it
 		store = HDF5Store(dvfile, 'r')
 		dv = store.peek('DV')
 	else: # otherwise compute
 
+		localization_error = 0.2
+		priorD = 0.001
+		priorV = 0.1
+
 		multiscale_map = detailled_map.group(max_cell_count=20)
 		#bold_map = multiscale_map.flatten()
-		dv = multiscale_map.run(inferDV, \
-			localization_error=0.2, \
-			priorD=0.001, \
-			priorV=0.1)
+		dv = multiscale_map.run(inferDV, localization_error, priorD, priorV)
 
-		# save result
+		# store the result
 		store = HDF5Store(dvfile, 'w')
 		store.poke('DV', dv)
+		store.poke('localization_error', localization_error)
+		store.poke('priorD', priorD)
+		store.poke('priorV', priorV)
 	
 	store.close()
 
