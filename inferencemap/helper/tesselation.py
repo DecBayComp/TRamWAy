@@ -30,7 +30,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaling=False, time_scale=None, \
 	knn=None, \
 	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
-	min_cell_count=20, avg_cell_count=None, max_cell_count=None, \
+	min_cell_count=20, avg_cell_count=None, max_cell_count=None, strict_min_cell_size=None, \
 	compress=False, \
 	**kwargs):
 	"""
@@ -194,9 +194,11 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	# partition the dataset into the cells of the tesselation
 	if knn is None:
-		cell_index = tess.cellIndex(xyt_data)
+		cell_index = tess.cellIndex(xyt_data, min_cell_size=strict_min_cell_size)
 	else:
-		cell_index = tess.cellIndex(xyt_data, knn=knn, min_cell_size=min_cell_count, \
+		if strict_min_cell_size is None:
+			strict_min_cell_size = min_cell_count
+		cell_index = tess.cellIndex(xyt_data, knn=knn, min_cell_size=strict_min_cell_size, \
 			metric='euclidean')
 
 	stats = CellStats(cell_index, points=xyt_data, tesselation=tess)

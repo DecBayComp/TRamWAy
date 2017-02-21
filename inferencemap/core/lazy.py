@@ -28,6 +28,45 @@ def ro_property_assert(obj, supplied_value, related_attribute=None, property_nam
 
 
 class Lazy(object):
+	"""Lazy store.
+
+	Lazily computes and stores attributes through properties, so that the stored attributes can be
+	(explicitly) deleted anytime to save memory.
+
+	The :attr:`__lazy__` static attribute is a list of the properties that implement such a 
+	mechanism.
+
+	Per default each lazy property ``name`` manages a private ``_name`` attribute. 
+	This naming convention can be overwritten by heriting `Lazy` and overloading 
+	:meth:`__tolazy__` and :meth:`__fromlazy__` methods.
+
+	An unset lazy attribute/property always has value ``None``.
+
+	A getter will typically look like this::
+
+		@property
+		def name(self):
+			if self._name is None:
+				self._name = # add some logics
+			return self._name
+
+	A fully functional setter will typically look like this::
+
+		@name.setter
+		def name(self, value):
+			self.__lazysetter__(value)
+
+	A read-only lazy property will usually look like this::
+
+		@name.setter
+		def name(self, value):
+			self.__lazyassert__(value)
+
+	`__lazyassert__` can unset ``_name`` (set it to ``None``) but any other value is treated as 
+	illegal. `__lazyassert__` compares ``value`` with ``self.name`` and raises a warning if the
+	values equal to each other, or throws an exception otherwise.
+
+	"""
 	__slots__ = ['_lazy']
 
 	__lazy__  = []
@@ -38,20 +77,30 @@ class Lazy(object):
 			setattr(self, self.__fromlazy__(name), None)
 
 	def __tolazy__(self, name):
+		"""Returns the property name that corresponds to an attribute name."""
 		return name[1:]
 
 	def __fromlazy__(self, name):
+		"""Returns the attribute name that corresponds to a property name."""
 		return '_{}'.format(name)
 
 	def __setlazy__(self, name, value):
+		"""Sets property `name` to `value`."""
 		self._lazy[name] = value is None
 		setattr(self, self.__fromlazy__(name), value)
 
 	def __lazysetter__(self, value, depth=0):
+		"""Sets the property which name is the name of the caller."""
 		self.__setlazy__(sys._getframe(depth + 1).f_code.co_name, value)
 
 	def __lazyassert__(self, value, related_attribute=None, name=None, depth=0):
-		ro_property_assert(self, value, related_attribute, name, depth + 1)
+		if value is None: # None has a special meaning for lazy attributes/properties
+			if name is None:
+				self.__lazysetter__(value, depth + 1)
+			else:
+				self.__setlazy__(name, value)
+		else:
+			ro_property_assert(self, value, related_attribute, name, depth + 1)
 
 	def unload(self):
 		try:

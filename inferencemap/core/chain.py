@@ -57,7 +57,7 @@ class ArrayChain(object):
 
 	def get(self, a, member):
 		matrix = self.members[member]
-		return np.reshape(a[self._at(a, member, matrix)], matrix.shape, order=matrix.order)
+		return a[self._at(a, member, matrix)].reshape(matrix.shape, order=matrix.order)
 
 	def set(self, a, member, m):
 		matrix = self.members[member]

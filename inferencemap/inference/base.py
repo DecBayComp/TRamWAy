@@ -5,10 +5,10 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
 from copy import copy
-try:
-	from collections import ChainMap
-except ImportError:
-	from chainmap import ChainMap
+from collections import OrderedDict
+from multiprocessing import Pool, Lock
+import six
+from functools import partial
 
 
 
@@ -20,9 +20,6 @@ class Local(Lazy):
 
 		index (int):
 			this cell's index as referenced in :class:`Distributed`.
-
-		terminal (bool, ro property):
-			does data contain terminal elements?
 
 		data (collection of terminal elements or :class:`Local`):
 			elements, either terminal or not.
@@ -41,9 +38,6 @@ class Local(Lazy):
 		tcount (int, property):
 			total number of terminal elements (e.g. translocations).
 
-		ccount (int, ro property):
-			number of elements at this level (e.g. cells or - if terminal - translocations).
-
 	"""
 	__slots__ = ['index', 'data', 'center', 'area']
 	__lazy__  = []
@@ -54,10 +48,6 @@ class Local(Lazy):
 		self.data = data
 		self.center = center
 		self.area = area
-
-	@property
-	def terminal(self):
-		raise NotImplementedError('abstract method')
 
 	@property
 	def dim(self):
@@ -75,17 +65,6 @@ class Local(Lazy):
 	def tcount(self, c):
 		self.__lazyassert__(c, 'data')
 
-	@property
-	def ccount(self):
-		raise NotImplementedError('abstract method')
-
-	@ccount.setter
-	def ccount(self, c):
-		self.__lazyassert__(c, 'data')
-
-	def flatten(self):
-		raise NotImplementedError('abstract method')
-
 
 
 class Distributed(Local):
@@ -96,33 +75,38 @@ class Distributed(Local):
 			dimension of the terminal elements.
 
 		tcount (int, property):
-			total number of terminal elements.
+			total number of terminal elements. Duplicates are ignored.
 
-		ccount (int):
-			total number of cells at the current scale.
+		ccount (int, property):
+			total number of cells (not distributed). Duplicates are ignored.
 
-		cells (dict, rw property for :attr:`data`):
-			dictionnary cell indices as keys and :class:`Local` as elements.
+		cells (list or OrderedDict, rw property for :attr:`data`):
+			collection of :class:`Local`s. Indices may not match with the global 
+			:attr:`~Local.index` attribute of the elements, but match with attributes 
+			:attr:`central`, :attr:`adjacency` and :attr:`degree`.
+
+		reverse (dict of ints, ro lazy property):
+			get "local" indices from global ones.
+
+		central (array of bools):
+			margin cells are not central.
 
 		adjacency (:class:`~scipy.sparse.csr_matrix`):
-			cell adjacency matrix.
+			cell adjacency matrix. Row and column indices are to be mapped with `indices`.
 
 		degree (array of ints, ro lazy property):
 			number of adjacent cells.
 
-		infered (array-like or None):
-			infered dynamic parameters at the current scale, if available.
-
 	"""
-	__slots__ = Local.__slots__ + ['_adjacency', '_degree', '_terminal', '_tcount', '_dim', 'infered']
-	__lazy__  = Local.__lazy__  + ['degree', 'terminal', 'tcount', 'dim']
+	__slots__ = Local.__slots__ + ['_reverse', '_adjacency', 'central', '_degree', \
+		'_ccount', '_tcount', '_dim']
+	__lazy__  = Local.__lazy__  + ['reverse', 'degree', 'ccount', 'tcount', 'dim']
 
-	def __init__(self, cells, adjacency, index=None, center=None, area=None):
-		if not (isinstance(cells, dict) and all([ isinstance(cell, Local) for cell in cells.values() ])):
-			raise TypeError('`cells` argument is not a `dict` of `Local`s')
-		Local.__init__(self, index, cells, center, area)
-		self._adjacency = adjacency
-		self.infered = None
+	def __init__(self, cells, adjacency, index=None, center=None, area=None, central=None):
+		Local.__init__(self, index, OrderedDict(), center, area)
+		self.cells = cells # let's `cells` setter perform the necessary checks 
+		self.adjacency = adjacency
+		self.central = central
 
 	@property
 	def cells(self):
@@ -130,50 +114,80 @@ class Distributed(Local):
 
 	@cells.setter
 	def cells(self, cells):
-		if not (isinstance(cells, dict) and all([ isinstance(cell, Local) for cell in cells.values() ])):
-			raise TypeError('`cells` argument is not a `dict` of `Local`s')
-		if self.ccount < max(cells.keys()):
-			self.adjacency = None
+		celltype = type(self.cells)
+		assert(celltype is dict or celltype is OrderedDict)
+		if not isinstance(cells, celltype):
+			if isinstance(cells, dict):
+				cells = celltype(sorted(cells.items(), key=lambda t: t[0]))
+			elif isinstance(cells, list):
+				cells = celltype(sorted(enumerate(cells), key=lambda t: t[0]))
+			else:
+				raise TypeError('`cells` argument is not a dictionnary (`dict` or `OrderedDict`)')
+		if not all([ isinstance(cell, Local) for cell in cells.values() ]):
+			raise TypeError('`cells` argument is not a dictionnary of `Local`s')
+		#try:
+		#	if self.ccount == len(cells): #.keys().reversed().next(): # max
+		#		self.adjacency = None
+		#		self.central = None
+		#except:
+		#	pass
+		self.reverse = None
+		self.ccount = None
 		self.data = cells
-		self._terminal = None
 
 	@property
-	def terminal(self):
-		if self._terminal is None:
-			self._terminal = all([ cell.terminal for cell in self.data.values() ])
-		return self._terminal
+	def indices(self):
+		return np.array([ cell.index for cell in self.cells.values() ])
 
-	@terminal.setter
-	def terminal(self, t):
-		ro_property_assert(self, t, 'data')
+	@property
+	def reverse(self):
+		if self._reverse is None:
+			self._reverse = {cell.index: i for i, cell in self.cells.items()}
+		return self._reverse
+
+	@reverse.setter
+	def reverse(self, r): # ro
+		self.__lazyassert__(r, 'cells')
 
 	@property
 	def dim(self):
 		if self._dim is None:
-			self._dim = self.data.values().next().dim
+			if self.center is None:
+				self._dim = list(self.cells.values())[0].dim
+			else:
+				self._dim = self.center.size
 		return self._dim
 
 	@dim.setter
-	def dim(self, d):
-		ro_property_assert(self, d, 'data')
+	def dim(self, d): # ro
+		self.__lazyassert__(d, 'cells')
 
 	@property
 	def tcount(self):
 		if self._tcount is None:
-			self._tcount = sum([ cell.tcount for cell in self.data.values() ])
+			if self.central is None:
+				self._tcount = sum([ cell.tcount \
+					for i, cell in self.cells.items() if self.central[i] ])
+			else:
+				self._tcount = sum([ cell.tcount for cell in self.cells.values() ])
 		return self._tcount
 
 	@tcount.setter
 	def tcount(self, c):
+		# write access allowed for performance issues, but `c` should equal self.tcount
 		self.__lazysetter__(c)
 
 	@property
 	def ccount(self):
-		return self.adjacency.shape[0]
+		#return self.adjacency.shape[0] # or len(self.cells)
+		if self._ccount is None:
+			self._ccount = sum([ cell.ccount if isinstance(cell, Distributed) else 1 \
+				for cell in self.cells.values() ])
+		return self._ccount
 
 	@ccount.setter
-	def ccount(self, c):
-		self.__lazyassert__(c, 'data')
+	def ccount(self, c): # rw for performance issues, but `c` should equal self.ccount
+		self.__lazysetter__(c)
 
 	@property
 	def adjacency(self):
@@ -181,8 +195,10 @@ class Distributed(Local):
 
 	@adjacency.setter
 	def adjacency(self, a):
-		self._adjacency = a.tocsr()
-		self._degree = None
+		if a is not None:
+			a = a.tocsr()
+		self._adjacency = a
+		self._degree = None # `degree` is ro, hence set `_degree` instead
 
 	@property
 	def degree(self):
@@ -191,44 +207,128 @@ class Distributed(Local):
 		return self._degree
 
 	@degree.setter
-	def degree(self, d):
+	def degree(self, d): # ro
 		self.__lazyassert__(d, 'adjacency')
 
 	def flatten(self):
+		def concat(arrays):
+			if isinstance(arrays[0], tuple):
+				raise NotImplementedError
+			elif isinstance(arrays[0], pd.DataFrame):
+				return pd.concat(arrays, axis=0)
+			else:
+				return np.stack(arrays, axis=0)
 		new = copy(self)
-		new.data = {i: ChainMap(cell.values()) if isinstance(cell, dict) else cell \
-			for i, cell in self.data.items() }
+		new.cells = {i: Cell(i, concat([cell.data for cell in dist.cells.values()]), \
+				dist.center, dist.area) \
+			if isinstance(dist, Distributed) else dist \
+			for i, dist in self.cells.items() }
 		return new
 
-	def group(self, max_cell_count=None, cell_centers=None):
+	def group(self, ngroups=None, max_cell_count=None, cell_centers=None, \
+		adjacency_margin=1):
 		new = copy(self)
-		if max_cell_count or cell_centers is not None:
-			points = np.array([ cell.center for cell in self.data.values() ])
+		if ngroups or max_cell_count or cell_centers is not None:
+			points = np.full((self.adjacency.shape[0], self.dim), np.inf)
+			ok = np.zeros(points.shape[0], dtype=bool)
+			for i in self.cells:
+				points[i] = self.cells[i].center
+				ok[i] = True
 			if cell_centers is None:
-				avg_probability = float(max_cell_count) / float(points.shape[0])
+				avg_probability = 1.0
+				if ngroups:
+					avg_probability = min(1.0 / float(ngroups), avg_probability)
+				if max_cell_count:
+					avg_probability = min(float(max_cell_count) / \
+						float(points.shape[0]), avg_probability)
 				from inferencemap.tesselation import KMeansMesh
 				grid = KMeansMesh(avg_probability=avg_probability)
-				grid.tesselate(points)
+				grid.tesselate(points[ok])
 			else:
 				grid = Voronoi()
 				grid.cell_centers = cell_centers
-			I = grid.cellIndex(points)
+			I = np.full(ok.size, -1, dtype=int)
+			I[ok] = grid.cellIndex(points[ok], min_cell_size=1)
+			#if not np.all(ok):
+			#	print(ok.nonzero()[0])
 			A = grid.cell_adjacency
 			new.adjacency = sparse.csr_matrix((np.ones_like(A.data, dtype=bool), \
-				A.indices, A.indptr), shape=A.shape)
-			new.data = {}
-			for j in I:
-				J = I == j
-				A = self.adjacency[J,:].tocsc()[:,J].tocsr()
+				A.indices, A.indptr), shape=A.shape) # macro-cell adjacency matrix
+			J = np.unique(I)
+			J = J[0 <= J]
+			new.data = type(self.cells)()
+			for j in J: # for each macro-cell
+				K = I == j # find corresponding cells
+				if 0 < adjacency_margin:
+					L = np.copy(K)
+					for k in range(adjacency_margin):
+						# add adjacent cells for future gradient calculations
+						K[self.adjacency[K,:].indices] = True
+					L = L[K]
+				A = self.adjacency[K,:].tocsc()[:,K].tocsr() # point adjacency matrix
 				C = grid.cell_centers[j]
-				D = {k: self.data[k] for k in J.nonzero()[0]}
-				R = grid.cell_centers[self.adjacency[j].indices] - C
-				new.data[j] = type(self)(D, A, index=j, center=C, area=R)
-			new._terminal = False
+				D = OrderedDict([ (i, self.cells[k]) \
+					for i, k in enumerate(K.nonzero()[0]) if k in self.cells ])
+				for i in D:
+					adj = A[i].indices
+					if 0 < D[i].tcount and adj.size:
+						area = np.stack([ D[j].center for j in adj ], axis=0)
+					else:
+						area = np.empty((0, D[i].center.size), \
+							dtype=D[i].center.dtype)
+					if area.shape[0] < D[i].area.shape[0]:
+						D[i] = copy(D[i])
+						D[i].area = area - D[i].center
+				R = grid.cell_centers[new.adjacency[j].indices] - C
+				new.cells[j] = type(self)(D, A, index=j, center=C, area=R)
+				if 0 < adjacency_margin:
+					new.cells[j].central = L
+			new.ccount = self.ccount
 			# _tcount is not supposed to change
 		else:
 			raise KeyError('`group` expects more input arguments')
 		return new
+
+	def run(self, function, *args, **kwargs):
+		if all([ isinstance(cell, Distributed) for cell in self.cells.values() ]):
+			worker_count = kwargs.pop('worker_count', None)
+			# if worker_count is None, Pool will use multiprocessing.cpu_count()
+			pool = Pool(worker_count)
+			fargs = (function, args, kwargs)
+			if six.PY3:
+				ys = pool.map(partial(__run__, fargs), self.cells.values())
+			elif six.PY2:
+				import itertools
+				ys = pool.map(__run_star__, itertools.izip(itertools.repeat(fargs), \
+					self.cells.values()))
+			ys = [ y for y in ys if y is not None ]
+			if ys:
+				result = pd.concat(ys, axis=0).sort_index()
+			else:
+				result = None
+		else:
+			result = function(self, *args, **kwargs)
+		return result
+
+
+
+def __run__(func, cell):
+	function, args, kwargs = func
+	x = cell.run(function, *args, **kwargs)
+	if x is None:
+		return None
+	else:
+		i = cell.indices
+		if cell.central is not None:
+			x = x.iloc[cell.central[x.index]]
+			i = i[x.index]
+			if x.shape[0] != i.shape[0]:
+				raise IndexError('not as many indices as values')
+		x.index = i
+		return x
+
+def __run_star__(args):
+	return __run__(*args)
 
 
 
@@ -358,28 +458,24 @@ class Cell(Local):
 			return np.asarray(self.translocations[:,self.space_cols])
 
 	@property
-	def terminal(self):
-		return True
-
-	@property
 	def dim(self):
-		return self.dxy.shape[1]
+		return self.center.size
 
 	@dim.setter
-	def dim(self, d):
-		self.__lazyassert__(d, 'data')
+	def dim(self, d): # ro
+		self.__lazyassert__(d, 'translocations')
 
 	@property
 	def tcount(self):
 		return self.dxy.shape[0]
 
 	@tcount.setter
-	def tcount(self, c):
-		self.__lazyassert__(c, 'data')
+	def tcount(self, c): # ro
+		self.__lazyassert__(c, 'translocations')
 
 
 
-def distributed(cells={}, adjacency=None, infered=None):
+def distributed(cells=OrderedDict(), adjacency=None):
 	if isinstance(cells, CellStats):
 		# simplify the adjacency matrix
 		if cells.tesselation.adjacency_label is None:
@@ -440,7 +536,7 @@ def distributed(cells={}, adjacency=None, infered=None):
 			cell_index = cells.cell_index.tocsr()
 			#row, col, data = cell_index.row, cell_index.col, cell_index.data
 			#cell_index = sparse.csr_matrix((data, (col, row)), shape=cell_index.shape)
-		_cells = {}
+		_cells = OrderedDict()
 		for j in range(ncells): # for each cell
 			# get the translocations with second location in this cell
 			if isinstance(cells.cell_index, np.ndarray):
@@ -453,22 +549,21 @@ def distributed(cells={}, adjacency=None, infered=None):
 				i = cell_index[j].indices # and not cells.cell_index!
 				i = i[ok[i]] - 1 # translocations instead of locations
 			if isinstance(translocations, pd.DataFrame):
-				if i.dtype is bool:
-					transloc = translocations.loc[i]
-				else:
-					transloc = translocations.iloc[i]
+				transloc = translocations.iloc[i]
 			else:
 				transloc = translocations[i]
-			if transloc.size:
-				# make cell object
-				center = cells.tesselation.cell_centers[j]
-				adj = _adjacency[j].indices
-				area = cells.tesselation.cell_centers[adj]
-				_cells[j] = Cell(j, transloc, center, area - center)
-				_cells[j].time_col = time_col
-				_cells[j].space_cols = space_cols
+			center = cells.tesselation.cell_centers[j]
+			adj = _adjacency[j].indices
+			area = cells.tesselation.cell_centers[adj]
+			#if transloc.size:
+			# make cell object
+			_cells[j] = Cell(j, transloc, center, area - center)
+			_cells[j].time_col = time_col
+			_cells[j].space_cols = space_cols
+		print(sum([ c.tcount == 0 for c in _cells.values() ]))
 		self = Distributed(_cells, _adjacency)
-		#self.tcount, self.dim = cells.points.shape
+		self.tcount = cells.points.shape[0]
+		#self.dim = cells.points.shape[1]
 		#if isstructured(self.translocations):
 		#	self.dt = np.asarray(cells.points[time_col])
 		#	self.dxy = np.asarray(cells.points[space_cols])
@@ -481,7 +576,7 @@ def distributed(cells={}, adjacency=None, infered=None):
 		#self.dim = cells[list(cells.keys())[0]].center.size
 		#self.dt = dt
 		#self.dxy = dxy
-	self.infered = infered
+	self.ccount = self.adjacency.shape[0]
 	return self
 
 

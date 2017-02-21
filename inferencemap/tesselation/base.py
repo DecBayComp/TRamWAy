@@ -595,7 +595,7 @@ class RegularMesh(Voronoi):
 				n_cells = 1.0 / self.avg_probability
 			else:
 				raise NotImplementedError
-			increment = exp(log(np.asarray(size).prod() / n_cells) / len(points.columns))
+			increment = exp(log(np.asarray(size).prod() / n_cells) / points.shape[1])
 			if isinstance(size, pd.Series):
 				self.count_per_dim = pd.Series.round(size / increment)
 			else:
@@ -605,7 +605,9 @@ class RegularMesh(Voronoi):
 		if isinstance(points, pd.DataFrame):
 			grid = pd.concat([self.lower_bound, self.upper_bound, self.count_per_dim + 1], axis=1).T
 			self.grid = [ np.linspace(*col.values) for _, col in grid.iteritems() ]
-		else: raise NotImplementedError
+		else:
+			grid = np.stack((self.lower_bound, self.upper_bound, self.count_per_dim + 1), axis=0)
+			self.grid = [ np.linspace(*col) for col in grid.T ]
 		cs = np.meshgrid(*[ (g[:-1] + g[1:]) / 2 for g in self.grid ], indexing='ij')
 		self._cell_centers = np.column_stack([ c.flatten() for c in cs ])
 

@@ -21,11 +21,17 @@ from .generic import *
 if six.PY3:
 	def from_unicode(s): return s
 	def from_bytes(b): return b.decode('utf-8')
+	def to_str(s):
+		if isinstance(s, str):
+			return s
+		else:
+			return from_bytes(s)
 else:
 	import codecs
 	def from_unicode(s):
 		return codecs.unicode_escape_encode(s)[0]
 	def from_bytes(b): return b
+	to_str = str
 
 to_attr = string_
 from_attr = from_bytes
@@ -106,7 +112,7 @@ string_storables = [\
 		handlers=StorableHandler(poke=string_poke, peek=binary_peek)), \
 	Storable(six.text_type, key='Python.unicode', \
 		handlers=StorableHandler(poke=string_poke, peek=text_peek))]
-numpy_storables = [Storable(ndarray, handlers=StorableHandler(poke=native_poke, peek=native_peek))]
+numpy_storables += [Storable(ndarray, handlers=StorableHandler(poke=native_poke, peek=native_peek))]
 pandas_storables += [Storable(Series, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas)), \
 	Storable(DataFrame, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas)), \
 	Storable(Panel, handlers=StorableHandler(peek=peek_Pandas, poke=poke_Pandas))]
@@ -151,6 +157,9 @@ class HDF5Store(GenericStore):
 	def close(self):
 		if self.store is not None:
 			self.store.close()
+
+	#def strRecord(self, record, container):
+	#	return to_str(record)
 
 	def formatRecordName(self, objname):
 		if isinstance(objname, six.text_type):

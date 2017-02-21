@@ -1,10 +1,11 @@
 
 import six
 from .storable import *
-from collections import deque
+from collections import deque, OrderedDict
 from scipy.sparse import bsr_matrix, coo_matrix, csc_matrix, csr_matrix, \
 	dia_matrix, dok_matrix, lil_matrix
 import copy
+import numpy
 import pandas
 
 
@@ -17,6 +18,9 @@ class GenericStore(StoreBase):
 			storable = default_storable(storable.python_type, version=storable.version, \
 				exposes=storable.exposes, storable_type=storable.storable_type)
 		StoreBase.registerStorable(self, storable)
+
+	def strRecord(self, record, container):
+		return record
 
 	def formatRecordName(self, objname):
 		raise NotImplementedError('abstract method')
@@ -118,31 +122,48 @@ def poke_assoc(store, objname, assoc, container):
 				if reported_item_counter == 9:
 					store.verbose = False
 					print('...')
-	except TypeError:
-		raise TypeError('wrong type for keys in associative list')
+	except TypeError as e:
+		raise TypeError("wrong type for keys in associative list\n\t{}".format(e.args[0]))
 	store.verbose = verbose
 
 
 # peeks
 def default_peek(python_type, exposes):
-	def peek(store, container):
+	with_args = False
+	make = python_type
+	try:
+		make()
+	except TypeError:
+		make = lambda: python_type.__new__(python_type)
 		try:
-			obj = python_type()
+			make()
 		except TypeError:
-			obj = python_type.__new__(python_type)
-		attrs = list(exposes)
-		#print(attrs) # debugging
-		for attr in attrs: # force order instead of directly iterating over `container`
-			#print((attr, attr in container)) # debugging
-			if attr in container:
-				val = store.peek(attr, container)
-			else:
-				val = None
-			try:
-				setattr(obj, attr, val)
-			except AttributeError as e:
-				raise AttributeError("can't set attribute '{}' ({})".format(attr, python_type))
-		return obj
+			make = lambda args: python_type.__new__(python_type, *args)
+			with_args = True
+	if with_args:
+		def peek(store, container):
+			state = []
+			for attr in exposes: # force order instead of iterating over `container`
+				#print((attr, attr in container)) # debugging
+				if attr in container:
+					state.append(store.peek(attr, container))
+				else:
+					state.append(None)
+			return make(state)
+	else:
+		def peek(store, container):
+			obj = make()
+			for attr in exposes: # force order instead of iterating over `container`
+				#print((attr, attr in container)) # debugging
+				if attr in container:
+					val = store.peek(attr, container)
+				else:
+					val = None
+				try:
+					setattr(obj, attr, val)
+				except AttributeError as e:
+					raise AttributeError("can't set attribute '{}' ({})".format(attr, python_type))
+			return obj
 	return peek
 
 def unsafe_peek(init):
@@ -166,19 +187,20 @@ def peek(init, exposes):
 def peek_assoc(store, container):
 	assoc = []
 	try:
-		for i in container:
-			if store.getRecordAttr('key', container) == 'escaped':
+		if store.getRecordAttr('key', container) == 'escaped':
+			for i in container:
 				assoc.append(store.peek(i, container))
-			else:
-				assoc.append((i, store.peek(i, container)))
+		else:
+			for i in container:
+				assoc.append((store.strRecord(i, container), store.peek(i, container)))
 		#print(assoc) # debugging
 	except TypeError as e:
 		try:
 			for i in container:
 				pass
 			raise e
-		except:
-			raise TypeError('container is not iterable; peek is not compatible')
+		except TypeError:
+			raise TypeError("container is not iterable; peek is not compatible\n\t{}".format(e.args[0]))
 	return assoc
 
 
@@ -218,6 +240,8 @@ def poke_seq(v, n, s, c):
 	poke_assoc(v, n, seq_to_assoc(s), c)
 def poke_dict(v, n, d, c):
 	poke_assoc(v, n, d.items(), c)
+def poke_OrderedDict(v, n, d, c):
+	poke_dict(v, n, d, c)
 def peek_list(s, c):
 	return assoc_to_list(peek_assoc(s, c))
 def peek_tuple(s, c):
@@ -226,11 +250,14 @@ def peek_dict(s, c):
 	return dict(peek_assoc(s, c))
 def peek_deque(s, c):
 	return deque(peek_list(s, c))
+def peek_OrderedDict(s, c):
+	return OrderedDict(peek_assoc(s, c))
 
 seq_storables = [Storable(tuple, handlers=StorableHandler(poke=poke_seq, peek=peek_tuple)), \
 	Storable(list, handlers=StorableHandler(poke=poke_seq, peek=peek_list)), \
 	Storable(dict, handlers=StorableHandler(poke=poke_dict, peek=peek_dict)), \
-	Storable(deque, handlers=StorableHandler(poke=poke_seq, peek=peek_deque))]
+	Storable(deque, handlers=StorableHandler(poke=poke_seq, peek=peek_deque)), \
+	Storable(OrderedDict, handlers=StorableHandler(poke=poke_OrderedDict, peek=peek_OrderedDict))]
 
 
 # functions (built-in and standard)
@@ -248,6 +275,23 @@ def fail_peek(unsupported_type):
 function_storables = [\
 	Storable(len.__class__, handlers=StorableHandler(poke=fake_poke, peek=fail_peek)), \
 	Storable(poke.__class__, handlers=StorableHandler(poke=fake_poke, peek=fail_peek))]
+
+
+def poke_native(getstate):
+	def poke(service, objname, obj, container):
+		service.pokeNative(objname, getstate(obj), container)
+	return poke
+
+def peek_native(make):
+	def peek(service, container):
+		return make(service.peekNative(container))
+	return peek
+
+
+# numpy.dtype
+numpy_storables = [\
+	Storable(numpy.dtype, handlers=StorableHandler(poke=poke_native(lambda t: t.str), \
+		peek=peek_native(numpy.dtype)))]
 
 
 def handler(init, exposes):
@@ -318,4 +362,8 @@ def peek_index(service, container):
 
 pandas_storables = [Storable(pandas.Index, \
 	handlers=StorableHandler(poke=poke_index, peek=peek_index))]
+
+
+def namedtuple_storable(namedtuple, *args, **kwargs):
+	return default_storable(namedtuple, namedtuple._fields, *args, **kwargs)
 

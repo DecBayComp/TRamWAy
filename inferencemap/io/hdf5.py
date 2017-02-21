@@ -4,6 +4,13 @@ from .store.storable import *
 from .store.generic import *
 from .store.hdf5 import *
 
+# Core datatypes
+from inferencemap.core import Matrix, ArrayChain
+from inferencemap.inference.diffusivity import DV
+hdf5_storable(namedtuple_storable(Matrix))
+hdf5_storable(default_storable(ArrayChain))
+hdf5_storable(default_storable(DV), agnostic=True)
+
 # Scaler
 from inferencemap.spatial.scaler import Scaler
 hdf5_storable(default_storable(Scaler), agnostic=True)
@@ -48,4 +55,9 @@ hdf5_storable(default_storable(KMeansMesh, exposes=kmeans_mesh_exposes), agnosti
 # GasMesh
 gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_max_distance']
 hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)
+
+
+from inferencemap.inference.base import Cell, Distributed
+hdf5_storable(default_storable(Cell), agnostic=True)
+hdf5_storable(default_storable(Distributed), agnostic=True)
 

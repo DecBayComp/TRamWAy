@@ -1,42 +1,56 @@
 
 import numpy as np
 import pandas as pd
-#from ..inference import Cell, Distributed
+import numpy.ma as ma
+from inferencemap.tesselation import Voronoi
+from inferencemap.inference import Distributed
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 import matplotlib.pyplot as plt
-from scipy.spatial import Voronoi
+import scipy.spatial
+from warnings import warn
 
-def scalar_map_2d(cell_map, map_name=None):
-	ix, xy = zip(*[ (i, c.center) for i, c in cell_map.cells.items() ])
-	xy = np.array(xy)
-	xy_min = xy.min(axis=0)
-	xy_max = xy.max(axis=0)
+def scalar_map_2d(cells, values):
+	if isinstance(values, pd.DataFrame):
+		if values.shape[1] != 1:
+			warn('multiple parameters available; mapping first one only', UserWarning)
+		values = values.iloc[:,0] # to Series
+	#values = pd.to_numeric(values, errors='coerce')
 
-	voronoi = Voronoi(xy)
-	if map_name is None:
-		map_name = cell_map.infered.columns[0]
-	scalar_map = cell_map.infered[map_name]
+	if isinstance(cells, Distributed):
+		ix, xy, ok = zip(*[ (i, c.center, 0 < c.tcount) for i, c in cells.cells.items() ])
+		ix, xy, ok = np.array(ix), np.array(xy), np.array(ok)
+		voronoi = scipy.spatial.Voronoi(xy)
+		polygons = []
+		for c, r in enumerate(voronoi.point_region):
+			if ok[c]:
+				region = [ v for v in voronoi.regions[r] if 0 <= v ]
+				if region[1:]:
+					vertices = voronoi.vertices[region]
+					polygons.append(Polygon(vertices, True))
+	elif isinstance(cells, Voronoi):
+		raise NotImplementedError
 
-	polygons = []
-	ok = np.ones(xy.shape[0], dtype=bool)
-	for c, r in enumerate(voronoi.point_region):
-		region = [ v for v in voronoi.regions[r] if 0 <= v ]
-		if region[1:]:
-			vertices = voronoi.vertices[region]
-			polygons.append(Polygon(vertices, True))
-		else:
-			ok[c] = False
-	scalar_map = np.asarray(scalar_map)[ok]
+	xy_min, xy_max = xy.min(axis=0), xy.max(axis=0)
+
+	scalar_map = values.loc[ix[ok]].values
+
+	#print(np.nonzero(~ok)[0])
+
+	if np.any(np.isnan(scalar_map)):
+		warn('NaNs ; changing them into 0s', RuntimeWarning)
+		scalar_map[np.isnan(scalar_map)] = 0
 
 	fig, ax = plt.subplots() # before PatchCollection
-
 	patches = PatchCollection(polygons, alpha=0.9)
-	patches.set_array(np.asarray(scalar_map))
+	patches.set_array(scalar_map)
 	ax.add_collection(patches)
 
 	ax.set_xlim(xy_min[0], xy_max[0])
 	ax.set_ylim(xy_min[1], xy_max[1])
 
-	fig.colorbar(patches, ax=ax)
+	try:
+		fig.colorbar(patches, ax=ax)
+	except AttributeError as e:
+		warn(e.args[0], RuntimeWarning)
 
