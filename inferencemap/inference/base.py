@@ -560,7 +560,7 @@ def distributed(cells=OrderedDict(), adjacency=None):
 			_cells[j] = Cell(j, transloc, center, area - center)
 			_cells[j].time_col = time_col
 			_cells[j].space_cols = space_cols
-		print(sum([ c.tcount == 0 for c in _cells.values() ]))
+		#print(sum([ c.tcount == 0 for c in _cells.values() ]))
 		self = Distributed(_cells, _adjacency)
 		self.tcount = cells.points.shape[0]
 		#self.dim = cells.points.shape[1]

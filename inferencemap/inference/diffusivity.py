@@ -124,8 +124,6 @@ def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_pri
 	for i in cell.cells:
 		c = cell.cells[i]
 		if 0 < c.tcount:
-			print(np.mean(c.dxy * c.dxy) / (2.0 * np.mean(c.dt)))
-			print(c.dxy)
 			initial.append((i, \
 				np.mean(c.dxy * c.dxy) / (2.0 * np.mean(c.dt)), \
 				-log(float(c.tcount) / float(cell.tcount)), \

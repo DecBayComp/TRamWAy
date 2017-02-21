@@ -33,7 +33,7 @@ def main():
 	# plot
 	scalar_map_2d(detailled_map, diffusivity)
 	plt.title('D (D mode)')
-	plt.show()
+	#plt.show()
 
 
 	# infer diffusivity and potential (DV mode)
@@ -43,8 +43,8 @@ def main():
 		dv = store.peek('DV')
 	else: # otherwise compute
 
-		localization_error = 0.2
-		priorD = 0.001
+		localization_error = 0.0
+		priorD = 0.01
 		priorV = 0.1
 
 		multiscale_map = detailled_map.group(max_cell_count=20)
