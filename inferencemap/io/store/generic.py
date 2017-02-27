@@ -360,7 +360,9 @@ def poke_index(service, name, obj, container):
 def peek_index(service, container):
 	return pandas.Index(peek_list(service, container))
 
+# as such in Python3; force it in Python2 to be the same
 pandas_storables = [Storable(pandas.Index, \
+	key='Python.pandas.core.index.Index', \
 	handlers=StorableHandler(poke=poke_index, peek=peek_index))]
 
 

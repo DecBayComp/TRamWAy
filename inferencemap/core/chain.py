@@ -1,6 +1,7 @@
 
 import numpy as np
 from collections import namedtuple, OrderedDict
+import numpy.ma as ma
 
 Matrix = namedtuple('Matrix', 'size shape dtype order')
 
@@ -73,4 +74,29 @@ class ArrayChain(object):
 	@property
 	def shape(self):
 		return (self.size,)
+
+
+
+class ChainArray(ArrayChain):
+	__slots__ = ArrayChain.__slots__ + ['combined']
+
+	def __init__(self, order='simple', **kwargs):
+		ArrayChain.__init__(self, order, **kwargs)
+		self.combined = np.empty(self.shape)
+		if isinstance(next(iter(kwargs.values())), ma.MaskedArray):
+			self.combined = ma.asarray(self.combined)
+		for k in kwargs:
+			self[k] = kwargs[k]
+
+	def __getitem__(self, k):
+		return self.get(self.combined, k)
+
+	def __setitem__(self, k, v):
+		self.set(self.combined, k, v)
+
+	def update(self, x):
+		if isinstance(self.combined, ma.MaskedArray):
+			self.combined = ma.array(x, mask=self.combined.mask)
+		else:
+			self.combined = x
 

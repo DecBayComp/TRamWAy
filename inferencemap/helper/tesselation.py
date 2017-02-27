@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import scipy.linalg as la
+import scipy.sparse as sparse
 import matplotlib.pyplot as plt
 from ..core import *
 from ..tesselation import *
@@ -419,7 +420,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 
 	if cell_dist_hist:
 		# plot a histogram of the distance between adjacent cell centers
-		A = cells.tesselation.cell_adjacency.tocoo()
+		A = sparse.triu(cells.tesselation.cell_adjacency, format='coo')
 		i, j, k = A.row, A.col, A.data
 		label = cells.tesselation.adjacency_label
 		if label is not None:

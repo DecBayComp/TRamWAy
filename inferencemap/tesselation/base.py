@@ -607,7 +607,7 @@ class RegularMesh(Voronoi):
 			self.grid = [ np.linspace(*col.values) for _, col in grid.iteritems() ]
 		else:
 			grid = np.stack((self.lower_bound, self.upper_bound, self.count_per_dim + 1), axis=0)
-			self.grid = [ np.linspace(*col) for col in grid.T ]
+			self.grid = [ np.linspace(col[0], col[1], int(col[2])) for col in grid.T ]
 		cs = np.meshgrid(*[ (g[:-1] + g[1:]) / 2 for g in self.grid ], indexing='ij')
 		self._cell_centers = np.column_stack([ c.flatten() for c in cs ])
 
