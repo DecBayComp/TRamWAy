@@ -64,9 +64,10 @@ def scalar_map_2d(cells, values):
 
 
 
-def field_map_2d(cells, values, angular_width=30.0):
+def field_map_2d(cells, values, angular_width=30.0, overlay=False):
 	force_amplitude = pd.Series(data=np.linalg.norm(np.asarray(values), axis=1), index=values.index)
-	scalar_map_2d(cells, force_amplitude)
+	if not overlay:
+		scalar_map_2d(cells, force_amplitude)
 	ax = plt.gca()
 	xmin, xmax = ax.get_xlim()
 	ymin, ymax = ax.get_ylim()

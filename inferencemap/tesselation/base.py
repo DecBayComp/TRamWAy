@@ -7,6 +7,8 @@ import scipy.sparse as sparse
 import scipy.spatial as spatial
 from inferencemap.spatial.scaler import *
 from inferencemap.core import *
+#from collections import OrderedDict
+from warnings import warn
 
 
 class CellStats(Lazy):
@@ -488,11 +490,16 @@ class Voronoi(Delaunay):
 			2-column adjacency matrix specifying an edge as a pair
 			of indices in :attr:`cell_vertices`.
 
+		_boundaries (list of list (of list) of ints):
+			indices of the vertices (in :attr:`cell_vertices`) of the polygons that bound
+			the cell.
+
 	"""
 	def __init__(self, scaler=Scaler()):
 		Delaunay.__init__(self, scaler)
 		self._cell_vertices = None
 		self._ridge_vertices = None
+		self._boundaries = None
 
 	# cell_vertices property
 	@property
@@ -544,6 +551,7 @@ class Voronoi(Delaunay):
 		else:
 			voronoi = spatial.Voronoi(np.asarray(self._cell_centers))
 			self._cell_vertices = voronoi.vertices
+			self._boundaries = dict(enumerate(voronoi.regions))
 			n_centers = self._cell_centers.shape[0]
 			#if not (len(voronoi.ridge_vertices) == voronoi.ridge_points.shape[0] and \
 			#	all([ len(v) == 2 for v in voronoi.ridge_vertices ])):
@@ -557,6 +565,54 @@ class Voronoi(Delaunay):
 					np.fliplr(voronoi.ridge_points).flatten('F'))), \
 					shape=(n_centers, n_centers))
 			return voronoi
+
+	#def boundaries(self, cell_index=None):
+	#	if cell_index is None:
+	#		bs = []
+	#		for j in self.cell_centers.shape[0]:
+	#			b = self._boundaries(j)
+	#			if b is not None:
+	#				bs.append((j, b))
+	#		return OrderedDict(bs)
+	#	else:
+	#		return self._boundaries(cell_index)
+
+	def boundaries(self, cell_index):
+		if self._boundaries is None:
+			self._postprocess(self)
+			if self._boundaries is None:
+				self._boundaries = {}
+		if cell_index not in self._boundaries: # default implementation
+			region = self.ridge_vertices[self.cell_adjacency.tocsr()[cell_index].data]
+			# order the vertices so that they draw a polygon
+			neg, = np.nonzero(np.sum(region == -1, axis=1))
+			if neg.size:
+				r = [neg[0]]
+			else:
+				r = [0]
+			while len(r) < region.shape[0]:
+				_next, = np.nonzero(region[:,0] == region[r[-1],1])
+				_next = [ n for n in _next if n not in r ]
+				if _next:
+					r.append(_next[0])
+				else:
+					warn('default implementation is suitable only for 2d', RuntimeError)
+				i = 0
+				while i in r:
+					i += 1
+					if i == region.shape[0]:
+						raise RuntimeError('something is going wrong')
+					r.append(i)
+			self._boundaries[cell_index] = np.stack(
+				[ self._cell_vertices[region[v,0]] for v in r if 0 <= region[v,0] ], \
+				axis=0)
+		region = [ v for v in self._boundaries[cell_index] if 0 <= v ]
+		if region[1:]:
+			vertices = self._cell_vertices[region]
+		else:
+			vertices = None
+		return self.scaler.unscalePoint(vertices)
+
 
 class RegularMesh(Voronoi):
 	"""Regular k-D grid.

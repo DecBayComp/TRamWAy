@@ -51,7 +51,7 @@ class KDTreeMesh(Voronoi):
 		#	if max_nn < max_cell_size:
 		#		max_nn = None
 		if metric == 'chebyshev':
-			if min_nn or max_nn or min_cell_size:
+			if min_nn or max_nn:
 				raise NotImplementedError('knn support has evolved and KDTreeMesh still lacks a proper support for it. You can still call cellIndex with argument metric=\'euclidean\'')
 			# TODO: pass relevant kwargs to cdist
 			points = self.scaler.scalePoint(points, inplace=False)
@@ -59,6 +59,11 @@ class KDTreeMesh(Voronoi):
 				self._cell_centers, metric) # , **kwargs
 			dmax = self.dichotomy.reference_length[self.level[np.newaxis,:] + 1]
 			I, J = np.nonzero(D <= dmax)
+			if min_cell_size:
+				K, count = np.unique(J, return_counts=True)
+				K = K[count < min_cell_size]
+				for k in K:
+					J[J == k] = -1
 			if I[0] == 0 and I.size == points.shape[0] and I[-1] == points.shape[0] - 1:
 				return J
 			else:
@@ -127,4 +132,7 @@ class KDTreeMesh(Voronoi):
 			return_inverse=True)
 		self._ridge_vertices = I[np.concatenate(self._ridge_vertices, axis=0)]
 		#self._postprocess()
+
+	def _postprocess(self):
+		pass
 

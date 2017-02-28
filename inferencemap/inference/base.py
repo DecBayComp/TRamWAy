@@ -39,15 +39,21 @@ class Local(Lazy):
 			total number of terminal elements (e.g. translocations).
 
 	"""
-	__slots__ = ['index', 'data', 'center', 'span']
+	"""
+		boundary (array or list of arrays):
+			polygons as vertex indices.
+
+	"""
+	__slots__ = ['index', 'data', 'center', 'span'] #, 'boundary'
 	__lazy__  = []
 
-	def __init__(self, index, data, center=None, span=None):
+	def __init__(self, index, data, center=None, span=None): #, boundary=None
 		Lazy.__init__(self)
 		self.index = index
 		self.data = data
 		self.center = center
 		self.span = span
+		#self.boundary = boundary
 
 	@property
 	def dim(self):
@@ -72,13 +78,13 @@ class Distributed(Local):
 	Attributes:
 
 		dim (int, ro property):
-			dimension of the terminal elements.
+			dimension of the terminal points.
 
 		tcount (int, property):
-			total number of terminal elements. Duplicates are ignored.
+			total number of terminal points. Duplicates are ignored.
 
 		ccount (int, property):
-			total number of cells (not distributed). Duplicates are ignored.
+			total number of terminal cells. Duplicates are ignored.
 
 		cells (list or OrderedDict, rw property for :attr:`data`):
 			collection of :class:`Local`s. Indices may not match with the global 
@@ -97,12 +103,9 @@ class Distributed(Local):
 		degree (array of ints, ro lazy property):
 			number of adjacent cells.
 
-		boundary (array or list of arrays):
-			polygons as vertex indices.
-
 	"""
 	__slots__ = Local.__slots__ + ['_reverse', '_adjacency', 'central', '_degree', \
-		'_ccount', '_tcount', '_dim', 'boundary']
+		'_ccount', '_tcount', '_dim']
 	__lazy__  = Local.__lazy__  + ['reverse', 'degree', 'ccount', 'tcount', 'dim']
 
 	def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
@@ -111,7 +114,6 @@ class Distributed(Local):
 		self.cells = cells # let's `cells` setter perform the necessary checks 
 		self.adjacency = adjacency
 		self.central = central
-		self.boundary = boundary
 
 	@property
 	def cells(self):
@@ -216,6 +218,26 @@ class Distributed(Local):
 		self.__lazyassert__(d, 'adjacency')
 
 	def grad(self, i, X, index_map=None):
+		"""
+		Local gradient.
+
+		Arguments:
+
+			i (int):
+				cell index at which the gradient is evaluated.
+
+			X (array):
+				vector of a scalar measurement at every cell.
+
+			index_map (array, optional):
+				index map that converts cell indices to indices in X.
+
+		Results:
+
+			array:
+				gradient as a matrix with as many rows as adjacent mesh points and 
+				columns as dimensions.
+		"""
 		cell = self.cells[i]
 		adjacent = self.adjacency[i].indices
 		if index_map is not None:
@@ -246,6 +268,23 @@ class Distributed(Local):
 		return gradX
 
 	def gradSum(self, i, index_map=None):
+		"""
+		Mixing matrix for the gradients at a given cell.
+
+		Arguments:
+
+			i (int):
+				cell index.
+
+			index_map (array):
+				index mapping, useful to convert cell indices to positional indices in 
+				an optimization array for example.
+
+		Output:
+			array:
+				matrix that sums by dot product the adjacent components (e.g. gradient).
+
+		"""
 		cell = self.cells[i]
 		if not isinstance(cell.cache, dict):
 			cell.cache = dict(area=None)
@@ -283,6 +322,35 @@ class Distributed(Local):
 
 	def group(self, ngroups=None, max_cell_count=None, cell_centers=None, \
 		adjacency_margin=1):
+		"""
+		Make groups of cells.
+
+		This builds up an extra hierarchical level. For example if `self` is a `Distributed` of
+		`Cell`s, then this returns a `Distributed` of `Distributed` (the groups) of `Cell`s.
+		Several grouping strategy are proposed.
+
+		Arguments:
+
+			ngroups (int, optional):
+				number of groups.
+
+			max_cell_count (int, optional):
+				maximum number of cells per group.
+
+			cell_centers (array-like, optional):
+				spatial centers of the groups. A cell is associated to the group which 
+				center is the nearest one. If not provided, :meth:`group` will use 
+				a k-means approach to positionning the centers.
+
+			adjacency_margin (int, optional):
+				groups are dilated to the adjacent cells `adjacency_margin` times. Default to 1.
+
+		Returns:
+
+			Distributed: a new object of the same type as `self` that contains other such
+				objects as cells.
+
+		"""
 		new = copy(self)
 		if ngroups or max_cell_count or cell_centers is not None:
 			points = np.full((self.adjacency.shape[0], self.dim), np.inf)
@@ -348,6 +416,38 @@ class Distributed(Local):
 		return new
 
 	def run(self, function, *args, **kwargs):
+		"""
+		Apply a function to the groups (:class:`Distributed`) of terminal cells.
+
+		The results are merged into a single :class:`DataFrame` array, handling adjacency 
+		margins if any.
+
+		Although this method was designed for `Distributed`s of `Distributed`s, its usage is 
+		advised to call any function that returns a DataFrame with cell indices as indices.
+
+		Multiples processes may be spawned.
+
+		Arguments:
+
+			function (function): 
+				the function to be called on each terminal :class:`Distributed`. 
+				Its first argument is the :class:`Distributed` object.
+				It should return a :class:`~pandas.DataFrame`.
+
+			args (list): 
+				positional arguments for `function` after the first one.
+
+			kwargs (dict):
+				keyword arguments for `function` from which are removed the ones below.
+
+			worker_count (int):
+				number of simultaneously working processing units.
+
+		Returns:
+
+			DataFrame: single merged array.
+		
+		"""
 		if all([ isinstance(cell, Distributed) for cell in self.cells.values() ]):
 			worker_count = kwargs.pop('worker_count', None)
 			# if worker_count is None, Pool will use multiprocessing.cpu_count()
@@ -543,7 +643,7 @@ class Cell(Local):
 
 
 
-def distributed(cells=OrderedDict(), adjacency=None, new=Distributed):
+def distributed(cells, new=Distributed):
 	if isinstance(cells, CellStats):
 		# simplify the adjacency matrix
 		if cells.tesselation.adjacency_label is None:
@@ -639,11 +739,7 @@ def distributed(cells=OrderedDict(), adjacency=None, new=Distributed):
 		#	self.dt = np.asarray(cells.points[:,time_col])
 		#	self.dxy = np.asarray(cells.points[:,space_cols])
 	else:
-		self = new(cells, adjacency)
-		#self.tcount = sum([ cells[c].translocations.shape[0] for c in cells ])
-		#self.dim = cells[list(cells.keys())[0]].center.size
-		#self.dt = dt
-		#self.dxy = dxy
+		raise TypeError('`cells` is not a `CellStats`')
 	self.ccount = self.adjacency.shape[0]
 	return self
 
