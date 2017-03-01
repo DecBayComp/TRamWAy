@@ -551,7 +551,9 @@ class Voronoi(Delaunay):
 		else:
 			voronoi = spatial.Voronoi(np.asarray(self._cell_centers))
 			self._cell_vertices = voronoi.vertices
-			self._boundaries = dict(enumerate(voronoi.regions))
+			self._boundaries = dict(enumerate( \
+				[ voronoi.regions[r] if 0 <= r else None \
+					for r in voronoi.point_region ]))
 			n_centers = self._cell_centers.shape[0]
 			#if not (len(voronoi.ridge_vertices) == voronoi.ridge_points.shape[0] and \
 			#	all([ len(v) == 2 for v in voronoi.ridge_vertices ])):
@@ -579,11 +581,14 @@ class Voronoi(Delaunay):
 
 	def boundaries(self, cell_index):
 		if self._boundaries is None:
-			self._postprocess(self)
+			self._postprocess()
 			if self._boundaries is None:
 				self._boundaries = {}
 		if cell_index not in self._boundaries: # default implementation
-			region = self.ridge_vertices[self.cell_adjacency.tocsr()[cell_index].data]
+			if 1 < self.cell_adjacency.data[-1]:
+				region = self.ridge_vertices[self.cell_adjacency.tocsr()[cell_index].data]
+			else:
+				raise NotImplementedError('adjacency matrix is boolean')
 			# order the vertices so that they draw a polygon
 			neg, = np.nonzero(np.sum(region == -1, axis=1))
 			if neg.size:
@@ -596,16 +601,16 @@ class Voronoi(Delaunay):
 				if _next:
 					r.append(_next[0])
 				else:
-					warn('default implementation is suitable only for 2d', RuntimeError)
-				i = 0
-				while i in r:
-					i += 1
-					if i == region.shape[0]:
-						raise RuntimeError('something is going wrong')
+					print((len(r), region.shape[0]))
+					warn('default implementation is suitable only for 2d', RuntimeWarning)
+					i = 0
+					while i in r:
+						i += 1
+						if i == region.shape[0]:
+							print((region, r, i))
+							raise RuntimeError('something is going wrong')
 					r.append(i)
-			self._boundaries[cell_index] = np.stack(
-				[ self._cell_vertices[region[v,0]] for v in r if 0 <= region[v,0] ], \
-				axis=0)
+			self._boundaries[cell_index] = [ region[v,0] for v in r ]
 		region = [ v for v in self._boundaries[cell_index] if 0 <= v ]
 		if region[1:]:
 			vertices = self._cell_vertices[region]

@@ -647,9 +647,9 @@ def distributed(cells, new=Distributed):
 	if isinstance(cells, CellStats):
 		# simplify the adjacency matrix
 		if cells.tesselation.adjacency_label is None:
-			_adjacency = cells.tesselation.cell_adjacency.tocsr()
+			_adjacency = cells.tesselation.cell_adjacency.tocsr(True)
 		else:
-			_adjacency = cells.tesselation.cell_adjacency.tocoo()
+			_adjacency = cells.tesselation.cell_adjacency.tocoo(True)
 			ok = 0 < cells.tesselation.adjacency_label[_adjacency.data]
 			row, col = _adjacency.row[ok], _adjacency.col[ok]
 			data = np.ones(np.count_nonzero(ok)) # the values do not matter
@@ -701,7 +701,7 @@ def distributed(cells, new=Distributed):
 				space_cols, = space_cols.nonzero()
 		# build every cells
 		if sparse.issparse(cells.cell_index):
-			cell_index = cells.cell_index.tocsr()
+			cell_index = cells.cell_index.tocsr(True)
 			#row, col, data = cell_index.row, cell_index.col, cell_index.data
 			#cell_index = sparse.csr_matrix((data, (col, row)), shape=cell_index.shape)
 		_cells = OrderedDict()

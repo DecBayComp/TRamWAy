@@ -103,9 +103,12 @@ class KDTreeMesh(Voronoi):
 		self.level = np.array(level)
 		self._cell_centers = origin + self.dichotomy.reference_length[self.level[:, np.newaxis] + 1]
 		adjacency = np.vstack([ self.dichotomy.adjacency[e] for e in range(self.dichotomy.edge_counter) \
-			if e in self.dichotomy.adjacency ]).T
-		self._cell_adjacency = sparse.csr_matrix((np.ones(adjacency.shape[1], dtype=int), \
-			(adjacency[0], adjacency[1])), shape=(self.dichotomy.cell_counter, self.dichotomy.cell_counter))
+			if e in self.dichotomy.adjacency ]) # not symmetric
+		#print(np.sum(np.all(adjacency==np.fliplr(adjacency[0][np.newaxis,:])))) # displays 0
+		nedges = adjacency.shape[0]
+		self._cell_adjacency = sparse.csr_matrix((np.tile(np.arange(nedges), 2), \
+				(adjacency.flatten('F'), np.fliplr(adjacency).flatten('F'))), \
+			shape=(self.dichotomy.cell_counter, self.dichotomy.cell_counter))
 
 		# quick and dirty Voronoi construction: vertices are introduced as many times as they
 		# appear in a ridge, and as many ridges are introduced as four times the number of 
