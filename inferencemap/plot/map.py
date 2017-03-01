@@ -107,7 +107,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False):
 	markers = []
 	for i in values.index:
 		try:
-			center = np.mean(cells.tesselation.boundaries(i))
+			center = cells.tesselation.cell_centers[i]
 		except AttributeError:
 			center = cells.cells[i].center
 		radius = force_amplitude[i]

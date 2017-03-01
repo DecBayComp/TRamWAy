@@ -601,7 +601,7 @@ class Voronoi(Delaunay):
 				if _next:
 					r.append(_next[0])
 				else:
-					print((len(r), region.shape[0]))
+					#print((len(r), region.shape[0]))
 					warn('default implementation is suitable only for 2d', RuntimeWarning)
 					i = 0
 					while i in r:
