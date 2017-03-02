@@ -78,9 +78,8 @@ def inferDF(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
 	else:
 		initialD = np.mean(cell.dxy * cell.dxy) / (2.0 * np.mean(cell.dt))
 		initialF = np.zeros(cell.dim, dtype=initialD.dtype)
-		df = ChainArray(D=initialD, F=initialF)
-		bounds = dict(D=[(0, None)], F=[(None, None)] * initialF.size)
-		bounds = list(itertools.chain(*[bounds[X] for X in df.members]))
+		df = ChainArray('D', initialD, 'F', initialF)
+		bounds = [(0, None)] + [(None, None)] * initialF.size
 		#cell.cache = None # no cache needed
 		result = minimize(df_neg_posterior, df.combined, bounds=bounds, \
 			args=(df, cell, localization_error, jeffreys_prior), **kwargs)
@@ -152,7 +151,7 @@ class DV(ChainArray):
 	__slots__ = ChainArray.__slots__ + ['priorD', 'priorV']
 
 	def __init__(self, diffusivity, potential, priorD=None, priorV=None):
-		ChainArray.__init__(self, D=diffusivity, V=potential)
+		ChainArray.__init__(self, 'D', diffusivity, 'V', potential)
 		self.priorD = priorD
 		self.priorV = priorV
 

@@ -8,10 +8,15 @@ Matrix = namedtuple('Matrix', 'size shape dtype order')
 class ArrayChain(object):
 	__slots__ = ['members', 'order']
 
-	def __init__(self, order='simple', **kwargs):
+	def __init__(self, *members, order='simple'):
 		self.order = order
 		self.members = OrderedDict()
-		for member, example in kwargs.items():
+		if members:
+			if not members[1:]:
+				members = members[0]
+			if not isinstance(members[0], tuple):
+				members = zip(members[0::2], members[1::2])
+		for member, example in members:
 			rd = 'C'
 			if isinstance(example, tuple):
 				sz = np.prod(np.asarray(example[0]))
@@ -80,10 +85,15 @@ class ArrayChain(object):
 class ChainArray(ArrayChain):
 	__slots__ = ArrayChain.__slots__ + ['combined']
 
-	def __init__(self, order='simple', **kwargs):
-		ArrayChain.__init__(self, order, **kwargs)
+	def __init__(self, *members, order='simple'):
+		ArrayChain.__init__(self, *members, order)
 		self.combined = np.empty(self.shape)
-		if isinstance(next(iter(kwargs.values())), ma.MaskedArray):
+		# adapted copy-paste from ArrayChain.__init__
+		if not members[1:]:
+			members = members[0]
+		kwargs = dict(zip(members[0::2], members[1::2]))
+		# 
+		if any([isinstance(v, ma.MaskedArray) for v in kwargs.values()]):
 			self.combined = ma.asarray(self.combined)
 		for k in kwargs:
 			self[k] = kwargs[k]

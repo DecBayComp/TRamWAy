@@ -57,7 +57,7 @@ def scalar_map_2d(cells, values):
 		print(scalar_map.dtype)
 		raise e
 
-	fig, ax = plt.subplots() # before PatchCollection
+	fig, ax = plt.gcf(), plt.gca() # before PatchCollection
 	patches = PatchCollection(polygons, alpha=0.9)
 	patches.set_array(scalar_map)
 	ax.add_collection(patches)
