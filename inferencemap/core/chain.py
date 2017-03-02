@@ -8,7 +8,10 @@ Matrix = namedtuple('Matrix', 'size shape dtype order')
 class ArrayChain(object):
 	__slots__ = ['members', 'order']
 
-	def __init__(self, *members, order='simple'):
+	def __init__(self, *members, **kwargs):
+		order = kwargs.pop('order', 'simple') # Py2 workaround
+		if kwargs:
+			raise TypeError('expected at most 1 keyword arguments, got {}'.format(len(kwargs)+1))
 		self.order = order
 		self.members = OrderedDict()
 		if members:
@@ -85,8 +88,8 @@ class ArrayChain(object):
 class ChainArray(ArrayChain):
 	__slots__ = ArrayChain.__slots__ + ['combined']
 
-	def __init__(self, *members, order='simple'):
-		ArrayChain.__init__(self, *members, order)
+	def __init__(self, *members, **kwargs):
+		ArrayChain.__init__(self, *members, **kwargs)
 		self.combined = np.empty(self.shape)
 		# adapted copy-paste from ArrayChain.__init__
 		if not members[1:]:
