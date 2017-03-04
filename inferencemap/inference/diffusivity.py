@@ -10,8 +10,9 @@ from .base import Cell, Distributed, ChainArray
 from scipy.optimize import minimize_scalar, minimize
 
 
-def d_neg_posterior(diffusivity, cell, square_localization_error=0.0, jeffreys_prior=False):
-	assert 0 <= diffusivity
+def d_neg_posterior(diffusivity, cell, square_localization_error=0.0, jeffreys_prior=False, \
+	positive_diffusivity=True):
+	assert not positive_diffusivity or 0 <= diffusivity
 	noise_dt = square_localization_error
 	if cell.cache is None:
 		cell.cache = np.sum(cell.dxy * cell.dxy, axis=1) # dx**2 + dy**2 + ..
@@ -26,7 +27,7 @@ def d_neg_posterior(diffusivity, cell, square_localization_error=0.0, jeffreys_p
 	return d_neg_posterior_dt + d_neg_posterior_dxy
 
 
-def inferD(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
+def inferD(cell, localization_error=0.0, jeffreys_prior=False, positive_diffusivity=True, **kwargs):
 	sq_loc_err = localization_error * localization_error
 	if isinstance(cell, Distributed):
 		inferred = {i: inferD(c, localization_error, jeffreys_prior, **kwargs) \
@@ -37,7 +38,9 @@ def inferD(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
 		assert not np.isclose(np.mean(cell.dt), 0)
 		initialD = np.mean(cell.dxy * cell.dxy) / (2.0 * np.mean(cell.dt))
 		cell.cache = None # initialize empty cache
-		result = minimize(d_neg_posterior, initialD, bounds=[(0,None)], \
+		if positive_diffusivity:
+			kwargs['bounds'] = [(0,None)]
+		result = minimize(d_neg_posterior, initialD, \
 			args=(cell, sq_loc_err, jeffreys_prior), \
 			**kwargs)
 		return result.x[0]
@@ -45,11 +48,12 @@ def inferD(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
 
 
 
-def df_neg_posterior(x, df, cell, square_localization_error=0.0, jeffreys_prior=False):
+def df_neg_posterior(x, df, cell, square_localization_error=0.0, jeffreys_prior=False, \
+	positive_diffusivity=True):
 	df.update(x)
 	diffusivity = df['D']
 	force = df['F']
-	if diffusivity < 0:
+	if positive_diffusivity and diffusivity < 0:
 		warn('diffusivity should be positive ({})'.format(diffusivity), RuntimeWarning)
 	#assert 0 <= diffusivity
 	noise_dt = square_localization_error
@@ -65,10 +69,11 @@ def df_neg_posterior(x, df, cell, square_localization_error=0.0, jeffreys_prior=
 	return neg_posterior_d + neg_posterior_f
 
 
-def inferDF(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
+def inferDF(cell, localization_error=0.0, jeffreys_prior=False, positive_diffusivity=True, **kwargs):
 	if isinstance(cell, Distributed):
 		sq_loc_err = localization_error * localization_error
-		index, inferred = zip(*[ (i, inferDF(c, sq_loc_err, jeffreys_prior, **kwargs))
+		index, inferred = zip(*[ (i,
+				inferDF(c, sq_loc_err, jeffreys_prior, positive_diffusivity, **kwargs))
 			for i, c in cell.cells.items() if 0 < c.tcount ])
 		inferred = pd.DataFrame(data=np.stack(inferred, axis=0), \
 			index=np.array(index), \
@@ -79,10 +84,14 @@ def inferDF(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
 		initialD = np.mean(cell.dxy * cell.dxy) / (2.0 * np.mean(cell.dt))
 		initialF = np.zeros(cell.dim, dtype=initialD.dtype)
 		df = ChainArray('D', initialD, 'F', initialF)
-		bounds = [(0, None)] + [(None, None)] * initialF.size
+		if positive_diffusivity:
+			if 'bounds' in kwargs:
+				print(kwargs['bounds'])
+			kwargs['bounds'] = [(0, None)] + [(None, None)] * initialF.size
 		#cell.cache = None # no cache needed
-		result = minimize(df_neg_posterior, df.combined, bounds=bounds, \
-			args=(df, cell, localization_error, jeffreys_prior), **kwargs)
+		result = minimize(df_neg_posterior, df.combined, \
+			args=(df, cell, localization_error, jeffreys_prior, positive_diffusivity), \
+			**kwargs)
 		# note that localization_error here is actually the square localization error
 		#df.update(result.x)
 		#return (df['D'], df['F'])
@@ -92,8 +101,8 @@ def inferDF(cell, localization_error=0.0, jeffreys_prior=False, **kwargs):
 
 
 def dd_neg_posterior(diffusivity, cells, square_localization_error, priorD, jeffreys_prior, dt_mean, \
-	index_map=None):
-	assert np.all(0 <= diffusivity)
+	index_map=None, positive_diffusivity=True):
+	assert not positive_diffusivity or np.all(0 <= diffusivity)
 	noise_dt = square_localization_error
 	j = 0
 	result = 0.0
@@ -123,7 +132,8 @@ def dd_neg_posterior(diffusivity, cells, square_localization_error, priorD, jeff
 					log(diffusivity) )
 	return result
 
-def inferDD(cells, localization_error=0.0, priorD=None, jeffreys_prior=None, **kwargs):
+def inferDD(cells, localization_error=0.0, priorD=None, jeffreys_prior=None, \
+	positive_diffusivity=True, **kwargs):
 	sq_loc_err = localization_error * localization_error
 	initial = []
 	j = 0
@@ -139,8 +149,10 @@ def inferDD(cells, localization_error=0.0, priorD=None, jeffreys_prior=None, **k
 	i, j, dt_mean, initialD = (np.array(xs) for xs in zip(*initial))
 	index = np.full(cells.adjacency.shape[0], -1, dtype=int)
 	index[i] = j
-	result = minimize(dd_neg_posterior, initialD, bounds=[(0,None)] * initialD.size,
-		args=(cells, sq_loc_err, priorD, jeffreys_prior, dt_mean, index),
+	if positive_diffusivity:
+		kwargs['bounds'] = [(0,None)] * initialD.size
+	result = minimize(dd_neg_posterior, initialD,
+		args=(cells, sq_loc_err, priorD, jeffreys_prior, dt_mean, index, positive_diffusivity),
 		**kwargs)
 	return pd.DataFrame(data=result.x[:,np.newaxis], index=i, columns=['diffusivity'])
 
@@ -148,12 +160,13 @@ def inferDD(cells, localization_error=0.0, priorD=None, jeffreys_prior=None, **k
 
 
 class DV(ChainArray):
-	__slots__ = ChainArray.__slots__ + ['priorD', 'priorV']
+	__slots__ = ChainArray.__slots__ + ['priorD', 'priorV', 'positiveD']
 
-	def __init__(self, diffusivity, potential, priorD=None, priorV=None):
+	def __init__(self, diffusivity, potential, priorD=None, priorV=None, positiveD=True):
 		ChainArray.__init__(self, 'D', diffusivity, 'V', potential)
 		self.priorD = priorD
 		self.priorV = priorV
+		self.positiveD = positiveD
 
 	@property
 	def D(self):
@@ -206,7 +219,8 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 	return result
 
 
-def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_prior=False, **kwargs):
+def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_prior=False, \
+	positive_diffusivity=True, **kwargs):
 	sq_loc_err = localization_error * localization_error
 	# initial values
 	initial = []
@@ -224,13 +238,18 @@ def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_pri
 	index = ma.array(index, mask=mask)
 	initialD = ma.array(initialD, mask=mask)
 	initialV = ma.array(initialV, mask=mask)
-	dv = DV(initialD, initialV, priorD, priorV)
+	dv = DV(initialD, initialV, priorD, priorV, positiveD=positive_diffusivity)
 	# initialize the caches
 	for c in cell.cells:
 		cell.cells[c].cache = dict(vanders=None, area=None)
+	if positive_diffusivity:
+		kwargs['bounds'] = [(0, None)] * dv.combined.size
+		#kwargs['method'] = 'L-BFGS-B'
+	else:
+		#kwargs['method'] = 'BFGS'
+		pass
 	# run the optimization routine
-	result = minimize(dv_neg_posterior, dv.combined, method='L-BFGS-B', \
-		bounds=[(0, None)] * dv.combined.size, \
+	result = minimize(dv_neg_posterior, dv.combined, \
 		args=(dv, cell, sq_loc_err, jeffreys_prior), \
 		**kwargs)
 	dv.update(result.x)

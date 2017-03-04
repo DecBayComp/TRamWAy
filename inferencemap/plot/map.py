@@ -40,6 +40,8 @@ def scalar_map_2d(cells, values):
 			vertices = cells.tesselation.boundaries(i)
 			if vertices is not None:
 				polygons.append(Polygon(vertices, True))
+	else:
+		raise TypeError('wrong type for `cells`: {}'.format(type(cells)))
 
 	xy_min, xy_max = xy.min(axis=0), xy.max(axis=0)
 

@@ -15,12 +15,14 @@ sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx
 
 def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 	localization_error=None, priorD=None, priorV=None, jeffreys_prior=None, \
-	worker_counter=None, max_cell_count=20, dilation=1, \
+	max_cell_count=20, dilation=1, worker_count=None, positive_diffusivity=True, \
 	store_distributed=False, **kwargs):
 
 	input_file = None
 	if isinstance(cells, str):
 		input_file, cells = find_imt(cells, **imt_selectors)
+		if verbose:
+			print('loading file: {}'.format(input_file))
 	if cells is None:
 		raise ValueError('no cells found')
 
@@ -41,7 +43,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 		# infer diffusivity (D mode)
 		diffusivity = _map.run(inferD, \
 			localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
-			**kwargs)
+			positive_diffusivity=positive_diffusivity, **kwargs)
 		x = diffusivity
 
 	elif mode == 'DF':
@@ -49,13 +51,14 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 		# infer diffusivity and force (DF mode)
 		df = _map.run(inferDF, \
 			localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
-			**kwargs)
+			positive_diffusivity=positive_diffusivity, **kwargs)
 		x = df
 
 	elif mode == 'DD':
 
 		dd = _map.run(inferDD, \
 			localization_error, priorD, jeffreys_prior, \
+			positive_diffusivity=positive_diffusivity, worker_count=worker_count, \
 			**kwargs)
 		x = dd
 
@@ -63,6 +66,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 
 		dv = _map.run(inferDV, \
 			localization_error, priorD, priorV, jeffreys_prior, \
+			positive_diffusivity=positive_diffusivity, worker_count=worker_count, \
 			**kwargs)
 		x = dv
 
@@ -84,11 +88,12 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 	if output_file:
 		# store the result
 		if verbose:
-			print('writing file: {}'.format(output_path))
+			print('writing file: {}'.format(output_file))
 		try:
 			store = HDF5Store(output_file, 'w')
 			store.poke('mode', mode)
 			store.poke(mode, x)
+			store.poke('positive_diffusivity', positive_diffusivity)
 			if localization_error is not None:
 				store.poke('localization_error', localization_error)
 			if priorD is not None:
@@ -131,7 +136,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			maps = hdf.peek(mode)
 			try:
 				cells = hdf.peek('imt_file')
-				cells, _ = find_imt(cells)
+				_, cells = find_imt(cells)
 			except KeyError:
 				cells = hdf.peek('distributed_translocations')
 			hdf.close()
