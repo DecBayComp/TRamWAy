@@ -9,7 +9,7 @@ You will need Python >= 2.7 or >= 3.5.
 
 	git clone https://github.com/influencecell/inferencemap
 	cd inferencemap
-	pip install -U -e .
+	pip install --user -e .
 
 The ``-e`` option is necessary if you intend to update or modify the code and have the modifications reflected in your installed |inferencemap|.
 

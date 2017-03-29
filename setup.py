@@ -13,19 +13,20 @@ extras_require = {}
 
 pwd = path.abspath(path.dirname(__file__))
 
-## Get the long description from the README file
-#with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
-#	long_description = f.read()
+# Get the long description from the README file
+with open(path.join(pwd, 'LICENSE'), encoding='utf-8') as f:
+	long_description = f.read()
 
 setup(
 	name = 'inferencemap',
 	version = '0.1',
 	description = 'InferenceMAP',
-	#long_description = long_description,
-	url = 'https://github.com/influencecell/inferencemap',
+	long_description = long_description,
+	url = 'https://github.com/DecBayComp/inferencemap',
 	author = 'François Laurent',
 	author_email = 'francois.laurent@pasteur.fr',
-	license = 'MIT',
+	license = 'CeCILL v2.1',
+	#license_holder = 'Institut Pasteur',
 	classifiers = [
 		'Programming Language :: Python :: 2',
 		'Programming Language :: Python :: 2.7',
