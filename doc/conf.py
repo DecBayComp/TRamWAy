@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# InferenceMAP documentation build configuration file, created by
+# TRamWAy documentation build configuration file, created by
 # sphinx-quickstart on Tue Jan 24 11:46:04 2017.
 #
 # This file is execfile()d with the current directory set to its
@@ -71,9 +71,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'InferenceMAP'
-copyright = u'2017, François Laurent, Jean-Baptiste Masson'
-author = u'François Laurent'
+project = u'TRamWAy'
+copyright = u'2017, Institut Pasteur, François Laurent, Jean-Baptiste Masson'
+author = u'François Laurent, Jean-Baptiste Masson'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -225,7 +225,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'inferencemap-doc'
+htmlhelp_basename = 'tramway-doc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -247,7 +247,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'InferenceMAP.tex', u'InferenceMAP Documentation',
+    (master_doc, 'TRamWAy.tex', u'TRamWAy Documentation',
      u'François Laurent', 'manual'),
 ]
 
@@ -277,7 +277,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'inferencemap', u'InferenceMAP Documentation',
+    (master_doc, 'inferencemap', u'TRamWAy Documentation',
      [author], 1)
 ]
 
@@ -291,8 +291,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'InferenceMAP', u'InferenceMAP Documentation',
-     author, 'InferenceMAP', 'One line description of project.',
+    (master_doc, 'TRamWAy', u'TRamWAy Documentation',
+     author, 'TRamWAy', 'One line description of project.',
      'Miscellaneous'),
 ]
 

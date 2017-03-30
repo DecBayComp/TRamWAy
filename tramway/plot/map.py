@@ -3,8 +3,8 @@ from math import tan, atan2, degrees, radians
 import numpy as np
 import pandas as pd
 import numpy.ma as ma
-from inferencemap.tesselation import *
-from inferencemap.inference import Distributed
+from tramway.tesselation import *
+from tramway.inference import Distributed
 from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
 import matplotlib.pyplot as plt

@@ -8,7 +8,7 @@ Partitioning the tracking data
 
 The first step consists of tesselating the space so that the point data can be partitioned in cells with an adequate number of points and spatial extent.
 
-:mod:`inferencemap.helper.tesselation` exposes the :func:`~inferencemap.helper.tesselation.tesselate` method that be called the following way::
+:mod:`tramway.helper.tesselation` exposes the :func:`~tramway.helper.tesselation.tesselate` method that be called the following way::
 
 	path_to_tracking_data = 'example.trxyt'
 	cells = tesselate(path_to_tracking_data, 'grid', avg_cell_count=40)
@@ -53,7 +53,7 @@ The above expression takes only a maximum number of points per cell. The minimum
 Visualizing the partition
 -------------------------
 
-A simple command from the :mod:`inferencemap.helper.tesselation` module::
+A simple command from the :mod:`tramway.helper.tesselation` module::
 
 	cell_plot(cells)
 
@@ -61,7 +61,7 @@ The Delaunay graph can be overlain instead of the Voronoi graph::
 
 	cell_plot(cells, xy_layer='delaunay')
 
-Here ``cells`` can equally be a path to a |h5| tesselation file or the object returned by :func:`~inferencemap.helper.tesselation.tesselate`.
+Here ``cells`` can equally be a path to a |h5| tesselation file or the object returned by :func:`~tramway.helper.tesselation.tesselate`.
 
 The generated figure can be saved into a file instead of being shown on the screen::
 
@@ -77,7 +77,7 @@ Infering physical parameters
 
 The data should first be prepared::
 
-	from inferencemap.inference import *
+	from tramway.inference import *
 
 	prepared_map = Distributed(cells)
 
@@ -85,20 +85,20 @@ For now only the diffusivity can be estimated::
 
 	diffusivity_map = inferD(prepared_map, localization_error=0.2)
 
-See also :mod:`inferencemap.inference`.
+See also :mod:`tramway.inference`.
 
 Visualizing maps
 ----------------
 
 ::
 
-	from inferencemap.plot.map import *
+	from tramway.plot.map import *
 	import matplotlib.pyplot as plt
 
 	plot_scalar_2d(diffusivity_map)
 	plt.show()
 
-See also :mod:`inferencemap.plot.map`.
+See also :mod:`tramway.plot.map`.
 
 .. |h5| replace:: *.h5*
 

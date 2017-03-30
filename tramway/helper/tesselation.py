@@ -15,8 +15,9 @@ from warnings import warn
 import six
 
 
-hdf_extensions = ['.h5', '.hdf', '.hdf5']
+hdf_extensions = ['.rwa', '.h5', '.hdf', '.hdf5']
 imt_extensions = [ '.imt' + ext for ext in hdf_extensions ]
+imt_extensions = [ hdf_extensions[0] ] + imt_extensions[1:]
 fig_formats = ['png', 'pdf', 'ps', 'eps', 'svg']
 sub_extensions = dict([ (a, a) for a in ['imt', 'vor', 'hpc', 'hcd', 'hpd'] ])
 
@@ -38,34 +39,34 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	Tesselation from points series and partitioning.
 
 	This helper routine is a high-level interface to the various tesselation techniques 
-	implemented in InferenceMAP.
+	implemented in TRamWAy.
 
 	Arguments:
 		xyt_data (str or matrix):
 			Path to a `.trxyt` file or raw data in the shape of :class:`pandas.DataFrame` 
-			(or any data format documented in :mod:`inferencemap.spatial.descriptor`).
+			(or any data format documented in :mod:`tramway.spatial.descriptor`).
 
 
 		method ({'grid', 'kdtree', 'kmeans', 'gwr'}, optional):
 			Tesselation method.
 			See respectively 
-			:class:`~inferencemap.tesselation.RegularMesh`, 
-			:class:`~inferencemap.tesselation.KDTreeMesh`, 
-			:class:`~inferencemap.tesselation.KMeansMesh` and 
-			:class:`~inferencemap.tesselation.GasMesh`.
+			:class:`~tramway.tesselation.RegularMesh`, 
+			:class:`~tramway.tesselation.KDTreeMesh`, 
+			:class:`~tramway.tesselation.KMeansMesh` and 
+			:class:`~tramway.tesselation.GasMesh`.
 
 		output_file (str, optional):
-			Path to a `.h5` file. The resulting tesselation and data partition will be 
+			Path to a `.rwa` file. The resulting tesselation and data partition will be 
 			stored in this file. If `xyt_data` is a path to a file and `output_file` is not 
 			defined, then `output_file` will be adapted from `xyt_data` with extension 
-			`.imt.h5`.
+			`.rwa`.
 
 		verbose (bool, optional): Verbose output.
 
 		scaling (bool or str, optional):
 			Normalization of the data.
 			Any of 'unitrange', 'whiten' or other methods defined in 
-			:mod:`inferencemap.spatial.scaler`.
+			:mod:`tramway.spatial.scaler`.
 
 		time_scale (bool or float, optional): 
 			If this argument is defined and intepretable as ``True``, the time axis is 
@@ -110,8 +111,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 
 	Returns:
-		inferencemap.tesselation.CellStats: A partition of the data with 
-			:attr:`~inferencemap.tesselation.CellStats.tesselation` attribute set.
+		tramway.tesselation.CellStats: A partition of the data with 
+			:attr:`~tramway.tesselation.CellStats.tesselation` attribute set.
 
 
 	Apart from the parameters defined above, extra input arguments are admitted and passed to the
@@ -270,7 +271,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 
 	Arguments:
 		cells (str or CellStats):
-			Path to a `.imt.h5` file or :class:`~inferencemap.tesselation.CellStats` 
+			Path to a `.imt.rwa` file or :class:`~tramway.tesselation.CellStats` 
 			instance.
 
 		xy_layer ({None, 'delaunay', 'voronoi'}, optional):
@@ -310,7 +311,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			is saved, the corresponding file will have sub-extension `.hpd`.
 
 	Notes:
-		See also :mod:`inferencemap.plot.mesh`.
+		See also :mod:`tramway.plot.mesh`.
 
 	"""
 	if isinstance(cells, CellStats):
@@ -471,19 +472,19 @@ def find_imt(path, method=None, full_list=False):
 	paths = []
 	for p in path:
 		if os.path.isdir(p):
-			paths.append([ os.path.join(p, f) for f in os.listdir(p) if f.endswith('.h5') ])
+			paths.append([ os.path.join(p, f) for f in os.listdir(p) if f.endswith('.rwa') ])
 		else:
-			if p.endswith('.h5'):
+			if p.endswith('.rwa'):
 				ps = [p]
 			else:
 				d, p = os.path.split(p)
 				p, _ = os.path.splitext(p)
 				if d:
 					ps = [ os.path.join(d, f) for f in os.listdir(d) \
-						if f.startswith(p) and f.endswith('.h5') ]
+						if f.startswith(p) and f.endswith('.rwa') ]
 				else:
 					ps = [ f for f in os.listdir('.') \
-						if f.startswith(p) and f.endswith('.h5') ]
+						if f.startswith(p) and f.endswith('.rwa') ]
 			paths.append(ps)
 	paths = list(itertools.chain(*paths))
 	found = False

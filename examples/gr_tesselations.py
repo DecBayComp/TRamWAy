@@ -2,7 +2,7 @@
 import os
 #from pathlib import Path
 #import urllib.request # only in PY3
-from inferencemap.helper.tesselation import *
+from tramway.helper.tesselation import *
 
 #demo_name = 'glycine-receptor'
 
@@ -30,28 +30,28 @@ def main():
 	# grid + knn
 	print("\nfirst approach: regular grid + (knn <= 40)")
 	method = 'grid'
-	grid = tesselate(local, method, output_file=out(method, '.h5'), knn=(None, 40), verbose=True)
+	grid = tesselate(local, method, output_file=out(method, '.rwa'), knn=(None, 40), verbose=True)
 	print('overlaying Voronoi graph')
 	cell_plot(grid, output_file=out(method, '.png'), verbose=True)
 
 	# kd-tree
 	print("\nsecond approach: kd-tree")
 	method = 'kdtree'
-	kdtree = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
+	kdtree = tesselate(local, method, output_file=out(method, '.rwa'), verbose=True)
 	print('overlaying Voronoi graph')
 	cell_plot(kdtree, output_file=out(method, '.png'), verbose=True)
 
 	# k-means
 	print("\nthird approach: k-means")
 	method = 'kmeans'
-	kmeans = tesselate(local, method, output_file=out(method, '.h5'), verbose=True)
+	kmeans = tesselate(local, method, output_file=out(method, '.rwa'), verbose=True)
 	print('overlaying Delaunay graph')
 	cell_plot(kmeans, output_file=out(method, '.png'), verbose=True, xy_layer='delaunay')
 
 	# gwr
 	print("\nfourth approach: GWR + (40 <= knn <= 60)")
 	method = 'gwr'
-	gwr = tesselate(local, method, output_file=out(method, '.h5'), knn=(40, 60), verbose=True, pass_count=1)
+	gwr = tesselate(local, method, output_file=out(method, '.rwa'), knn=(40, 60), verbose=True, pass_count=1)
 	# `pass_count` above is a gwr-specific and controls the convergence (both accuracy and 
 	# calculation time) by defining bounds on the number of passes over the data.
 	# Note that the data are sampled with replacement. As a consequence ``pass_count=1`` is not

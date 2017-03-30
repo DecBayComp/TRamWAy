@@ -3,7 +3,7 @@
 Demos
 =====
 
-The ``examples`` repository in ``inferencemap`` contains a collection of demos. You can get a list of them with the command::
+The ``examples`` repository in ``tramway`` contains a collection of demos. You can get a list of them with the command::
 
 	> python -m examples -h
 

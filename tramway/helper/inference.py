@@ -1,9 +1,9 @@
 
-from inferencemap.io import *
-from inferencemap.core import lightcopy
-from inferencemap.inference import *
-from inferencemap.plot.map import *
-from inferencemap.helper.tesselation import *
+from tramway.io import *
+from tramway.core import lightcopy
+from tramway.inference import *
+from tramway.plot.map import *
+from tramway.helper.tesselation import *
 import matplotlib.pyplot as plt
 from warnings import warn
 import os
@@ -82,7 +82,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 		_file, subext = os.path.splitext(output_file)
 		if subext == '.imt':
 			output_file = _file
-		output_file = '{}.{}.h5'.format(output_file, \
+		output_file = '{}.{}.rwa'.format(output_file, \
 			sub_extensions[mode])
 
 	if output_file:

@@ -74,9 +74,9 @@ def _render_map(args):
 
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(prog='inferencemap', \
-		description='InferenceMAP central command.', \
-		epilog='See also https://github.com/influencecell/inferencemap')
+	parser = argparse.ArgumentParser(prog='tramway', \
+		description='TRamWAy central command.', \
+		epilog='See also https://github.com/DecBayComp/TRamWAy')
 	parser.add_argument('-v', '--verbose', action='store_true', help='increase verbosity')
 	parser.add_argument('-i', '--input', action='append', \
 		help='path to input file or directory')

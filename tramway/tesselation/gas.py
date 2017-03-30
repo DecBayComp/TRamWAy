@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
 from .base import *
-from inferencemap.spatial.scaler import *
-from inferencemap.spatial.gas import Gas
+from tramway.spatial.scaler import *
+from tramway.spatial.gas import Gas
 from scipy.spatial.distance import cdist
 import time
 
@@ -14,7 +14,7 @@ class GasMesh(Voronoi):
 	"""GWR based tesselation.
 
 	Attributes:
-		gas (:class:`~inferencemap.spatial.gas.Gas`):
+		gas (:class:`~tramway.spatial.gas.Gas`):
 			internal graph representation of the gas.
 		min_probability (float):
 			minimum probability of a point to be in any given cell.
@@ -74,7 +74,7 @@ class GasMesh(Voronoi):
 		"""Grow the tesselation.
 
 		Arguments:
-			points: see :meth:`~inferencemap.tesselation.Tesselation.tesselate`.
+			points: see :meth:`~tramway.tesselation.Tesselation.tesselate`.
 			pass_count (float or pair of floats): 
 				number of points to sample (with replacement) from data `points`, as
 				a multiple of the size of the data.
@@ -83,23 +83,23 @@ class GasMesh(Voronoi):
 				If `pass_count` is a single number, it is interpreted as the lower
 				bound, and the upper bound is set equal to ``2 * pass_count``.
 			residual_factor (float): multiplies with `_max_distance` to determine 
-				`residual_max` in :meth:`~inferencemap.spatial.gas.Gas.train`.
-			error_count_tol (float): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
-			min_growth (float): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
-			collapse_tol (float): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
-			stopping_criterion (int): (see :meth:`~inferencemap.spatial.gas.Gas.train`)
+				`residual_max` in :meth:`~tramway.spatial.gas.Gas.train`.
+			error_count_tol (float): (see :meth:`~tramway.spatial.gas.Gas.train`)
+			min_growth (float): (see :meth:`~tramway.spatial.gas.Gas.train`)
+			collapse_tol (float): (see :meth:`~tramway.spatial.gas.Gas.train`)
+			stopping_criterion (int): (see :meth:`~tramway.spatial.gas.Gas.train`)
 			verbose (bool): verbose output.
-			batch_size (int): (see :class:`~inferencemap.spatial.gas.Gas`)
-			tau (float): (see :class:`~inferencemap.spatial.gas.Gas`)
-			trust (float): (see :class:`~inferencemap.spatial.gas.Gas`)
-			lifetime (int): (see :class:`~inferencemap.spatial.gas.Gas`)
+			batch_size (int): (see :class:`~tramway.spatial.gas.Gas`)
+			tau (float): (see :class:`~tramway.spatial.gas.Gas`)
+			trust (float): (see :class:`~tramway.spatial.gas.Gas`)
+			lifetime (int): (see :class:`~tramway.spatial.gas.Gas`)
 
 		Returns:
-			See :meth:`~inferencemap.tesselation.Tesselation.tesselate`.
+			See :meth:`~tramway.tesselation.Tesselation.tesselate`.
 
 		See also:
-			:class:`inferencemap.spatial.gas.Gas` and 
-			:meth:`inferencemap.spatial.gas.Gas.train`.
+			:class:`tramway.spatial.gas.Gas` and 
+			:meth:`tramway.spatial.gas.Gas.train`.
 		"""
 		#np.random.seed(15894754) # to benchmark and compare between Graph implementations
 		points = self._preprocess(points, **kwargs)

@@ -18,11 +18,11 @@ with open(path.join(pwd, 'LICENSE'), encoding='utf-8') as f:
 	long_description = f.read()
 
 setup(
-	name = 'inferencemap',
+	name = 'tramway',
 	version = '0.1',
-	description = 'InferenceMAP',
+	description = 'TRamWAy',
 	long_description = long_description,
-	url = 'https://github.com/DecBayComp/inferencemap',
+	url = 'https://github.com/DecBayComp/TRamWAy',
 	author = 'François Laurent',
 	author_email = 'francois.laurent@pasteur.fr',
 	license = 'CeCILL v2.1',

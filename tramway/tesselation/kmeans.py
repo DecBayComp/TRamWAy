@@ -1,6 +1,6 @@
 
 from .base import *
-from inferencemap.spatial.scaler import *
+from tramway.spatial.scaler import *
 from math import *
 import numpy as np
 import pandas as pd
@@ -46,7 +46,7 @@ class KMeansMesh(Voronoi):
 		"""Grow the tesselation.
 
 		Attributes:
-			points: see :meth:`~inferencemap.tesselation.base.Tesselation.tesselate`.
+			points: see :meth:`~tramway.tesselation.base.Tesselation.tesselate`.
 			tol (float, optional): error tolerance. 
 				Passed as `thresh` to :func:`scipy.cluster.vq.kmeans`.
 			prune (bool, optional): prunes the Voronoi and removes the longest edges.

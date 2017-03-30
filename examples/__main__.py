@@ -17,7 +17,6 @@ else:
 	fullmatch = re.fullmatch
 import importlib
 #from pathlib import Path
-#from inferencemap.helper.tesselation import *
 
 
 def main():
@@ -52,9 +51,9 @@ def main():
 					demo = demo.replace('_', '-')
 				demos[demo] = module
 
-	parser = argparse.ArgumentParser(prog='inferencemap-demo', \
-		description='InferenceMAP demo launcher.', \
-		epilog='See also https://github.com/influencecell/inferencemap')
+	parser = argparse.ArgumentParser(prog='tramway-demo', \
+		description='TRamWAy demo launcher.', \
+		epilog='See also https://github.com/DecBayComp/TRamWAy')
 	#parser.add_argument('demo', choices=demos.keys())
 	hub = parser.add_subparsers(title='demos', \
 		description="type '%(prog)s demo-name --help' for additional help")

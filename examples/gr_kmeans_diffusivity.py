@@ -1,7 +1,7 @@
 
 import os
 import sys
-from inferencemap.helper import tesselate, find_imt, infer, map_plot
+from tramway.helper import tesselate, find_imt, infer, map_plot
 import matplotlib.pyplot as plt
 import warnings
 #warnings.simplefilter('error')
@@ -28,7 +28,7 @@ def main():
 		return '{}.{}{}'.format(output_basename, method, extension)
 
 	# tesselate
-	tesselation_file = out(method, '.h5')
+	tesselation_file = out(method, '.rwa')
 	if not os.path.isfile(tesselation_file):
 		tesselate(local, method, output_file=tesselation_file, \
 			verbose=True, strict_min_cell_size=10)

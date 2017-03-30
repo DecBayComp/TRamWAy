@@ -3,9 +3,9 @@
 Reference library
 =================
 
-The :mod:`inferencemap` package is the top |inferencemap| package. It features ``if __name__ == '__main__':`` guarded code. 
+The :mod:`tramway` package is the top |tramway| package. It features ``if __name__ == '__main__':`` guarded code. 
 
-The recommended starting point is :mod:`inferencemap.helper`.
+The recommended starting point is :mod:`tramway.helper`.
 
 .. toctree::
 
@@ -17,5 +17,5 @@ The recommended starting point is :mod:`inferencemap.helper`.
     inferencemap.tesselation
     inferencemap.inference
 
-.. |inferencemap| replace:: **InferenceMAP**
+.. |tramway| replace:: **TRamWAy**
 

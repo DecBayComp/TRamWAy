@@ -5,8 +5,8 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 import scipy.sparse as sparse
 import scipy.spatial as spatial
-from inferencemap.spatial.scaler import *
-from inferencemap.core import *
+from tramway.spatial.scaler import *
+from tramway.core import *
 #from collections import OrderedDict
 from warnings import warn
 
@@ -234,7 +234,7 @@ class Tesselation(object):
 		Identify euclidian variables (usually called 'x', 'y', 'z') and scale the coordinates.
 
 		See also:
-			:mod:`inferencemap.spatial.scaler`.
+			:mod:`tramway.spatial.scaler`.
 		"""
 		if self._cell_centers is None and self.scaler.euclidean is None:
 			# initialize
@@ -313,7 +313,7 @@ class Tesselation(object):
 			array-like: coordinates. If equal to `points`, may be truly identical.
 
 		See also:
-			:meth:`inferencemap.spatial.scaler.Scaler.scaled`.
+			:meth:`tramway.spatial.scaler.Scaler.scaled`.
 		"""
 		try:
 			return self.scaler.scaled(points, asarray)

@@ -3,9 +3,9 @@
 Quick Start Guide
 =================
 
-|inferencemap| is a feature-rich library written in Python. Feel free to try its :ref:`demo scripts <quickstart.demos>`.
+|tramway| is a feature-rich library written in Python. Feel free to try its :ref:`demo scripts <quickstart.demos>`.
 
-|Inferencemap| is primarily intented to be imported as a library in a Python environment (see its :ref:`high-level interface <quickstart.helpers>`).
+|tramway| is primarily intented to be imported as a library in a Python environment (see its :ref:`high-level interface <quickstart.helpers>`).
 
 It also features a :ref:`command-line interface <quickstart.commandline>` for limited usage outside of the Python language.
 
@@ -20,5 +20,5 @@ In both cases, you may run into :ref:`common concepts <quickstart.concepts>`. Yo
    quickstart.fileformats
    quickstart.helpers
 
-.. |inferencemap| replace:: **InferenceMAP**
+.. |tramway| replace:: **TRamWAy**
 

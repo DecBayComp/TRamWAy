@@ -1,13 +1,13 @@
 
 from .base import *
-from inferencemap.spatial.scaler import *
+from tramway.spatial.scaler import *
 from math import *
 import numpy as np
 import pandas as pd
 from threading import Lock
 import itertools
 import scipy.sparse as sparse
-from inferencemap.spatial.dichotomy import ConnectedDichotomy
+from tramway.spatial.dichotomy import ConnectedDichotomy
 
 
 def _face_hash(v1, n1):

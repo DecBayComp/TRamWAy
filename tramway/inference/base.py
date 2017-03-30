@@ -1,6 +1,6 @@
 
-from inferencemap.core import *
-from inferencemap.tesselation import CellStats, Voronoi, KMeansMesh
+from tramway.core import *
+from tramway.tesselation import CellStats, Voronoi, KMeansMesh
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -365,7 +365,7 @@ class Distributed(Local):
 				if max_cell_count:
 					avg_probability = min(float(max_cell_count) / \
 						float(points.shape[0]), avg_probability)
-				from inferencemap.tesselation import KMeansMesh
+				from tramway.tesselation import KMeansMesh
 				grid = KMeansMesh(avg_probability=avg_probability)
 				grid.tesselate(points[ok])
 			else:
