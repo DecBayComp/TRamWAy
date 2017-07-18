@@ -6,8 +6,7 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
-# h5py mocked out in doc/conf.py
-install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'tables'] # , 'h5py'
+install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python']
 extras_require = {} 
 
 
@@ -28,15 +27,17 @@ setup(
 	license = 'CeCILL v2.1',
 	#license_holder = 'Institut Pasteur',
 	classifiers = [
+		'Intended Audience :: Science/Research',
 		'Programming Language :: Python :: 2',
 		'Programming Language :: Python :: 2.7',
 		'Programming Language :: Python :: 3',
 		'Programming Language :: Python :: 3.5',
 	],
 	keywords = '',
-	packages = find_packages(exclude=['doc', 'examples']),
+	package_dir = {'tramway': 'tramway', 'tramway.demo': 'examples'},
+	packages = ['tramway', 'tramway.demo'],
+	scripts = ['scripts/tramway', 'scripts/tramway-demo'],
 	install_requires = install_requires,
 	extras_require = extras_require,
 	package_data = {},
-	entry_points = {},
 )

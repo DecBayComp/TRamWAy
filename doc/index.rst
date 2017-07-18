@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 TRamWAy documentation
-==========================
+=====================
 
 |tramway| helps analyzing single molecule dynamics. It infers the diffusivity, drift, force and potential across space and time.
 

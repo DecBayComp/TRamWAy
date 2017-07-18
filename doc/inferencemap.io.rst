@@ -9,6 +9,5 @@ inferencemap.io package
 .. toctree::
 
     inferencemap.io.xyt
-    inferencemap.io.store
     inferencemap.io.hdf5
 

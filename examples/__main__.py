@@ -72,6 +72,7 @@ def main():
 	args = parser.parse_args()
 	#module = demos[args.demo]
 	if not hasattr(args, 'func'):
+		parser.print_help()
 		parser.exit(0)
 	module = demos[args.func]
 	if hasattr(module, 'data_file'):

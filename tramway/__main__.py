@@ -1,10 +1,8 @@
-#!/usr/bin/env python
 
 import argparse
-import six
-if six.PY2:
+try:
 	from ConfigParser import ConfigParser
-else:
+except ImportError:
 	from configparser import ConfigParser
 import sys
 from .helper import *
@@ -73,7 +71,7 @@ def _render_map(args):
 
 
 
-if __name__ == '__main__':
+def main():
 	parser = argparse.ArgumentParser(prog='tramway', \
 		description='TRamWAy central command.', \
 		epilog='See also https://github.com/DecBayComp/TRamWAy')
@@ -155,5 +153,13 @@ if __name__ == '__main__':
 
 	# parse
 	args = parser.parse_args()
-	args.func(args)
+	try:
+		args.func(args)
+	except AttributeError:
+		parser.print_help()
+
+
+
+if __name__ == '__main__':
+	main()
 

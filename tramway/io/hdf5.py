@@ -1,8 +1,8 @@
 """This module does not export any symbol. It implements the :class:`~tramway.io.store.storable.Storable` class for TRamWAy datatypes."""
 
-from .store.storable import *
-from .store.generic import *
-from .store.hdf5 import *
+from rwa.storable import *
+from rwa.generic import *
+from rwa.hdf5 import *
 
 # Core datatypes
 from tramway.core import Matrix, ArrayChain

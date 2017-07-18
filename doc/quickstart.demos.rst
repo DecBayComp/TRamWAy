@@ -5,9 +5,9 @@ Demos
 
 The ``examples`` repository in ``tramway`` contains a collection of demos. You can get a list of them with the command::
 
-	> python -m examples -h
+	> tramway-demo -h
 
 You can for example generate a diffusivity map for a dataset of glycine receptor::
 
-	> python -m examples gr-kmeans-diffusivity
+	> tramway-demo gr-kmeans-diffusivity
 

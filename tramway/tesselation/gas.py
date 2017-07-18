@@ -134,6 +134,9 @@ class GasMesh(Voronoi):
 		voronoi = Voronoi._postprocess(self)
 		# clean and extend the adjacency matrix with the Delaunay graph
 		adjacency = self._cell_adjacency # shorter name
+		# fix for issue on reload
+		if 4 < adjacency.data[-1]:
+			adjacency.data[:] = 1
 		delaunay = sparse.csr_matrix( \
 			(2 * np.ones(2 * voronoi.ridge_points.shape[0], dtype=int), \
 			(voronoi.ridge_points.flatten('F'), \

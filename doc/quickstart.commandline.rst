@@ -15,8 +15,8 @@ Partitioning the data points
 
 The first step consists of tesselating the space and partitioning the data points into the cells of the tesselation::
 
-	> python -m tramway tesselate -h
-	> python -m tramway -i example.trxyt tesselate -m kmeans
+	> tramway tesselate -h
+	> tramway -i example.trxyt tesselate -m kmeans
 
 ``-h`` shows the help message for the ``tesselate`` command. ``-i`` allows to specify the tracking data file. ``-m`` allows to specify the tesselation method. 
 
@@ -31,7 +31,7 @@ The available methods are:
 
 A key parameter is ``--knn`` (or shorter ``-n``). It combines with any of the above methods and allows to impose a lower bound on the number of points (or nearest neighbors) associated with each cell of the mesh, independently of the way the mesh has been grown::
 
-	> python -m tramway -i example.trxyt tesselate -m gwr -w -n 50
+	> tramway -i example.trxyt tesselate -m gwr -w -n 50
 
 
 Visualizing the partition
@@ -39,15 +39,15 @@ Visualizing the partition
 
 To visualize on the screen::
 
-	> python -m tramway -i example.rwa show-cells
+	> tramway -i example.rwa show-cells
 
 To print the figure in an image file::
 
-	> python -m tramway -i example.rwa show-cells -p png
+	> tramway -i example.rwa show-cells -p png
 
 To overlay the Delaunay graph instead of the Voronoi graph::
 
-	> python -m tramway -i example.rwa show-cells -D
+	> tramway -i example.rwa show-cells -D
 
 
 .. |xyt| replace:: *.xyt*
