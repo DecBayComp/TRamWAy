@@ -16,6 +16,7 @@ from math import *
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
+import scipy.stats as stats
 from .base import *
 from tramway.spatial.scaler import *
 from tramway.spatial.gas import Gas
@@ -83,7 +84,7 @@ class GasMesh(Voronoi):
 
 	def tesselate(self, points, pass_count=(), residual_factor=.7, error_count_tol=5e-3, \
 		min_growth=1e-4, collapse_tol=.01, stopping_criterion=0, verbose=False, \
-		plot=False, **kwargs):
+		plot=False, alpha_risk=1e-15, **kwargs):
 		"""Grow the tesselation.
 
 		Arguments:
@@ -106,6 +107,8 @@ class GasMesh(Voronoi):
 			tau (float): (see :class:`~tramway.spatial.gas.Gas`)
 			trust (float): (see :class:`~tramway.spatial.gas.Gas`)
 			lifetime (int): (see :class:`~tramway.spatial.gas.Gas`)
+			alpha_risk (float): location distributions of potential neighbor cells
+				are compared with a t-test
 
 		Returns:
 			See :meth:`~tramway.tesselation.Tesselation.tesselate`.
@@ -124,6 +127,8 @@ class GasMesh(Voronoi):
 				p = .95
 				# sample size for each point to have probability p of being chosen once
 				pass_count = log(1.0 - p) / log(1.0 - 1.0 / float(n))
+				# convert in number of passes
+				pass_count /= float(n)
 			try:
 				len(pass_count) # sequence?
 			except TypeError:
@@ -140,6 +145,7 @@ class GasMesh(Voronoi):
 		[self._cell_adjacency, V, _] = self.gas.export()
 		self._cell_centers = V['weight']
 		self._cell_adjacency.data = np.ones_like(self._cell_adjacency.data, dtype=int)
+		self.alpha_risk = alpha_risk
 		self._postprocess(points, verbose)
 
 	def _postprocess(self, points=None, verbose=False):
@@ -178,11 +184,15 @@ class GasMesh(Voronoi):
 			#ref = -ref # with alternative to cdist, index from the end
 			ref -= 1 # with cdist, index
 			A = sparse.tril(self._cell_adjacency, format='coo') # in future scipy version, check that tril does not remove explicit zeros
+			# compute the median distance between adjacent cell centers
+			pts_i = np.stack([ self._cell_centers[i] for i in A.row ])
+			pts_j = np.stack([ self._cell_centers[j] for j in A.col ])
+			ref_d = np.sqrt(np.median(np.sum((pts_i - pts_j)**2, axis=1)))
 			for i, j, k in zip(A.row, A.col, A.data):
 				if self._adjacency_label[k] == 2: # only in Voronoi
 					xi = points[ix == i]
 					xj = points[ix == j]
-					if xi.size and xj.size:
+					if 1 < xi.shape[0] and 1 < xj.shape[0]:
 						dij = cdist(xi, xj)
 						#dij = np.dot(xi, xj.T)
 						#xi2 = np.sum(xi * xi, axis=1, keepdims=True)
@@ -192,6 +202,8 @@ class GasMesh(Voronoi):
 						dij = dij.flatten()
 						#kij = dij.argsort()
 						dij.sort()
+						if ref_d * .9 < dij[0]:
+							continue
 						try:
 							dij = dij[ref]
 						except IndexError:
@@ -200,6 +212,17 @@ class GasMesh(Voronoi):
 							continue
 						#dij = np.sqrt(-2.0 * dij)
 						if dij < self._min_distance:
+							self._adjacency_label[k] = 4 # mark edge as 'not congruent but valid'
+							continue
+						ci, cj = np.mean(xi, axis=0), np.mean(xj, axis=0)
+						yi = np.sort(np.dot(xi - ci, cj - ci))
+						yj = np.sort(np.dot(xj - ci, cj - ci))
+						# throttle the number of points down to control the p-value
+						n0 = 10
+						yi = yi[::-1][:min(max(n0, (ref+1)*2), yi.size)]
+						yj = yj[:min(max(n0, (ref+1)*2), yj.size)]
+						t, p = stats.ttest_ind(yi.T, yj.T, equal_var=False)
+						if self.alpha_risk < p:
 							self._adjacency_label[k] = 4 # mark edge as 'not congruent but valid'
 						continue
 						# debug candidate edges

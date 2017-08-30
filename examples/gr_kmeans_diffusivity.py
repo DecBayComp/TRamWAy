@@ -21,6 +21,8 @@ priorV = 0.1
 
 
 def main():
+	warnings.simplefilter('error')
+
 	local = os.path.join(data_dir, data_file)
 
 	output_basename, _ = os.path.splitext(local)

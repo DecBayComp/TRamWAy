@@ -28,7 +28,7 @@ sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx
 
 def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 	localization_error=None, priorD=None, priorV=None, jeffreys_prior=None, \
-	max_cell_count=20, dilation=1, worker_count=None, positive_diffusivity=True, \
+	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
 	store_distributed=False, **kwargs):
 
 	input_file = None
@@ -56,7 +56,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 		# infer diffusivity (D mode)
 		diffusivity = _map.run(inferD, \
 			localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
-			positive_diffusivity=positive_diffusivity, **kwargs)
+			min_diffusivity=min_diffusivity, **kwargs)
 		x = diffusivity
 
 	elif mode == 'DF':
@@ -64,14 +64,14 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 		# infer diffusivity and force (DF mode)
 		df = _map.run(inferDF, \
 			localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
-			positive_diffusivity=positive_diffusivity, **kwargs)
+			min_diffusivity=min_diffusivity, **kwargs)
 		x = df
 
 	elif mode == 'DD':
 
 		dd = _map.run(inferDD, \
 			localization_error, priorD, jeffreys_prior, \
-			positive_diffusivity=positive_diffusivity, worker_count=worker_count, \
+			min_diffusivity=min_diffusivity, worker_count=worker_count, \
 			**kwargs)
 		x = dd
 
@@ -79,7 +79,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 
 		dv = _map.run(inferDV, \
 			localization_error, priorD, priorV, jeffreys_prior, \
-			positive_diffusivity=positive_diffusivity, worker_count=worker_count, \
+			min_diffusivity=min_diffusivity, worker_count=worker_count, \
 			**kwargs)
 		x = dv
 
@@ -106,7 +106,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 			store = HDF5Store(output_file, 'w')
 			store.poke('mode', mode)
 			store.poke(mode, x)
-			store.poke('positive_diffusivity', positive_diffusivity)
+			store.poke('min_diffusivity', min_diffusivity)
 			if localization_error is not None:
 				store.poke('localization_error', localization_error)
 			if priorD is not None:
@@ -136,7 +136,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 
 
 def map_plot(maps, output_file=None, fig_format=None, \
-	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None):
+	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None):
 
 	if isinstance(maps, tuple):
 		cells, mode, maps = maps
@@ -175,7 +175,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 	if 'diffusivity' in maps:
 		fig0 = plt.figure(figsize=figsize)
 
-		scalar_map_2d(cells, maps['diffusivity'])
+		scalar_map_2d(cells, maps['diffusivity'], aspect=aspect)
 		plt.title('D ({} mode)'.format(mode))
 
 		if print_figs:
@@ -191,7 +191,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 	if 'potential' in maps:
 		fig1 = plt.figure(figsize=figsize)
 
-		scalar_map_2d(cells, maps['potential'])
+		scalar_map_2d(cells, maps['potential'], aspect=aspect)
 		plt.title('V ({} mode)'.format(mode))
 
 		if print_figs:
@@ -208,7 +208,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 	if cols: # 'force'
 		fig2 = plt.figure(figsize=figsize)
 
-		field_map_2d(cells, maps[cols])
+		field_map_2d(cells, maps[cols], aspect=aspect)
 		plt.title('F ({} mode)'.format(mode))
 
 		if print_figs:

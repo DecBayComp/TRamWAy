@@ -19,6 +19,7 @@ import warnings
 import scipy.sparse as sparse
 import h5py
 import itertools
+from ..core.exceptions import EfficiencyWarning
 
 class IOWarning(Warning):
 	pass
@@ -26,6 +27,8 @@ class FileNotFoundWarning(IOWarning):
 	pass
 
 def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False, verbose=False):
+	if 'n' not in columns:
+		raise ValueError("trajectory index should be denoted 'n'")
 	if not isinstance(path, list):
 		path = [path]
 	paths = []
@@ -42,12 +45,30 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
 			if verbose:
 				print('loading file: {}'.format(f))
 			dff = pd.read_table(f, names=columns)
+		except OSError:
+			warnings.warn(f, FileNotFoundWarning)
+		else:
+			sample = dff[dff['n']==dff['n'].iloc[-1]]
+			sample_dt = sample['t'].diff()[1:]
+			if not all(0 < sample_dt):
+				if any(0 == sample_dt):
+					print(sample)
+					raise ValueError("some indices refer to multiple simultaneous trajectories in table: '{}'".format(f))
+				else:
+					warnings.warn(EfficiencyWarning("table '{}' is not properly ordered".format(f)))
+				# faster sort
+				data = np.asarray(dff)
+				dff = pd.DataFrame(data=data[np.lexsort((dff['t'], dff['n']))],
+					columns=dff.columns)
+				#sorted_dff = []
+				#for n in dff['n'].unique():
+				#	sorted_dff.append(dff[dff['n'] == n].sort_values(by='t'))
+				#dff = pd.concat(sorted_dff)
+				#dff.index = np.arange(dff.shape[0]) # optional
 			if dff['n'].min() < index_max:
 				dff['n'] += index_max
 				index_max = dff['n'].max()
 			df.append(dff)
-		except:
-			warnings.warn(f, FileNotFoundWarning)
 	if concat:
 		df = pd.concat(df)
 	if return_paths:

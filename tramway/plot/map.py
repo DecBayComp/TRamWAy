@@ -27,7 +27,7 @@ import scipy.sparse as sparse
 from warnings import warn
 
 
-def scalar_map_2d(cells, values):
+def scalar_map_2d(cells, values, aspect=None):
 	if isinstance(values, pd.DataFrame):
 		if values.shape[1] != 1:
 			warn('multiple parameters available; mapping first one only', UserWarning)
@@ -49,7 +49,7 @@ def scalar_map_2d(cells, values):
 		xy = cells.tesselation.cell_centers
 		ix = np.arange(xy.shape[0])
 		ok = 0 < cells.cell_count
-		for i in ix:
+		for i in ix[ok]:
 			vertices = cells.tesselation.boundaries(i)
 			if vertices is not None:
 				polygons.append(Polygon(vertices, True))
@@ -79,6 +79,8 @@ def scalar_map_2d(cells, values):
 
 	ax.set_xlim(xy_min[0], xy_max[0])
 	ax.set_ylim(xy_min[1], xy_max[1])
+	if aspect is not None:
+		ax.set_aspect(aspect)
 
 	try:
 		fig.colorbar(patches, ax=ax)
@@ -87,16 +89,18 @@ def scalar_map_2d(cells, values):
 
 
 
-def field_map_2d(cells, values, angular_width=30.0, overlay=False):
-	force_amplitude = pd.Series(data=np.linalg.norm(np.asarray(values), axis=1), index=values.index)
+def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None):
+	force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
 	if not overlay:
 		scalar_map_2d(cells, force_amplitude)
 	ax = plt.gca()
-	xmin, xmax = ax.get_xlim()
-	ymin, ymax = ax.get_ylim()
+	if aspect is not None:
+		ax.set_aspect(aspect)
 	if ax.get_aspect() == 'equal':
 		aspect_ratio = 1
 	else:
+		xmin, xmax = ax.get_xlim()
+		ymin, ymax = ax.get_ylim()
 		aspect_ratio = (xmax - xmin) / (ymax - ymin)
 	# compute the distance between adjacent cell centers
 	if isinstance(cells, Distributed):
@@ -135,6 +139,9 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False):
 		vertices = np.stack((vertex, base + ortho, base - ortho), axis=0)
 		#vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
 		markers.append(Polygon(vertices, True))
+		#if 12<center[0] and center[0]<13 and 13<center[1] and center[1]<14:
+		#	print((i, center, radius, f, ortho, vertices))
+		#	plt.plot(center[0], center[1], 'r+')
 
 	patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=0.9)
 	ax.add_collection(patches)

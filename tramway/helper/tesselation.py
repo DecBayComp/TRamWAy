@@ -275,7 +275,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, \
-	point_count_hist=False, cell_dist_hist=False, point_dist_hist=False):
+	point_count_hist=False, cell_dist_hist=False, point_dist_hist=False, \
+	aspect=None):
 	"""
 	Partition plots.
 
@@ -322,6 +323,9 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 		point_dist_hist (bool, optional):
 			Plot a histogram of distances between points from neighbor cells. If the figure 
 			is saved, the corresponding file will have sub-extension `.hpd`.
+
+		aspect (str, optional):
+			Aspect ratio. Can be 'equal'.
 
 	Notes:
 		See also :mod:`tramway.plot.mesh`.
@@ -385,6 +389,8 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			plot_points(cells)
 		else:
 			plot_points(cells, min_count=min_cell_count)
+		if aspect is not None:
+			plt.gca().set_aspect(aspect)
 		if xy_layer == 'delaunay':
 			plot_delaunay(cells)
 			plt.title(pp_method_name + ' based delaunay')

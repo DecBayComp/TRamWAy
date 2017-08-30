@@ -684,9 +684,11 @@ def distributed(cells, new=Distributed):
 			trajectory_col = 0
 			coord_cols = np.arange(1, cells.points.shape[1])
 		if isinstance(cells.points, pd.DataFrame):
-			translocations = cells.points.diff().ix[1:]
+			translocations = cells.points.diff().iloc[1:]
 		else:
 			translocations = np.diff(cells.points, axis=0)
+		## prevent a bug, solved using iloc instead of ix above
+		#assert translocations.shape[0] + 1 == cells.points.shape[0]
 		if isstructured(translocations):
 			ok = translocations[trajectory_col]==0
 			translocations = translocations[ok][coord_cols]

@@ -118,7 +118,7 @@ class Gas(Graph):
 		self.habituation_alpha = (1.05, 1.05) # should be greater than habituation_initial
 		self.habituation_tau = (3.33, 14.33) # supposed to be time, but actually is to be
 		# thought as a number of iterations; needs to be appropriately set
-		self.edge_lifetime = 50 # may depend on the number of neighbors per node and 
+		self.edge_lifetime = 100 # may depend on the number of neighbors per node and 
 		# therefore on the dimensionality of the data
 		self.batch_size = 1000 # should be an order of magnitude or two below the total
 		# sample size
@@ -361,6 +361,7 @@ class Gas(Graph):
 			if pass_count:
 				k = i * self.batch_size
 				if pass_count[0] and k < pass_count[0] * k1:
+					#print(('pass_count', k, pass_count[0] * k1))
 					continue
 				elif pass_count[1] and pass_count[1] * k1 <= k:
 					if verbose:
@@ -370,6 +371,7 @@ class Gas(Graph):
 				error_count = len([ residual for residual in r
 						if residual_max < residual ])
 				if error_count_tol < error_count:
+					#print(('error_count_tol', error_count_tol, error_count))
 					continue
 			if min_growth is not None:
 				growth = float(l - l_prev) / float(l_prev)

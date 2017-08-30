@@ -1,0 +1,4 @@
+
+class EfficiencyWarning(RuntimeWarning):
+	pass
+

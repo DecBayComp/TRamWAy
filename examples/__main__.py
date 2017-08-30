@@ -20,8 +20,8 @@ import importlib
 
 
 def main():
-	demo_dir = 'examples'
-	demo_path = demo_dir.replace(os.pathsep, '.')
+	demo_dir = os.path.dirname(__file__)
+	demo_path = __package__
 	pattern = re.compile(r'[a-zA-Z].*[.]py')
 	candidate_demos = [ os.path.splitext(fn)[0] \
 		for fn in os.listdir(demo_dir) \
@@ -29,7 +29,7 @@ def main():
 	demos = {}
 	for demo in candidate_demos:
 		path = '{}.{}'.format(demo_path, demo)
-		if six.PY2:
+		if True:#six.PY2:
 			if True:#try:
 				module = importlib.import_module(path)
 				if hasattr(module, 'demo_name'):
