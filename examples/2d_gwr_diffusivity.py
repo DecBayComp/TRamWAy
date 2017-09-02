@@ -1,13 +1,14 @@
 
 import os
 import sys
-from tramway.inference import DiffusivityWarning
+from tramway.inference import DiffusivityWarning, distributed
 from tramway.helper import *
 import matplotlib.pyplot as plt
 import warnings
 #warnings.simplefilter('error')
 import numpy as np
 import pandas as pd
+import numpy.linalg as la
 from math import *
 
 short_description = 'generate trajectories and infer diffusivity and potential maps'
@@ -23,8 +24,8 @@ minD = -localization_error
 dim = 2
 D0 = 0.2
 D = 1
-gradV0 = np.zeros(dim)
-gradV = .2 * np.random.randn(dim)
+normGradV0 = 0
+normGradV = .2
 name = '2d'
 
 
@@ -100,6 +101,10 @@ def main():
 
 	## define the ground truth (xyt_file)
 	if new_xyt:
+		gradV0 = np.full(dim, normGradV0, dtype=float)
+		random_dir = np.random.randn(dim)
+		random_dir /= la.norm(random_dir)
+		gradV = normGradV * random_dir
 		map_lower_bound = np.zeros(dim)
 		map_upper_bound = np.full((dim,), 20.0)
 		d_area_center = np.full((dim,), 12.0)
@@ -113,17 +118,48 @@ def main():
 		out_of_bounds = 20 * np.sum(np.abs(gradV))
 		def grad_force_map(x):
 			if any(x < map_lower_bound) or any(map_upper_bound < x):
+				# pull the particules back within the bounds
 				gv = np.zeros(dim)
 				gv[x < map_lower_bound] = -1
 				gv[map_upper_bound < x] = 1
 				return out_of_bounds * gv
-			d = x - v_area_center
-			d = np.dot(d, d)
-			return gradV if d <= v_area_radius * v_area_radius else gradV0
-		print("generating trajectories: {}".format(xyt_file))
+			v = x - v_area_center
+			s = -np.sign(np.dot(v, gradV))
+			d = np.dot(v, v)
+			return s * gradV if d <= v_area_radius * v_area_radius else gradV0
+		def force_map(x):
+			u = x - v_area_center
+			d2 = np.dot(u, u)
+			r2 = v_area_radius * v_area_radius
+			if d2 < r2:
+				e = np.dot(u, gradV) / la.norm(gradV)
+				e2 = e * e
+				f2 = d2 - e2
+				y = sqrt(r2 - f2) - sqrt(e2)
+				return gradV * y
+			else:
+				return gradV0 # should be 0
+		def truth(cells):
+			I, DF = [], []
+			for i in cells.cells:
+				cell = cells.cells[i]
+				I.append(i)
+				df = np.concatenate(([diffusivity_map(cell.center)], force_map(cell.center)))
+				DF.append(df)
+			DF = np.vstack(DF)
+			return pd.DataFrame(index=I, data=DF, columns = [ 'diffusivity' ] + \
+				[ 'force x' + str(col+1) for col in range(dim) ])
+		# simulate random walks
+		print('generating trajectories: {}'.format(xyt_file))
 		df = random_walk(map_lower_bound, map_upper_bound, diffusivity_map, grad_force_map)
 		#print(df)
 		df.to_csv(xyt_file, sep="\t", header=False)
+		# mesh regularly to sample ground truth for illustrative purposes
+		grid = tesselate(df, method='grid', min_cell_count=10)
+		cells = distributed(grid)
+		true_map = cells.run(truth)
+		print('ploting ground truth maps: {}'.format(out('*.truth', '.png')))
+		map_plot((cells, 'true', true_map), output_file=out('truth', '.png'), show=True, aspect='equal')
 		if not new_tesselation:
 			print("WARNING: tesselation will overwrite file '{}'".format(tesselation_file))
 			new_tesselation = True

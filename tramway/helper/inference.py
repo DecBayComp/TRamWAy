@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from warnings import warn
 import os
 from time import time
+import collections
 
 
 sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx']])
@@ -171,54 +172,86 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			figext = fig_format
 			filename, _ = os.path.splitext(input_file)
 
+	figs = []
 
-	if 'diffusivity' in maps:
-		fig0 = plt.figure(figsize=figsize)
+	scalar_vars = [('diffusivity', 'D'), ('potential', 'V')]
 
-		scalar_map_2d(cells, maps['diffusivity'], aspect=aspect)
-		plt.title('D ({} mode)'.format(mode))
+	for keyword, short_name in scalar_vars:
+		for col in maps.columns:
+			if keyword not in col:
+				continue
 
-		if print_figs:
-			if maps.shape[1] == 1:
-				diffusivity_file = '{}.{}'.format(filename, figext)
+			fig = plt.figure(figsize=figsize)
+			figs.append(fig)
+
+			scalar_map_2d(cells, maps[col], aspect=aspect)
+
+			if mode:
+				if col == keyword:
+					title = '{} ({} mode)'.format(short_name, mode)
+				else:
+					title = '{} ({} - {} mode)'.format(short_name, col, mode)
+			elif col == keyword:
+				title = '{}'.format(short_name)
 			else:
-				diffusivity_file = '{}_{}.{}'.format(filename, 'd', figext)
-			if verbose:
-				print('writing file: {}'.format(diffusivity_file))
-			fig0.savefig(diffusivity_file, dpi=dpi)
+				title = '{} ({})'.format(short_name, col)
+			plt.title(title)
+
+			if print_figs:
+				if maps.shape[1] == 1:
+					figfile = '{}.{}'.format(filename, figext)
+				else:
+					figfile = '{}_{}.{}'.format(filename, short_name.lower(), figext)
+				if verbose:
+					print('writing file: {}'.format(figfile))
+				fig.savefig(figfile, dpi=dpi)
 
 
-	if 'potential' in maps:
-		fig1 = plt.figure(figsize=figsize)
+	vector_vars = [('force', 'F'), ('grad', '')]
+	for keyword, short_name in vector_vars:
+		cols = collections.defaultdict(list)
+		for col in maps.columns:
+			if keyword in col:
+				parts = col.rsplit(None, 1)
+				if parts[1:]:
+					cols[parts[0]].append(col)
+		
+		for name in cols:
+			fig = plt.figure(figsize=figsize)
+			figs.append(fig)
 
-		scalar_map_2d(cells, maps['potential'], aspect=aspect)
-		plt.title('V ({} mode)'.format(mode))
+			field_map_2d(cells, maps[cols[name]], aspect=aspect)
 
-		if print_figs:
-			if maps.shape[1] == 1:
-				potential_file = '{}.{}'.format(filename, figext)
+			extra = None
+			if short_name:
+				main = short_name
+				if keyword != name:
+					extra = name
 			else:
-				potential_file = '{}_{}.{}'.format(filename, 'v', figext)
-			if verbose:
-				print('writing file: {}'.format(potential_file))
-			fig1.savefig(potential_file, dpi=dpi)
-
-
-	cols = [ col for col in maps.columns if col.startswith('force') ]
-	if cols: # 'force'
-		fig2 = plt.figure(figsize=figsize)
-
-		field_map_2d(cells, maps[cols], aspect=aspect)
-		plt.title('F ({} mode)'.format(mode))
-
-		if print_figs:
-			if maps.shape[1] == 1:
-				force_file = '{}.{}'.format(filename, figext)
+				main = name
+			if mode:
+				if extra:
+					extra += ' - {} mode'.format(mode)
+				else:
+					extra = '{} mode'.format(mode)
+			if extra:
+				title = '{} ({})'.format(main, extra)
 			else:
-				force_file = '{}_{}.{}'.format(filename, 'f', figext)
-			if verbose:
-				print('writing file: {}'.format(force_file))
-			fig2.savefig(force_file, dpi=dpi)
+				title = main
+			plt.title(title)
+
+			if print_figs:
+				if maps.shape[1] == 1:
+					figfile = '{}.{}'.format(filename, figext)
+				else:
+					if short_name:
+						ext = short_name.lower()
+					else:
+						ext = keyword
+					figfile = '{}_{}.{}'.format(filename, ext, figext)
+				if verbose:
+					print('writing file: {}'.format(figfile))
+				fig.savefig(figfile, dpi=dpi)
 
 
 	if show or not print_figs:

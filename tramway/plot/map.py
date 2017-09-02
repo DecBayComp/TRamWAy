@@ -118,7 +118,10 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None):
 		pts_j = cells.tesselation.cell_centers[J]
 	dist = la.norm(pts_i - pts_j, axis=1)
 	# scale force amplitude
-	scale = np.median(dist) / 2.0 / force_amplitude.median()
+	scale = np.nanmedian(force_amplitude)
+	if np.isclose(scale, 0):
+		scale = np.median(force_amplitude[0 < force_amplitude])
+	scale = np.nanmedian(dist) / 2.0 / scale
 	# 
 	dw = float(angular_width) / 2.0
 	t = tan(radians(dw))
