@@ -20,6 +20,7 @@ from copy import deepcopy
 import scipy.sparse as sparse
 from scipy.spatial.distance import cdist
 from ..core import *
+from ..tesselation import dict_to_sparse
 
 
 def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None):
@@ -107,8 +108,9 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 
 
 def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None):
-	vertices = cells.tesselation.cell_vertices
+	vertices = cells.tesselation.vertices
 	labels, color = _graph_theme(cells.tesselation, labels, color, negative)
+	color += 'w'
 	try:
 		special_edges = cells.tesselation.candidate_edges
 		#points = cells.descriptors(cells.points, asarray=True)
@@ -116,31 +118,50 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 		special_edges = {}
 	c = 0 # if cells.tesselation.adjacency_label is None
 	# plot voronoi
-	for edge_ix, vert_ids in enumerate(cells.tesselation.ridge_vertices):
-		if all(0 <= vert_ids):
-			x, y = vertices[vert_ids].T
-			if cells.tesselation.adjacency_label is not None:
-				try:
-					c = labels.index(cells.tesselation.adjacency_label[edge_ix])
-				except ValueError:
-					continue
-			plt.plot(x, y, style, color=color[c], linewidth=1)
+	#plt.plot(vertices[:,0], vertices[:,1], 'b+')
+	if cells.tesselation.adjacency_label is not None or special_edges:
+		n_cells = cells.tesselation._cell_centers.shape[0]
+		n_vertices = vertices.shape[0]
+		cell_vertex = dict_to_sparse(cells.tesselation.cell_vertices, \
+				shape=(n_cells, n_vertices)).tocsc()
+		adjacency = cells.tesselation.cell_adjacency.tocsr()
+	Av = sparse.tril(cells.tesselation.vertex_adjacency, format='coo')
+	d2 = np.sum((vertices[Av.row[0]] - vertices[Av.col[0]])**2)
+	for u, v in zip(Av.row, Av.col):
+		x, y = vertices[[u, v]].T
+		if cells.tesselation.adjacency_label is not None or special_edges:
+			try:
+				a, b = set(cell_vertex[:,u].indices) & set(cell_vertex[:,v].indices)
+				# adjacency may contain explicit zeros
+				js = list(adjacency.indices[adjacency.indptr[a]:adjacency.indptr[a+1]])
+				# js.index(b) will fail if a and b are not adjacent
+				edge_ix = adjacency.data[adjacency.indptr[a]+js.index(b)]
+			except (ValueError, IndexError):
+				print(traceback.format_exc())
+				print("vertices {} and {} do not match with a ridge".format(u, v))
+				continue
+		if cells.tesselation.adjacency_label is not None:
+			try:
+				c = labels.index(cells.tesselation.adjacency_label[edge_ix])
+			except ValueError:
+				continue
+		plt.plot(x, y, style, color=color[c], linewidth=1)
 
-			# extra debug steps
-			if edge_ix in special_edges:
-				#i, j, ii, jj = special_edges[edge_ix]
-				#try:
-				#	i = points[cells.cell_index == i][ii]
-				#	j = points[cells.cell_index == j][jj]
-				#except IndexError as e:
-				#	print(e)
-				#	continue
-				i, j = special_edges[edge_ix]
-				x_, y_ = zip(i, j)
-				plt.plot(x_, y_, 'c-')
-				x_, y_ = (i + j) / 2
-				plt.text(x_, y_, str(edge_ix), \
-					horizontalalignment='center', verticalalignment='center')
+		# extra debug steps
+		if special_edges and edge_ix in special_edges:
+			#i, j, ii, jj = special_edges[edge_ix]
+			#try:
+			#	i = points[cells.cell_index == i][ii]
+			#	j = points[cells.cell_index == j][jj]
+			#except IndexError as e:
+			#	print(e)
+			#	continue
+			i, j = special_edges[edge_ix]
+			x_, y_ = zip(i, j)
+			plt.plot(x_, y_, 'c-')
+			x_, y_ = (i + j) / 2
+			plt.text(x_, y_, str(edge_ix), \
+				horizontalalignment='center', verticalalignment='center')
 
 	centroids = cells.tesselation.cell_centers
 	# plot cell centers
@@ -178,10 +199,11 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 				continue
 			if label <= 0:
 				if negative is 'voronoi':
-					vert_ids = cells.tesselation.ridge_vertices[k]
-					if any(vert_ids < 0):
+					try:
+						vert_ids = set(self.cell_vertices.get(i, [])) & set(self.cell_vertices.get(j, []))
+						x, y = voronoi[vert_ids].T
+					except ValueError:
 						continue
-					x, y = voronoi[vert_ids].T
 		plt.plot(x, y, style, color=color[c], linewidth=1)
 
 	# plot cell centers

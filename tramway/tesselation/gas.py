@@ -163,18 +163,18 @@ class GasMesh(Voronoi):
 			shape=adjacency.shape)
 		A = sparse.tril(adjacency + delaunay, format='coo')
 		self._adjacency_label = A.data # labels are: 1=gas only, 2=voronoi only, 3=both
-		# edge indices for _adjacency_label and _ridge_vertices
+		# edge indices for _adjacency_label
 		adjacency = sparse.csr_matrix( \
 			(np.tile(np.arange(0, self._adjacency_label.size), 2), \
 			(np.concatenate((A.row, A.col)), np.concatenate((A.col, A.row)))), \
 			shape=adjacency.shape)
 		self._cell_adjacency = adjacency
-		# map the ridges index matrices
-		order = adjacency[voronoi.ridge_points[:,0], voronoi.ridge_points[:,1]]
-		new_ridge_vertices = -np.ones((self._adjacency_label.shape[0], 2), \
-			dtype=self._ridge_vertices.dtype)
-		new_ridge_vertices[order,:] = self._ridge_vertices
-		self._ridge_vertices = new_ridge_vertices
+		## map the ridges index matrices
+		#order = adjacency[voronoi.ridge_points[:,0], voronoi.ridge_points[:,1]]
+		#new_ridge_vertices = -np.ones((self._adjacency_label.shape[0], 2), \
+		#	dtype=self._ridge_vertices.dtype)
+		#new_ridge_vertices[order,:] = self._ridge_vertices
+		#self._cell_vertices = new_ridge_vertices
 		# reintroduce edges missing in the gas
 		if points is not None:
 			#t = time.time()

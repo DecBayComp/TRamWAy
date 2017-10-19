@@ -4,7 +4,6 @@ import sys
 from tramway.helper import tesselate, find_imt, infer, map_plot
 import matplotlib.pyplot as plt
 import warnings
-#warnings.simplefilter('error')
 
 short_description = 'infer and plot kmeans-based diffusivity and potential maps for the glycine receptor dataset'
 

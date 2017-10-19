@@ -318,6 +318,52 @@ class Distributed(Local):
 			cell.cache['area'] = area
 		return area
 
+	def dXdt(self, t, X):
+		"""
+		Time derivative.
+
+		Arguments:
+
+			t (float):
+				time at which the gradient is evaluated.
+
+			X (pandas.Series):
+				time series with time `t` included.
+
+		Results:
+
+			float or array:
+				time derivative of X at t.
+		"""
+		cell = self.cells[i]
+		adjacent = self.adjacency[i].indices
+		if index_map is not None:
+			i = index_map[i]
+			adjacent = index_map[adjacent]
+			ok = 0 <= adjacent
+			if not np.any(ok):
+				return None
+			adjacent = adjacent[ok]
+		if not isinstance(cell.cache, dict):
+			cell.cache = dict(vanders=None)
+		if cell.cache.get('vanders', None) is None:
+			if index_map is None:
+				span = cell.span
+			else:
+				span = cell.span[ok]
+			cell.cache['vanders'] = [ np.vander(col, 3)[...,:2] for col in span.T ]
+		dX = X[adjacent] - X[i]
+		try:
+			ok = np.logical_not(dX.mask)
+			if not np.any(ok):
+				#warn('Distributed.grad: all the points are masked', RuntimeWarning)
+				return None
+		except AttributeError:
+			ok = slice(dX.size)
+		gradX = np.array([ np.linalg.lstsq(vander[ok], dX[ok])[0][1] \
+			for vander in cell.cache['vanders'] ])
+		return gradX
+
 	def flatten(self):
 		def concat(arrays):
 			if isinstance(arrays[0], tuple):

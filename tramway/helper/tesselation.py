@@ -267,6 +267,10 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			store.close()
 		except:
 			warn('HDF5 libraries may not be installed', ImportWarning)
+			try:
+				os.unlink(imt_path)
+			except:
+				pass
 
 	return stats
 

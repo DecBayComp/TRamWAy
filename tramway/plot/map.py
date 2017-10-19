@@ -16,6 +16,7 @@ from math import tan, atan2, degrees, radians
 import numpy as np
 import pandas as pd
 import numpy.ma as ma
+from tramway.core.exceptions import NaNWarning
 from tramway.tesselation import *
 from tramway.inference import Distributed
 from matplotlib.patches import Polygon, Wedge
@@ -46,12 +47,26 @@ def scalar_map_2d(cells, values, aspect=None):
 					vertices = voronoi.vertices[region]
 					polygons.append(Polygon(vertices, True))
 	elif isinstance(cells, CellStats) and isinstance(cells.tesselation, Voronoi):
+		Av = cells.tesselation.vertex_adjacency.tocsr()
 		xy = cells.tesselation.cell_centers
 		ix = np.arange(xy.shape[0])
 		ok = 0 < cells.cell_count
 		for i in ix[ok]:
-			vertices = cells.tesselation.boundaries(i)
-			if vertices is not None:
+			vs = cells.tesselation.cell_vertices[i]
+			# order the vertices so that they draw a polygon
+			v = vs[0]
+			vs = set(list(vs))
+			vertices = []
+			while True:
+				vertices.append(cells.tesselation.vertices[v])
+				vs.remove(v)
+				ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
+				if not ws:
+					break
+				v = ws.pop()
+			#
+			if vertices:
+				vertices = np.vstack(vertices)
 				polygons.append(Polygon(vertices, True))
 	else:
 		raise TypeError('wrong type for `cells`: {}'.format(type(cells)))
@@ -65,7 +80,7 @@ def scalar_map_2d(cells, values, aspect=None):
 	try:
 		if np.any(np.isnan(scalar_map)):
 			#print(np.nonzero(np.isnan(scalar_map)))
-			warn('NaNs ; changing them into 0s', RuntimeWarning)
+			warn('NaNs ; changing them into 0s', NaNWarning)
 			scalar_map[np.isnan(scalar_map)] = 0
 	except TypeError as e: # help debug
 		print(scalar_map)

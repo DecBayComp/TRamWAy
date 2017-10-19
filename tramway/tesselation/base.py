@@ -22,6 +22,7 @@ from tramway.spatial.scaler import *
 from tramway.core import *
 #from collections import OrderedDict
 from warnings import warn
+import itertools
 
 
 class CellStats(Lazy):
@@ -488,47 +489,47 @@ class Voronoi(Delaunay):
 	Delaunay graph that connects the cell centers.
 	It implements the construction of this additional graph using :class:`scipy.spatial.Voronoi`.
 	This default implementation is lazy. If vertices and ridges are available, they are stored in
-	private attributes :attr:`_cell_vertices` and :attr:`_ridge_vertices`. Otherwise, when
-	`cell_vertices` or `ridge_vertices` properties are called, the attributes are 
-	transparently made available calling the :meth:`_postprocess` private method.
-	Memory space can thus be freed again, setting `cell_vertices` and `ridge_vertices` to ``None``.
+	private attributes :attr:`_vertices`, :attr:`_vertex_adjacency` and :attr:`_cell_vertices`.
+	Otherwise, when `vertices`, `vertex_adjacency` or `cell_vertices` properties are called, the 
+	attributes are transparently made available calling the :meth:`_postprocess` private method.
+	Memory space can thus be freed again, setting `vertices`, `vertex_adjacency` and `cell_vertices` 
+	to ``None``.
 	Note however that subclasses may override these on-time calculation mechanics.
 
 	Attributes:
 
-		_cell_vertices (numpy.ndarray): 
+		_vertices (numpy.ndarray): 
 			scaled coordinates of the Voronoi vertices.
 
-		_ridge_vertices (numpy.ndarray): 
-			2-column adjacency matrix specifying an edge as a pair
-			of indices in :attr:`cell_vertices`.
+		_vertex_adjacency (scipy.sparse):
+			adjacency matrix for Voronoi vertices.
 
-		_boundaries (list of list (of list) of ints):
-			indices of the vertices (in :attr:`cell_vertices`) of the polygons that bound
-			the cell.
+		_cell_vertices (dict of array-like):
+			mapping of cell indices to their associated vertices as indices in 
+			:attr:`vertices`.
 
 	"""
 	def __init__(self, scaler=Scaler()):
 		Delaunay.__init__(self, scaler)
+		self._vertices = None
+		self._vertex_adjacency = None
 		self._cell_vertices = None
-		self._ridge_vertices = None
-		self._boundaries = None
 
-	# cell_vertices property
+	# vertices property
 	@property
-	def cell_vertices(self):
+	def vertices(self):
 		"""Unscaled coordinates of the Voronoi vertices (numpy.ndarray)."""
-		if self._cell_centers is not None and self._cell_vertices is None:
+		if self._cell_centers is not None and self._vertices is None:
 			self._postprocess()
 		if isinstance(self.scaler.factor, pd.Series):
-			return self.scaler.unscalePoint(pd.DataFrame(self._cell_vertices, \
+			return self.scaler.unscalePoint(pd.DataFrame(self._vertices, \
 				columns=self.scaler.factor.index))
 		else:
-			return self.scaler.unscalePoint(self._cell_vertices)
+			return self.scaler.unscalePoint(self._vertices)
 
-	@cell_vertices.setter
-	def cell_vertices(self, vertices):
-		self._cell_vertices = self.scaler.scalePoint(vertices)
+	@vertices.setter
+	def vertices(self, vertices):
+		self._vertices = self.scaler.scalePoint(vertices)
 
 	# cell_adjacency property
 	@property
@@ -542,36 +543,50 @@ class Voronoi(Delaunay):
 	def cell_adjacency(self, matrix):
 		self._cell_adjacency = matrix
 
-	# ridge_vertices property
+	# cell_vertices property
 	@property
-	def ridge_vertices(self):
-		if self._cell_centers is not None and self._ridge_vertices is None:
+	def cell_vertices(self):
+		if self._cell_centers is not None and self._cell_vertices is None:
 			self._postprocess()
-		return self._ridge_vertices
+		return self._cell_vertices
 
-	@ridge_vertices.setter
-	def ridge_vertices(self, ridges):
-		self._ridge_vertices = ridges
+	@cell_vertices.setter
+	def cell_vertices(self, vertex_indices):
+		self._cell_vertices = vertex_indices
+
+	# vertex_adjacency property
+	@property
+	def vertex_adjacency(self):
+		if self._cell_centers is not None and self._vertex_adjacency is None:
+			self._postprocess()
+		return self._vertex_adjacency
+
+	@vertex_adjacency.setter
+	def vertex_adjacency(self, matrix):
+		self._vertex_adjacency = matrix
 
 	def _postprocess(self):
 		"""Compute the Voronoi.
 
-		This private method may be called anytime by :attr:`cell_vertices` or 
-		:attr:`ridge_vertices`.
+		This private method may be called anytime by :attr:`vertices`, :attr:`vertex_adjacency`
+		or :attr:`cell_vertices`.
 		"""
 		if self._cell_centers is None:
 			raise NameError('`cell_centers` not defined; tesselation has not been grown yet')
 		else:
 			voronoi = spatial.Voronoi(np.asarray(self._cell_centers))
-			self._cell_vertices = voronoi.vertices
-			self._boundaries = dict(enumerate( \
-				[ voronoi.regions[r] if 0 <= r else None \
-					for r in voronoi.point_region ]))
+			self._vertices = voronoi.vertices
+			self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
+					for i, r in enumerate(voronoi.point_region) if 0 <= r }
 			n_centers = self._cell_centers.shape[0]
 			#if not (len(voronoi.ridge_vertices) == voronoi.ridge_points.shape[0] and \
 			#	all([ len(v) == 2 for v in voronoi.ridge_vertices ])):
 			#	raise ValueError('not all edges have exactly 2 ends')
-			self._ridge_vertices = np.asarray(voronoi.ridge_vertices)
+			i, j = zip(*[ (i, j) for i, j in voronoi.ridge_vertices \
+					if not (i == -1 or j == -1) ])
+			n_vertices = self._vertices.shape[0]
+			self._vertex_adjacency = sparse.coo_matrix((np.ones(2 * len(i), dtype=bool),
+					(i + j, j + i)), shape=(n_vertices, n_vertices))
 			if self._cell_adjacency is None:
 				n_ridges = voronoi.ridge_points.shape[0]
 				self._cell_adjacency = sparse.csr_matrix((\
@@ -592,44 +607,6 @@ class Voronoi(Delaunay):
 	#	else:
 	#		return self._boundaries(cell_index)
 
-	def boundaries(self, cell_index):
-		if self._boundaries is None:
-			self._postprocess()
-			if self._boundaries is None:
-				self._boundaries = {}
-		if cell_index not in self._boundaries: # default implementation
-			if 1 < self.cell_adjacency.data[-1]:
-				region = self.ridge_vertices[self.cell_adjacency.tocsr()[cell_index].data]
-			else:
-				raise NotImplementedError('adjacency matrix is boolean')
-			# order the vertices so that they draw a polygon
-			neg, = np.nonzero(np.sum(region == -1, axis=1))
-			if neg.size:
-				r = [neg[0]]
-			else:
-				r = [0]
-			while len(r) < region.shape[0]:
-				_next, = np.nonzero(region[:,0] == region[r[-1],1])
-				_next = [ n for n in _next if n not in r ]
-				if _next:
-					r.append(_next[0])
-				else:
-					#print((len(r), region.shape[0]))
-					warn('default implementation is suitable only for 2d', RuntimeWarning)
-					i = 0
-					while i in r:
-						i += 1
-						if i == region.shape[0]:
-							print((region, r, i))
-							raise RuntimeError('something is going wrong')
-					r.append(i)
-			self._boundaries[cell_index] = [ region[v,0] for v in r ]
-		region = [ v for v in self._boundaries[cell_index] if 0 <= v ]
-		if region[1:]:
-			vertices = self._cell_vertices[region]
-		else:
-			vertices = None
-		return self.scaler.unscalePoint(vertices)
 
 
 class RegularMesh(Voronoi):
@@ -697,17 +674,17 @@ class RegularMesh(Voronoi):
 	def cell_centers(self, centers):
 		self._cell_centers = centers
 
-	# cell_vertices property
+	# vertices property
 	@property
-	def cell_vertices(self):
-		if self._cell_vertices is None:
+	def vertices(self):
+		if self._vertices is None:
 			vs = np.meshgrid(*self.grid, indexing='ij')
-			self._cell_vertices = np.column_stack([ v.flatten() for v in vs ])
-		return self._cell_vertices
+			self._vertices = np.column_stack([ v.flatten() for v in vs ])
+		return self._vertices
 
-	@cell_vertices.setter
-	def cell_vertices(self, vertices):
-		self._cell_vertices = vertices
+	@vertices.setter
+	def vertices(self, vertices):
+		self._vertices = vertices
 
 	# cell_adjacency property
 	@property
@@ -725,20 +702,61 @@ class RegularMesh(Voronoi):
 	def cell_adjacency(self, matrix):
 		self._cell_adjacency = matrix
 
-	# ridge_vertices property
+	# vertex_adjacency property
 	@property
-	def ridge_vertices(self):
-		if self._ridge_vertices is None:
+	def vertex_adjacency(self):
+		if self._vertex_adjacency is None:
 			vix = np.meshgrid(*[ np.arange(0, len(g)) for g in self.grid ], \
 				indexing='ij')
 			vix = np.column_stack([ g.flatten() for g in vix ])
 			v2  = np.atleast_2d(np.sum(vix * vix, axis=1))
-			vix = sparse.coo_matrix(np.abs(v2 + v2.T - 2 * np.dot(vix, vix.T) - 1.0) < 1e-6)
-			self._ridge_vertices = np.column_stack((vix.row, vix.col))
-		return self._ridge_vertices
+			self._vertex_adjacency = sparse.csr_matrix(\
+				np.abs(v2 + v2.T - 2 * np.dot(vix, vix.T) - 1.0) < 1e-6)
+		return self._vertex_adjacency
 
-	@ridge_vertices.setter # copy/paste
-	def ridge_vertices(self, ridges):
-		self._ridge_vertices = ridges
+	@vertex_adjacency.setter # copy/paste
+	def vertex_adjacency(self, matrix):
+		self._vertex_adjacency = matrix
 
+	# cell_vertices property
+	@property
+	def cell_vertices(self):
+		if self._cell_vertices is None:
+			cs, vs = self.cell_centers, self.vertices
+			c2 = np.atleast_2d(np.sum(cs * cs, axis=1))
+			v2 = np.atleast_2d(np.sum(vs * vs, axis=1))
+			d2 = np.sum((cs[0] - vs[0]) ** 2)
+			self._cell_vertices = sparse.dok_matrix(\
+				np.abs(c2.T + v2 - 2 * np.dot(cs, vs.T) - d2) < 1e-6)
+			#assert self._cell_vertices.tocsr() == dict_to_sparse(sparse_to_dict(self._cell_vertices), shape=self._cell_vertices.shape)
+			self._cell_vertices = sparse_to_dict(self._cell_vertices)
+		return self._cell_vertices
+
+	@cell_vertices.setter
+	def cell_vertices(self, matching):
+		self._cell_vertices = matching
+
+
+
+def dict_to_sparse(cell_vertex, shape=None):
+	if not sparse.issparse(cell_vertex):
+		if shape:
+			n_cells = shape[0]
+			args = [shape]
+		else:
+			n_cells = max(cell_vertex.keys())
+			args = []
+		indices = [ cell_vertex.get(c, []) for c in range(n_cells) ]
+		indptr = np.r_[0, np.cumsum([ len(list(vs)) for vs in indices ])]
+		indices = np.asarray(list(itertools.chain(*indices)))
+		cell_vertex = sparse.csr_matrix((np.ones(indices.size, dtype=bool), indices, indptr),
+			*args)
+	return cell_vertex
+
+def sparse_to_dict(cell_vertex):
+	if sparse.issparse(cell_vertex):
+		matrix = cell_vertex.tocsr()
+		cell_vertex = { i: matrix.indices[matrix.indptr[i]:matrix.indptr[i+1]] \
+				for i in range(matrix.shape[0]) }
+	return cell_vertex
 

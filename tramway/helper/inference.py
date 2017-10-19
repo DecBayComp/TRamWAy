@@ -30,7 +30,7 @@ sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx
 def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 	localization_error=None, priorD=None, priorV=None, jeffreys_prior=None, \
 	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
-	store_distributed=False, **kwargs):
+	store_distributed=False, constructor=None, **kwargs):
 
 	input_file = None
 	if isinstance(cells, str):
@@ -41,7 +41,9 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 		raise ValueError('no cells found')
 
 	# prepare the data for the inference
-	detailled_map = distributed(cells)
+	if constructor is None:
+		constructor = Distributed
+	detailled_map = distributed(cells, new=constructor)
 
 	if mode == 'DD' or mode == 'DV':
 		multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
@@ -52,7 +54,21 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 
 	runtime = time()
 
-	if mode == 'D':
+
+	if mode is None:
+
+		x = _map.run(localization_error=localization_error, priorD=priorD, priorV=priorV, \
+			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
+			worker_count=worker_count, **kwargs)
+
+	elif callable(mode):
+
+		x = _map.run(mode, \
+			localization_error=localization_error, priorD=priorD, priorV=priorV, \
+			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
+			worker_count=worker_count, **kwargs)
+		
+	elif mode == 'D':
 
 		# infer diffusivity (D mode)
 		diffusivity = _map.run(inferD, \
@@ -105,8 +121,12 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 			print('writing file: {}'.format(output_file))
 		try:
 			store = HDF5Store(output_file, 'w')
-			store.poke('mode', mode)
-			store.poke(mode, x)
+			if callable(mode):
+				store.poke('mode', '(callable)')
+				store.poke('result', x)
+			else:
+				store.poke('mode', mode)
+				store.poke(mode, x)
 			store.poke('min_diffusivity', min_diffusivity)
 			if localization_error is not None:
 				store.poke('localization_error', localization_error)

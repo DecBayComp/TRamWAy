@@ -52,7 +52,7 @@ delaunay_exposes = ['scaler', 'cell_adjacency', 'cell_label', 'adjacency_label',
 # cell_centers should be last
 hdf5_storable(default_storable(Delaunay, exposes=delaunay_exposes), agnostic=True)
 # Voronoi
-voronoi_exposes = ['cell_vertices', 'ridge_vertices'] + delaunay_exposes
+voronoi_exposes = ['vertices', 'vertex_adjacency', 'cell_vertices'] + delaunay_exposes
 hdf5_storable(default_storable(Voronoi, exposes=voronoi_exposes), agnostic=True)
 # RegularMesh
 regular_mesh_exposes = voronoi_exposes + ['lower_bound', 'upper_bound', 'count_per_dim', \
