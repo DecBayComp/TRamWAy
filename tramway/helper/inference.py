@@ -157,7 +157,8 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 
 
 def map_plot(maps, output_file=None, fig_format=None, \
-	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None):
+	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
+	**kwargs):
 
 	if isinstance(maps, tuple):
 		cells, mode, maps = maps
@@ -201,10 +202,17 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			if keyword not in col:
 				continue
 
+			col_kwargs = {}
+			for a in kwargs:
+				if isinstance(kwargs[a], (dict, pd.DataFrame)) and col in kwargs[a]:
+					col_kwargs[a] = kwargs[a][col]
+				else:
+					col_kwargs[a] = kwargs[a]
+
 			fig = plt.figure(figsize=figsize)
 			figs.append(fig)
 
-			scalar_map_2d(cells, maps[col], aspect=aspect)
+			scalar_map_2d(cells, maps[col], aspect=aspect, **col_kwargs)
 
 			if mode:
 				if col == keyword:
@@ -276,5 +284,8 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 	if show or not print_figs:
 		plt.show()
+	else:
+		for fig in figs:
+			plt.close(fig)
 
 

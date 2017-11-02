@@ -64,7 +64,10 @@ def inferD(cell, localization_error=0.0, jeffreys_prior=False, min_diffusivity=0
 		inferred = pd.DataFrame(data={'diffusivity': pd.Series(data=inferred)})
 		return inferred
 	else:
-		assert not np.isclose(np.mean(cell.dt), 0)
+		#assert not np.isclose(np.mean(cell.dt), 0)
+		if not np.all(0 < cell.dt):
+			warn('translocation dts are non-positive', RuntimeWarning)
+			cell.dt = abs(cell.dt)
 		initialD = np.mean(cell.dxy * cell.dxy) / (2.0 * np.mean(cell.dt))
 		cell.cache = None # initialize empty cache
 		if min_diffusivity is not None:
@@ -109,6 +112,9 @@ def inferDF(cell, localization_error=0.0, jeffreys_prior=False, min_diffusivity=
 				[ 'force '+col for col in next(iter(cell.cells.values())).space_cols ])
 		return inferred
 	else:
+		if not np.all(0 < cell.dt):
+			warn('translocation dts are non-positive', RuntimeWarning)
+			cell.dt = abs(cell.dt)
 		initialD = np.mean(cell.dxy * cell.dxy) / (2.0 * np.mean(cell.dt))
 		initialF = np.zeros(cell.dim, dtype=initialD.dtype)
 		df = ChainArray('D', initialD, 'F', initialF)
@@ -170,6 +176,9 @@ def inferDD(cells, localization_error=0.0, priorD=None, jeffreys_prior=None, \
 	for i in cells.cells:
 		cell = cells.cells[i]
 		if 0 < cell.tcount:
+			if not np.all(0 < cell.dt):
+				warn('translocation dts are non-positive', RuntimeWarning)
+				cell.dt = abs(cell.dt)
 			cell.cache = dict(dxy2=None, area=None) # initialize cached constants
 			dt_mean_i = np.mean(cell.dt)
 			initial.append((i, j, \
@@ -260,6 +269,9 @@ def inferDV(cell, localization_error=0.0, priorD=None, priorV=None, jeffreys_pri
 	for i in cell.cells:
 		c = cell.cells[i]
 		if 0 < c.tcount:
+			if not np.all(0 < c.dt):
+				warn('translocation dts are non-positive', RuntimeWarning)
+				c.dt = abs(c.dt)
 			initial.append((i, \
 				np.mean(c.dxy * c.dxy) / (2.0 * np.mean(c.dt)), \
 				-log(float(c.tcount) / float(cell.tcount)), \

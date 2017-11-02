@@ -143,6 +143,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		transloc_length = None
 	else:
 		transloc_xy = np.asarray(translocations(xyt_data))
+		if transloc_xy.shape[0] == 0:
+			raise ValueError('no translocation found')
 		transloc_length = np.nanmean(np.sqrt(np.sum(transloc_xy * transloc_xy, axis=1)))
 		if verbose:
 			print('average translocation distance: {}'.format(transloc_length))
@@ -386,9 +388,11 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 	min_cell_count = cells.param.get('min_cell_count', 0)
 
 	# plot the data points together with the tesselation
+	figs = []
 	dim = cells.tesselation.cell_centers.shape[1]
 	if dim == 2:
-		fig0 = plt.figure(figsize=figsize)
+		fig = plt.figure(figsize=figsize)
+		figs.append(fig)
 		if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
 			plot_points(cells)
 		else:
@@ -426,12 +430,13 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			vor_file = '{}.{}.{}'.format(filename, sub_extensions['vor'], figext)
 			if verbose:
 				print('writing file: {}'.format(vor_file))
-			fig0.savefig(vor_file, dpi=dpi)
+			fig.savefig(vor_file, dpi=dpi)
 
 
 	if point_count_hist:
 		# plot a histogram of the number of points per cell
-		fig1 = plt.figure()
+		fig = plt.figure()
+		figs.append(fig)
 		plt.hist(cells.cell_count, bins=np.arange(0, min_cell_count*20, min_cell_count))
 		plt.plot((min_cell_count, min_cell_count), plt.ylim(), 'r-')
 		plt.title(method_title)
@@ -440,7 +445,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			hpc_file = '{}.{}.{}'.format(filename, 'hpc', figext)
 			if verbose:
 				print('writing file: {}'.format(hpc_file))
-			fig1.savefig(hpc_file)
+			fig.savefig(hpc_file)
 
 	if cell_dist_hist:
 		# plot a histogram of the distance between adjacent cell centers
@@ -452,7 +457,8 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			j = j[0 < label[k]]
 		pts = cells.tesselation.cell_centers
 		dist = la.norm(pts[i,:] - pts[j,:], axis=1)
-		fig2 = plt.figure()
+		fig = plt.figure()
+		figs.append(fig)
 		plt.hist(np.log(dist), bins=50)
 		if avg_distance:
 			dmin = np.log(min_distance)
@@ -465,12 +471,13 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			hcd_file = '{}.{}.{}'.format(filename, sub_extensions['hcd'], figext)
 			if verbose:
 				print('writing file: {}'.format(hcd_file))
-			fig2.savefig(hcd_file)
+			fig.savefig(hcd_file)
 
 	if point_dist_hist:
 		adj = point_adjacency_matrix(cells, symetric=False)
 		dist = adj.data
-		fig3 = plt.figure()
+		fig = plt.figure()
+		figs.append(fig)
 		plt.hist(np.log(dist), bins=100)
 		if avg_distance:
 			dmin = np.log(min_distance)
@@ -483,10 +490,13 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			hpd_file = '{}.{}.{}'.format(filename, sub_extensions['hpd'], figext)
 			if verbose:
 				print('writing file: {}'.format(hpd_file))
-			fig3.savefig(hpd_file)
+			fig.savefig(hpd_file)
 
 	if show or not print_figs:
 		plt.show()
+	else:
+		for fig in figs:
+			plt.close(fig)
 
 
 def find_imt(path, method=None, full_list=False):

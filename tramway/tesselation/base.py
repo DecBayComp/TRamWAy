@@ -76,18 +76,48 @@ class CellStats(Lazy):
 
 	"""
 
-	__slots__ = ['points', 'cell_index', '_cell_count', '_bounding_box', 'param', 'tesselation']
+	__slots__ = ['_points', '_cell_index', '_cell_count', '_bounding_box', 'param', '_tesselation']
 	__lazy__ = ['cell_count', 'bounding_box']
 
 	def __init__(self, cell_index=None, cell_count=None, bounding_box=None, points=None, \
 		tesselation=None, param={}):
 		Lazy.__init__(self)
-		self.points = points
+		self._points = points
 		self.cell_index = cell_index
 		self._cell_count = cell_count
 		self._bounding_box = bounding_box
 		self.param = param
-		self.tesselation = tesselation
+		self._tesselation = tesselation
+
+	@property
+	def cell_index(self):
+		if self._cell_index is None:
+			self._cell_index = self.tesselation.cellIndex(self.points)
+		return self._cell_index
+
+	@cell_index.setter
+	def cell_index(self, index):
+		self.__lazysetter__(index)
+
+	@property
+	def points(self):
+		return self._points
+
+	@points.setter
+	def points(self, pts):
+		self._points = pts
+		self.cell_index = None
+		self.bounding_box = None
+
+	@property
+	def tesselation(self):
+		return self._tesselation
+
+	@tesselation.setter
+	def tesselation(self, mesh):
+		self._tesselation = mesh
+		self.cell_index = None
+		self.cell_count = None
 
 	def descriptors(self, *vargs, **kwargs):
 		"""Proxy method for :meth:`Tesselation.descriptors`."""
@@ -579,14 +609,18 @@ class Voronoi(Delaunay):
 			self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
 					for i, r in enumerate(voronoi.point_region) if 0 <= r }
 			n_centers = self._cell_centers.shape[0]
-			#if not (len(voronoi.ridge_vertices) == voronoi.ridge_points.shape[0] and \
-			#	all([ len(v) == 2 for v in voronoi.ridge_vertices ])):
-			#	raise ValueError('not all edges have exactly 2 ends')
-			i, j = zip(*[ (i, j) for i, j in voronoi.ridge_vertices \
-					if not (i == -1 or j == -1) ])
+			# decompose the ridges as valid pairs of vertices and build an adjacency matrix
+			ps = []
+			for r in voronoi.ridge_vertices:
+				pairs = np.c_[r, np.roll(r, 1)]
+				pairs = pairs[np.logical_not(np.any(pairs == -1, axis=1))]
+				ps.append(pairs)
+			ij = np.concatenate(ps)
 			n_vertices = self._vertices.shape[0]
-			self._vertex_adjacency = sparse.coo_matrix((np.ones(2 * len(i), dtype=bool),
-					(i + j, j + i)), shape=(n_vertices, n_vertices))
+			self._vertex_adjacency = sparse.coo_matrix((np.ones(ij.size, dtype=bool),
+					(ij.ravel('F'), np.fliplr(ij).ravel('F'))),
+				shape=(n_vertices, n_vertices))
+			#
 			if self._cell_adjacency is None:
 				n_ridges = voronoi.ridge_points.shape[0]
 				self._cell_adjacency = sparse.csr_matrix((\

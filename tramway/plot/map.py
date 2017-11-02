@@ -28,7 +28,7 @@ import scipy.sparse as sparse
 from warnings import warn
 
 
-def scalar_map_2d(cells, values, aspect=None):
+def scalar_map_2d(cells, values, aspect=None, clim=None):
 	if isinstance(values, pd.DataFrame):
 		if values.shape[1] != 1:
 			warn('multiple parameters available; mapping first one only', UserWarning)
@@ -90,6 +90,8 @@ def scalar_map_2d(cells, values, aspect=None):
 	fig, ax = plt.gcf(), plt.gca() # before PatchCollection
 	patches = PatchCollection(polygons, alpha=0.9)
 	patches.set_array(scalar_map)
+	if clim is not None:
+		patches.set_clim(clim)
 	ax.add_collection(patches)
 
 	ax.set_xlim(xy_min[0], xy_max[0])

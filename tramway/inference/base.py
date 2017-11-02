@@ -424,7 +424,6 @@ class Distributed(Local):
 				if max_cell_count:
 					avg_probability = min(float(max_cell_count) / \
 						float(points.shape[0]), avg_probability)
-				from tramway.tesselation import KMeansMesh
 				grid = KMeansMesh(avg_probability=avg_probability)
 				grid.tesselate(points[ok])
 			else:
@@ -601,10 +600,11 @@ class Cell(Local):
 			is totally free and comes without support for concurrency.
 
 	"""
-	__slots__ = Local.__slots__ + ['_time_col', '_space_cols', 'cache']
+	__slots__ = Local.__slots__ + ['_time_col', '_space_cols', 'cache', 'origins', 'destinations', \
+		'fuzzy']
 	__lazy__  = Local.__lazy__  + ['time_col', 'space_cols']
 
-	def __init__(self, index, translocations, center=None, span=None):
+	def __init__(self, index, translocations, center=None, span=None, origins=None):
 		if not (isinstance(translocations, np.ndarray) or isinstance(translocations, pd.DataFrame)):
 			raise TypeError('unsupported translocation type `{}`'.format(type(translocations)))
 		Local.__init__(self, index, translocations, center, span)
@@ -613,6 +613,9 @@ class Cell(Local):
 		self._space_cols = None
 		self.cache = None
 		#self.translocations = (self.dxy, self.dt)
+		self.origins = None
+		self.destinations = None
+		self.fuzzy = None
 
 	@property
 	def translocations(self):
@@ -666,6 +669,10 @@ class Cell(Local):
 			self.translocations = (self._dxy(), self._dt())
 		return self.translocations[1]
 
+	@dt.setter
+	def dt(self, dt):
+		self.translocations = (self.dxy, dt)
+
 	def _dt(self):
 		if isstructured(self.translocations):
 			return np.asarray(self.translocations[self.time_col])
@@ -700,9 +707,94 @@ class Cell(Local):
 	def tcount(self, c): # ro
 		self.__lazyassert__(c, 'translocations')
 
+	@property
+	def t(self):
+		if isstructured(self.origins):
+			return np.asarray(self.origins[self.time_col])
+		else:
+			return np.asarray(self.origins[:,self.time_col])
 
 
-def distributed(cells, new=Distributed):
+def get_translocations(points, index=None):
+	if isstructured(points):
+		trajectory_col = 'n'
+		coord_cols = columns(points)
+		if isinstance(coord_cols, pd.Index):
+			coord_cols = coord_cols.drop(trajectory_col)
+		else:
+			coord_cols.remove(trajectory_col)
+	else:
+		trajectory_col = 0
+		coord_cols = np.arange(1, points.shape[1])
+	if isinstance(points, pd.DataFrame):
+		def get_point(a, i):
+			return a.iloc[i]
+		final = np.asarray(points[trajectory_col].diff() == 0)
+		points = points[coord_cols]
+	else:
+		if isstructured(points):
+			def get_point(a, i):
+				return a[i,:]
+			n = points[trajectory_col]
+			points = points[coord_cols]
+		else:
+			def get_point(a, i):
+				return a[i]
+			n = points[:,trajectory_col]
+			points = points[:,coord_cols]
+		final = np.r_[False, np.diff(n, axis=0) == 0]
+	initial = np.r_[final[1:], False]
+	# points
+	initial_point = get_point(points, initial)
+	final_point = get_point(points, final)
+	# cell indices
+	if index is None:
+		initial_cell = final_cell = None
+	elif isinstance(index, np.ndarray):
+		initial_cell = index[initial]
+		final_cell = index[final]
+	elif isinstance(index, tuple):
+		ix = np.full(points.shape[0], -1, dtype=index[1].dtype)
+		if isinstance(points, pd.DataFrame):
+			points['cell'] = ix
+			points.loc[index[0], 'cell'] = index[1]
+			initial_cell = np.asarray(points['cell'].iloc[initial])
+			final_cell = np.asarray(points['cell'].iloc[final])
+		else:
+			ix[index[0]] = index[1]
+			initial_cell = ix[initial]
+			final_cell = ix[final]
+	elif sparse.issparse(index): # sparse matrix
+		index = index.tocsr(True)
+		initial_cell = index[initial].indices # and not cells.cell_index!
+		final_cell = index[final].indices
+	else:
+		raise ValueError('wrong index format')
+	return initial_point, final_point, initial_cell, final_cell, get_point
+
+
+def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
+		new_cell_kwargs={}, new_mesh_kwargs={}, fuzzy_kwargs={},
+		new=None):
+	if new is not None:
+		# `new` is for backward compatibility
+		new_mesh = new
+	if fuzzy is None:
+		def f(tesselation, cell, initial_point, final_point,
+				initial_cell=None, final_cell=None, get_point=None):
+			## example handling:
+			#j = np.logical_or(initial_cell == cell, final_cell == cell)
+			#initial_point = get_point(initial_point, j)
+			#final_point = get_point(final_point, j)
+			#initial_cell = initial_cell[j]
+			#final_cell = final_cell[j]
+			#i = final_cell == cell # criterion i could be more sophisticated
+			#j[j] = i
+			#return j
+			if final_cell is None:
+				raise ValueError('missing cell index')
+			return final_cell == cell
+		fuzzy = f
 	if isinstance(cells, CellStats):
 		# simplify the adjacency matrix
 		if cells.tesselation.adjacency_label is None:
@@ -717,88 +809,73 @@ def distributed(cells, new=Distributed):
 		# reweight each row i as 1/n_i where n_i is the degree of cell i
 		n = np.diff(_adjacency.indptr)
 		_adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
-		# extract translocations and define point-translocation matching
-		ncells = _adjacency.shape[0]
-		if isstructured(cells.points):
-			trajectory_col = 'n'
-			coord_cols = columns(cells.points)
-			if isinstance(coord_cols, pd.Index):
-				coord_cols = coord_cols.drop(trajectory_col)
-			else:
-				coord_cols.remove(trajectory_col)
-		else:
-			trajectory_col = 0
-			coord_cols = np.arange(1, cells.points.shape[1])
-		if isinstance(cells.points, pd.DataFrame):
-			translocations = cells.points.diff().iloc[1:]
-		else:
-			translocations = np.diff(cells.points, axis=0)
-		## prevent a bug, solved using iloc instead of ix above
-		#assert translocations.shape[0] + 1 == cells.points.shape[0]
-		if isstructured(translocations):
-			ok = translocations[trajectory_col]==0
-			translocations = translocations[ok][coord_cols]
-		else:
-			ok = translocations[:,trajectory_col]==0
-			translocations = translocations[ok][:,coord_cols]
-		#ok, = ok.nonzero()
-		#ok += 1 # will take into account only second location
-		ok = np.concatenate(([False], ok))
 		# time and space columns in translocations array
-		if isstructured(translocations):
+		if isstructured(cells.points):
 			time_col = 't'
-			space_cols = columns(translocations)
+			not_space = ['n', time_col]
+			space_cols = columns(cells.points)
 			if isinstance(space_cols, pd.Index):
-				space_cols = space_cols.drop(time_col)
+				space_cols = space_cols.drop(not_space)
 			else:
-				space_cols.remove(time_col)
+				space_cols = [ c for c in space_cols if c not in not_space ]
 		else:
-			time_col = translocations.shape[1]
-			if time_col == translocations.shape[1]:
+			time_col = cells.points.shape[1] - 1
+			if time_col == cells.points.shape[1] - 1:
 				space_cols = np.arange(time_col)
 			else:
-				space_cols = np.ones(translocations.shape[1], dtype=bool)
+				space_cols = np.ones(cells.points.shape[1], dtype=bool)
 				space_cols[time_col] = False
 				space_cols, = space_cols.nonzero()
+		# format translocations
+		ncells = _adjacency.shape[0]
+		initial_point, final_point, initial_cell, final_cell, get_point = \
+			get_translocations(cells.points, cells.cell_index)
 		# build every cells
-		if sparse.issparse(cells.cell_index):
-			cell_index = cells.cell_index.tocsr(True)
-			#row, col, data = cell_index.row, cell_index.col, cell_index.data
-			#cell_index = sparse.csr_matrix((data, (col, row)), shape=cell_index.shape)
 		_cells = OrderedDict()
 		for j in range(ncells): # for each cell
-			# get the translocations with second location in this cell
-			if isinstance(cells.cell_index, np.ndarray):
-				i = cells.cell_index[ok] == j
-				i = i[1:] # translocations instead of locations
-			elif isinstance(cells.cell_index, tuple):
-				i = cells.cell_index[0][cells.cell_index[1] == j]
-				i = i[ok[i]] - 1 # translocations instead of locations
-			else: # sparse matrix
-				i = cell_index[j].indices # and not cells.cell_index!
-				i = i[ok[i]] - 1 # translocations instead of locations
-			if isinstance(translocations, pd.DataFrame):
-				transloc = translocations.iloc[i]
+			i = fuzzy(cells.tesselation, j,
+				initial_point, final_point, initial_cell, final_cell, get_point,
+				**fuzzy_kwargs)
+			if i.dtype in (bool, np.bool, np.bool8, np.bool_):
+				_fuzzy = None
 			else:
-				transloc = translocations[i]
-			center = cells.tesselation.cell_centers[j]
-			adj = _adjacency[j].indices
-			span = cells.tesselation.cell_centers[adj]
-			#if transloc.size:
+				_fuzzy = i[i != 0]
+				i = i != 0
+			_origin = get_point(initial_point, i)
+			_destination = get_point(final_point, i)
+			__origin = _origin.copy() # make copy
+			__origin.index += 1
+			translocations = _destination - __origin
+			try:
+				center = cells.tesselation.cell_centers[j]
+			except AttributeError:
+				center = span = None
+			else:
+				adj = _adjacency[j].indices
+				span = cells.tesselation.cell_centers[adj] - center
+			#if translocations.size:
 			# make cell object
-			_cells[j] = Cell(j, transloc, center, span - center)
+			_cells[j] = new_cell(j, translocations, center, span, **new_cell_kwargs)
 			_cells[j].time_col = time_col
 			_cells[j].space_cols = space_cols
+			try:
+				_cells[j].origins = _origin
+			except AttributeError:
+				pass
+			try:
+				_cells[j].destinations = _destination
+			except AttributeError:
+				pass
+			try:
+				_cells[j].fuzzy = _fuzzy
+			except AttributeError:
+				pass
 		#print(sum([ c.tcount == 0 for c in _cells.values() ]))
-		self = new(_cells, _adjacency)
+		self = new_mesh(_cells, _adjacency, **new_mesh_kwargs)
 		self.tcount = cells.points.shape[0]
 		#self.dim = cells.points.shape[1]
-		#if isstructured(self.translocations):
-		#	self.dt = np.asarray(cells.points[time_col])
-		#	self.dxy = np.asarray(cells.points[space_cols])
-		#else:
-		#	self.dt = np.asarray(cells.points[:,time_col])
-		#	self.dxy = np.asarray(cells.points[:,space_cols])
+		#self.dt = np.asarray(get_point(cells.points, time_col))
+		#self.dxy = np.asarray(get_point(cells.points, space_cols))
 	else:
 		raise TypeError('`cells` is not a `CellStats`')
 	self.ccount = self.adjacency.shape[0]
