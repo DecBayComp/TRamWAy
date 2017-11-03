@@ -29,7 +29,7 @@ sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx
 
 def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 	localization_error=None, priorD=None, priorV=None, jeffreys_prior=None, \
-	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
+	max_location_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
 	store_distributed=False, constructor=None, **kwargs):
 
 	input_file = None
@@ -46,7 +46,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 	detailled_map = distributed(cells, new=constructor)
 
 	if mode == 'DD' or mode == 'DV':
-		multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
+		multiscale_map = detailled_map.group(max_location_count=max_location_count, \
 			adjacency_margin=dilation)
 		_map = multiscale_map
 	else:
@@ -158,11 +158,15 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 
 def map_plot(maps, output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
+	cells=None, mode=None, \
 	**kwargs):
 
 	if isinstance(maps, tuple):
 		cells, mode, maps = maps
 		input_file = None
+	elif isinstance(maps, pd.DataFrame):
+		if cells is None:
+			raise ValueError('`cells` is not defined')
 	else:
 		input_file = maps
 		try:

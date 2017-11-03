@@ -31,7 +31,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 		points = cells.descriptors(cells.points, asarray=True)
 		label = cells.cell_index
 		npts = points.shape[0]
-		ncells = cells.cell_count.size
+		ncells = cells.location_count.size
 		# if label is not a single index vector, convert it following 
 		# tesselation.base.Delaunay.cellIndex with `prefered`='force index'.
 		if isinstance(label, tuple):
@@ -76,7 +76,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 					label[p] = cells[np.argmin(np.sum(D * D, axis=1))]
 		#
 		if min_count and ('knn' not in cells.param or min_count < cells.param['knn']):
-			cell_mask = min_count <= cells.cell_count
+			cell_mask = min_count <= cells.location_count
 			label[np.logical_not(cell_mask[cells.cell_index])] = -1
 			#label = cell_mask[cells.cell_index]
 

@@ -66,17 +66,18 @@ def main():
 				f[map_upper_bound < x] = -1
 				return out_of_bounds * f
 			v = x - v_area_center
-			s = -np.sign(np.dot(v, f))
+			s = np.sign(np.dot(v, -gradV))
 			d = np.dot(v, v)
-			return s * -gradV if d <= v_area_radius * v_area_radius else -gradV0
+			return -s * -gradV if d <= v_area_radius * v_area_radius else -gradV0
 		# simulate random walks
 		print('generating trajectories: {}'.format(xyt_file))
 		df = random_walk(diffusivity_map, force_map, \
-			np.r_[map_lower_bound, map_upper_bound - map_lower_bound])
+			duration = 10, \
+			box = np.r_[map_lower_bound, map_upper_bound - map_lower_bound])
 		#print(df)
 		df.to_csv(xyt_file, sep="\t", header=False)
 		# mesh regularly to sample ground truth for illustrative purposes
-		grid = tesselate(df, method='grid', min_cell_count=10)
+		grid = tesselate(df, method='grid', min_location_count=10)
 		cells = distributed(grid)
 		true_map = cells.run(truth, diffusivity=diffusivity_map, force=force_map)
 		print('ploting ground truth maps: {}'.format(out('*.truth', '.png')))
@@ -88,7 +89,7 @@ def main():
 	## tesselate (tesselation_file)
 	if new_tesselation:
 		tesselate(xyt_file, method, output_file=tesselation_file, \
-			verbose=True, strict_min_cell_size=10)
+			verbose=True, strict_min_location_count=10)
 		cell_plot(tesselation_file, output_file=out(method, '.mesh.png'), \
 			show=True, aspect='equal')
 

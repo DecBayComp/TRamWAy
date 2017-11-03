@@ -45,7 +45,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaling=False, time_scale=None, \
 	knn=None, \
 	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
-	min_cell_count=20, avg_cell_count=None, max_cell_count=None, strict_min_cell_size=None, \
+	min_location_count=20, avg_location_count=None, max_location_count=None, \
+	strict_min_location_count=None, \
 	compress=False, \
 	**kwargs):
 	"""
@@ -111,15 +112,15 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		rel_max_distance (float, optional):
 			Multiplies with `ref_distance` to define the maximum inter-cell distance.
 
-		min_cell_count (int, optional):
+		min_location_count (int, optional):
 			Minimum number of points per cell. Depending on the method, can be strictly
 			enforced or interpreted as a hint.
 
-		avg_cell_count (int, optional):
+		avg_location_count (int, optional):
 			Hint of the average number of points per cell. Per default set to four times
-			`min_cell_count`.
+			`min_location_count`.
 
-		max_cell_count (int, optional):
+		max_location_count (int, optional):
 			Maximum number of points per cell. This is used only by `kdtree`.
 
 
@@ -169,23 +170,23 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaler = scalers[scaling]()
 
 	n_pts = float(xyt_data.shape[0])
-	if min_cell_count:
-		min_probability = float(min_cell_count) / n_pts
+	if min_location_count:
+		min_probability = float(min_location_count) / n_pts
 	else:
 		min_probability = None
-		warn('undefined `min_cell_count`; not tested', UseCaseWarning)
-	if not avg_cell_count:
-		avg_cell_count = 4 * min_cell_count
-	if avg_cell_count:
-		avg_probability = float(avg_cell_count) / n_pts
+		warn('undefined `min_location_count`; not tested', UseCaseWarning)
+	if not avg_location_count:
+		avg_location_count = 4 * min_location_count
+	if avg_location_count:
+		avg_probability = float(avg_location_count) / n_pts
 	else:
 		avg_probability = None
-		warn('undefined `avg_cell_count`; not tested', UseCaseWarning)
-	if max_cell_count:
+		warn('undefined `avg_location_count`; not tested', UseCaseWarning)
+	if max_location_count:
 		# applies only to KDTreeMesh
-		max_probability = float(max_cell_count) / n_pts
+		max_probability = float(max_location_count) / n_pts
 		if method != 'kdtree':
-			warn('`max_cell_count` is relevant only with `kdtree`', IgnoredInputWarning)
+			warn('`max_location_count` is relevant only with `kdtree`', IgnoredInputWarning)
 	else:
 		max_probability = None
 
@@ -211,11 +212,12 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	# partition the dataset into the cells of the tesselation
 	if knn is None:
-		cell_index = tess.cellIndex(xyt_data, min_cell_size=strict_min_cell_size)
+		cell_index = tess.cellIndex(xyt_data, min_location_count=strict_min_location_count)
 	else:
-		if strict_min_cell_size is None:
-			strict_min_cell_size = min_cell_count
-		cell_index = tess.cellIndex(xyt_data, knn=knn, min_cell_size=strict_min_cell_size, \
+		if strict_min_location_count is None:
+			strict_min_location_count = min_location_count
+		cell_index = tess.cellIndex(xyt_data, knn=knn, \
+			min_location_count=strict_min_location_count, \
 			metric='euclidean')
 
 	stats = CellStats(cell_index, points=xyt_data, tesselation=tess)
@@ -231,12 +233,12 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		stats.param['avg_distance'] = avg_distance
 	if max_distance:
 		stats.param['max_distance'] = max_distance
-	if min_cell_count:
-		stats.param['min_cell_count'] = min_cell_count
-	if avg_cell_count:
-		stats.param['avg_cell_count'] = avg_cell_count
-	if max_cell_count:
-		stats.param['max_cell_count'] = min_cell_count
+	if min_location_count:
+		stats.param['min_location_count'] = min_location_count
+	if avg_location_count:
+		stats.param['avg_location_count'] = avg_location_count
+	if max_location_count:
+		stats.param['max_location_count'] = min_location_count
 	if knn:
 		stats.param['knn'] = knn
 	#if spatial_overlap: # deprecated
@@ -281,7 +283,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, \
-	point_count_hist=False, cell_dist_hist=False, point_dist_hist=False, \
+	location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
 	aspect=None):
 	"""
 	Partition plots.
@@ -318,7 +320,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			Passed to :func:`matplotlib.pyplot.savefig`. Applies only to the spatial 
 			representation figure.
 
-		point_count_hist (bool, optional):
+		location_count_hist (bool, optional):
 			Plot a histogram of point counts (per cell). If the figure is saved, the 
 			corresponding file will have sub-extension `.hpc`.
 
@@ -326,7 +328,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			Plot a histogram of distances between neighbor centroids. If the figure is 
 			saved, the corresponding file will have sub-extension `.hcd`.
 
-		point_dist_hist (bool, optional):
+		location_dist_hist (bool, optional):
 			Plot a histogram of distances between points from neighbor cells. If the figure 
 			is saved, the corresponding file will have sub-extension `.hpd`.
 
@@ -385,7 +387,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 	method_name, pp_method_name, method_title = method_name[type(cells.tesselation)]
 	min_distance = cells.param.get('min_distance', 0)
 	avg_distance = cells.param.get('avg_distance', None)
-	min_cell_count = cells.param.get('min_cell_count', 0)
+	min_location_count = cells.param.get('min_location_count', 0)
 
 	# plot the data points together with the tesselation
 	figs = []
@@ -396,7 +398,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 		if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
 			plot_points(cells)
 		else:
-			plot_points(cells, min_count=min_cell_count)
+			plot_points(cells, min_count=min_location_count)
 		if aspect is not None:
 			plt.gca().set_aspect(aspect)
 		if xy_layer == 'delaunay':
@@ -433,12 +435,12 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			fig.savefig(vor_file, dpi=dpi)
 
 
-	if point_count_hist:
+	if location_count_hist:
 		# plot a histogram of the number of points per cell
 		fig = plt.figure()
 		figs.append(fig)
-		plt.hist(cells.cell_count, bins=np.arange(0, min_cell_count*20, min_cell_count))
-		plt.plot((min_cell_count, min_cell_count), plt.ylim(), 'r-')
+		plt.hist(cells.location_count, bins=np.arange(0, min_location_count*20, min_location_count))
+		plt.plot((min_location_count, min_location_count), plt.ylim(), 'r-')
 		plt.title(method_title)
 		plt.xlabel('point count (per cell)')
 		if print_figs:
@@ -473,7 +475,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 				print('writing file: {}'.format(hcd_file))
 			fig.savefig(hcd_file)
 
-	if point_dist_hist:
+	if location_dist_hist:
 		adj = point_adjacency_matrix(cells, symetric=False)
 		dist = adj.data
 		fig = plt.figure()

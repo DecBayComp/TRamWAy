@@ -52,7 +52,7 @@ class KDTreeMesh(Voronoi):
 		self.max_level = max_level
 
 	def cellIndex(self, points, knn=None, prefered='index', \
-		min_cell_size=None, metric='chebyshev', **kwargs):
+		min_location_count=None, metric='chebyshev', **kwargs):
 		if isinstance(knn, tuple):
 			min_nn, max_nn = knn
 		else:
@@ -60,8 +60,8 @@ class KDTreeMesh(Voronoi):
 		if prefered == 'force index':
 			min_nn = None
 		#if max_nn: # valid only if points are those the tesselation was grown with
-		#	max_cell_size = int(floor(self.max_probability * points.shape[0]))
-		#	if max_nn < max_cell_size:
+		#	max_location_count = int(floor(self.max_probability * points.shape[0]))
+		#	if max_nn < max_location_count:
 		#		max_nn = None
 		if metric == 'chebyshev':
 			if min_nn or max_nn:
@@ -72,9 +72,9 @@ class KDTreeMesh(Voronoi):
 				self._cell_centers, metric) # , **kwargs
 			dmax = self.dichotomy.reference_length[self.level[np.newaxis,:] + 1]
 			I, J = np.nonzero(D <= dmax)
-			if min_cell_size:
+			if min_location_count:
 				K, count = np.unique(J, return_counts=True)
-				K = K[count < min_cell_size]
+				K = K[count < min_location_count]
 				for k in K:
 					J[J == k] = -1
 			if I[0] == 0 and I.size == points.shape[0] and I[-1] == points.shape[0] - 1:
@@ -85,7 +85,7 @@ class KDTreeMesh(Voronoi):
 				return K
 		else:
 			return Delaunay.cellIndex(self, points, knn=knn, prefered=prefered, \
-				min_cell_size=min_cell_size, metric=metric, **kwargs)
+				min_location_count=min_location_count, metric=metric, **kwargs)
 
 	def tesselate(self, points, **kwargs):
 		init = self.scaler.init
@@ -111,7 +111,7 @@ class KDTreeMesh(Voronoi):
 		self.dichotomy.subset = {} # clear memory
 		self.dichotomy.subset_counter = 0
 		
-		origin, level = zip(*[ self.dichotomy.cell[c][:2] for c in range(self.dichotomy.cell_counter) ])
+		origin, level = zip(*[ self.dichotomy.cell[c][:2] for c in range(self.dichotomy.location_counter) ])
 		origin = np.vstack(origin)
 		self.level = np.array(level)
 		self._cell_centers = origin + self.dichotomy.reference_length[self.level[:, np.newaxis] + 1]

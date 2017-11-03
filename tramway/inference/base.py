@@ -379,7 +379,7 @@ class Distributed(Local):
 			for i, dist in self.cells.items() }
 		return new
 
-	def group(self, ngroups=None, max_cell_count=None, cell_centers=None, \
+	def group(self, ngroups=None, max_location_count=None, cell_centers=None, \
 		adjacency_margin=1):
 		"""
 		Make groups of cells.
@@ -393,7 +393,7 @@ class Distributed(Local):
 			ngroups (int, optional):
 				number of groups.
 
-			max_cell_count (int, optional):
+			max_location_count (int, optional):
 				maximum number of cells per group.
 
 			cell_centers (array-like, optional):
@@ -411,7 +411,7 @@ class Distributed(Local):
 
 		"""
 		new = copy(self)
-		if ngroups or max_cell_count or cell_centers is not None:
+		if ngroups or max_location_count or cell_centers is not None:
 			points = np.full((self.adjacency.shape[0], self.dim), np.inf)
 			ok = np.zeros(points.shape[0], dtype=bool)
 			for i in self.cells:
@@ -421,8 +421,8 @@ class Distributed(Local):
 				avg_probability = 1.0
 				if ngroups:
 					avg_probability = min(1.0 / float(ngroups), avg_probability)
-				if max_cell_count:
-					avg_probability = min(float(max_cell_count) / \
+				if max_location_count:
+					avg_probability = min(float(max_location_count) / \
 						float(points.shape[0]), avg_probability)
 				grid = KMeansMesh(avg_probability=avg_probability)
 				grid.tesselate(points[ok])
@@ -430,7 +430,7 @@ class Distributed(Local):
 				grid = Voronoi()
 				grid.cell_centers = cell_centers
 			I = np.full(ok.size, -1, dtype=int)
-			I[ok] = grid.cellIndex(points[ok], min_cell_size=1)
+			I[ok] = grid.cellIndex(points[ok], min_location_count=1)
 			#if not np.all(ok):
 			#	print(ok.nonzero()[0])
 			A = grid.cell_adjacency

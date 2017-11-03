@@ -2,7 +2,7 @@
 import os
 import sys
 from tramway.inference import DiffusivityWarning, distributed
-from tramway.tesselation.time import TimeLattice
+from tramway.tesselation.time import *
 from tramway.helper import *
 from tramway.helper.simulation import *
 import matplotlib.pyplot as plt
@@ -38,8 +38,9 @@ duration = 10. # s
 time_step = .05 # s
 tesselation_dt = 2. # s
 
+min_count = 10 # number of points per cell
 
-time = np.arange(t0, t0 + duration + tesselation_dt * .1, tesselation_dt)
+
 _box = (x0, y0, width, height)
 
 
@@ -67,6 +68,9 @@ def main():
 	new_xyt = not os.path.exists(xyt_file)
 	new_tesselation = not os.path.isfile(tesselation_file)
 
+	time = np.arange(t0, t0 + duration + tesselation_dt * .1, tesselation_dt)
+	nsegments = time.size - 1
+
 	## define the ground truth (xyt_file)
 	if new_xyt:
 		# simulate random walks
@@ -75,70 +79,72 @@ def main():
 		#print(df)
 		df.to_csv(xyt_file, sep="\t", header=False)
 		# mesh regularly to sample ground truth for illustrative purposes
-		grid = tesselate(df, method='grid', min_cell_count=10)
+		grid = tesselate(df, method='grid', min_location_count=10)
 		cells = distributed(grid)
-		for i in range(time.size - 1):
-			t = (time[i] + time[i+1]) * .5
+		for i in range(nsegments):
+			t = (time[i] + time[i+1]) * .5 # bin center
 			true_map = cells.run(truth, t, diffusivity_map)
 			subext = 'truth.{}'.format(i)
 			print('ploting ground truth maps at time {}: {}'.format(t, \
 				out('*.'+subext, '.png')))
-			map_plot((cells, 'true', true_map), output_file=out(subext, '.png'), \
-				aspect='equal', clim=[D, D0])
+			map_plot(true_map, cells=cells, mode='true', \
+				output_file=out(subext, '.png'), aspect='equal', clim=[D, D0])
 		if not new_tesselation:
 			print("WARNING: tesselation will overwrite file '{}'".format(tesselation_file))
 			new_tesselation = True
 
 	## tesselate (tesselation_file)
 	if new_tesselation:
-		tesselate(xyt_file, method, min_cell_count=100, \
+		tesselate(xyt_file, method, min_location_count=min_count * nsegments, \
 			output_file=tesselation_file, verbose=True)
 		cell_plot(tesselation_file, output_file=out(method, '.mesh.png'), \
 			show=True, aspect='equal')
 
 	_, static_cells = find_imt(tesselation_file)
-	spatial_mesh = static_cells.tesselation
-	cells = copy.deepcopy(static_cells)
 
-	frames = np.c_[time[:-1], time[1:]]
-	cells.tesselation = TimeLattice(spatial_mesh, frames)
+	frames = np.c_[time[:-1], time[1:]] # time segments
 
+	# `exclude_cells_by_location_count` provides a mechanism to blacklist space cells
+	# based on their point counts over time
 	def exclude(sizes):
+		# `sizes` is a (#cells * #frames) matrix
 		excl = np.zeros(sizes.shape, dtype=bool)
 		for cell in range(sizes.shape[0]):
-			if np.any(sizes[cell] < frames.shape[0]):
+			if np.any(sizes[cell] < min_count):
 				excl[cell] = True
+		# `exclude` returns a boolean matrix similar to `sizes`
 		return excl
-	cells.cell_index = cells.tesselation.cellIndex(cells.points, \
-		exclude_by_cell_size=exclude)
+
+	dynamic_cells = with_time_lattice(static_cells, frames, \
+		exclude_cells_by_location_count=exclude)
 
 	## infer and plot
 	# capture negative diffusivity warnings and turn them into exceptions
 	warnings.filterwarnings('error', '', DiffusivityWarning)
 
 	print("running D inference mode...")
-	D_ = infer(cells, mode='D', localization_error=localization_error, \
+	D_ = infer(dynamic_cells, mode='D', localization_error=localization_error, \
 		min_diffusivity=minD)
-	Dbounds = np.r_[0, D_.quantile(.95).values]
-	D_ = cells.tesselation.reshapeFrames(D_)
-	for t, _D in enumerate([ d for _, d in D_ ]):
-		_map = (static_cells, 'D', _D)
-		map_plot(_map, output_file=out(method, '.d.{}.png'.format(t)), \
-			aspect='equal', clim=Dbounds) # show=True, 
+	Dlim = np.r_[0, D_.quantile(.95).values]
+	D_ = dynamic_cells.tesselation.splitFrames(D_)
+	for t, frame_map in enumerate(D_):
+		map_plot(frame_map, cells=static_cells, mode='D', \
+			output_file=out(method, '.d.{}.png'.format(t)), \
+			aspect='equal', clim=Dlim)
 
 	#print("running DF inference mode...")
 	#DF = infer(tesselation_file, mode='DF', localization_error=localization_error)
 	#map_plot(DF, output_file=out(method, '.df.png'), show=True, aspect='equal')
 
 	print("running DD inference mode...")
-	DD = infer(cells, mode='DD', localization_error=localization_error, \
+	DD = infer(dynamic_cells, mode='DD', localization_error=localization_error, \
 		priorD=priorD, min_diffusivity=minD)
-	Dbounds = np.r_[0, DD.quantile(.95).values]
-	DD = cells.tesselation.reshapeFrames(DD)
-	for t, _D in enumerate([ d for _, d in DD ]):
-		_map = (static_cells, 'DD', _D)
-		map_plot(_map, output_file=out(method, '.dd.{}.png'.format(t)), \
-			aspect='equal', clim=Dbounds) # show=True, 
+	Dlim = np.r_[0, DD.quantile(.95).values]
+	DD = dynamic_cells.tesselation.splitFrames(DD)
+	for t, frame_map in enumerate(DD):
+		map_plot(frame_map, cells=static_cells, mode='DD', \
+			output_file=out(method, '.dd.{}.png'.format(t)), \
+			aspect='equal', clim=Dlim)
 
 	#print("running DV inference mode...")
 	#DV = infer(tesselation_file, mode='DV', localization_error=localization_error, \

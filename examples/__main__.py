@@ -22,7 +22,7 @@ import importlib
 def main():
 	demo_dir = os.path.dirname(__file__)
 	demo_path = __package__
-	pattern = re.compile(r'[a-zA-Z].*[.]py')
+	pattern = re.compile(r'[a-zA-Z0-9].*[.]py')
 	candidate_demos = [ os.path.splitext(fn)[0] \
 		for fn in os.listdir(demo_dir) \
 		if fullmatch(pattern, fn) is not None ]

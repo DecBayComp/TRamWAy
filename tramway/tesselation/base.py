@@ -61,8 +61,8 @@ class CellStats(Lazy):
 		tesselation (Tesselation):
 			The tesselation that defined the partition.
 
-		cell_count (numpy.ndarray, lazy): 
-			point count per cell; ``cell_count[i]`` is the number of 
+		location_count (numpy.ndarray, lazy): 
+			point count per cell; ``location_count[i]`` is the number of 
 			points in cell ``i``.
 
 		bounding_box (array-like, lazy):
@@ -76,15 +76,15 @@ class CellStats(Lazy):
 
 	"""
 
-	__slots__ = ['_points', '_cell_index', '_cell_count', '_bounding_box', 'param', '_tesselation']
-	__lazy__ = ['cell_count', 'bounding_box']
+	__slots__ = ['_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tesselation']
+	__lazy__ = ['location_count', 'bounding_box']
 
-	def __init__(self, cell_index=None, cell_count=None, bounding_box=None, points=None, \
+	def __init__(self, cell_index=None, location_count=None, bounding_box=None, points=None, \
 		tesselation=None, param={}):
 		Lazy.__init__(self)
 		self._points = points
 		self.cell_index = cell_index
-		self._cell_count = cell_count
+		self._location_count = location_count
 		self._bounding_box = bounding_box
 		self.param = param
 		self._tesselation = tesselation
@@ -117,33 +117,33 @@ class CellStats(Lazy):
 	def tesselation(self, mesh):
 		self._tesselation = mesh
 		self.cell_index = None
-		self.cell_count = None
+		self.location_count = None
 
 	def descriptors(self, *vargs, **kwargs):
 		"""Proxy method for :meth:`Tesselation.descriptors`."""
 		return self.tesselation.descriptors(*vargs, **kwargs)
 
 	@property
-	def cell_count(self):
-		if self._cell_count is None:
+	def location_count(self):
+		if self._location_count is None:
 			ncells = self.tesselation._cell_centers.shape[0]
 			if isinstance(self.cell_index, tuple):
 				ci = sparse.csr_matrix((np.ones_like(self.cell_index[0], dtype=bool), \
 					self.cell_index), \
 					shape=(self.points.shape[0], ncells))
-				self._cell_count = np.diff(ci.indptr)
+				self._location_count = np.diff(ci.indptr)
 			elif sparse.issparse(self.cell_index):
-				self._cell_count = np.diff(self.cell_index.tocsc().indptr)
+				self._location_count = np.diff(self.cell_index.tocsc().indptr)
 			else:
-				valid_cell_centers, _cell_count = np.unique(self.cell_index, \
+				valid_cell_centers, _location_count = np.unique(self.cell_index, \
 					return_counts=True)
-				self._cell_count = np.zeros(ncells, dtype=_cell_count.dtype)
-				self._cell_count[valid_cell_centers] = _cell_count
+				self._location_count = np.zeros(ncells, dtype=_location_count.dtype)
+				self._location_count[valid_cell_centers] = _location_count
 				#center_to_point = valid_cell_centers[center_to_point]
-		return self._cell_count
+		return self._location_count
 
-	@cell_count.setter
-	def cell_count(self, cc):
+	@location_count.setter
+	def location_count(self, cc):
 		self.__lazysetter__(cc)
 
 	@property
@@ -388,7 +388,7 @@ class Delaunay(Tesselation):
 		self._cell_centers = self._preprocess(points)
 
 	def cellIndex(self, points, knn=None, prefered='index', \
-		min_cell_size=None, metric='euclidean', **kwargs):
+		min_location_count=None, metric='euclidean', **kwargs):
 		"""
 		Arguments:
 			points: see :meth:`Tesselation.cellIndex`.
@@ -401,7 +401,7 @@ class Delaunay(Tesselation):
 				See also the `prefered` argument.
 			prefered ({'index', 'force-index', 'pair', 'sparse'}, optional):
 				prefered representation of the point-cell association (or partition).
-			min_cell_size (int, optional):
+			min_location_count (int, optional):
 				minimum number of points for a cell to be included in the labeling. 
 				This argument applies before `knn`. The points in these cells, if not 
 				associated with	another cell, are labeled ``-1``. The other cell labels
@@ -419,7 +419,7 @@ class Delaunay(Tesselation):
 
 		'index' and 'force index'
 			the output is a single vector of cell indices with size the number of points.
-			'force index' makes `cellIndex` ignore `min_cell_size`.
+			'force index' makes `cellIndex` ignore `min_location_count`.
 
 		'pair'
 			the output is a pair ``(point_index, cell_index)`` of vectors such that for all
@@ -441,7 +441,7 @@ class Delaunay(Tesselation):
 		ncells = self._cell_centers.shape[0]
 		if prefered == 'force index':
 			min_nn = None
-		if max_nn or min_nn or min_cell_size:
+		if max_nn or min_nn or min_location_count:
 			K = np.argmin(D, axis=1) # cell indices
 			nonempty, positive_count = np.unique(K, return_counts=True)
 			# max_nn:
@@ -461,15 +461,15 @@ class Delaunay(Tesselation):
 				count = np.zeros(ncells, dtype=positive_count.dtype)
 				count[nonempty] = positive_count
 				small = count < min_nn
-				if min_cell_size:
-					small = np.logical_and(small, min_cell_size <= count)
+				if min_location_count:
+					small = np.logical_and(small, min_location_count <= count)
 				if np.any(small):
 					# small and missing cells
 					I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
 					small, = small.nonzero()
 					J = np.tile(small, min_nn) # cell indices
 					# large-enough cells
-					if min_cell_size:
+					if min_location_count:
 						small = count < min_nn
 					point_in_small_cells = np.any(
 						small[:,np.newaxis] == K[np.newaxis,:], axis=0)
@@ -481,10 +481,10 @@ class Delaunay(Tesselation):
 						Jc = Jc[0 <= Jc]
 					#
 					K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
-			# min_cell_size:
+			# min_location_count:
 			# set K[i] = -1 for all point i in cells that are too small
-			elif min_cell_size:
-				excluded_cells = positive_count < min_cell_size
+			elif min_location_count:
+				excluded_cells = positive_count < min_location_count
 				if np.any(excluded_cells):
 					for c in nonempty[excluded_cells]:
 						K[K == c] = -1

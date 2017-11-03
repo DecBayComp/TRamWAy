@@ -117,6 +117,7 @@ def crop(points, box):
 
 
 def truth(cells, t=None, diffusivity=None, force=None):
+	dim = cells.cells[0].center.size
 	I, DF = [], []
 	for i in cells.cells:
 		cell = cells.cells[i]

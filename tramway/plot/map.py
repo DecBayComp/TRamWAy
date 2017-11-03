@@ -50,7 +50,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None):
 		Av = cells.tesselation.vertex_adjacency.tocsr()
 		xy = cells.tesselation.cell_centers
 		ix = np.arange(xy.shape[0])
-		ok = 0 < cells.cell_count
+		ok = 0 < cells.location_count
 		for i in ix[ok]:
 			vs = cells.tesselation.cell_vertices[i]
 			# order the vertices so that they draw a polygon
