@@ -53,41 +53,41 @@ class Gas(Graph):
 		self.graph.connect(n1, n2, **kwargs)
 	def disconnect(self, n1, n2, edge=None):
 		self.graph.disconnect(n1, n2, edge)
-	def getNodeAttr(self, n, attr):
-		return self.graph.getNodeAttr(n, attr)
-	def setNodeAttr(self, n, **kwargs):
-		self.graph.setNodeAttr(n, **kwargs)
-	def getEdgeAttr(self, e, attr):
-		return self.graph.getEdgeAttr(e, attr)
-	def setEdgeAttr(self, e, **kwargs):
-		self.graph.setEdgeAttr(e, **kwargs)
+	def get_node_attr(self, n, attr):
+		return self.graph.get_node_attr(n, attr)
+	def set_node_attr(self, n, **kwargs):
+		self.graph.set_node_attr(n, **kwargs)
+	def get_edge_attr(self, e, attr):
+		return self.graph.get_edge_attr(e, attr)
+	def set_edge_attr(self, e, **kwargs):
+		self.graph.set_edge_attr(e, **kwargs)
 	@property
 	def size(self):
 		return self.graph.size
-	def iterNodes(self):
-		return self.graph.iterNodes()
-	def iterNeighbors(self, n):
-		return self.graph.iterNeighbors(n)
-	def iterEdges(self):
-		return self.graph.iterEdges()
-	def iterEdgesFrom(self, n):
-		return self.graph.iterEdgesFrom(n)
-	def hasNode(self, n):
-		return self.graph.hasNode(n)
-	def addNode(self, **kwargs):
-		return self.graph.addNode(**kwargs)
-	def delNode(self, n):
-		self.graph.delNode(n)
-	def standsAlone(self, n):
-		return self.graph.standsAlone(n)
-	def findEdge(self, n1, n2):
-		return self.graph.findEdge(n1, n2)
-	def areConnected(self, n1, n2):
-		return self.graph.areConnected(n1, n2)
+	def iter_nodes(self):
+		return self.graph.iter_nodes()
+	def iter_neighbors(self, n):
+		return self.graph.iter_neighbors(n)
+	def iter_edges(self):
+		return self.graph.iter_edges()
+	def iter_edges_from(self, n):
+		return self.graph.iter_edges_from(n)
+	def has_node(self, n):
+		return self.graph.has_node(n)
+	def add_node(self, **kwargs):
+		return self.graph.add_node(**kwargs)
+	def del_node(self, n):
+		self.graph.del_node(n)
+	def stands_alone(self, n):
+		return self.graph.stands_alone(n)
+	def find_edge(self, n1, n2):
+		return self.graph.find_edge(n1, n2)
+	def are_connected(self, n1, n2):
+		return self.graph.are_connected(n1, n2)
 	def export(self, **kwargs):
 		return self.graph.export(**kwargs)
-	def squareDistance(self, attr, eta, **kwargs):
-		return self.graph.squareDistance(attr, eta, **kwargs)
+	def square_distance(self, attr, eta, **kwargs):
+		return self.graph.square_distance(attr, eta, **kwargs)
 
 	def __init__(self, sample, graph=None):
 		if 1 < sample.shape[0]:
@@ -107,8 +107,8 @@ class Gas(Graph):
 			self.graph = ArrayGraph({'weight': None, 'habituation_counter': 0, \
 					'radius': 0.0}, \
 				{'age': 0})
-		n1 = self.addNode(weight=w1)
-		n2 = self.addNode(weight=w2)
+		n1 = self.add_node(weight=w1)
+		n2 = self.add_node(weight=w2)
 		e  = self.connect(n1, n2)
 		self.insertion_threshold = .95
 		self.trust = 0 # in [0, 1]
@@ -125,7 +125,7 @@ class Gas(Graph):
 		self.collapse_below = None
 		self.knn = None
 
-	def insertionThreshold(self, eta, node, *vargs):
+	def local_insertion_threshold(self, eta, node, *vargs):
 		"""
 		"""
 		##TODO: handle time more explicitly
@@ -137,18 +137,18 @@ class Gas(Graph):
 		else:
 			return self.insertion_threshold
 
-	def collapseThreshold(self, node1, node2):
+	def collapse_threshold(self, node1, node2):
 		"""
 		"""
 		if self.knn:
-			radius1 = self.getNodeAttr(node1, 'radius')
-			radius2 = self.getNodeAttr(node2, 'radius')
+			radius1 = self.get_node_attr(node1, 'radius')
+			radius2 = self.get_node_attr(node2, 'radius')
 			return self.collapse_below / self.insertion_threshold[0] * \
 				max(radius1, radius2)
 		else:
 			return self.collapse_below
 
-	def habituationFunction(self, t, i=0):
+	def habituation_function(self, t, i=0):
 		"""
 		Arguments:
 			t (int or float or array): counter or time.
@@ -164,9 +164,9 @@ class Gas(Graph):
 	def habituation(self, node, i=0):
 		"""Returns the habituation of a node. Set `i=0` for the nearest node, 
 		`i=1` for a neighbor of the nearest node."""
-		return self.habituationFunction(float(self.getNodeAttr(node, 'habituation_counter')), i)
+		return self.habituation_function(float(self.get_node_attr(node, 'habituation_counter')), i)
 
-	def plotHabituation(self):
+	def plot_habituation(self):
 		##TODO: find a more general implementation for reading the habituations, and underlay
 		# a histogram of the habituation counter in the graph
 		if isinstance(self.graph, DictGraph):
@@ -175,8 +175,8 @@ class Gas(Graph):
 		else:
 			tmax = self.batch_size / 10
 		t = np.arange(0, tmax)
-		plt.plot(t, self.habituationFunction(t, 1), 'c-')
-		plt.plot(t, self.habituationFunction(t, 0), 'b-')
+		plt.plot(t, self.habituation_function(t, 1), 'c-')
+		plt.plot(t, self.habituation_function(t, 0), 'b-')
 		plt.xlim(0, tmax)
 		plt.ylim(0, self.habituation_initial)
 		plt.title('habituation function: alpha={}, tau={}'.format(self.habituation_alpha[0], \
@@ -184,39 +184,39 @@ class Gas(Graph):
 		plt.ylabel('habituation')
 		plt.xlabel('iteration number')
 
-	def getWeight(self, node):
-		return self.getNodeAttr(node, 'weight')
+	def get_weight(self, node):
+		return self.get_node_attr(node, 'weight')
 
-	def setWeight(self, node, weight):
-		self.setNodeAttr(node, weight=weight)
+	def set_weight(self, node, weight):
+		self.set_node_attr(node, weight=weight)
 
-	def incrementHabituation(self, node):
-		count = self.getNodeAttr(node, 'habituation_counter') + 1
-		self.setNodeAttr(node, habituation_counter=count)
+	def increment_habituation(self, node):
+		count = self.get_node_attr(node, 'habituation_counter') + 1
+		self.set_node_attr(node, habituation_counter=count)
 		return count
 
-	def incrementAge(self, edge):
-		age = self.getEdgeAttr(edge, 'age') + 1
-		self.setEdgeAttr(edge, age=age)
+	def increment_age(self, edge):
+		age = self.get_edge_attr(edge, 'age') + 1
+		self.set_edge_attr(edge, age=age)
 		return age
 
 	def habituate(self, node):
-		self.incrementHabituation(node)
-		for edge, neighbor in list(self.iterEdgesFrom(node)):
-			age = self.incrementAge(edge)
-			self.incrementHabituation(neighbor) # increment before checking for age of the
+		self.increment_habituation(node)
+		for edge, neighbor in list(self.iter_edges_from(node)):
+			age = self.increment_age(edge)
+			self.increment_habituation(neighbor) # increment before checking for age of the
 			# corresponding edge, because `neighbor` may no exist afterwards; otherwise, to
 			# increment after, it is necessary to check for existence of the node; should be
 			# faster this way, due to low deletion rate
 			if self.edge_lifetime < age:
 				self.disconnect(node, neighbor, edge)
-				if self.standsAlone(neighbor):
-					self.delNode(neighbor)
-		if self.standsAlone(node):
-			self.delNode(node)
+				if self.stands_alone(neighbor):
+					self.del_node(neighbor)
+		if self.stands_alone(node):
+			self.del_node(node)
 
 
-	def batchTrain(self, sample, eta_square=None, radius=None):
+	def batch_train(self, sample, eta_square=None, radius=None):
 		"""This method grows the gas for a batch of data and implements the core GWR algorithm.
 		:meth:`train` should be called instead."""
 		if eta_square is None:
@@ -229,7 +229,7 @@ class Gas(Graph):
 			if radius is not None:
 				r = [radius[k]]
 			# find nearest and second nearest nodes
-			dist2, index_to_node = self.squareDistance('weight', eta, eta2=eta_square[k])
+			dist2, index_to_node = self.square_distance('weight', eta, eta2=eta_square[k])
 			i = np.argsort(dist2)
 			dist_min = sqrt(dist2[i[0]])
 			nearest, second_nearest = index_to_node(i[:2])
@@ -237,25 +237,25 @@ class Gas(Graph):
 			# test activity and habituation against thresholds
 			activity = dist_min
 			habituation = self.habituation(nearest)
-			w = self.getWeight(nearest)
-			activity_threshold = self.insertionThreshold(eta, w, *r)
+			w = self.get_weight(nearest)
+			activity_threshold = self.local_insertion_threshold(eta, w, *r)
 			if activity_threshold < activity and \
 				habituation < self.habituation_threshold:
 				# insert a new node and connect it with the two nearest nodes
 				self.disconnect(nearest, second_nearest)
 				l = .5 + self.trust * .5 # mixing coefficient in the range [.5, 1]
-				new_node = self.addNode(weight=(1.0 - l) * w + l * eta)
+				new_node = self.add_node(weight=(1.0 - l) * w + l * eta)
 				if self.knn:
-					self.setNodeAttr(new_node, radius=activity_threshold)
+					self.set_node_attr(new_node, radius=activity_threshold)
 				self.connect(new_node, nearest)
 				self.connect(new_node, second_nearest)
 			else:
 				# move the nearest node and its neighbors towards the sample point
 				self.connect(nearest, second_nearest)
-				self.setWeight(nearest, w + self.learning_rate[0] * habituation * (eta - w))
-				for i in self.iterNeighbors(nearest):
-					w = self.getWeight(i)
-					self.setWeight(i, w + self.learning_rate[1] * \
+				self.set_weight(nearest, w + self.learning_rate[0] * habituation * (eta - w))
+				for i in self.iter_neighbors(nearest):
+					w = self.get_weight(i)
+					self.set_weight(i, w + self.learning_rate[1] * \
 						self.habituation(i, 1) * (eta - w))
 			# update habituation counters
 			self.habituate(nearest) # also habituates neighbors
@@ -268,7 +268,7 @@ class Gas(Graph):
 		"""
 		Grow the gas.
 
-		:meth:`train` splits the sample into batches, successively calls :meth:`batchTrain`
+		:meth:`train` splits the sample into batches, successively calls :meth:`batch_train`
 		on these batches of data, collapses the gas if necessary and stops if stopping criteria 
 		are met.
 
@@ -325,7 +325,7 @@ class Gas(Graph):
 				self.insertion_threshold = (self.insertion_threshold, \
 					self.insertion_threshold * 4)
 			eta_square = np.sum(sample * sample, axis=1)
-			radius = self.boxedRadius(sample, self.knn, self.insertion_threshold[0], \
+			radius = self.boxed_radius(sample, self.knn, self.insertion_threshold[0], \
 				self.insertion_threshold[1], verbose, plot)
 		# loop
 		t = []
@@ -337,9 +337,9 @@ class Gas(Graph):
 				t0 = time.time()
 			batch = np.random.choice(n, size=self.batch_size)
 			if self.knn:
-				r = self.batchTrain(sample[batch], eta_square[batch], radius[batch])
+				r = self.batch_train(sample[batch], eta_square[batch], radius[batch])
 			else:
-				r = self.batchTrain(sample[batch])
+				r = self.batch_train(sample[batch])
 			residuals += r
 			l_prev = l
 			l = self.size
@@ -408,12 +408,12 @@ class Gas(Graph):
 		return residuals
 
 
-	def boxedRadius(self, sample, knn, rmin, rmax, verbose=False, plot=False):
+	def boxed_radius(self, sample, knn, rmin, rmax, verbose=False, plot=False):
 		#plot = True
 		d = sample.shape[1]
 		d = int(d) # PY2
 		#if d == 2:
-		#	return self.boxedRadius2d(sample, knn, rmin, rmax, plot) # faster
+		#	return self.boxed_radius2d(sample, knn, rmin, rmax, plot) # faster
 		if verbose:
 			t0 = 0
 			t = time.time()
@@ -445,9 +445,9 @@ class Gas(Graph):
 					cell_indices[i] = ids
 				try:
 					count[i] = ids.size
-				except IndexError as e:
+				except IndexError:
 					print((count.shape, i))
-					raise e
+					raise
 		# counts are density estimate; check how good/poor they are
 		if d == 2 and plot:
 			if verbose:
@@ -558,7 +558,7 @@ class Gas(Graph):
 		return radius
 
 
-	def boxedRadius2d(self, sample, knn, rmin, rmax, plot=False):
+	def boxed_radius2d(self, sample, knn, rmin, rmax, plot=False):
 		# deprecated: too many approximations here
 		t = time.time()
 		n = sample.shape[0]
@@ -656,7 +656,7 @@ class Gas(Graph):
 			plt.show()
 		return radius
 
-	def exactRadius(self, sample, eta_square, knn, step, *vargs):
+	def exact_radius(self, sample, eta_square, knn, step, *vargs):
 		# deprecated: extremely slow
 		n = sample.shape[0]
 		w = sample.astype(np.float32)
@@ -681,33 +681,33 @@ class Gas(Graph):
 
 
 	def collapse(self):
-		for n in list(self.iterNodes()):
-			if self.hasNode(n):
-				neighbors = [ neighbor for neighbor in self.iterNeighbors(n)
+		for n in list(self.iter_nodes()):
+			if self.has_node(n):
+				neighbors = [ neighbor for neighbor in self.iter_neighbors(n)
 							if n < neighbor ]
 				if neighbors:
-					dist = la.norm(self.getWeight(n) - \
-						np.vstack([ self.getWeight(n)
+					dist = la.norm(self.get_weight(n) - \
+						np.vstack([ self.get_weight(n)
 							for n in neighbors ]), axis=1)
 					k = np.argmin(dist)
 					neighbor = neighbors[k]
-					if dist[k] < self.collapseThreshold(n, neighbor):
+					if dist[k] < self.collapse_threshold(n, neighbor):
 						#print((n, neighbor))
-						self.collapseNodes(n, neighbor)
+						self.collapse_nodes(n, neighbor)
 
-	def collapseNodes(self, n1, n2):
+	def collapse_nodes(self, n1, n2):
 		self.disconnect(n1, n2)
-		w1 = self.getWeight(n1)
-		w2 = self.getWeight(n2)
-		self.setWeight(n1, (w1 + w2) / 2)
-		for e2, n in list(self.iterEdgesFrom(n2)):
-			a2 = self.getEdgeAttr(e2, 'age')
-			e1 = self.findEdge(n1, n)
+		w1 = self.get_weight(n1)
+		w2 = self.get_weight(n2)
+		self.set_weight(n1, (w1 + w2) / 2)
+		for e2, n in list(self.iter_edges_from(n2)):
+			a2 = self.get_edge_attr(e2, 'age')
+			e1 = self.find_edge(n1, n)
 			if e1 is None:
 				self.connect(n1, n, age=a2)
 			else:
-				a1 = self.getEdgeAttr(e1, 'age')
-				self.setEdgeAttr(e1, age=min(a1, a2))
+				a1 = self.get_edge_attr(e1, 'age')
+				self.set_edge_attr(e1, age=min(a1, a2))
 			#self.disconnect(n2, n, e2)
-		self.delNode(n2)
+		self.del_node(n2)
 

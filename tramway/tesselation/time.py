@@ -40,10 +40,10 @@ class TimeLattice(Lazy):
 	def tesselate(self, points, **kwargs):
 		self.spatial_mesh.tesselate(points, **kwargs)
 
-	def cellIndex(self, points, *args, **kwargs):
+	def cell_index(self, points, *args, **kwargs):
 		time_col = kwargs.pop('time_col', 't')
 		exclude = kwargs.pop('exclude_cells_by_location_count', None)
-		spatial_index = self.spatial_mesh.cellIndex(points, *args, **kwargs)
+		spatial_index = self.spatial_mesh.cell_index(points, *args, **kwargs)
 		ncells = self.spatial_mesh.cell_adjacency.shape[0]
 		nsegments = self.time_lattice.shape[0]
 		if isstructured(points):
@@ -200,7 +200,7 @@ class TimeLattice(Lazy):
 		self.__lazysetter__(pts)
 
 
-	def splitFrames(self, df, return_times=False):
+	def split_framesmes(self, df, return_times=False):
 		ncells = self.spatial_mesh.cell_adjacency.shape[0]
 		nsegments = self.time_lattice.shape[0]
 		try:
@@ -227,7 +227,7 @@ class TimeLattice(Lazy):
 def with_time_lattice(cells, frames, exclude_cells_by_location_count=None, **kwargs):
 	dynamic_cells = copy.deepcopy(cells)
 	dynamic_cells.tesselation = TimeLattice(cells.tesselation, frames)
-	dynamic_cells.cell_index = dynamic_cells.tesselation.cellIndex(cells.points, \
+	dynamic_cells.cell_index = dynamic_cells.tesselation.cell_index(cells.points, \
 		exclude_cells_by_location_count=exclude_cells_by_location_count, **kwargs)
 	return dynamic_cells
 

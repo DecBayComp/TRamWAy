@@ -44,7 +44,7 @@ class KMeansMesh(Voronoi):
 		init = self.scaler.init
 		points = Voronoi._preprocess(self, points)
 		if init:
-			self._min_distance = self.scaler.scaleDistance(self._min_distance)
+			self._min_distance = self.scaler.scale_distance(self._min_distance)
 		grid = RegularMesh(avg_probability=self.avg_probability)
 		grid.tesselate(points)
 		self._cell_centers = grid._cell_centers

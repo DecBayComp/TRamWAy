@@ -159,7 +159,7 @@ class Dichotomy(object):
 				for r in ss_refs.values():
 					del self.subset[r]
 		if ok:
-			return self.doSplit(ss_refs, lower, depth)
+			return self.do_split(ss_refs, lower, depth)
 		else:
 			depth -= 1
 			self.cell_lock.acquire()
@@ -167,13 +167,13 @@ class Dichotomy(object):
 			self.cell_counter += 1
 			self.cell_lock.release()
 			self.cell[i] = (origin, depth, ss_ref)
-			return self.dontSplit(i, ss_ref, origin, depth)
+			return self.dont_split(i, ss_ref, origin, depth)
 
-	def doSplit(self, ss_ref, origin, depth):
+	def do_split(self, ss_ref, origin, depth):
 		for i in ss_ref:
 			self._split(ss_ref[i], origin[i], depth)
 
-	def dontSplit(self, cell_ref, ss_ref, origin, depth):
+	def dont_split(self, cell_ref, ss_ref, origin, depth):
 		pass
 
 
@@ -212,7 +212,7 @@ class ConnectedDichotomy(Dichotomy):
 		# already done earlier (above)
 		#self.adjacency_lock = Lock()
 
-	def mergeFaces(self, face1, face2, axis):
+	def merge_Faces(self, face1, face2, axis):
 		dim = self.unit_hypercube.shape[1]
 		dims = np.logical_not(axis)
 		cell1 = [ (c,) + self.cell[c] for c in face1 ]
@@ -265,7 +265,7 @@ class ConnectedDichotomy(Dichotomy):
 							dk -= 1
 						ii += 1
 		
-	def doSplit(self, ss_ref, origin, depth):
+	def do_split(self, ss_ref, origin, depth):
 		interior_cells = dict()
 		exterior_cells = dict()
 		# split
@@ -281,7 +281,7 @@ class ConnectedDichotomy(Dichotomy):
 					j = _face_hash(step + self.face_vertex[c], \
 						self.face_normal[c])
 					if j in interior_cells:
-						self.mergeFaces(interior_cells[j], cs, \
+						self.merge_Faces(interior_cells[j], cs, \
 							self.face_normal[c])
 					else:
 						interior_cells[j] = cs
@@ -290,7 +290,7 @@ class ConnectedDichotomy(Dichotomy):
 		dim = self.unit_hypercube.shape[1]
 		return [ exterior_cells[c] for c in range(2 * dim) ]
 
-	def dontSplit(self, cell_ref, ss_ref, origin, depth):
+	def dont_split(self, cell_ref, ss_ref, origin, depth):
 		dim = self.unit_hypercube.shape[1]
 		return [ [cell_ref] for _ in range(2 * dim) ]
 

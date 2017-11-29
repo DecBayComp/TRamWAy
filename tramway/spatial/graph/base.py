@@ -31,54 +31,54 @@ class Graph(object):
 	def disconnect(self, n1, n2, edge=None):
 		raise AbstractGraphError
 
-	def getNodeAttr(self, n, attr):
+	def get_node_attr(self, n, attr):
 		raise AbstractGraphError
-	def setNodeAttr(self, n, **kwargs):
+	def set_node_attr(self, n, **kwargs):
 		raise AbstractGraphError
-	def getEdgeAttr(self, e, attr):
+	def get_edge_attr(self, e, attr):
 		raise AbstractGraphError
-	def setEdgeAttr(self, e, **kwargs):
+	def set_edge_attr(self, e, **kwargs):
 		raise AbstractGraphError
 	@property
 	def size(self):
-		return len(list(self.iterNodes))
-	def iterNodes(self):
+		return len(list(self.iter_nodes))
+	def iter_nodes(self):
 		'''Returns an iterator over all the nodes of the graph. A copy of the returned
 		view should be made if the structure of the graph had to be altered.'''
 		raise AbstractGraphError
-	def iterNeighbors(self, n):
+	def iter_neighbors(self, n):
 		'''Returns an iterator over the neighbor nodes of a given node. A copy of the returned
 		view should be made if the structure of the graph had to be altered.'''
-		return [ n for _, n in self.iterEdgesFrom(n) ]
-	def iterEdges(self):
+		return [ n for _, n in self.iter_edges_from(n) ]
+	def iter_edges(self):
 		'''Returns an iterator over all the edges of the graph. A copy of the returned
 		view should be made if the structure of the graph had to be altered.'''
 		raise AbstractGraphError
-	def iterEdgesFrom(self, n):
+	def iter_edges_from(self, n):
 		'''Returns an iterator over the `(edge, neighbor_node)` index pairs from a given node. 
 		A copy of the returned view should be made if the structure of the graph had to be altered.'''
 		raise AbstractGraphError
-	def hasNode(self, n):
-		return n in self.iterNodes()
+	def has_node(self, n):
+		return n in self.iter_nodes()
 
-	def addNode(self, **kwargs):
+	def add_node(self, **kwargs):
 		raise AbstractGraphError
-	def delNode(self, n):
+	def del_node(self, n):
 		raise AbstractGraphError
-	def standsAlone(self, n):
+	def stands_alone(self, n):
 		'''Returns `True` if node `n` has no neighbor.'''
-		return not self.iterNeighbors(n)
+		return not self.iter_neighbors(n)
 
-	def findEdge(self, n1, n2):
-		if self.hasNode(n1):
-			e = [ e for e, n in self.iterEdgesFrom(n1) if n is n2 ]
+	def find_edge(self, n1, n2):
+		if self.has_node(n1):
+			e = [ e for e, n in self.iter_edges_from(n1) if n is n2 ]
 			if e: return e[0]
 			else: return None
 		else:
 			return None
 
-	def areConnected(self, n1, n2):
-		return self.findEdge(n1, n2) is not None
+	def are_connected(self, n1, n2):
+		return self.find_edge(n1, n2) is not None
 
 	def export(self, sparse='csr'):
 		"""Returns `(A, V, E)` where `A` is an adjacency matrix as a `scipy.sparse.*_matrix` of 

@@ -17,12 +17,14 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 import scipy.sparse as sparse
+from scipy.sparse import issparse
 import scipy.spatial as spatial
 from tramway.spatial.scaler import *
 from tramway.core import *
 #from collections import OrderedDict
 from warnings import warn
 import itertools
+import copy
 
 
 class CellStats(Lazy):
@@ -48,7 +50,7 @@ class CellStats(Lazy):
 		the corresponding point is in the corresponding cell.
 
 
-	See also :meth:`Delaunay.cellIndex`.
+	See also :meth:`Tesselation.cell_index`.
 
 
 	Attributes:
@@ -72,7 +74,7 @@ class CellStats(Lazy):
 		param (dict):
 			Arguments involved in the tesselation and the partition steps, as key-value 
 			pairs. Such information is maintained in `CellStats` so that it can be stored
-			in `.imt.h5` files and retrieve for traceability.
+			in *.rwa.h5* files and retrieve for traceability.
 
 	"""
 
@@ -92,7 +94,7 @@ class CellStats(Lazy):
 	@property
 	def cell_index(self):
 		if self._cell_index is None:
-			self._cell_index = self.tesselation.cellIndex(self.points)
+			self._cell_index = self.tesselation.cell_index(self.points)
 		return self._cell_index
 
 	@cell_index.setter
@@ -164,6 +166,100 @@ class CellStats(Lazy):
 
 
 
+def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwargs):
+	"""
+	Convert from any valid index format to any other.
+
+	Arguments:
+
+		K (any): original point-cell association representation.
+
+		format (str): either 'array', 'pair', 'matrix', 'coo', 'csr' or 'csc'.
+			See also :meth:`Tesselation.cell_index`.
+
+		select (callable): called only if ``format == 'array'`` and points are
+			associated to multiple cells; `select` takes the point index
+			as first argument, the corresponding cell indices (:class:`numpy.ndarray`) 
+			as second argument and the extra keyword arguments given to
+			:func:`format_cell_index`.
+
+		shape ((int, int)): number of points, number of cells.
+
+		copy (bool): if ``True``, ensures that a copy of `K` is returned if `K`
+			is already in the requested format.
+
+	Returns:
+
+		any: point-cell association in the requested format.
+
+	See also :meth:`Tesselation.cell_index` and :func:`nearest_cell`.
+	"""
+	if isinstance(K, np.ndarray) and format not in [None, 'array']:
+		K = (np.arange(K.size), K)
+		copy = False # already done
+	if format in ['matrix', 'coo', 'csr', 'csc']:
+		if issparse(K):
+			if format == 'coo':
+				K = K.tocoo()
+				copy = False # already done
+		else:
+			K = sparse.coo_matrix((np.ones_like(K[0], dtype=bool), K), shape=shape)
+			copy = False # already done
+		if format == 'csr':
+			K = K.tocsr()
+			copy = False # already done
+		elif format == 'csc':
+			K = K.tocsc()
+			copy = False # already done
+	elif issparse(K):
+		K = K.tocoo()
+		K = (K.row, K.col) # drop the values; keep only the indices
+		copy = False # already done
+	if format == 'array' and isinstance(K, tuple):
+		points, cells = K
+		K = np.full(shape[0], -1, dtype=int)
+		P = np.unique(points)
+		for p in P:
+			cs = cells[points == p]
+			if 1 < cs.size:
+				K[p] = select(p, cs, **kwargs)
+			else:
+				K[p] = cs
+		copy = False # already done
+	if copy:
+		K = copy.copy(K)
+	return K
+
+
+def nearest_cell(locations, cell_centers):
+	"""
+	Generate a function suitable for use as 
+	:func:`format_cell_index`'s argument `select`.
+
+	The returned function takes a point index and cell indices as arguments
+	and returns the index of the nearest cell.
+
+	Arguments:
+
+		locations (array-like): location coordinates.
+
+		cell_centers (array-like): cell center coordinates.
+
+	Returns:
+
+		callable: `select` function.
+	"""
+	def f(point, cells):
+		x = locations[point,:]
+		y = cell_centers[cells,:]
+		z = y - x
+		square_dist = sum(z * z, axis=1)
+		winner = np.argmin(square_dist)
+		return cells[winner]
+	return f
+
+
+
 def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_labels=None):
 	"""
 	Adjacency matrix of data points such that a given pair of points is defined as
@@ -177,12 +273,12 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 			If ``False``, the returned matrix will not be symetric, i.e. wherever i->j is
 			defined, j->i is not.
 
-		cell_labels (function handler, optional):
+		cell_labels (callable, optional):
 			Takes an array of cell labels as input 
 			(see :attr:`Tesselation.cell_label`)
 			and returns a bool array of equal shape.
 
-		adjacency_labels (function handler, optional):
+		adjacency_labels (callable, optional):
 			Takes an array of edge labels as input 
 			(see :attr:`Tesselation.adjacency_label`) 
 			and returns a bool array of equal shape.
@@ -248,7 +344,7 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 class Tesselation(object):
 	"""Abstract class for tesselations.
 
-	The methods to be implemented are :meth:`tesselate` and :meth:`cellIndex`.
+	The methods to be implemented are :meth:`tesselate` and :meth:`cell_index`.
 
 	Attributes:
 		scaler (Scaler): scaler.
@@ -289,7 +385,7 @@ class Tesselation(object):
 				if 'z' in points:
 					self.scaler.euclidean.append('z')
 			else:	self.scaler.euclidean = np.arange(0, points.shape[1])
-		return self.scaler.scalePoint(points)
+		return self.scaler.scale_point(points)
 
 	def tesselate(self, points, **kwargs):
 		"""
@@ -302,17 +398,48 @@ class Tesselation(object):
 		"""
 		raise NotImplementedError
 
-	def cellIndex(self, points):
+	def cell_index(self, points, format=None, select=None, **kwargs):
 		"""
 		Partition.
 
-		Arguments:
-			points (array-like): point coordinates.
+		The returned value depends on the ``format`` input argument:
 
-		Returns:
-			Any datatype suitable for :attr:`CellStats.cell_index`.
+		* ``'array'``: returns a vector ``v`` such that ``v[i]`` is cell index for 
+			point index ``i`` or ``-1``.
+
+		* ``'pair'``: returns a pair of ``I``-sized arrays ``(p, c)`` where, for each 
+			point-cell association ``i`` in ``range(I)``, ``p[i]`` is a point index 
+			and ``c[i]`` is a corresponding cell index.
+
+		* ``'matrix'`` or ``'coo'`` or ``'csr'`` or ``'csc'``: 
+			returns a :mod:`~scipy.sparse` matrix with points as rows and
+			cells as columns; non-zeros are all ``True`` or float weights.
+
+		By default with `format` undefined, any implementation may favor any format.
+
+		Note that ``'array'`` may not be an acceptable format and :meth:`cell_index` may 
+		not comply with ``format='index'`` unless `select` is defined.
+		When a location or a translocation is associated to several cells, `select` 
+		chooses a single cell among them.
+
+		The default implementation calls :func:`format_cell_index` on the result of an
+		abstract `_cell_index` method that any :class:`Tesselation` implementation can
+		implement instead of :meth:`cell_index`.
+
+		See also :func:`format_cell_index`.
+
+		Arguments:
+			points (array-like): point (location) coordinates.
+
+			format (str): either 'vector', 'pairs' or 'matrix'
+				prefered representation of the point-cell association (or partition).
+
+			select (callable): takes the point index, an array of cell indices and the 
+				tesselation as arguments, and returns a cell index or ``-1`` for no cell.
+
 		"""
-		raise NotImplementedError
+		return format_cell_index(self._cell_index(points, **kwargs), format=format, select=select,
+			shape=(points.shape[0], self.cell_adjacency.shape[0]))
 
 	# cell_label property
 	@property
@@ -346,6 +473,21 @@ class Tesselation(object):
 	def adjacency_label(self, label):
 		self._adjacency_label = label
 
+	@property
+	def simplified_adjacency(self):
+		"""
+		Simplified copy of :attr:`cell_adjacency` as a :class:`~scipy.sparse.coo_matrix` sparse 
+		matrix with no explicit zeros.
+
+		Non-zero values indicate adjacency and all these values are strictly positive.
+		"""
+		adj = self.cell_adjacency.tocoo()
+		if self.adjacency_label is None:
+			ok = 0 < adj.data
+		else:
+			ok = 0 < self.adjacency_label[adj.data]
+		return sparse.coo_matrix((adj.data[ok], (adj.row[ok], adj.col[ok])), shape=adj.shape)
+
 	def descriptors(self, points, asarray=False):
 		"""Keep the data columns that were involved in growing the tesselation.
 
@@ -368,6 +510,7 @@ class Tesselation(object):
 				return points
 
 
+
 class Delaunay(Tesselation):
 	"""
 	Delaunay graph.
@@ -387,11 +530,24 @@ class Delaunay(Tesselation):
 	def tesselate(self, points):
 		self._cell_centers = self._preprocess(points)
 
-	def cellIndex(self, points, knn=None, prefered='index', \
+	def cell_index(self, points, format=None, select=None, knn=None,
 		min_location_count=None, metric='euclidean', **kwargs):
 		"""
+		See :meth:`Tesselation.cell_index`.
+
+		A single array representation of the point-cell association may not be possible with
+		`knn` defined, because a point can be associated to multiple cells. If such
+		a case happens the default output format will be ``'pair'``.
+
+		In addition to the values allowed by :meth:`Tesselation.cell_index`, `format` admits
+		value ``'force array'`` that acts like ``format='array', select=nearest_cell(...)``.
+		The implementation however is more straight-forward and simply ignores 
+		the minimum number of nearest neighbours if provided.
+
 		Arguments:
-			points: see :meth:`Tesselation.cellIndex`.
+			points: see :meth:`Tesselation.cell_index`.
+			format: see :meth:`Tesselation.cell_index`; additionally admits ``'force array'``.
+			select: see :meth:`Tesselation.cell_index`.
 			knn (int or pair of ints, optional):
 				minimum number of points per cell (or of nearest neighbors to the cell 
 				center). Cells may overlap and the returned cell index may be a sparse 
@@ -399,8 +555,6 @@ class Delaunay(Tesselation):
 				can also be a pair of ints, in which case these ints define the minimum
 				and maximum number of points per cell respectively.
 				See also the `prefered` argument.
-			prefered ({'index', 'force-index', 'pair', 'sparse'}, optional):
-				prefered representation of the point-cell association (or partition).
 			min_location_count (int, optional):
 				minimum number of points for a cell to be included in the labeling. 
 				This argument applies before `knn`. The points in these cells, if not 
@@ -408,39 +562,20 @@ class Delaunay(Tesselation):
 				do not change.
 
 		Returns:
-			see :meth:`Tesselation.cellIndex`.
-
-		A single vector representation of the point-cell association may not be possible with
-		`knn` defined, because a point can be associated to multiple cells. If such
-		a case happens and `prefered` is 'index', then 'pair' will be used as a fallback.
-
-		`prefered` can be either 'index' (default), 'force index' (deprecated), 'pair' or 
-		'sparse'.
-
-		'index' and 'force index'
-			the output is a single vector of cell indices with size the number of points.
-			'force index' makes `cellIndex` ignore `min_location_count`.
-
-		'pair'
-			the output is a pair ``(point_index, cell_index)`` of vectors such that for all
-			``i``, the point with index ``point_index[i]`` is in the cell with index 
-			``cell_index[i]``.
-
-		'sparse'
-			the output is a COO sparse matrix with size ``(# points, # cells)`` and 
-			non-zeros to designate point-cell associations.
+			see :meth:`Tesselation.cell_index`.
 
 		"""
 		if isinstance(knn, tuple):
 			min_nn, max_nn = knn
 		else:
 			min_nn, max_nn = knn, None
-		points = self.scaler.scalePoint(points, inplace=False)
+		points = self.scaler.scale_point(points, inplace=False)
 		D = cdist(self.descriptors(points, asarray=True), \
 			self._cell_centers, metric, **kwargs)
 		ncells = self._cell_centers.shape[0]
-		if prefered == 'force index':
+		if format == 'force array':
 			min_nn = None
+			format = 'array' # for later call to :func:`format_cell_index`
 		if max_nn or min_nn or min_location_count:
 			K = np.argmin(D, axis=1) # cell indices
 			nonempty, positive_count = np.unique(K, return_counts=True)
@@ -490,25 +625,22 @@ class Delaunay(Tesselation):
 						K[K == c] = -1
 		else:
 			K = np.argmin(D, axis=1) # cell indices
-		if isinstance(K, np.ndarray) and not prefered.endswith('index'):
-			K = (np.arange(K.size), K)
-		if prefered == 'sparse':
-			K = sparse.coo_matrix((np.ones_like(K[0], dtype=bool), K), shape=D.shape)
-		return K
+		return format_cell_index(K, format=format, select=select,
+			shape=(points.shape[0], self.cell_adjacency.shape[0]))
 
 	# cell_centers property
 	@property
 	def cell_centers(self):
 		"""Unscaled coordinates of the cell centers (numpy.ndarray)."""
 		if isinstance(self.scaler.factor, pd.Series):
-			return self.scaler.unscalePoint(pd.DataFrame(self._cell_centers, \
+			return self.scaler.unscale_point(pd.DataFrame(self._cell_centers, \
 				columns=self.scaler.factor.index))
 		else:
-			return self.scaler.unscalePoint(self._cell_centers)
+			return self.scaler.unscale_point(self._cell_centers)
 
 	@cell_centers.setter
 	def cell_centers(self, centers):
-		self._cell_centers = self.scaler.scalePoint(centers)
+		self._cell_centers = self.scaler.scale_point(centers)
 
 
 class Voronoi(Delaunay):
@@ -552,14 +684,14 @@ class Voronoi(Delaunay):
 		if self._cell_centers is not None and self._vertices is None:
 			self._postprocess()
 		if isinstance(self.scaler.factor, pd.Series):
-			return self.scaler.unscalePoint(pd.DataFrame(self._vertices, \
+			return self.scaler.unscale_point(pd.DataFrame(self._vertices, \
 				columns=self.scaler.factor.index))
 		else:
-			return self.scaler.unscalePoint(self._vertices)
+			return self.scaler.unscale_point(self._vertices)
 
 	@vertices.setter
 	def vertices(self, vertices):
-		self._vertices = self.scaler.scalePoint(vertices)
+		self._vertices = self.scaler.scale_point(vertices)
 
 	# cell_adjacency property
 	@property
@@ -629,17 +761,6 @@ class Voronoi(Delaunay):
 					np.fliplr(voronoi.ridge_points).flatten('F'))), \
 					shape=(n_centers, n_centers))
 			return voronoi
-
-	#def boundaries(self, cell_index=None):
-	#	if cell_index is None:
-	#		bs = []
-	#		for j in self.cell_centers.shape[0]:
-	#			b = self._boundaries(j)
-	#			if b is not None:
-	#				bs.append((j, b))
-	#		return OrderedDict(bs)
-	#	else:
-	#		return self._boundaries(cell_index)
 
 
 
@@ -773,6 +894,9 @@ class RegularMesh(Voronoi):
 
 
 def dict_to_sparse(cell_vertex, shape=None):
+	"""
+	Convert cell-vertex association :class:`dict`s to :mod:`~scipy.sparse` matrices.
+	"""
 	if not sparse.issparse(cell_vertex):
 		if shape:
 			n_cells = shape[0]
@@ -788,6 +912,9 @@ def dict_to_sparse(cell_vertex, shape=None):
 	return cell_vertex
 
 def sparse_to_dict(cell_vertex):
+	"""
+	Convert cell-vertex associations :mod:`~scipy.sparse` matrices to :class:`dict`s.
+	"""
 	if sparse.issparse(cell_vertex):
 		matrix = cell_vertex.tocsr()
 		cell_vertex = { i: matrix.indices[matrix.indptr[i]:matrix.indptr[i+1]] \

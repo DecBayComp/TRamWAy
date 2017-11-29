@@ -280,7 +280,7 @@ class Distributed(Local):
 			for vander in cell.cache['vanders'] ])
 		return gradX
 
-	def gradSum(self, i, index_map=None):
+	def grad_sum(self, i, index_map=None):
 		"""
 		Mixing matrix for the gradients at a given cell.
 
@@ -318,7 +318,7 @@ class Distributed(Local):
 			cell.cache['area'] = area
 		return area
 
-	def dXdt(self, t, X):
+	def dx_dt(self, t, X):
 		"""
 		Time derivative.
 
@@ -800,7 +800,7 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 		if cells.tesselation.adjacency_label is None:
 			_adjacency = cells.tesselation.cell_adjacency.tocsr(True)
 		else:
-			_adjacency = cells.tesselation.cell_adjacency.tocoo(True)
+			_adjacency = cells.tesselation.cell_adjacency.tocoo()
 			ok = 0 < cells.tesselation.adjacency_label[_adjacency.data]
 			row, col = _adjacency.row[ok], _adjacency.col[ok]
 			data = np.ones(np.count_nonzero(ok)) # the values do not matter

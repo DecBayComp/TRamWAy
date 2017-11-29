@@ -58,9 +58,9 @@ class GasMesh(Voronoi):
 		init = self.scaler.init
 		points = Voronoi._preprocess(self, points)
 		if init:
-			self._min_distance = self.scaler.scaleDistance(self._min_distance)
-			self._avg_distance = self.scaler.scaleDistance(self._avg_distance)
-			self._max_distance = self.scaler.scaleDistance(self._max_distance)
+			self._min_distance = self.scaler.scale_distance(self._min_distance)
+			self._avg_distance = self.scaler.scale_distance(self._avg_distance)
+			self._max_distance = self.scaler.scale_distance(self._max_distance)
 		if self.gas is None:
 			self.gas = Gas(np.asarray(points))
 			if self._max_distance:

@@ -126,7 +126,7 @@ def main():
 	D_ = infer(dynamic_cells, mode='D', localization_error=localization_error, \
 		min_diffusivity=minD)
 	Dlim = np.r_[0, D_.quantile(.95).values]
-	D_ = dynamic_cells.tesselation.splitFrames(D_)
+	D_ = dynamic_cells.tesselation.split_frames(D_)
 	for t, frame_map in enumerate(D_):
 		map_plot(frame_map, cells=static_cells, mode='D', \
 			output_file=out(method, '.d.{}.png'.format(t)), \
@@ -140,7 +140,7 @@ def main():
 	DD = infer(dynamic_cells, mode='DD', localization_error=localization_error, \
 		priorD=priorD, min_diffusivity=minD)
 	Dlim = np.r_[0, DD.quantile(.95).values]
-	DD = dynamic_cells.tesselation.splitFrames(DD)
+	DD = dynamic_cells.tesselation.split_frames(DD)
 	for t, frame_map in enumerate(DD):
 		map_plot(frame_map, cells=static_cells, mode='DD', \
 			output_file=out(method, '.dd.{}.png'.format(t)), \

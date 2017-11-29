@@ -66,12 +66,12 @@ class ArrayGraph(Graph):
 		self._fast_node = {}
 
 	def connect(self, n1, n2, **kwargs):
-		if not self.hasNode(n1):
+		if not self.has_node(n1):
 			raise MissingNodeError(n1)
-		if not self.hasNode(n2):
+		if not self.has_node(n2):
 			raise MissingNodeError(n2)
 		if not self.edges:
-			self._initEdges(**kwargs)
+			self._init_edges(**kwargs)
 		e = self.adjacency[n1, n2] - 1
 		if e < 0: # e is 0 does not work as expected because of types
 			if self._free_edges:
@@ -80,13 +80,13 @@ class ArrayGraph(Graph):
 				e = self._edge_counter
 				self._edge_counter += 1
 				if self.edge_count_max < self._edge_counter: # actual index is e - 1
-					self._resizeEdges()
+					self._resize_edges()
 			self.adjacency[n1, n2] = e + 1
 			self.adjacency[n2, n1] = e + 1
 		for attr, default in self.edge_defaults.items():
 			self.edges[attr][e] = kwargs.get(attr, default)
 
-	def unsafeDisconnect(self, n1, n2):
+	def unsafe_disconnect(self, n1, n2):
 		edge = self.adjacency[n1, n2] - 1
 		self.adjacency[n1, n2] = 0
 		self.adjacency[n2, n1] = 0
@@ -97,29 +97,29 @@ class ArrayGraph(Graph):
 			n2 = [n2]
 		if n2:
 			#print(('disconnect',(n1, type(n1)),(n2, type(n2))))
-			if not self.hasNode(n1):
+			if not self.has_node(n1):
 				raise MissingNodeError(n1)
 			for n in n2:
-				if self.hasNode(n):
-					self.unsafeDisconnect(n1, n)
+				if self.has_node(n):
+					self.unsafe_disconnect(n1, n)
 				else:	raise MissingNodeError(n)
 
-	def findEdge(self, n1, n2):
+	def find_edge(self, n1, n2):
 		e = self.adjacency[n1, n2]
 		if e:	return e - 1
 		else:	return None
 
-	def getNodeAttr(self, n, attr):
-		#print(('getNodeAttr', n, attr))
-		if not self.hasNode(n):
+	def get_node_attr(self, n, attr):
+		#print(('get_node_attr', n, attr))
+		if not self.has_node(n):
 			raise MissingNodeError(n)
 		try:
 			return self.nodes[attr][n]
 		except KeyError:
 			raise NodeAttributeError(attr)
 
-	def setNodeAttr(self, n, **kwargs):
-		if not self.hasNode(n):
+	def set_node_attr(self, n, **kwargs):
+		if not self.has_node(n):
 			raise MissingNodeError(n)
 		for attr, val in kwargs.items():
 			if attr in self.nodes:
@@ -128,52 +128,52 @@ class ArrayGraph(Graph):
 					self._fast_node[attr][n] = np.dot(val, val)
 			else: raise NodeAttributeError(attr)
 
-	def getEdgeAttr(self, e, attr):
-		if self._edgeMisses(e):
+	def get_edge_attr(self, e, attr):
+		if self._edge_misses(e):
 			raise MissingEdgeError(e)
 		try:
 			return self.edges[attr][e]
 		except KeyError:
 			raise EdgeAttributeError(attr)
 
-	def setEdgeAttr(self, e, **kwargs):
-		if self._edgeMisses(e):
+	def set_edge_attr(self, e, **kwargs):
+		if self._edge_misses(e):
 			raise MissingEdgeError(e)
 		for attr, val in kwargs.items():
 			if attr in self.edges:
 				self.edges[attr][e] = val
 			else: raise EdgeAttributeError(attr)
 
-	def iterEdges(self):
+	def iter_edges(self):
 		"""Potentially inefficient."""
 		return [e - 1 for e in set(itertools.chain(self.adjacency.data))]
 
-	def iterEdgesFrom(self, n):
-		if not self.hasNode(n):
+	def iter_edges_from(self, n):
+		if not self.has_node(n):
 			raise MissingNodeError(n)
 		return zip([e - 1 for e in self.adjacency.data[n]], self.adjacency.rows[n])
 
-	def iterNeighbors(self, n):
-		if not self.hasNode(n):
+	def iter_neighbors(self, n):
+		if not self.has_node(n):
 			raise MissingNodeError(n)
 		return self.adjacency.rows[n]
 
-	def hasNode(self, n):
+	def has_node(self, n):
 		return n < self._node_counter and n not in self._free_nodes
 
-	def _edgeMisses(self, e):
+	def _edge_misses(self, e):
 		# _edge_counter is incremented before assignement, i.e. edges[*] has size at least
 		# _edge_counter+1
 		return self._edge_counter <= e or e in self._free_edges
 
-	def addNode(self, **kwargs):
+	def add_node(self, **kwargs):
 		if not self.nodes:
-			self._initNodes(**kwargs)
+			self._init_nodes(**kwargs)
 		if self._free_nodes:
 			n = self._free_nodes.pop()
 		else:
 			if self._node_counter is self.node_count_max:
-				self._resizeNodes()
+				self._resize_nodes()
 			n = self._node_counter
 			self._node_counter += 1
 		for attr, default in self.node_defaults.items():
@@ -183,10 +183,10 @@ class ArrayGraph(Graph):
 			self._fast_node[attr][n] = np.dot(w, w)
 		return n
 
-	def delNode(self, n):
-		#print(('delNode', n, type(n)))
-		if self.hasNode(n):
-			neighbors = list(self.iterNeighbors(n))
+	def del_node(self, n):
+		#print(('del_node', n, type(n)))
+		if self.has_node(n):
+			neighbors = list(self.iter_neighbors(n))
 			if neighbors:
 				self.disconnect(n, neighbors)
 			self._free_nodes.append(n)
@@ -196,12 +196,12 @@ class ArrayGraph(Graph):
 	def size(self):
 		return self._node_counter - len(self._free_nodes)
 
-	def iterNodes(self):
+	def iter_nodes(self):
 		"""Avoid by all means!"""
 		free = set(self._free_nodes)
 		return [ n for n in range(0, self._node_counter) if n not in free ]
 
-	def _initNodes(self, **kwargs):
+	def _init_nodes(self, **kwargs):
 		for attr, default in self.node_defaults.items():
 			if default is None:
 				if attr in kwargs:
@@ -216,7 +216,7 @@ class ArrayGraph(Graph):
 				typ = type(val)
 			self.nodes[attr] = np.zeros((self.node_count_max, dim), dtype=typ)
 
-	def _initEdges(self, **kwargs):
+	def _init_edges(self, **kwargs):
 		for attr, default in self.edge_defaults.items():
 			if default is None:
 				if attr in kwargs:
@@ -231,10 +231,10 @@ class ArrayGraph(Graph):
 				typ = type(val)
 			self.edges[attr] = np.zeros((self.edge_count_max, dim), dtype=typ)
 
-	def _resizeNodes(self):
+	def _resize_nodes(self):
 		raise NotImplementedError
 
-	def _resizeEdges(self):
+	def _resize_edges(self):
 		raise NotImplementedError
 
 	def export(self, sparse='csr'):
@@ -278,7 +278,7 @@ class ArrayGraph(Graph):
 		#print((A.data.min(), A.data.max()))
 		return (A, V, E)
 
-	def squareDistance(self, attr, eta, eta2=None):
+	def square_distance(self, attr, eta, eta2=None):
 		if eta2 is None:
 			eta2 = np.dot(eta, eta)
 		if attr not in self._fast_node:

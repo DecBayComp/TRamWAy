@@ -141,7 +141,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 			if store_distributed:
 				store.poke('distributed_translocations', lightcopy(_map))
 			elif input_file:
-				store.poke('imt_file', input_file)
+				store.poke('rwa_file', input_file)
 			else:
 				store.poke('tesselation_param', cells.param)
 			store.poke('version', 1.0)

@@ -28,12 +28,17 @@ import scipy.sparse as sparse
 from warnings import warn
 
 
-def scalar_map_2d(cells, values, aspect=None, clim=None):
+def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
+		delaunay=False, **kwargs):
 	if isinstance(values, pd.DataFrame):
 		if values.shape[1] != 1:
 			warn('multiple parameters available; mapping first one only', UserWarning)
 		values = values.iloc[:,0] # to Series
 	#values = pd.to_numeric(values, errors='coerce')
+
+	if delaunay:
+		delaunay_linewidth = linewidth
+		linewidth = 0
 
 	polygons = []
 	if isinstance(cells, Distributed):
@@ -80,44 +85,69 @@ def scalar_map_2d(cells, values, aspect=None, clim=None):
 	try:
 		if np.any(np.isnan(scalar_map)):
 			#print(np.nonzero(np.isnan(scalar_map)))
-			warn('NaNs ; changing them into 0s', NaNWarning)
+			msg = 'NaNs ; changing them into 0s'
+			try:
+				warn(msg, NaNWarning)
+			except:
+				print('warning: {}'.format(msg))
 			scalar_map[np.isnan(scalar_map)] = 0
 	except TypeError as e: # help debug
 		print(scalar_map)
 		print(scalar_map.dtype)
 		raise e
 
-	fig, ax = plt.gcf(), plt.gca() # before PatchCollection
-	patches = PatchCollection(polygons, alpha=0.9)
+	if figure is None:
+		figure = plt.gcf() # before PatchCollection
+	if axes is None:
+		axes = figure.gca()
+	patches = PatchCollection(polygons, alpha=0.9, linewidth=linewidth)
 	patches.set_array(scalar_map)
 	if clim is not None:
 		patches.set_clim(clim)
-	ax.add_collection(patches)
+	axes.add_collection(patches)
 
-	ax.set_xlim(xy_min[0], xy_max[0])
-	ax.set_ylim(xy_min[1], xy_max[1])
+	if delaunay:
+		try:
+			import tramway.plot.mesh as mesh
+			obj = mesh.plot_delaunay(cells, centroid_style=None,
+				linewidth=delaunay_linewidth,
+				axes=axes, **kwargs)
+		except:
+			import traceback
+			print(traceback.format_exc())
+			pass
+
+	axes.set_xlim(xy_min[0], xy_max[0])
+	axes.set_ylim(xy_min[1], xy_max[1])
 	if aspect is not None:
-		ax.set_aspect(aspect)
+		axes.set_aspect(aspect)
 
 	try:
-		fig.colorbar(patches, ax=ax)
+		figure.colorbar(patches)
 	except AttributeError as e:
 		warn(e.args[0], RuntimeWarning)
 
+	if delaunay:
+		return obj
 
 
-def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None):
+
+def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
+		**kwargs):
 	force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
+	if figure is None:
+		figure = plt.gcf()
+	if axes is None:
+		axes = figure.gca()
 	if not overlay:
-		scalar_map_2d(cells, force_amplitude)
-	ax = plt.gca()
+		obj = scalar_map_2d(cells, force_amplitude, figure=figure, axes=axes, **kwargs)
 	if aspect is not None:
-		ax.set_aspect(aspect)
-	if ax.get_aspect() == 'equal':
+		axes.set_aspect(aspect)
+	if axes.get_aspect() == 'equal':
 		aspect_ratio = 1
 	else:
-		xmin, xmax = ax.get_xlim()
-		ymin, ymax = ax.get_ylim()
+		xmin, xmax = axes.get_xlim()
+		ymin, ymax = axes.get_ylim()
 		aspect_ratio = (xmax - xmin) / (ymax - ymin)
 	# compute the distance between adjacent cell centers
 	if isinstance(cells, Distributed):
@@ -164,5 +194,11 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None):
 		#	plt.plot(center[0], center[1], 'r+')
 
 	patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=0.9)
-	ax.add_collection(patches)
+	axes.add_collection(patches)
+
+	#axes.set_xlim(xmin, xmax)
+	#axes.set_ylim(ymin, ymax)
+
+	if not overlay and obj:
+		return obj
 

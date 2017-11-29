@@ -172,27 +172,36 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 	plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
 
 
-def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None):
-	vertices = cells.tesselation.cell_centers
-	if negative is 'voronoi':
-		voronoi = cells.tesselation.cell_vertices
+def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
+		axes=None, linewidth=1):
+	if axes is None:
+		axes = plt
+	try:
+		tesselation = cells.tesselation
+	except AttributeError:
+		tesselation = cells
 
-	labels, color = _graph_theme(cells.tesselation, labels, color, negative)
+	vertices = tesselation.cell_centers
+	if negative is 'voronoi':
+		voronoi = tesselation.cell_vertices
+
+	labels, color = _graph_theme(tesselation, labels, color, negative)
 
 	# if asymetric, can be either triu or tril
-	A = sparse.triu(cells.tesselation.cell_adjacency, format='coo')
+	A = sparse.triu(tesselation.cell_adjacency, format='coo')
 	I, J, K = A.row, A.col, A.data
 	if not I.size:
-		A = sparse.tril(cells.tesselation.cell_adjacency, format='coo')
+		A = sparse.tril(tesselation.cell_adjacency, format='coo')
 		I, J, K = A.row, A.col, A.data
 
 	# plot delaunay
+	obj = []
 	for i, j, k in zip(I, J, K):
 		x, y = zip(vertices[i], vertices[j])
 		if labels is None:
 			c = 0
 		else:
-			label = cells.tesselation.adjacency_label[k]
+			label = tesselation.adjacency_label[k]
 			try:
 				c = labels.index(label)
 			except ValueError:
@@ -200,18 +209,26 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 			if label <= 0:
 				if negative is 'voronoi':
 					try:
-						vert_ids = set(self.cell_vertices.get(i, [])) & set(self.cell_vertices.get(j, []))
+						vert_ids = set(tesselation.cell_vertices.get(i, [])) & set(tesselation.cell_vertices.get(j, []))
 						x, y = voronoi[vert_ids].T
 					except ValueError:
 						continue
-		plt.plot(x, y, style, color=color[c], linewidth=1)
+		obj.append(axes.plot(x, y, style, color=color[c], linewidth=linewidth))
 
 	# plot cell centers
 	if centroid_style:
-		plt.plot(vertices[:,0], vertices[:,1], centroid_style)
+		obj.append(axes.plot(vertices[:,0], vertices[:,1], centroid_style))
 
 	# resize window
-	plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+	try:
+		axes.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+	except (ValueError, AttributeError):
+		pass
+
+	if obj:
+		return list(itertools.chain(*obj))
+	else:
+		return []
 
 
 def _graph_theme(tess, labels, color, negative):

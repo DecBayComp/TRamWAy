@@ -20,7 +20,7 @@ from ..core.namedcolumns import *
 class Scaler(object):
 	""":class:`Scaler` scales data points, point differences (vectors) or distances.
 
-	It initializes itself with the first provided sample (in :meth:`scalePoint`), and then applies
+	It initializes itself with the first provided sample (in :meth:`scale_point`), and then applies
 	the same transformation to the next samples.
 
 	A default `Scaler()` instance does not scale. However, initialization still takes place so that 
@@ -45,11 +45,11 @@ class Scaler(object):
 			Sequence of column names along which scaling applies. This applies only to
 			structured data. `columns` is determined even if `Scaler` is set to do nothing,
 			so that :meth:`scaled` can still apply.
-			`columns` can be manually set after the first call to :meth:`scalePoint` if data
+			`columns` can be manually set after the first call to :meth:`scale_point` if data
 			are not structured (do not have named columns).
 		function (function handler):
 			A function that takes a data matrix as input and returns `center` and `factor`.
-			`function` is called once during the first call to :meth:`scalePoint`.
+			`function` is called once during the first call to :meth:`scale_point`.
 		euclidian (list):
 			Sequence of names or indices of the columns to be scaled by a common factor.
 	"""
@@ -105,7 +105,7 @@ class Scaler(object):
 			points = np.asarray(points)
 		return points
 
-	def scalePoint(self, points, inplace=True, scaledonly=False, asarray=False):
+	def scale_point(self, points, inplace=True, scaledonly=False, asarray=False):
 		"""
 		Scales data.
 
@@ -114,7 +114,7 @@ class Scaler(object):
 
 		Args:
 			points (array-like):
-				Data matrix to be scaled. When :meth:`scalePoint` is called for the
+				Data matrix to be scaled. When :meth:`scale_point` is called for the
 				first time, `points` can be structured or not, without the unnecessary 
 				columns, if any.
 				At further calls of any (un-)scaling method, data should be in the same
@@ -186,7 +186,7 @@ class Scaler(object):
 			points = np.asarray(points)
 		return points
 
-	def unscalePoint(self, points, inplace=True):
+	def unscale_point(self, points, inplace=True):
 		if self.init:
 			raise AttributeError('scaler has not been initialized')
 		if not (self.center is None and self.factor is None):
@@ -199,7 +199,7 @@ class Scaler(object):
 		return points
 
 
-	def scaleVector(self, vect, inplace=True, scaledonly=False, asarray=False):
+	def scale_vector(self, vect, inplace=True, scaledonly=False, asarray=False):
 		if self.init:
 			raise AttributeError('scaler has not been initialized')
 		if self.factor is not None:
@@ -212,11 +212,11 @@ class Scaler(object):
 			vect = np.asarray(vect)
 		return vect
 
-	def unscaleVector(self, points, inplace=True):
+	def unscale_vector(self, points, inplace=True):
 		raise NotImplementedError
 
 
-	def scaleDistance(self, dist, inplace=True):
+	def scale_distance(self, dist, inplace=True):
 		if self.init:
 			raise AttributeError('scaler has not been initialized')
 		if self.factor is not None:
@@ -228,7 +228,7 @@ class Scaler(object):
 				raise AttributeError('distance cannot be scaled because no euclidean variables have been designated')
 		return dist
 
-	def unscaleDistance(self, points, inplace=True):
+	def unscale_distance(self, points, inplace=True):
 		raise NotImplementedError
 
 

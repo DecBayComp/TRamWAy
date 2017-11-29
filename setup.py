@@ -18,7 +18,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
 	name = 'tramway',
-	version = '0.1',
+	version = '0.2',
 	description = 'TRamWAy',
 	long_description = long_description,
 	url = 'https://github.com/DecBayComp/TRamWAy',

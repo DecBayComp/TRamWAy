@@ -155,7 +155,7 @@ def dd_neg_posterior(diffusivity, cells, square_localization_error, priorD, jeff
 		result += np.sum(cell.cache['dxy2'] / diffusivity_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
 		# prior
 		if priorD:
-			area = cells.gradSum(i, index_map)
+			area = cells.grad_sum(i, index_map)
 			# gradient of diffusivity
 			gradD = cells.grad(i, diffusivity, index_map)
 			if gradD is None:
@@ -248,10 +248,10 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 		residual = cell.dxy - np.outer(Ddt, gradV)
 		result += n * log(pi) + np.sum(np.log(Dtot) + np.sum(residual * residual, axis=1) / Dtot)
 		if dv.priorV:
-			area = cells.gradSum(i)
+			area = cells.grad_sum(i)
 			result += dv.priorV * np.dot(gradV * gradV, area)
 		if dv.priorD:
-			area = cells.gradSum(i) # area is cached, therefore gradSum can be called several times at no extra cost
+			area = cells.grad_sum(i) # area is cached, therefore grad_sum can be called several times at no extra cost
 			# gradient of diffusivity
 			gradD = cells.grad(i, D)
 			assert gradD is not None

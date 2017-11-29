@@ -212,11 +212,11 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	# partition the dataset into the cells of the tesselation
 	if knn is None:
-		cell_index = tess.cellIndex(xyt_data, min_location_count=strict_min_location_count)
+		cell_index = tess.cell_index(xyt_data, min_location_count=strict_min_location_count)
 	else:
 		if strict_min_location_count is None:
 			strict_min_location_count = min_location_count
-		cell_index = tess.cellIndex(xyt_data, knn=knn, \
+		cell_index = tess.cell_index(xyt_data, knn=knn, \
 			min_location_count=strict_min_location_count, \
 			metric='euclidean')
 
@@ -531,9 +531,8 @@ def find_imt(path, method=None, full_list=False):
 				if isinstance(cells, CellStats) and \
 					(method is None or cells.param['method'] == method):
 					found = True
-			except:
-				pass
-			hdf.close()
+			finally:
+				hdf.close()
 		except:
 			pass
 		if found: break

@@ -51,13 +51,13 @@ class KDTreeMesh(Voronoi):
 		self.max_probability = max_probability
 		self.max_level = max_level
 
-	def cellIndex(self, points, knn=None, prefered='index', \
+	def cell_index(self, points, format=None, select=None, knn=None,
 		min_location_count=None, metric='chebyshev', **kwargs):
 		if isinstance(knn, tuple):
 			min_nn, max_nn = knn
 		else:
 			min_nn, max_nn = knn, None
-		if prefered == 'force index':
+		if format == 'force array':
 			min_nn = None
 		#if max_nn: # valid only if points are those the tesselation was grown with
 		#	max_location_count = int(floor(self.max_probability * points.shape[0]))
@@ -65,9 +65,9 @@ class KDTreeMesh(Voronoi):
 		#		max_nn = None
 		if metric == 'chebyshev':
 			if min_nn or max_nn:
-				raise NotImplementedError('knn support has evolved and KDTreeMesh still lacks a proper support for it. You can still call cellIndex with argument metric=\'euclidean\'')
+				raise NotImplementedError('knn support has evolved and KDTreeMesh still lacks a proper support for it. You can still call cell_index with argument metric=\'euclidean\'')
 			# TODO: pass relevant kwargs to cdist
-			points = self.scaler.scalePoint(points, inplace=False)
+			points = self.scaler.scale_point(points, inplace=False)
 			D = cdist(self.descriptors(points, asarray=True), \
 				self._cell_centers, metric) # , **kwargs
 			dmax = self.dichotomy.reference_length[self.level[np.newaxis,:] + 1]
@@ -78,13 +78,16 @@ class KDTreeMesh(Voronoi):
 				for k in K:
 					J[J == k] = -1
 			if I[0] == 0 and I.size == points.shape[0] and I[-1] == points.shape[0] - 1:
-				return J
+				K = J
 			else:
 				K = -np.ones(points.shape[0], dtype=J.dtype)
 				K[I] = J
-				return K
+			if format == 'force array':
+				format = 'array' # for :func:`format_cell_index`
+			return format_cell_index(K, format=format, select=select,
+				shape=(points.shape[0], self.cell_adjacency.shape[0]))
 		else:
-			return Delaunay.cellIndex(self, points, knn=knn, prefered=prefered, \
+			return Delaunay.cell_index(self, points, format=format, select=select, knn=knn,
 				min_location_count=min_location_count, metric=metric, **kwargs)
 
 	def tesselate(self, points, **kwargs):
@@ -92,9 +95,9 @@ class KDTreeMesh(Voronoi):
 		points = self._preprocess(points)
 		if init:
 			if self._min_distance:
-				self._min_distance = self.scaler.scaleDistance(self._min_distance)
+				self._min_distance = self.scaler.scale_distance(self._min_distance)
 			if self._avg_distance:
-				self._avg_distance = self.scaler.scaleDistance(self._avg_distance)
+				self._avg_distance = self.scaler.scale_distance(self._avg_distance)
 		min_distance = None
 		avg_distance = None
 		if self._avg_distance:
