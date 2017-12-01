@@ -32,10 +32,10 @@ def _render_cells(args):
 	if delaunay:
 		kwargs['xy_layer'] = 'delaunay'
 	del kwargs['func']
-	del kwargs['min_cell_count']
+	del kwargs['min_location_count']
 	cell_plot(input_file, output_file=output_file, fig_format=fig_format, \
-		point_count_hist='c' in hist, cell_dist_hist='d' in hist, \
-		point_dist_hist='p' in hist, **kwargs)
+		location_count_hist='c' in hist, cell_dist_hist='d' in hist, \
+		location_dist_hist='p' in hist, **kwargs)
 	sys.exit(0)
 
 
@@ -46,7 +46,7 @@ def _tesselate(args):
 	scaling = kwargs.pop('w', None)
 	if scaling and not kwargs['scaling']:
 		kwargs['scaling'] = 'whiten'
-	avg_cell_count = kwargs.pop('cell_count', None)
+	avg_location_count = kwargs.pop('location_count', None)
 	max_level = kwargs.pop('lower_levels', None)
 	min_nn = kwargs.pop('knn', None)
 	max_nn = kwargs.pop('max_nn', None)
@@ -57,7 +57,7 @@ def _tesselate(args):
 	if kwargs['method'] == 'kdtree' and min_nn is not None:
 		kwargs['metric'] = 'euclidean'
 	tesselate(input_file, output_file=output_file, \
-		avg_cell_count=avg_cell_count, max_level=max_level, \
+		avg_location_count=avg_location_count, max_level=max_level, \
 		knn=knn, **kwargs)
 	sys.exit(0)
 
@@ -85,28 +85,36 @@ def _render_map(args):
 
 
 def main():
-	parser = argparse.ArgumentParser(prog='tramway', \
-		description='TRamWAy central command.', \
-		epilog='See also https://github.com/DecBayComp/TRamWAy')
-	parser.add_argument('-v', '--verbose', action='store_true', help='increase verbosity')
-	parser.add_argument('-i', '--input', action='append', \
-		help='path to input file or directory')
-	parser.add_argument('-o', '--output', help='path to output file')
+	parser = argparse.ArgumentParser(prog='tramway',
+		description='TRamWAy central command.',
+		epilog='See also https://github.com/DecBayComp/TRamWAy',
+		conflict_handler='resolve')
+	global_arguments = [
+		('-v', '--verbose', dict(action='store_true', help='increase verbosity')),
+		('-i', '--input', dict(action='append', default=[],
+			help='path to input file or directory')),
+		('-o', '--output', dict(help='path to output file'))]
+	for arg1, arg2, kwargs in global_arguments:
+		parser.add_argument(arg1, arg2, dest=arg1[1]+'pre', **kwargs)
 	sub = parser.add_subparsers(title='commands', \
 		description="type '%(prog)s command --help' for additional help")
 
 	# plot tesselation and partition
 	cells_parser = sub.add_parser('show-cells')
 	cells_parser.set_defaults(func=_render_cells)
-	cells_parser.add_argument('-s', '--min-cell-count', type=int, default=20, \
-		help='minimum number of points per cell')
+	for arg1, arg2, kwargs in global_arguments:
+		cells_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	cells_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
+		help='minimum number of locations per cell')
 	cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
-	cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of points from distinct neighboring centers)")
+	cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers)")
 	cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
 	# tesselate
 	tesselate_parser = sub.add_parser('tesselate')
 	tesselate_parser.set_defaults(func=_tesselate)
+	for arg1, arg2, kwargs in global_arguments:
+		tesselate_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	tesselate_group1 = tesselate_parser.add_mutually_exclusive_group(required=True)
 	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'])
 	#tesselate_group1.add_argument('-r', '--reuse', \
@@ -123,34 +131,36 @@ def main():
 	tesselate_group2 = tesselate_parser.add_mutually_exclusive_group()
 	tesselate_group2.add_argument('-w', action='store_true', help='whiten the input data')
 	tesselate_group2.add_argument('--scaling', choices=['whiten', 'unit'])
-	tesselate_parser.add_argument('-s', '--min-cell-count', type=int, default=20, \
-		help='minimum number of points per cell. This affects the tesselation only and not directly the partition. See --min-knn for a partition-related parameter')
+	tesselate_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
+		help='minimum number of locations per cell. This affects the tesselation only and not directly the partition. See --min-knn for a partition-related parameter')
 	kdtree_parser = tesselate_parser
-	kdtree_parser.add_argument('-S', '--max-cell-count', type=int, \
-		help='maximum number of points per cell [kdtree]')
+	kdtree_parser.add_argument('-S', '--max-location-count', type=int, \
+		help='maximum number of locations per cell [kdtree]')
 	kdtree_parser.add_argument('-l', '--lower-levels', type=int, \
 		help='number of levels below the smallest one [kdtree]')
 	grid_parser = tesselate_parser
-	grid_parser.add_argument('-c', '--cell-count', type=int, default=80, \
-		help='average number of points per cell [grid|kmeans]')
+	grid_parser.add_argument('-c', '--location-count', type=int, default=80, \
+		help='average number of locations per cell [grid|kmeans]')
 	#gwr_parser = tesselate_parser
-	#gwr_parser.add_argument('-c', '--cell-count', type=int, default=80, \
-	#	help='average number of points per cell [gwr]')
+	#gwr_parser.add_argument('-c', '--location-count', type=int, default=80, \
+	#	help='average number of locations per cell [gwr]')
 
 	# infer
 	infer_parser = sub.add_parser('infer')
 	infer_parser.set_defaults(func=_infer)
+	for arg1, arg2, kwargs in global_arguments:
+		infer_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	infer_parser.add_argument('-m', '--mode', choices=['D', 'DF', 'DD', 'DV'], \
 		help='inference mode')
 	infer_parser.add_argument('-e', '--localization-error', type=float, default=0.01, \
 		help='localization error')
-	infer_parser.add_argument('-d', '--prior-d', type=float, default=0.01, \
+	infer_parser.add_argument('-pd', '--prior-d', type=float, default=0.01, \
 		help='prior on the diffusivity [DD|DV]')
-	infer_parser.add_argument('-v', '--prior-v', type=float, default=0.01, \
+	infer_parser.add_argument('-pv', '--prior-v', type=float, default=0.01, \
 		help='prior on the potential [DV]')
-	infer_parser.add_argument('-j', '--jeffreys-prior', action='store_true', \
+	infer_parser.add_argument('-jp', '--jeffreys-prior', action='store_true', \
 		help='Jeffrey''s prior')
-	infer_parser.add_argument('-c', '--max-cell-count', type=int, default=20, \
+	infer_parser.add_argument('-c', '--max-location-count', type=int, default=20, \
 		help='number of cells per group [DD|DV]')
 	infer_parser.add_argument('-a', '--dilation', type=int, default=1, \
 		help='number of incremental dilation of each group, adding adjacent cells [DD|DV]')
@@ -162,10 +172,21 @@ def main():
 	# plot map(s)
 	map_parser = sub.add_parser('show-map')
 	map_parser.set_defaults(func=_render_map)
+	for arg1, arg2, kwargs in global_arguments:
+		map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
 	# parse
 	args = parser.parse_args()
+	args.verbose = args.vpre or args.vpost
+	args.input = args.ipre + args.ipost
+	args.output = args.opre if args.opre else args.opost
+	del args.vpre
+	del args.vpost
+	del args.ipre
+	del args.ipost
+	del args.opre
+	del args.opost
 	try:
 		args.func(args)
 	except AttributeError:

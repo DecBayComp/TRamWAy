@@ -358,6 +358,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		if isinstance(input_file, list):
 			input_file = input_file[0]
 		imt_path = input_file
+		if imt_path is None:
+			raise ValueError('undefined input file')
 		# copy-paste
 		if os.path.isdir(imt_path):
 			imt_path = os.listdir(imt_path)
