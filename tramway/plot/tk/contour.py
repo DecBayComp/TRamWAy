@@ -23,10 +23,16 @@ import pandas as pd
 from tramway.io import *
 from tramway.helper.tesselation import find_imt
 from ..contour import ContourEditor
-from tkinter import BooleanVar, IntVar, DoubleVar, StringVar
-import tkinter as tk
-import tkinter.filedialog as filedialog
-from tkinter import ttk
+try:
+	from tkinter import BooleanVar, IntVar, DoubleVar, StringVar
+	import tkinter as tk
+	import tkinter.filedialog as filedialog
+	from tkinter import ttk
+except ImportError: # Python 2
+	from Tkinter import BooleanVar, IntVar, DoubleVar, StringVar
+	import Tkinter as tk
+	import tkFileDialog as filedialog
+	import ttk
 import os.path
 import sys
 import traceback
@@ -271,7 +277,7 @@ class ContourEditingApp(tk.Frame):
 
 
 
-if __name__ == '__main__':
+def contour_utility():
 	root = tk.Tk()
 	root.protocol('WM_DELETE_WINDOW', sys.exit)
 	root.rowconfigure(0, weight=1)
@@ -280,4 +286,7 @@ if __name__ == '__main__':
 	app.grid(row=0, column=0, sticky=tk.W+tk.E+tk.N+tk.S)
 	app.debug = '-d' in sys.argv or '--debug' in sys.argv
 	app.mainloop()
+
+if __name__ == '__main__':
+	contour_utility()
 

@@ -158,7 +158,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 
 def map_plot(maps, output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
-	cells=None, mode=None, \
+	cells=None, mode=None, clip=None, \
 	**kwargs):
 
 	if isinstance(maps, tuple):
@@ -216,7 +216,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			fig = plt.figure(figsize=figsize)
 			figs.append(fig)
 
-			scalar_map_2d(cells, maps[col], aspect=aspect, **col_kwargs)
+			scalar_map_2d(cells, _clip(maps[col], clip), aspect=aspect, **col_kwargs)
 
 			if mode:
 				if col == keyword:
@@ -252,7 +252,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			fig = plt.figure(figsize=figsize)
 			figs.append(fig)
 
-			field_map_2d(cells, maps[cols[name]], aspect=aspect)
+			field_map_2d(cells, _clip(maps[cols[name]], clip), aspect=aspect)
 
 			extra = None
 			if short_name:
@@ -292,4 +292,19 @@ def map_plot(maps, output_file=None, fig_format=None, \
 		for fig in figs:
 			plt.close(fig)
 
+
+def _clip(m, q):
+	if q:
+		amplitude = m.pow(2)
+		if 1 < len(m.shape):
+			amplitude = amplitude.sum(1)
+		amplitude = amplitude.apply(np.sqrt)
+		amax = amplitude.quantile(q)
+		m = m.copy()
+		factor = amplitude[amplitude > amax].rdiv(amax)
+		if 1 < len(m.shape):
+			m.loc[amplitude > amax, :] *= factor
+		else:
+			m.loc[amplitude > amax] *= factor
+	return m
 

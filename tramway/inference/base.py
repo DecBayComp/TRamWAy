@@ -430,7 +430,7 @@ class Distributed(Local):
 				grid = Voronoi()
 				grid.cell_centers = cell_centers
 			I = np.full(ok.size, -1, dtype=int)
-			I[ok] = grid.cellIndex(points[ok], min_location_count=1)
+			I[ok] = grid.cell_index(points[ok], min_location_count=1)
 			#if not np.all(ok):
 			#	print(ok.nonzero()[0])
 			A = grid.cell_adjacency

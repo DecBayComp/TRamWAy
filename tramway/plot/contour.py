@@ -40,7 +40,7 @@ class ContourEditor(object):
 		self._step = 1
 		self._variable = None
 		self._area = True
-		self.clip = .99 # percentile
+		self.clip = .99 # quantile
 		self.debug = False
 		self._areas = None
 		self.callback = None
@@ -48,6 +48,7 @@ class ContourEditor(object):
 		self.cell_marker = 's'
 		self.cell_marker_color = 'r'
 		self.cell_marker_size = 10
+		self.delaunay_color = (.1, .1, .1)
 
 	@property
 	def map(self):
@@ -144,7 +145,9 @@ class ContourEditor(object):
 		self._clear()
 		self._variable = v
 		if self.debug or self._delaunay:
-			kwargs = {'delaunay': True, 'color': [(.9, .9, .9)] * 10, 'linewidth': .3}
+			kwargs = {'delaunay': True,
+				'color': [self.delaunay_color] * 10,
+				'linewidth': .3}
 		else:
 			kwargs = {'linewidth': 0}
 		if self._variables[v][1:]:

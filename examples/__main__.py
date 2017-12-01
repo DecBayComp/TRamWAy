@@ -64,8 +64,12 @@ def main():
 		else:
 			short_help = None
 		demo_parser = hub.add_parser(demo, help=short_help)
-		#if hasattr(module, 'argparser'):
-		#	demo_parser
+		if hasattr(module, 'arguments'):
+			for arg, opt in module.arguments:
+				try:
+					demo_parser.add_argument(arg, **opt)
+				except:
+					print('failed to add argument: {}'.format(arg))
 		demo_parser.set_defaults(func=demo)
 
 	# parse
@@ -89,7 +93,9 @@ def main():
 				print('[done]')
 			except:
 				print('[failed]')
-	module.main()
+	args = args.__dict__
+	del args['func']
+	module.main(**args)
 
 
 if __name__ == '__main__':

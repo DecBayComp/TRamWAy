@@ -94,7 +94,10 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 		plt.plot(x, y, style, color=color, markersize=size)
 	else:
 		L = np.unique(label)
-		if color is None:
+		kwargs = {}
+		if color in [None, 'light']:
+			if color == 'light':
+				kwargs = {'alpha': .2}
 			if 2 < len(L):
 				color = ['darkgreen', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen', 'darkslateblue', 'darkslategray', 'darkviolet', 'deeppink', 'deepskyblue', 'dodgerblue', 'firebrick', 'forestgreen', 'gold', 'goldenrod', 'hotpink', 'indianred', 'indigo', 'lightblue', 'lightcoral', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightsteelblue', 'limegreen', 'maroon', 'mediumaquamarine', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'navajowhite', 'navy', 'olive', 'olivedrab', 'orange', 'orangered', 'orchid', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', '#663399', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'sienna', 'skyblue', 'slateblue', 'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'yellowgreen']
 				color = ['gray'] + \
@@ -104,10 +107,17 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 			else:	color = 'k'
 		for i, l in enumerate(L):
 			plt.plot(x[label == l], y[label == l], 
-				style, color=color[i], markersize=size)
+				style, color=color[i], markersize=size, **kwargs)
+
+	# resize window
+	try:
+		plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+	except AttributeError:
+		pass
 
 
-def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None):
+def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
+		linewidth=1):
 	vertices = cells.tesselation.vertices
 	labels, color = _graph_theme(cells.tesselation, labels, color, negative)
 	color += 'w'
@@ -145,7 +155,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 				c = labels.index(cells.tesselation.adjacency_label[edge_ix])
 			except ValueError:
 				continue
-		plt.plot(x, y, style, color=color[c], linewidth=1)
+		plt.plot(x, y, style, color=color[c], linewidth=linewidth)
 
 		# extra debug steps
 		if special_edges and edge_ix in special_edges:

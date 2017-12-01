@@ -281,10 +281,10 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 
 
-def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
+def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, \
 	location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
-	aspect=None):
+	aspect=None, delaunay=None, locations={}, voronoi=True, colors=None, title=None):
 	"""
 	Partition plots.
 
@@ -298,6 +298,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 
 		xy_layer ({None, 'delaunay', 'voronoi'}, optional):
 			Overlay Delaunay or Voronoi graph over the data points. For 2D data only.
+			*Deprecated!* Please use `delaunay` and `voronoi` arguments instead.
 
 		output_file (str, optional):
 			Path to a file in which the figure will be saved. If `cells` is a path and 
@@ -334,6 +335,17 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 
 		aspect (str, optional):
 			Aspect ratio. Can be 'equal'.
+
+		locations (dict):
+			Keyword arguments to :func:`~tramway.plot.mesh.plot_points`.
+
+		delaunay (bool or dict):
+			Overlay Delaunay graph. If :class:`dict`, keyword arguments to 
+			:func:`~tramway.plot.mesh.plot_delaunay`.
+
+		voronoi (bool or dict):
+			Overlay Voronoi graph. If :class:`dict`, keyword arguments to 
+			:func:`~tramway.plot.mesh.plot_voronoi`.
 
 	Notes:
 		See also :mod:`tramway.plot.mesh`.
@@ -396,19 +408,30 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 		fig = plt.figure(figsize=figsize)
 		figs.append(fig)
 		if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
-			plot_points(cells)
+			plot_points(cells, **locations)
 		else:
-			plot_points(cells, min_count=min_location_count)
+			plot_points(cells, min_count=min_location_count, **locations)
 		if aspect is not None:
-			plt.gca().set_aspect(aspect)
-		if xy_layer == 'delaunay':
-			plot_delaunay(cells)
-			plt.title(pp_method_name + ' based delaunay')
-		elif xy_layer == 'voronoi':
-			plot_voronoi(cells)
-			plt.title(pp_method_name + ' based voronoi')
-		else:
-			plt.title(pp_method_name)
+			fig.gca().set_aspect(aspect)
+		if xy_layer == 'voronoi' or voronoi:
+			if not isinstance(voronoi, dict):
+				voronoi = {}
+			plot_voronoi(cells, **voronoi)
+			voronoi = True
+		if xy_layer == 'delaunay' or delaunay: # Delaunay above Voronoi
+			if not isinstance(delaunay, dict):
+				delaunay = {}
+			plot_delaunay(cells, **delaunay)
+			delaunay = True
+		if title:
+			if isinstance(title, str):
+				plt.title(title)
+			elif delaunay == voronoi:
+				plt.title(pp_method_name)
+			elif delaunay:
+				plt.title(pp_method_name + ' based Delaunay')
+			elif voronoi:
+				plt.title(pp_method_name + ' based Voronoi')
 
 
 	print_figs = output_file or (input_file and fig_format)
@@ -501,7 +524,7 @@ def cell_plot(cells, xy_layer='voronoi', output_file=None, fig_format=None, \
 			plt.close(fig)
 
 
-def find_imt(path, method=None, full_list=False):
+def find_mesh(path, method=None, full_list=False):
 	if not isinstance(path, list):
 		path = [path]
 	paths = []
@@ -542,4 +565,9 @@ def find_imt(path, method=None, full_list=False):
 		return (path, cells)
 	else:
 		return (paths, None)
+
+
+def find_imt(path, method=None, full_list=False):
+	"""alias for :func:`find_mesh` for backward compatibility."""
+	return find_mesh(path, method, full_list)
 

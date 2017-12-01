@@ -114,7 +114,7 @@ class KDTreeMesh(Voronoi):
 		self.dichotomy.subset = {} # clear memory
 		self.dichotomy.subset_counter = 0
 		
-		origin, level = zip(*[ self.dichotomy.cell[c][:2] for c in range(self.dichotomy.location_counter) ])
+		origin, level = zip(*[ self.dichotomy.cell[c][:2] for c in range(self.dichotomy.cell_counter) ])
 		origin = np.vstack(origin)
 		self.level = np.array(level)
 		self._cell_centers = origin + self.dichotomy.reference_length[self.level[:, np.newaxis] + 1]
