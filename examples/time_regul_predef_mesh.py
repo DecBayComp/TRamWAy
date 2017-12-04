@@ -85,8 +85,8 @@ def main():
 			t = (time[i] + time[i+1]) * .5 # bin center
 			true_map = cells.run(truth, t, diffusivity_map)
 			subext = 'truth.{}'.format(i)
-			print('ploting ground truth maps at time {}: {}'.format(t, \
-				out('*.'+subext, '.png')))
+			print('plotting ground truth maps at time {}: {}'.format(t, \
+				out(subext, '.png')))
 			map_plot(true_map, cells=cells, mode='true', \
 				output_file=out(subext, '.png'), aspect='equal', clim=[D, D0])
 		if not new_tesselation:
@@ -101,6 +101,8 @@ def main():
 			show=True, aspect='equal')
 
 	_, static_cells = find_imt(tesselation_file)
+	if static_cells is None:
+		raise EnvironmentError("cannot load file: {}".format(tesselation_file))
 
 	frames = np.c_[time[:-1], time[1:]] # time segments
 
@@ -136,15 +138,15 @@ def main():
 	#DF = infer(tesselation_file, mode='DF', localization_error=localization_error)
 	#map_plot(DF, output_file=out(method, '.df.png'), show=True, aspect='equal')
 
-	print("running DD inference mode...")
-	DD = infer(dynamic_cells, mode='DD', localization_error=localization_error, \
-		priorD=priorD, min_diffusivity=minD)
-	Dlim = np.r_[0, DD.quantile(.95).values]
-	DD = dynamic_cells.tesselation.split_frames(DD)
-	for t, frame_map in enumerate(DD):
-		map_plot(frame_map, cells=static_cells, mode='DD', \
-			output_file=out(method, '.dd.{}.png'.format(t)), \
-			aspect='equal', clim=Dlim)
+	#print("running DD inference mode...")
+	#DD = infer(dynamic_cells, mode='DD', localization_error=localization_error, \
+	#	priorD=priorD, min_diffusivity=minD)
+	#Dlim = np.r_[0, DD.quantile(.95).values]
+	#DD = dynamic_cells.tesselation.split_frames(DD)
+	#for t, frame_map in enumerate(DD):
+	#	map_plot(frame_map, cells=static_cells, mode='DD', \
+	#		output_file=out(method, '.dd.{}.png'.format(t)), \
+	#		aspect='equal', clim=Dlim)
 
 	#print("running DV inference mode...")
 	#DV = infer(tesselation_file, mode='DV', localization_error=localization_error, \

@@ -20,7 +20,7 @@ def random_walk(diffusivity=None, force=None, \
 		box=(0., 0., 1., 1.), duration=10., time_step=.05, \
 		full=False):
 	_box = np.asarray(box)
-	dim = _box.size / 2
+	dim = int(_box.size / 2)
 	support_lower_bound = _box[:dim]
 	support_size = _box[dim:]
 	# default maps
@@ -95,7 +95,7 @@ def random_walk(diffusivity=None, force=None, \
 
 def crop(points, box):
 	box = np.asarray(box)
-	dim = box.size / 2
+	dim = int(box.size / 2)
 	support_lower_bound = box[:dim]
 	support_size = box[dim:]
 	support_upper_bound = support_lower_bound + support_size
@@ -104,10 +104,9 @@ def crop(points, box):
 		points[coord_cols].values <= support_upper_bound), axis=1)
 	points = points.copy()
 	points['n'] += np.cumsum(np.logical_not(within), dtype=points.index.dtype)
-	single_point = 0 < points['n'].diff().values
-	#single_point[1:-1] &= single_point[2:]
-	single_point[1:-1] = np.logical_and(single_point[1:-1], single_point[2:])
-	ok = np.logical_not(single_point)
+	single_point = 0 < points['n'].diff().values[1:]
+	single_point[:-1] = np.logical_and(single_point[:-1], single_point[1:])
+	ok = np.r_[True, np.logical_not(single_point)]
 	points = points.iloc[ok]
 	within = within[ok]
 	points['n'] -= (points['n'].diff() - 1).clip_lower(0).cumsum()

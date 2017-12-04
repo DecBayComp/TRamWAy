@@ -100,6 +100,7 @@ class CellStats(Lazy):
 	@cell_index.setter
 	def cell_index(self, index):
 		self.__lazysetter__(index)
+		self.location_count = None
 
 	@property
 	def points(self):
@@ -119,7 +120,6 @@ class CellStats(Lazy):
 	def tesselation(self, mesh):
 		self._tesselation = mesh
 		self.cell_index = None
-		self.location_count = None
 
 	def descriptors(self, *vargs, **kwargs):
 		"""Proxy method for :meth:`Tesselation.descriptors`."""

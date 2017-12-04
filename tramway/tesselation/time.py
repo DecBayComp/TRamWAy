@@ -200,7 +200,7 @@ class TimeLattice(Lazy):
 		self.__lazysetter__(pts)
 
 
-	def split_framesmes(self, df, return_times=False):
+	def split_frames(self, df, return_times=False):
 		ncells = self.spatial_mesh.cell_adjacency.shape[0]
 		nsegments = self.time_lattice.shape[0]
 		try:

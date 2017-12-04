@@ -26,6 +26,7 @@ from ..plot.mesh import *
 from ..io import *
 from warnings import warn
 import six
+import traceback
 
 
 hdf_extensions = ['.rwa', '.h5', '.hdf', '.hdf5']
@@ -270,7 +271,9 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			store.poke('cells', stats_)
 			store.close()
 		except:
+			print(traceback.format_exc())
 			warn('HDF5 libraries may not be installed', ImportWarning)
+			store.close()
 			try:
 				os.unlink(imt_path)
 			except:
@@ -389,9 +392,11 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		try:
 			hdf = HDF5Store(input_file, 'r')
 			cells = hdf.peek('cells')
-			hdf.close()
 		except:
+			print(traceback.format_exc())
 			warn('HDF5 libraries may not be installed', ImportWarning)
+		finally:
+			hdf.close()
 
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'grid', 'regular grid'), \
@@ -556,6 +561,9 @@ def find_mesh(path, method=None, full_list=False):
 				if isinstance(cells, CellStats) and \
 					(method is None or cells.param['method'] == method):
 					found = True
+			except EnvironmentError:
+				print(traceback.format_exc())
+				warn('HDF5 libraries may not be installed', ImportWarning)
 			finally:
 				hdf.close()
 		except:
