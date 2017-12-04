@@ -22,6 +22,7 @@ from warnings import warn
 import os
 from time import time
 import collections
+import traceback
 
 
 sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx']])
@@ -120,6 +121,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 		if verbose:
 			print('writing file: {}'.format(output_file))
 		try:
+			# Python 3.6 raises tables.exceptions.PerformanceWarning
 			store = HDF5Store(output_file, 'w')
 			if callable(mode):
 				store.poke('mode', '(callable)')
@@ -131,9 +133,9 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 			if localization_error is not None:
 				store.poke('localization_error', localization_error)
 			if priorD is not None:
-				store.poke('priorD', priorD)
+				store.poke('prior_diffusivity', priorD)
 			if priorV is not None:
-				store.poke('priorV', priorV)
+				store.poke('prior_potential', priorV)
 			if jeffreys_prior is not None:
 				store.poke('jeffreys_prior', jeffreys_prior)
 			if kwargs:
@@ -144,10 +146,11 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 				store.poke('rwa_file', input_file)
 			else:
 				store.poke('tesselation_param', cells.param)
-			store.poke('version', 1.0)
+			store.poke('version', 1.1)
 			store.poke('runtime', runtime)
 			store.close()
 		except:
+			print(traceback.format_exc())
 			warn('HDF5 libraries may not be installed', ImportWarning)
 
 	if input_file:

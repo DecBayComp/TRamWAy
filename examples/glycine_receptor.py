@@ -13,8 +13,8 @@ data_dir = ''
 
 methods = ['grid', 'kdtree', 'kmeans', 'gwr']
 default_localization_error = 0.001
-default_priorD = 0.01
-default_priorV = 0.1
+default_prior_diffusivity = 0.01
+default_prior_potential = 0.1
 
 
 arguments = [
@@ -37,7 +37,7 @@ arguments = [
 
 def main(**kwargs):
 
-	warnings.simplefilter('error')
+	#warnings.simplefilter('error')
 
 	local = os.path.join(data_dir, data_file)
 	if not os.path.isfile(local):

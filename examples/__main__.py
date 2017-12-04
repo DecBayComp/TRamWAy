@@ -19,6 +19,28 @@ import importlib
 #from pathlib import Path
 
 
+def run(module):
+	def __main__(args):
+		if hasattr(module, 'data_file'):
+			if hasattr(module, 'data_dir'):
+				data_dir = module.data_dir
+			else:
+				data_dir = ''
+			local = os.path.join(module.data_dir, module.data_file)
+			if not os.path.exists(local) and hasattr(module, 'data_server'):
+				print('downloading {}... '.format(module.data_file), end='')
+				try:
+					request.urlretrieve(os.path.join(module.data_server, \
+							module.data_file), local)
+					print('[done]')
+				except:
+					print('[failed]')
+		args = args.__dict__
+		del args['func']
+		module.main(**args)
+	return __main__
+
+
 def main():
 	demo_dir = os.path.dirname(__file__)
 	demo_path = __package__
@@ -65,12 +87,14 @@ def main():
 			short_help = None
 		demo_parser = hub.add_parser(demo, help=short_help)
 		if hasattr(module, 'arguments'):
-			for arg, opt in module.arguments:
+			for args, kwargs in module.arguments:
+				if not isinstance(args, (tuple, list)):
+					args = (args,)
 				try:
-					demo_parser.add_argument(arg, **opt)
+					demo_parser.add_argument(*args, **kwargs)
 				except:
-					print('failed to add argument: {}'.format(arg))
-		demo_parser.set_defaults(func=demo)
+					print('failed to add argument: {}'.format(args))
+		demo_parser.set_defaults(func=run(module))
 
 	# parse
 	args = parser.parse_args()
@@ -78,24 +102,7 @@ def main():
 	if not hasattr(args, 'func'):
 		parser.print_help()
 		parser.exit(0)
-	module = demos[args.func]
-	if hasattr(module, 'data_file'):
-		if hasattr(module, 'data_dir'):
-			data_dir = module.data_dir
-		else:
-			data_dir = ''
-		local = os.path.join(module.data_dir, module.data_file)
-		if not os.path.exists(local) and hasattr(module, 'data_server'):
-			print('downloading {}... '.format(module.data_file), end='')
-			try:
-				request.urlretrieve(os.path.join(module.data_server, \
-						module.data_file), local)
-				print('[done]')
-			except:
-				print('[failed]')
-	args = args.__dict__
-	del args['func']
-	module.main(**args)
+	args.func(args)
 
 
 if __name__ == '__main__':

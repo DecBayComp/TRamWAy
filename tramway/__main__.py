@@ -92,8 +92,8 @@ def main():
 	global_arguments = [
 		('-v', '--verbose', dict(action='store_true', help='increase verbosity')),
 		('-i', '--input', dict(action='append', default=[],
-			help='path to input file or directory')),
-		('-o', '--output', dict(help='path to output file'))]
+			metavar='FILE', help='path to input file or directory')),
+		('-o', '--output', dict(metavar='FILE', help='path to output file'))]
 	for arg1, arg2, kwargs in global_arguments:
 		parser.add_argument(arg1, arg2, dest=arg1[1]+'pre', **kwargs)
 	sub = parser.add_subparsers(title='commands', \
