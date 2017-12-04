@@ -1,0 +1,22 @@
+# Python
+*.py[cod]
+__pycache__/
+
+# Package
+*.egg
+*.egg-info/
+dist/
+build/
+_build/
+
+# anything hidden should be manually added
+.*
+
+# input data files
+*.trxyt
+
+# generated rwa and image files
+*.rwa
+*.png
+*.jpg
+*.jpeg
