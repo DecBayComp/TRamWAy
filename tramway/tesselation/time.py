@@ -17,6 +17,7 @@ from tramway.tesselation import *
 import numpy as np
 import pandas as pd
 import copy
+import scipy.sparse as sparse
 
 
 class TimeLattice(Lazy):

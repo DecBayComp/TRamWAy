@@ -139,7 +139,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
 	else:
 		xyt_path = []
-		warn('TODO: test direct data input', UseCaseWarning)
+		#warn('TODO: test direct data input', UseCaseWarning)
 	
 	if ref_distance:
 		transloc_length = None
@@ -532,8 +532,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
 
 def find_mesh(path, method=None, full_list=False):
-	if not isinstance(path, list):
-		path = [path]
+	if not isinstance(path, (tuple, list)):
+		path = (path,)
 	paths = []
 	for p in path:
 		if os.path.isdir(p):
@@ -565,8 +565,12 @@ def find_mesh(path, method=None, full_list=False):
 				print(traceback.format_exc())
 				warn('HDF5 libraries may not be installed', ImportWarning)
 			finally:
-				hdf.close()
+				try:
+					hdf.close()
+				except:
+					pass
 		except:
+			print(traceback.format_exc())
 			pass
 		if found: break
 	if found:
