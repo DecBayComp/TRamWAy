@@ -16,9 +16,39 @@ import pandas as pd
 
 
 def random_walk(diffusivity=None, force=None, \
-		trajectory_mean_count=100, trajectory_count_sd=3, turn_over=.1, \
+		trajectory_mean_count=100, trajectory_count_sd=3, turnover=.1, \
 		box=(0., 0., 1., 1.), duration=10., time_step=.05, \
 		full=False):
+	"""
+	Generate random walks.
+
+	Arguments:
+
+		diffusivity (callable): takes a coordinate vector (array-like) and time (float)
+			and returns the local diffusivity (float)
+
+		force (callable): takes a coordinate vector (array-like) and time (float) and
+			returns the local force (:class:`~numpy.ndarray`)
+
+		trajectory_mean_count (int or float): average number of active trajectories at any time
+
+		trajectory_count_sd (int or float): standard deviation of the number of active trajectories
+
+		turnover (float): fraction of trajectories that will end at each time step
+
+		box (array-like): origin and size of the bounding box
+
+		duration (float): duration of the simulation in seconds
+
+		time_step (float): duration between consecutive time steps
+
+		full (bool): include locations that are outside the bounding box
+	
+	Returns:
+
+		pandas.DataFrame: simulated trajectories with 'n' the trajectory index,
+			't' the time and with other columns for location coordinates
+	"""
 	_box = np.asarray(box)
 	dim = int(_box.size / 2)
 	support_lower_bound = _box[:dim]
@@ -52,7 +82,7 @@ def random_walk(diffusivity=None, force=None, \
 		if t == duration:
 			kupdate = k
 		elif X.size:
-			kupdate = max(knew, int(round(min(k, X.shape[0]) * (1. - turn_over))))
+			kupdate = max(knew, int(round(min(k, X.shape[0]) * (1. - turnover))))
 		else:
 			kupdate = 0
 		knew = k - kupdate
@@ -94,6 +124,23 @@ def random_walk(diffusivity=None, force=None, \
 
 
 def crop(points, box):
+	"""
+	Remove the locations outside a bounding box.
+
+	When a location is discarded, the corresponding trajectory is splitted into two distinct
+	trajectories.
+
+	Arguments:
+
+		locations (pandas.DataFrame): locations with trajectory indices in column 'n',
+			times in column 't' and coordinates in the other columns
+
+		box (array-like): origin and size of the bounding box
+
+	Returns:
+
+		pandas.DataFrame: filtered locations
+	"""
 	box = np.asarray(box)
 	dim = int(box.size / 2)
 	support_lower_bound = box[:dim]
@@ -116,6 +163,25 @@ def crop(points, box):
 
 
 def truth(cells, t=None, diffusivity=None, force=None):
+	"""
+	Generate maps for the true diffusivity/force distribution.
+
+	Arguments:
+
+		cells (Distributed): distributed data ready for inference
+
+		t (float): time as understood by `diffusivity` and `force`
+
+		diffusivity (callable): admits the coordinates of a single location (array-like)
+			and time (float, if `t` is defined) and returns the local diffusivity (float)
+
+		force (callable): admits the coordinates of a single location (array-like)
+			and time (float, if `t` is defined) and returns the local force (array-like)
+
+	Returns:
+
+		pandas.DataFrame: diffusivity/force maps
+	"""
 	dim = cells.cells[0].center.size
 	I, DF = [], []
 	for i in cells.cells:
@@ -123,10 +189,14 @@ def truth(cells, t=None, diffusivity=None, force=None):
 		I.append(i)
 		if diffusivity is None:
 			D = []
+		elif t is None:
+			D = [diffusivity(cell.center)]
 		else:
 			D = [diffusivity(cell.center, t)]
 		if force is None:
 			F = []
+		elif t is None:
+			F = force(cell.center)
 		else:
 			F = force(cell.center, t)
 		DF.append(np.concatenate((D, F)))

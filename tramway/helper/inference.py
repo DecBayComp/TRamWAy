@@ -28,14 +28,56 @@ import traceback
 sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx']])
 
 
-def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
+def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	localization_error=None, priorD=None, priorV=None, jeffreys_prior=None, \
-	max_location_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
+	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
 	store_distributed=False, constructor=None, **kwargs):
+	"""
+	Inference helper.
+
+	Arguments:
+
+		cells (str or CellStats): data partition or path to partition file
+
+		mode (str or callable): either ``'D'``, ``'DF'``, ``'DD'``, ``'DV'`` or a function
+			suitable for :met:`Distributed.run`
+
+		output_file (str): desired path for the output map file
+
+		partition (dict): keyword arguments for :func:`~tramway.helper.tesselation.find_partition`
+			if `cells` is a path
+
+		verbose (bool): verbosity level
+
+		localization_error (float): localization error
+
+		prior_diffusivity (float): prior diffusivity
+
+		prior_potential (float): prior potential
+
+		jeffreys_prior (float): Jeffrey's prior
+
+		max_cell_count (int): if defined, divide the mesh into convex subsets of cells
+
+		dilation (int): overlap of side cells if `max_cell_count` is defined
+
+		worker_count (int): number of parallel processes to be spawned
+
+		min_diffusivity (float): (possibly negative) lower bound on local diffusivities
+
+		store_distributed (bool): store the :class:`~tramway.inference.base.Distributed` object 
+			in the map file
+
+		constructor (callable): see also :func:`~tramway.inference.base.distributed`
+
+	Returns:
+
+		pandas.DataFrame or tuple:
+	"""
 
 	input_file = None
 	if isinstance(cells, str):
-		input_file, cells = find_imt(cells, **imt_selectors)
+		input_file, cells = find_partition(cells, **partition)
 		if verbose:
 			print('loading file: {}'.format(input_file))
 	if cells is None:
@@ -47,7 +89,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 	detailled_map = distributed(cells, new=constructor)
 
 	if mode == 'DD' or mode == 'DV':
-		multiscale_map = detailled_map.group(max_location_count=max_location_count, \
+		multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
 			adjacency_margin=dilation)
 		_map = multiscale_map
 	else:
@@ -143,7 +185,7 @@ def infer(cells, mode='D', output_file=None, imt_selectors={}, verbose=False, \
 			if store_distributed:
 				store.poke('distributed_translocations', lightcopy(_map))
 			elif input_file:
-				store.poke('rwa_file', input_file)
+				store.poke('partition_file', input_file)
 			else:
 				store.poke('tesselation_param', cells.param)
 			store.poke('version', 1.1)
@@ -163,6 +205,35 @@ def map_plot(maps, output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
 	cells=None, mode=None, clip=None, \
 	**kwargs):
+	"""
+	Plot scalar/vector 2D maps.
+
+	Arguments:
+
+		maps (str or pandas.DataFrame or tuple): maps as a path to a rwa map file, a dataframe 
+			(`cells` must be defined) or a (:class:`CellStats`, :class:`str`, :class:`pandas.DataFrame`)
+			tuple
+
+		output_file (str): path to output file
+
+		fig_format (str): for example ``'.png'``
+
+		show (bool): call ``matplotlib.pyplot.show()``
+
+		verbose (bool): verbosity level
+
+		figsize ((float, float)): figure size
+
+		dpi (int): dot per inch
+
+		aspect (float or str): aspect ratio or ``'equal'``
+
+		cells (CellStats or Tesselation): mesh
+
+		mode (str): inference mode
+
+		clip (float): quantile at which to clip absolute values of the map
+	"""
 
 	if isinstance(maps, tuple):
 		cells, mode, maps = maps
@@ -177,8 +248,8 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			mode = hdf.peek('mode')
 			maps = hdf.peek(mode)
 			try:
-				cells = hdf.peek('imt_file')
-				_, cells = find_imt(cells)
+				cells = hdf.peek('partition_file')
+				_, cells = find_partition(cells)
 			except KeyError:
 				cells = hdf.peek('distributed_translocations')
 			hdf.close()
@@ -287,7 +358,6 @@ def map_plot(maps, output_file=None, fig_format=None, \
 				if verbose:
 					print('writing file: {}'.format(figfile))
 				fig.savefig(figfile, dpi=dpi)
-
 
 	if show or not print_figs:
 		plt.show()

@@ -585,3 +585,8 @@ def find_imt(path, method=None, full_list=False):
 	"""alias for :func:`find_mesh` for backward compatibility."""
 	return find_mesh(path, method, full_list)
 
+def find_partition(path, method=None, full_list=False):
+	"""alias for :func:`find_mesh`."""
+	return find_mesh(path, method, full_list)
+
+
