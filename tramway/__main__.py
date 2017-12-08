@@ -21,9 +21,20 @@ import sys
 from .helper import *
 
 
-def _render_cells(args):
+def _parse_args(args):
 	kwargs = dict(args.__dict__)
-	input_file = kwargs.pop('input', None)
+	del kwargs['func']
+	try:
+		input_file = kwargs.pop('input')
+		input_file[0]
+	except (KeyError, IndexError):
+		print('please specify input file(s) with -i')
+		sys.exit(1)
+	return input_file, kwargs
+
+
+def _render_cells(args):
+	input_file, kwargs = _parse_args(args)
 	output_file = kwargs.pop('output', None)
 	fig_format = kwargs.pop('print', None)
 	delaunay = kwargs.pop('delaunay', False)
@@ -31,7 +42,6 @@ def _render_cells(args):
 	if hist is None: hist = ''
 	if delaunay:
 		kwargs['xy_layer'] = 'delaunay'
-	del kwargs['func']
 	del kwargs['min_location_count']
 	cell_plot(input_file, output_file=output_file, fig_format=fig_format, \
 		location_count_hist='c' in hist, cell_dist_hist='d' in hist, \
@@ -40,8 +50,7 @@ def _render_cells(args):
 
 
 def _tesselate(args):
-	kwargs = dict(args.__dict__)
-	input_file = kwargs.pop('input', None)
+	input_file, kwargs = _parse_args(args)
 	output_file = kwargs.pop('output', None)
 	scaling = kwargs.pop('w', None)
 	if scaling and not kwargs['scaling']:
@@ -52,7 +61,6 @@ def _tesselate(args):
 	max_nn = kwargs.pop('max_nn', None)
 	if not (min_nn is None and max_nn is None):
 		knn = (min_nn, max_nn)
-	del kwargs['func']
 	#del kwargs['reuse']
 	if kwargs['method'] == 'kdtree' and min_nn is not None:
 		kwargs['metric'] = 'euclidean'
@@ -62,21 +70,14 @@ def _tesselate(args):
 	sys.exit(0)
 
 def _infer(args):
-	kwargs = dict(args.__dict__)
-	del kwargs['func']
-	input_file = kwargs.pop('input', None)
+	input_file, kwargs = _parse_args(args)
 	output_file = kwargs.pop('output', None)
-	priorD = kwargs.pop('prior_d', None)
-	priorV = kwargs.pop('prior_v', None)
-	infer(input_file[0], output_file=output_file, \
-		priorD=priorD, priorV=priorV, \
-		**kwargs) # mode, localization_error, jeffreys_prior
+	infer(input_file[0], output_file=output_file, **kwargs)
+	# kwargs: mode, localization_error, diffusivity_prior, potential_prior, jeffreys_prior
 	sys.exit(0)
 
 def _render_map(args):
-	kwargs = dict(args.__dict__)
-	del kwargs['func']
-	input_file = kwargs.pop('input', None)
+	input_file, kwargs = _parse_args(args)
 	output_file = kwargs.pop('output', None)
 	fig_format = kwargs.pop('print', None)
 	map_plot(input_file[0], output_file, fig_format, **kwargs)
@@ -92,8 +93,8 @@ def main():
 	global_arguments = [
 		('-v', '--verbose', dict(action='store_true', help='increase verbosity')),
 		('-i', '--input', dict(action='append', default=[],
-			metavar='FILE', help='path to input file or directory')),
-		('-o', '--output', dict(metavar='FILE', help='path to output file'))]
+			metavar='INPUT_FILE', help='path to input file or directory')),
+		('-o', '--output', dict(metavar='OUTPUT_FILE', help='path to output file'))]
 	for arg1, arg2, kwargs in global_arguments:
 		parser.add_argument(arg1, arg2, dest=arg1[1]+'pre', **kwargs)
 	sub = parser.add_subparsers(title='commands', \
@@ -146,20 +147,23 @@ def main():
 	#	help='average number of locations per cell [gwr]')
 
 	# infer
-	infer_parser = sub.add_parser('infer')
+	infer_parser = sub.add_parser('infer') #, conflict_handler='resolve'
 	infer_parser.set_defaults(func=_infer)
 	for arg1, arg2, kwargs in global_arguments:
-		infer_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
-	infer_parser.add_argument('-m', '--mode', choices=['D', 'DF', 'DD', 'DV'], \
-		help='inference mode')
-	infer_parser.add_argument('-e', '--localization-error', type=float, default=0.01, \
-		help='localization error')
-	infer_parser.add_argument('-pd', '--prior-d', type=float, default=0.01, \
-		help='prior on the diffusivity [DD|DV]')
-	infer_parser.add_argument('-pv', '--prior-v', type=float, default=0.01, \
-		help='prior on the potential [DV]')
-	infer_parser.add_argument('-jp', '--jeffreys-prior', action='store_true', \
-		help='Jeffrey''s prior')
+		if arg1 in ['-v']:
+			infer_parser.add_argument(arg2, dest=arg1[1]+'post', **kwargs)
+		else:
+			infer_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	infer_parser.add_argument('-m', '--mode', metavar='INFERENCE_MODE', \
+		choices=['D', 'DF', 'DD', 'DV'], help='inference mode')
+	infer_parser.add_argument('-e', '--localization-error', metavar='LOCALIZATION_ERROR', \
+		type=float, default=0.01, help='localization error')
+	infer_parser.add_argument('-d', '--diffusion-prior', metavar='DIFFUSION_PRIOR', type=float, \
+		default=0.01, help='prior on the diffusivity [DD|DV]')
+	infer_parser.add_argument('-v', '--potential-prior', metavar='POTENTIAL_PRIOR', type=float, \
+		default=0.01, help='prior on the potential [DV]')
+	infer_parser.add_argument('-j', '--jeffreys-prior', \
+		action='store_true', help='Jeffrey''s prior') #metavar='JEFFREYS_PRIOR', 
 	infer_parser.add_argument('-c', '--max-location-count', type=int, default=20, \
 		help='number of cells per group [DD|DV]')
 	infer_parser.add_argument('-a', '--dilation', type=int, default=1, \
@@ -178,15 +182,22 @@ def main():
 
 	# parse
 	args = parser.parse_args()
-	args.verbose = args.vpre or args.vpost
-	args.input = args.ipre + args.ipost
-	args.output = args.opre if args.opre else args.opost
+	try:
+		args.vpost
+	except AttributeError:
+		args.verbose = args.vpre
+		args.input = args.ipre
+		args.output = args.opre
+	else:
+		args.verbose = args.vpre or args.vpost
+		args.input = args.ipre + args.ipost
+		args.output = args.opre if args.opre else args.opost
+		del args.vpost
+		del args.ipost
+		del args.opost
 	del args.vpre
-	del args.vpost
 	del args.ipre
-	del args.ipost
 	del args.opre
-	del args.opost
 	try:
 		args.func(args)
 	except AttributeError:

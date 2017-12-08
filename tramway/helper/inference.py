@@ -29,9 +29,11 @@ sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx
 
 
 def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
-	localization_error=None, priorD=None, priorV=None, jeffreys_prior=None, \
+	localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
 	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
-	store_distributed=False, constructor=None, **kwargs):
+	store_distributed=False, constructor=None, \
+	priorD=None, priorV=None, \
+	**kwargs):
 	"""
 	Inference helper.
 
@@ -55,7 +57,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 		prior_potential (float): prior potential
 
-		jeffreys_prior (float): Jeffrey's prior
+		jeffreys_prior (float): Jeffreys' prior
 
 		max_cell_count (int): if defined, divide the mesh into convex subsets of cells
 
@@ -73,6 +75,10 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	Returns:
 
 		pandas.DataFrame or tuple:
+
+	`priorD` and `priorV` are legacy arguments. 
+	They are deprecated and `diffusivity_prior` and `potential_prior` should be used instead
+	respectively.
 	"""
 
 	input_file = None
@@ -100,14 +106,16 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 	if mode is None:
 
-		x = _map.run(localization_error=localization_error, priorD=priorD, priorV=priorV, \
+		x = _map.run(localization_error=localization_error, \
+			diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
 			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
 			worker_count=worker_count, **kwargs)
 
 	elif callable(mode):
 
 		x = _map.run(mode, \
-			localization_error=localization_error, priorD=priorD, priorV=priorV, \
+			localization_error=localization_error, \
+			diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
 			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
 			worker_count=worker_count, **kwargs)
 		
@@ -130,7 +138,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	elif mode == 'DD':
 
 		dd = _map.run(inferDD, \
-			localization_error, priorD, jeffreys_prior, \
+			localization_error, diffusivity_prior, jeffreys_prior, \
 			min_diffusivity=min_diffusivity, worker_count=worker_count, \
 			**kwargs)
 		x = dd
@@ -138,7 +146,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	elif mode == 'DV':
 
 		dv = _map.run(inferDV, \
-			localization_error, priorD, priorV, jeffreys_prior, \
+			localization_error, diffusivity_prior, potential_prior, jeffreys_prior, \
 			min_diffusivity=min_diffusivity, worker_count=worker_count, \
 			**kwargs)
 		x = dv
@@ -174,10 +182,10 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			store.poke('min_diffusivity', min_diffusivity)
 			if localization_error is not None:
 				store.poke('localization_error', localization_error)
-			if priorD is not None:
-				store.poke('prior_diffusivity', priorD)
-			if priorV is not None:
-				store.poke('prior_potential', priorV)
+			if diffusivity_prior is not None:
+				store.poke('diffusivity_prior', diffusivity_prior)
+			if potential_prior is not None:
+				store.poke('potential_prior', potential_prior)
 			if jeffreys_prior is not None:
 				store.poke('jeffreys_prior', jeffreys_prior)
 			if kwargs:
@@ -188,7 +196,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 				store.poke('partition_file', input_file)
 			else:
 				store.poke('tesselation_param', cells.param)
-			store.poke('version', 1.1)
+			store.poke('version', 1.2)
 			store.poke('runtime', runtime)
 			store.close()
 		except:
