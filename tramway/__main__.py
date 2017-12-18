@@ -61,6 +61,8 @@ def _tesselate(args):
 	max_nn = kwargs.pop('max_nn', None)
 	if not (min_nn is None and max_nn is None):
 		knn = (min_nn, max_nn)
+	else:
+		knn = None
 	#del kwargs['reuse']
 	if kwargs['method'] == 'kdtree' and min_nn is not None:
 		kwargs['metric'] = 'euclidean'
@@ -83,6 +85,23 @@ def _render_map(args):
 	map_plot(input_file[0], output_file, fig_format, **kwargs)
 	sys.exit(0)
 
+def _dump_rwa(args):
+	input_files, kwargs = _parse_args(args)
+	for input_file in input_files:
+		print('in {}:'.format(input_file))
+		store = HDF5Store(input_file, 'r', verbose)
+		try:
+			analyses = store.peek('analyses')
+		except EnvironmentError:
+			print(traceback.format_exc())
+			raise OSError('HDF5 libraries may not be installed')
+		except KeyError:
+			print('no analyses found')
+		else:
+			print(format_analyses(analyses, global_prefix='\t'))
+		finally:
+			store.close()
+
 
 
 def main():
@@ -91,7 +110,7 @@ def main():
 		epilog='See also https://github.com/DecBayComp/TRamWAy',
 		conflict_handler='resolve')
 	global_arguments = [
-		('-v', '--verbose', dict(action='store_true', help='increase verbosity')),
+		('-v', '--verbose', dict(action='count', help='increase verbosity')),
 		('-i', '--input', dict(action='append', default=[],
 			metavar='INPUT_FILE', help='path to input file or directory')),
 		('-o', '--output', dict(metavar='OUTPUT_FILE', help='path to output file'))]
@@ -105,6 +124,7 @@ def main():
 	cells_parser.set_defaults(func=_render_cells)
 	for arg1, arg2, kwargs in global_arguments:
 		cells_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	cells_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
 	cells_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
 		help='minimum number of locations per cell')
 	cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
@@ -112,10 +132,14 @@ def main():
 	cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
 	# tesselate
-	tesselate_parser = sub.add_parser('tesselate')
+	try:
+		tesselate_parser = sub.add_parser('tesselate', aliases=['sample'])
+	except TypeError: # Py2
+		tesselate_parser = sub.add_parser('tesselate')
 	tesselate_parser.set_defaults(func=_tesselate)
 	for arg1, arg2, kwargs in global_arguments:
 		tesselate_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	tesselate_parser.add_argument('-l', '--label', '--output-label', help='output label')
 	tesselate_group1 = tesselate_parser.add_mutually_exclusive_group(required=True)
 	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'])
 	#tesselate_group1.add_argument('-r', '--reuse', \
@@ -137,7 +161,7 @@ def main():
 	kdtree_parser = tesselate_parser
 	kdtree_parser.add_argument('-S', '--max-location-count', type=int, \
 		help='maximum number of locations per cell [kdtree]')
-	kdtree_parser.add_argument('-l', '--lower-levels', type=int, \
+	kdtree_parser.add_argument('-ll', '--lower-levels', type=int, \
 		help='number of levels below the smallest one [kdtree]')
 	grid_parser = tesselate_parser
 	grid_parser.add_argument('-c', '--location-count', type=int, default=80, \
@@ -154,19 +178,21 @@ def main():
 			infer_parser.add_argument(arg2, dest=arg1[1]+'post', **kwargs)
 		else:
 			infer_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
-	infer_parser.add_argument('-m', '--mode', metavar='INFERENCE_MODE', \
-		choices=['D', 'DF', 'DD', 'DV'], help='inference mode')
-	infer_parser.add_argument('-e', '--localization-error', metavar='LOCALIZATION_ERROR', \
-		type=float, default=0.01, help='localization error')
-	infer_parser.add_argument('-d', '--diffusion-prior', metavar='DIFFUSION_PRIOR', type=float, \
-		default=0.01, help='prior on the diffusivity [DD|DV]')
-	infer_parser.add_argument('-v', '--potential-prior', metavar='POTENTIAL_PRIOR', type=float, \
-		default=0.01, help='prior on the potential [DV]')
+	infer_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+	infer_parser.add_argument('-l', '--output-label', help='output label')
+	infer_parser.add_argument('-m', '--mode', \
+		choices=['D', 'DF', 'DD', 'DV'], help='inference mode') #, metavar='INFERENCE_MODE'
+	infer_parser.add_argument('-e', '--localization-error', \
+		type=float, default=0.01, help='localization error') #, metavar='LOCALIZATION_ERROR'
+	infer_parser.add_argument('-d', '--diffusivity-prior', type=float, \
+		default=0.01, help='prior on the diffusivity [DD|DV]') #, metavar='DIFFUSIVITY_PRIOR'
+	infer_parser.add_argument('-v', '--potential-prior', type=float, \
+		default=0.01, help='prior on the potential [DV]') #, metavar='POTENTIAL_PRIOR'
 	infer_parser.add_argument('-j', '--jeffreys-prior', \
 		action='store_true', help='Jeffrey''s prior') #metavar='JEFFREYS_PRIOR', 
-	infer_parser.add_argument('-c', '--max-location-count', type=int, default=20, \
+	infer_parser.add_argument('-c', '--max-cell-count', type=int, default=20, \
 		help='number of cells per group [DD|DV]')
-	infer_parser.add_argument('-a', '--dilation', type=int, default=1, \
+	infer_parser.add_argument('-a', '--dilation', type=int, default=1, metavar='DILATION_COUNT', \
 		help='number of incremental dilation of each group, adding adjacent cells [DD|DV]')
 	infer_parser.add_argument('-w', '--worker-count', type=int, \
 		help='number of parallel processes to spawn [DD|DV]')
@@ -178,18 +204,26 @@ def main():
 	map_parser.set_defaults(func=_render_map)
 	for arg1, arg2, kwargs in global_arguments:
 		map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
 	map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
+
+	# dump analysis tree
+	dump_parser = sub.add_parser('dump')
+	dump_parser.set_defaults(func=_dump_rwa)
+	for arg1, arg2, kwargs in global_arguments:
+		dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 
 	# parse
 	args = parser.parse_args()
+	args.verbose = args.vpre
 	try:
 		args.vpost
 	except AttributeError:
-		args.verbose = args.vpre
 		args.input = args.ipre
 		args.output = args.opre
 	else:
-		args.verbose = args.vpre or args.vpost
+		if args.vpost:
+			args.verbose += args.vpost
 		args.input = args.ipre + args.ipost
 		args.output = args.opre if args.opre else args.opost
 		del args.vpost
@@ -198,10 +232,30 @@ def main():
 	del args.vpre
 	del args.ipre
 	del args.opre
+	if args.verbose is None:
+		args.verbose = False
+	try:
+		labels = args.input_label.split(',')
+		args.input_label = []
+		for label in labels:
+			try:
+				label = int(label)
+			except (TypeError, ValueError):
+				pass
+			args.input_label.append(label)
+	except AttributeError:
+		pass
+	try:
+		args.output_label = int(args.output_label)
+	except (AttributeError, TypeError, ValueError):
+		pass
 	try:
 		args.func(args)
-	except AttributeError:
-		parser.print_help()
+	except AttributeError as e:
+		if e.args and 'Namespace' in e.args[0]:
+			parser.print_help()
+		else:
+			raise
 
 
 

@@ -207,7 +207,7 @@ class GasMesh(Voronoi):
 						try:
 							dij = dij[ref]
 						except IndexError:
-							if 1 < verbose:
+							if verbose and 1 < verbose:
 								print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d}): number of between-cell pairs = {:d} (expected: {:d})'.format(k, i, xi.shape[0], j, xj.shape[0], dij.size, ref))
 							continue
 						#dij = np.sqrt(-2.0 * dij)
@@ -233,7 +233,7 @@ class GasMesh(Voronoi):
 							self.candidate_edges = {}
 						self.candidate_edges[k] = (xi[cell_i_k], xj[cell_j_k])
 						#
-					elif 1 < verbose:
+					elif verbose and 1 < verbose:
 						print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d})'.format(k, i, xi.shape[0], j, xj.shape[0]))
 		new_labels = np.array([0,-1,-2,1,2])
 		# before: 0=[none], 1=not congruent (gas only), 2=not congruent (voronoi only), 

@@ -13,10 +13,13 @@
 
 
 from tramway.io import *
-from tramway.core import lightcopy
+from tramway.core import lightcopy, select_analysis
 from tramway.inference import *
 from tramway.plot.map import *
+from tramway.helper.analysis import *
 from tramway.helper.tesselation import *
+from rwa import *
+from rwa.storable import *
 import matplotlib.pyplot as plt
 from warnings import warn
 import os
@@ -25,21 +28,21 @@ import collections
 import traceback
 
 
-sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx']])
+#sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx']])
 
 
 def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
 	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
 	store_distributed=False, constructor=None, \
-	priorD=None, priorV=None, \
+	priorD=None, priorV=None, input_label=None, output_label=None, \
 	**kwargs):
 	"""
 	Inference helper.
 
 	Arguments:
 
-		cells (str or CellStats): data partition or path to partition file
+		cells (str or CellStats or Analyses): data partition or path to partition file
 
 		mode (str or callable): either ``'D'``, ``'DF'``, ``'DD'``, ``'DV'`` or a function
 			suitable for :met:`Distributed.run`
@@ -49,7 +52,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		partition (dict): keyword arguments for :func:`~tramway.helper.tesselation.find_partition`
 			if `cells` is a path
 
-		verbose (bool): verbosity level
+		verbose (bool or int): verbosity level
 
 		localization_error (float): localization error
 
@@ -72,6 +75,11 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 		constructor (callable): see also :func:`~tramway.inference.base.distributed`
 
+		input_label (list): label path to the input :class:`~tramway.tesselation.base.Tesselation`
+			object in `cells` if the latter is an `Analyses` or filepath
+
+		output_label (str): label for the resulting analysis instance
+
 	Returns:
 
 		pandas.DataFrame or tuple:
@@ -82,89 +90,153 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	"""
 
 	input_file = None
+	all_analyses = analysis = None
 	if isinstance(cells, str):
-		input_file, cells = find_partition(cells, **partition)
+		try:
+			input_file = cells
+			if not output_file or output_file == input_file:
+				all_analyses = find_analysis(input_file)
+			else:
+				all_analyses = find_analysis(input_file, input_label)
+			cells = None
+		except KeyError:
+			# legacy format
+			input_file, cells = find_partition(cells, **partition)
+			if cells is None:
+				raise ValueError('no cells found')
 		if verbose:
 			print('loading file: {}'.format(input_file))
+	elif isinstance(cells, Analyses):
+		all_analyses, cells = cells, None
+	elif not isinstance(cells, CellStats):
+		raise TypeError('wrong type for argument `cells`')
+
 	if cells is None:
-		raise ValueError('no cells found')
+		if not all_analyses:
+			raise ValueError('no cells found')
+		if not input_label:
+			labels = tuple(all_analyses.labels)
+			if labels[1:]:
+				raise ValueError('multiple instances; input_label is required')
+			input_label = labels[-1]
+		if isinstance(input_label, (tuple, list)):
+			if input_label[1:]:
+				analysis = all_analyses
+				for label in input_label[:-1]:
+					analysis = analysis[label]
+				cells = analysis.data
+				analysis = analysis[input_label[-1]]
+				if not isinstance(cells, CellStats):
+					cells = analysis.data
+			else:
+				input_label = input_label[0]
+		if cells is None:
+			analysis = all_analyses[input_label]
+			cells = analysis.data
+		if not isinstance(cells, CellStats):
+			raise ValueError('cannot find cells at the specified label')
+	elif all_analyses is None:
+		all_analyses = Analyses(cells.points)
+		assert analysis is None
+		analysis = Analyses(cells)
+		all_analyses.add(analysis)
+		assert input_label is None
+		input_label = tuple(all_analyses.labels)
 
-	# prepare the data for the inference
-	if constructor is None:
-		constructor = Distributed
-	detailled_map = distributed(cells, new=constructor)
-
-	if mode == 'DD' or mode == 'DV':
-		multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
-			adjacency_margin=dilation)
-		_map = multiscale_map
+	if isinstance(analysis.data, Distributed):
+		_map = analysis.data
 	else:
-		_map = detailled_map
+
+		if cells is None:
+			raise ValueError('no cells found')
+
+		# prepare the data for the inference
+		if constructor is None:
+			constructor = Distributed
+		detailled_map = distributed(cells, new=constructor)
+
+		if mode == 'DD' or mode == 'DV':
+			multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
+				adjacency_margin=dilation)
+			_map = multiscale_map
+		else:
+			_map = detailled_map
+
+		if store_distributed:
+			if output_label is None:
+				output_label = analysis.autoindex()
+			analysis.add(Analysis(_map), label=output_label)
+			analysis = analysis[output_label]
+			output_label = None
 
 	runtime = time()
 
-
 	if mode is None:
 
-		x = _map.run(localization_error=localization_error, \
+		params = dict(localization_error=localization_error, \
 			diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
 			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
-			worker_count=worker_count, **kwargs)
+			worker_count=worker_count)
+		kwargs.update(params)
+		x = _map.run(**kwargs)
 
 	elif callable(mode):
 
-		x = _map.run(mode, \
-			localization_error=localization_error, \
+		params = dict(localization_error=localization_error, \
 			diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
 			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
-			worker_count=worker_count, **kwargs)
+			worker_count=worker_count)
+		kwargs.update(params)
+		x = _map.run(**kwargs)
 		
 	elif mode == 'D':
 
 		# infer diffusivity (D mode)
-		diffusivity = _map.run(inferD, \
-			localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
-			min_diffusivity=min_diffusivity, **kwargs)
-		x = diffusivity
+		params = dict(localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
+			min_diffusivity=min_diffusivity)
+		kwargs.update(params)
+		x = _map.run(inferD, **kwargs)
 
 	elif mode == 'DF':
 		
 		# infer diffusivity and force (DF mode)
-		df = _map.run(inferDF, \
-			localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
-			min_diffusivity=min_diffusivity, **kwargs)
-		x = df
+		params = dict(localization_error=localization_error, \
+			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity)
+		kwargs.update(params)
+		x = _map.run(inferDF, **kwargs)
 
 	elif mode == 'DD':
 
-		dd = _map.run(inferDD, \
-			localization_error, diffusivity_prior, jeffreys_prior, \
-			min_diffusivity=min_diffusivity, worker_count=worker_count, \
-			**kwargs)
-		x = dd
+		params = dict(localization_error=localization_error, \
+			diffusivity_prior=diffusivity_prior, jeffreys_prior=jeffreys_prior, \
+			min_diffusivity=min_diffusivity, worker_count=worker_count)
+		kwargs.update(params)
+		x = _map.run(inferDD, **kwargs)
 
 	elif mode == 'DV':
 
-		dv = _map.run(inferDV, \
-			localization_error, diffusivity_prior, potential_prior, jeffreys_prior, \
-			min_diffusivity=min_diffusivity, worker_count=worker_count, \
-			**kwargs)
-		x = dv
+		params = dict(localization_error=localization_error, \
+			diffusivity_prior=diffusivity_prior, jeffreys_prior=jeffreys_prior, \
+			min_diffusivity=min_diffusivity, worker_count=worker_count)
+		kwargs.update(params)
+		x = _map.run(inferDV, **kwargs)
 
 	else:
 		raise ValueError('unknown ''{}'' mode'.format(mode))
 
+	maps = Maps(x, mode=mode)
+	for p in params:
+		if p not in ['worker_count']:
+			setattr(maps, p, params[p])
+	analysis.add(Analyses(maps), label=output_label)
+
 	runtime = time() - runtime
 	if verbose:
 		print('{} mode: elapsed time: {}ms'.format(mode, int(round(runtime*1e3))))
+	maps.runtime = runtime
 
 	if input_file and not output_file:
-		output_file = os.path.splitext(input_file)[0]
-		_file, subext = os.path.splitext(output_file)
-		if subext == '.imt':
-			output_file = _file
-		output_file = '{}.{}.rwa'.format(output_file, \
-			sub_extensions[mode])
+		output_file = input_file
 
 	if output_file:
 		# store the result
@@ -172,32 +244,8 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			print('writing file: {}'.format(output_file))
 		try:
 			# Python 3.6 raises tables.exceptions.PerformanceWarning
-			store = HDF5Store(output_file, 'w')
-			if callable(mode):
-				store.poke('mode', '(callable)')
-				store.poke('result', x)
-			else:
-				store.poke('mode', mode)
-				store.poke(mode, x)
-			store.poke('min_diffusivity', min_diffusivity)
-			if localization_error is not None:
-				store.poke('localization_error', localization_error)
-			if diffusivity_prior is not None:
-				store.poke('diffusivity_prior', diffusivity_prior)
-			if potential_prior is not None:
-				store.poke('potential_prior', potential_prior)
-			if jeffreys_prior is not None:
-				store.poke('jeffreys_prior', jeffreys_prior)
-			if kwargs:
-				store.poke('extra_args', kwargs)
-			if store_distributed:
-				store.poke('distributed_translocations', lightcopy(_map))
-			elif input_file:
-				store.poke('partition_file', input_file)
-			else:
-				store.poke('tesselation_param', cells.param)
-			store.poke('version', 1.2)
-			store.poke('runtime', runtime)
+			store = HDF5Store(output_file, 'w', verbose - 1 if verbose else False)
+			store.poke('analyses', all_analyses)
 			store.close()
 		except:
 			print(traceback.format_exc())
@@ -211,7 +259,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 def map_plot(maps, output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
-	cells=None, mode=None, clip=None, \
+	cells=None, mode=None, clip=None, label=None, \
 	**kwargs):
 	"""
 	Plot scalar/vector 2D maps.
@@ -224,7 +272,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		output_file (str): path to output file
 
-		fig_format (str): for example ``'.png'``
+		fig_format (str): for example *'.png'*
 
 		show (bool): call ``matplotlib.pyplot.show()``
 
@@ -234,13 +282,15 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		dpi (int): dot per inch
 
-		aspect (float or str): aspect ratio or ``'equal'``
+		aspect (float or str): aspect ratio or *'equal'*
 
 		cells (CellStats or Tesselation): mesh
 
 		mode (str): inference mode
 
 		clip (float): quantile at which to clip absolute values of the map
+
+		label (int or str): analysis instance label
 	"""
 
 	if isinstance(maps, tuple):
@@ -251,16 +301,36 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			raise ValueError('`cells` is not defined')
 	else:
 		input_file = maps
+		# TODO: load with `find_analysis` first
 		try:
 			hdf = HDF5Store(input_file, 'r')
-			mode = hdf.peek('mode')
-			maps = hdf.peek(mode)
 			try:
-				cells = hdf.peek('partition_file')
-				_, cells = find_partition(cells)
+				analyses = hdf.peek('analyses')
 			except KeyError:
-				cells = hdf.peek('distributed_translocations')
-			hdf.close()
+				# legacy code
+				mode = hdf.peek('mode')
+				maps = hdf.peek(mode)
+				try:
+					cells = hdf.peek('partition_file')
+					_, cells = find_partition(cells)
+				except KeyError:
+					cells = hdf.peek('distributed_translocations')
+			else:
+				while not isinstance(analyses.data, CellStats):
+					labels = list(analyses.labels)
+					if labels[1:]:
+						raise ValueError('multiple instances; label is required')
+					analyses = analyses[labels[-1]]
+				cells, labels = analyses.data, list(analyses.labels)
+				if not analyses:
+					raise ValueError('no map found')
+				elif labels[1:]:
+					raise ValueError('multiple instances; label is required')
+				analyses = analyses[labels[-1]]
+				mode = analyses.data.mode
+				maps = analyses.data.maps
+			finally:
+				hdf.close()
 		except ImportError:
 			warn('HDF5 libraries may not be installed', ImportWarning)
 

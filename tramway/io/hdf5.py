@@ -18,11 +18,12 @@ from rwa.generic import *
 from rwa.hdf5 import *
 
 # Core datatypes
-from tramway.core import Matrix, ArrayChain
+from tramway.core import Matrix, ArrayChain, Analyses
 from tramway.inference.diffusivity import DV
 hdf5_storable(namedtuple_storable(Matrix))
 hdf5_storable(default_storable(ArrayChain))
 hdf5_storable(default_storable(DV), agnostic=True)
+hdf5_storable(default_storable(Analyses), agnostic=True)
 
 # Scaler
 from tramway.spatial.scaler import Scaler
@@ -70,7 +71,63 @@ gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_max_distance']
 hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)
 
 
-from tramway.inference.base import Cell, Distributed
+from tramway.inference.base import Cell, Distributed, Maps
 hdf5_storable(default_storable(Cell), agnostic=True)
 hdf5_storable(default_storable(Distributed), agnostic=True)
+
+def poke_maps(store, objname, self, container, visited=None, legacy=False):
+	#print('poke_maps')
+	sub_container = store.newContainer(objname, self, container)
+	attrs = dict(self.__dict__) # dict
+	#print(list(attrs.keys()))
+	if legacy:
+		# legacy format
+		if callable(self.mode):
+			store.poke('mode', '(callable)', sub_container)
+			store.poke('result', self.maps, sub_container)
+		else:
+			store.poke('mode', self.mode, sub_container)
+			store.poke(self.mode, self.maps, sub_container)
+	else:
+		#print("poke 'maps'")
+		store.poke('maps', self.maps, sub_container, visited=visited)
+		del attrs['maps']
+	deprecated = {}
+	for a in ('distributed_translocations','partition_file','tesselation_param','version'):
+		deprecated[a] = attrs.pop(a, None)
+	for a in attrs:
+		if attrs[a] is not None:
+			if attrs[a] or attrs[a] == 0:
+				#print("poke '{}'".format(a))
+				store.poke(a, attrs[a], sub_container, visited=visited)
+	for a in deprecated:
+		if deprecated[a]:
+			warn('`{}` is deprecated'.format(a), DeprecationWarning)
+			#print("poke '{}'".format(a))
+			store.poke(a, deprecated[a], sub_container, visited=visited)
+
+def peek_maps(store, container):
+	#print('peek_maps')
+	read = []
+	mode = store.peek('mode', container)
+	read.append('mode')
+	try:
+		maps = store.peek('maps', container)
+		read.append('maps')
+	except KeyError:
+		# former standalone files
+		if mode == '(callable)':
+			maps = store.peek('result', container)
+			read.append('result')
+			mode = None
+		else:
+			maps = store.peek(mode, container)
+			read.append(mode)
+	maps = Maps(maps, mode=mode)
+	for r in container:
+		if r not in read:
+			setattr(maps, r, store.peek(r, container))
+	return maps
+
+hdf5_storable(Storable(Maps, handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
 

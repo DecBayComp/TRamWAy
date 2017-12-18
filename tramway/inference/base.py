@@ -882,3 +882,25 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 	return self
 
 
+class Maps(object):
+	"""
+	Basic container for maps and the associated parameters used to get the maps.
+	"""
+	def __init__(self, maps, mode=None):
+		self.maps = maps
+		self.mode = mode
+		self.min_diffusivity = None
+		self.localization_error = None
+		self.diffusivity_prior = None
+		self.potential_prior = None
+		self.jeffreys_prior = None
+		self.extra_args = None
+		self.distributed_translocations = None # legacy attribute
+		self.partition_file = None # legacy attribute
+		self.tesselation_param = None # legacy attribute
+		self.version = None # legacy attribute
+		self.runtime = None
+
+	def __nonzero__(self):
+		return self.maps.__nonzero__()
+

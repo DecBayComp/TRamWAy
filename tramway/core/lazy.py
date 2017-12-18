@@ -80,9 +80,9 @@ class Lazy(object):
 	values equal to each other, or throws an exception otherwise.
 
 	"""
-	__slots__ = ['_lazy']
+	__slots__ = ('_lazy',)
 
-	__lazy__  = []
+	__lazy__  = ()
 
 	def __init__(self):
 		self._lazy = {name: True for name in self.__lazy__}
@@ -115,11 +115,24 @@ class Lazy(object):
 		else:
 			ro_property_assert(self, value, related_attribute, name, depth + 1)
 
-	def unload(self):
+	def unload(self, visited=None):
+		"""
+		Recursively clear the lazy attributes.
+
+		Beware: only direct Lazy object attributes are unloaded, 
+			not Lazy objects stored in non-lazy attributes!
+		"""
+		if visited is None:
+			visited = set()
+		elif id(self) in visited:
+			# already unloaded
+			return
+		visited.add(id(self))
 		try:
 			names = self.__slots__
 		except:
 			names = self.__dict__
+		names = self.__lazyattrs__()
 		standard_attrs = []
 		# set lazy attributes to None (unset them so that memory is freed)
 		for name in names:
@@ -130,18 +143,29 @@ class Lazy(object):
 					pass
 			else:
 				standard_attrs.append(name)
-		# search for Lazy object attributes so that they too can be unloaded
+		# search for Lazy object attributes so that they can be unloaded
 		for name in standard_attrs: # standard or overwritten lazy
 			try:
 				attr = getattr(self, name)
 			except AttributeError:
 				pass
 			if isinstance(attr, Lazy):
-				attr.unload()
+				attr.unload(visited)
 
 
 
 def lightcopy(x):
+	"""
+	Return a copy and call `unload` if available.
+
+	Arguments:
+
+		x (any): object to be copied and unloaded.
+
+	Returns:
+
+		any: copy of `x`.
+	"""
 	if isinstance(x, Lazy):
 		y = deepcopy(x)
 		y.unload()

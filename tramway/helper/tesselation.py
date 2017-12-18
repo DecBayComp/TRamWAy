@@ -24,14 +24,15 @@ from ..spatial.scaler import *
 from ..spatial.translocation import *
 from ..plot.mesh import *
 from ..io import *
+from .analysis import *
 from warnings import warn
 import six
 import traceback
 
 
 hdf_extensions = ['.rwa', '.h5', '.hdf', '.hdf5']
-imt_extensions = [ '.imt' + ext for ext in hdf_extensions ]
-imt_extensions = [ hdf_extensions[0] ] + imt_extensions[1:]
+#imt_extensions = [ '.imt' + ext for ext in hdf_extensions ]
+#imt_extensions = [ hdf_extensions[0] ] + imt_extensions[1:]
 fig_formats = ['png', 'pdf', 'ps', 'eps', 'svg']
 sub_extensions = dict([ (a, a) for a in ['imt', 'vor', 'hpc', 'hcd', 'hpd'] ])
 
@@ -48,7 +49,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
 	min_location_count=20, avg_location_count=None, max_location_count=None, \
 	strict_min_location_count=None, \
-	compress=False, \
+	compress=False, label=None, output_label=None, \
 	**kwargs):
 	"""
 	Tesselation from points series and partitioning.
@@ -58,7 +59,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	Arguments:
 		xyt_data (str or matrix):
-			Path to a `.trxyt` file or raw data in the shape of :class:`pandas.DataFrame` 
+			Path to a *.trxyt* or *.rwa* file or raw data in the shape of 
+			:class:`pandas.DataFrame` 
 			(or any data format documented in :mod:`tramway.spatial.descriptor`).
 
 
@@ -71,12 +73,12 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			:class:`~tramway.tesselation.GasMesh`.
 
 		output_file (str, optional):
-			Path to a `.rwa` file. The resulting tesselation and data partition will be 
+			Path to a *.rwa* file. The resulting tesselation and data partition will be 
 			stored in this file. If `xyt_data` is a path to a file and `output_file` is not 
 			defined, then `output_file` will be adapted from `xyt_data` with extension 
-			`.rwa`.
+			*.rwa* and possibly overwrite the input file.
 
-		verbose (bool, optional): Verbose output.
+		verbose (bool or int, optional): Verbose output.
 
 		scaling (bool or str, optional):
 			Normalization of the data.
@@ -122,8 +124,10 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			`min_location_count`.
 
 		max_location_count (int, optional):
-			Maximum number of points per cell. This is used only by `kdtree`.
+			Maximum number of points per cell. This is used only by *kdtree*.
 
+		label/output_label (int or str):
+			Label for the resulting analysis instance.
 
 	Returns:
 		tramway.tesselation.CellStats: A partition of the data with 
@@ -135,10 +139,23 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	methods for more information.
 
 	"""
-	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, list):
-		xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
+	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, (tuple, list, frozenset, set)):
+		xyt_path = list_rwa(xyt_data)
+		if xyt_path:
+			if xyt_path[1:]:
+				raise ValueError('too many files match')
+			analyses = find_analysis(xyt_path[0])
+			xyt_data = analyses.data
+		else:
+			xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
+			analyses = Analyses(xyt_data)
 	else:
 		xyt_path = []
+		if isinstance(xyt_data, Analyses):
+			analyses = xyt_data
+			xyt_data = analyses.data
+		else:
+			analyses = Analyses(xyt_data)
 		#warn('TODO: test direct data input', UseCaseWarning)
 	
 	if ref_distance:
@@ -248,34 +265,32 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		if 'max_level' in kwargs:
 			stats.param['max_level'] = kwargs['max_level']
 
-	# save `stats`
+	if label is None:
+		label = output_label
+	analyses.add(Analyses(stats), label=label)
+
+	# save `analyses`
 	if output_file or xyt_path:
 		if output_file is None:
-			xyt_file, _ = os.path.splitext(xyt_path[0])
-			imt_path = xyt_file + imt_extensions[0]
-		else:
-			imt_path, imt_ext = os.path.splitext(output_file)
-			if imt_ext in hdf_extensions:
-				imt_path = output_file
-			else:
-				imt_path += imt_extensions[0]
+			output_file = os.path.splitext(xyt_path[0])[0] + hdf_extensions[0]
 		if compress:
-			stats_ = lightcopy(stats)
+			analyses_ = lightcopy(analyses)
 		else:
-			stats_ = stats
+			analyses_ = analyses
 
 		try:
-			store = HDF5Store(imt_path, 'w', verbose and 1 < verbose)
+			store = HDF5Store(output_file, 'w', verbose - 1 if verbose else False)
 			if verbose:
-				print('writing file: {}'.format(imt_path))
-			store.poke('cells', stats_)
+				print('writing file: {}'.format(output_file))
+			#store.poke('cells', stats_)
+			store.poke('analyses', analyses)
 			store.close()
-		except:
+		except EnvironmentError:
 			print(traceback.format_exc())
 			warn('HDF5 libraries may not be installed', ImportWarning)
 			store.close()
 			try:
-				os.unlink(imt_path)
+				os.unlink(output_file)
 			except:
 				pass
 
@@ -287,7 +302,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, \
 	location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
-	aspect=None, delaunay=None, locations={}, voronoi=True, colors=None, title=None):
+	aspect=None, delaunay=None, locations={}, voronoi=True, colors=None, title=None, \
+	label=None, input_label=None):
 	"""
 	Partition plots.
 
@@ -296,7 +312,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
 	Arguments:
 		cells (str or CellStats):
-			Path to a `.imt.rwa` file or :class:`~tramway.tesselation.CellStats` 
+			Path to a *.imt.rwa* file or :class:`~tramway.tesselation.CellStats` 
 			instance.
 
 		xy_layer ({None, 'delaunay', 'voronoi'}, optional):
@@ -326,18 +342,18 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
 		location_count_hist (bool, optional):
 			Plot a histogram of point counts (per cell). If the figure is saved, the 
-			corresponding file will have sub-extension `.hpc`.
+			corresponding file will have sub-extension *.hpc*.
 
 		cell_dist_hist (bool, optional):
 			Plot a histogram of distances between neighbor centroids. If the figure is 
-			saved, the corresponding file will have sub-extension `.hcd`.
+			saved, the corresponding file will have sub-extension *.hcd*.
 
 		location_dist_hist (bool, optional):
 			Plot a histogram of distances between points from neighbor cells. If the figure 
-			is saved, the corresponding file will have sub-extension `.hpd`.
+			is saved, the corresponding file will have sub-extension *.hpd*.
 
 		aspect (str, optional):
-			Aspect ratio. Can be 'equal'.
+			Aspect ratio. Can be *'equal'*.
 
 		locations (dict):
 			Keyword arguments to :func:`~tramway.plot.mesh.plot_points`.
@@ -350,6 +366,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			Overlay Voronoi graph. If :class:`dict`, keyword arguments to 
 			:func:`~tramway.plot.mesh.plot_voronoi`.
 
+		label/input_label (int or str):
+			If `cells` is a filepath, label of the analysis instance in the file.
+
 	Notes:
 		See also :mod:`tramway.plot.mesh`.
 
@@ -358,45 +377,62 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		input_file = ''
 	else:
 		input_file = cells
-		if isinstance(input_file, list):
-			input_file = input_file[0]
-		imt_path = input_file
-		if imt_path is None:
-			raise ValueError('undefined input file')
-		# copy-paste
-		if os.path.isdir(imt_path):
-			imt_path = os.listdir(imt_path)
-			files, exts = zip(*os.path.splitext(imt_path))
-			for ext in imt_extensions:
-				if ext in exts:
-					imt_path = imt_path[exts.index(ext)]
-					break
-			if isinstance(imt_path, list):
-				imt_path = imt_path[0]
-			auto_select = True
-		elif os.path.isfile(imt_path):
-			auto_select = False
+		if label is None:
+			label = input_label
+		analyses = find_analysis(input_file, labels=label)
+		if analyses:
+			if isinstance(analyses, dict):
+				if len(analyses) == 1:
+					analyses = list(analyses.values())[0]
+				else:
+					raise ValueError('multiple files match')
+			if not label:
+				labels = list(analyses.labels)
+				if labels[1:]:
+					raise ValueError('multiple instances; label is required')
+				label = labels[-1]
+			cells = analyses[label].data
 		else:
-			candidates = [ imt_path + ext for ext in imt_extensions ]
-			candidates = [ f for f in candidates if os.path.isfile(f) ]
-			if candidates:
-				imt_path = candidates[0]
+			# legacy code
+			if isinstance(input_file, list):
+				input_file = input_file[0]
+			imt_path = input_file
+			if imt_path is None:
+				raise ValueError('undefined input file')
+			# copy-paste
+			if os.path.isdir(imt_path):
+				imt_path = os.listdir(imt_path)
+				files, exts = zip(*os.path.splitext(imt_path))
+				for ext in imt_extensions:
+					if ext in exts:
+						imt_path = imt_path[exts.index(ext)]
+						break
+				if isinstance(imt_path, list):
+					imt_path = imt_path[0]
+				auto_select = True
+			elif os.path.isfile(imt_path):
+				auto_select = False
 			else:
-				raise IOError('no tesselation file found in {}'.format(imt_path))
-			auto_select = True
-		if auto_select and verbose:
-			print('selecting {} as a tesselation file'.format(imt_path))
+				candidates = [ imt_path + ext for ext in imt_extensions ]
+				candidates = [ f for f in candidates if os.path.isfile(f) ]
+				if candidates:
+					imt_path = candidates[0]
+				else:
+					raise IOError('no tesselation file found in {}'.format(imt_path))
+				auto_select = True
+			if auto_select and verbose:
+				print('selecting {} as a tesselation file'.format(imt_path))
 
-		# load the data
-		input_file = imt_path
-		try:
-			hdf = HDF5Store(input_file, 'r')
-			cells = hdf.peek('cells')
-		except:
-			print(traceback.format_exc())
-			warn('HDF5 libraries may not be installed', ImportWarning)
-		finally:
-			hdf.close()
+			# load the data
+			input_file = imt_path
+			try:
+				hdf = HDF5Store(input_file, 'r')
+				cells = hdf.peek('cells')
+			except:
+				print(traceback.format_exc())
+				warn('HDF5 libraries may not be installed', ImportWarning)
+			finally:
+				hdf.close()
 
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'grid', 'regular grid'), \
@@ -531,7 +567,11 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			plt.close(fig)
 
 
+
 def find_mesh(path, method=None, full_list=False):
+	"""
+	*from version 0.3:* deprecated.
+	"""
 	if not isinstance(path, (tuple, list)):
 		path = (path,)
 	paths = []
@@ -582,11 +622,19 @@ def find_mesh(path, method=None, full_list=False):
 
 
 def find_imt(path, method=None, full_list=False):
-	"""alias for :func:`find_mesh` for backward compatibility."""
+	"""
+	Alias for :func:`find_mesh` for backward compatibility.
+
+	*from version 0.3:* deprecated.
+	"""
 	return find_mesh(path, method, full_list)
 
 def find_partition(path, method=None, full_list=False):
-	"""alias for :func:`find_mesh`."""
+	"""
+	Alias for :func:`find_mesh`.
+
+	*from version 0.3:* deprecated.
+	"""
 	return find_mesh(path, method, full_list)
 
 
