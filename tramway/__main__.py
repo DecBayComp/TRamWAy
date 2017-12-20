@@ -87,6 +87,7 @@ def _render_map(args):
 
 def _dump_rwa(args):
 	input_files, kwargs = _parse_args(args)
+	verbose = kwargs.get('verbose', False)
 	for input_file in input_files:
 		print('in {}:'.format(input_file))
 		store = HDF5Store(input_file, 'r', verbose)

@@ -13,7 +13,8 @@
 
 
 from tramway.io import *
-from tramway.core import lightcopy, select_analysis
+from tramway.io.hdf5 import peek_maps
+from tramway.core import lightcopy
 from tramway.inference import *
 from tramway.plot.map import *
 from tramway.helper.analysis import *
@@ -303,36 +304,44 @@ def map_plot(maps, output_file=None, fig_format=None, \
 		input_file = maps
 		# TODO: load with `find_analysis` first
 		try:
-			hdf = HDF5Store(input_file, 'r')
+			analyses = find_analysis(input_file)
+		except KeyError:
 			try:
-				analyses = hdf.peek('analyses')
-			except KeyError:
-				# legacy code
-				mode = hdf.peek('mode')
-				maps = hdf.peek(mode)
-				try:
-					cells = hdf.peek('partition_file')
-					_, cells = find_partition(cells)
-				except KeyError:
-					cells = hdf.peek('distributed_translocations')
-			else:
-				while not isinstance(analyses.data, CellStats):
-					labels = list(analyses.labels)
-					if labels[1:]:
-						raise ValueError('multiple instances; label is required')
-					analyses = analyses[labels[-1]]
-				cells, labels = analyses.data, list(analyses.labels)
-				if not analyses:
-					raise ValueError('no map found')
-				elif labels[1:]:
-					raise ValueError('multiple instances; label is required')
-				analyses = analyses[labels[-1]]
-				mode = analyses.data.mode
-				maps = analyses.data.maps
+				# old format
+				store = HDF5Store(input_file, 'r')
+				maps = peek_maps(store, store.store)
 			finally:
-				hdf.close()
+				store.close()
+			try:
+				tess_file = maps.rwa_file
+			except AttributeError:
+				# even older
+				tess_file = maps.imt_file
+			if not isinstance(tess_file, str):
+				tess_file = tess_file.decode('utf-8')
+			tess_file = os.path.join(os.path.dirname(input_file), tess_file)
+			store = HDF5Store(tess_file, 'r')
+			try:
+				cells = store.peek('cells')
+			finally:
+				store.close()
 		except ImportError:
 			warn('HDF5 libraries may not be installed', ImportWarning)
+		else:
+			while not isinstance(analyses.data, CellStats):
+				labels = list(analyses.labels)
+				if labels[1:]:
+					raise ValueError('multiple instances; label is required')
+				analyses = analyses[labels[-1]]
+			cells, labels = analyses.data, list(analyses.labels)
+			if not analyses:
+				raise ValueError('no map found')
+			elif labels[1:]:
+				raise ValueError('multiple instances; label is required')
+			analyses = analyses[labels[-1]]
+			maps = analyses.data
+		mode = maps.mode
+		maps = maps.maps
 
 	print_figs = output_file or (input_file and fig_format)
 

@@ -64,42 +64,6 @@ def find_analysis(path, labels=None):
 				pass
 		return analyses
 
-def map_analyses(fun, analyses, label=False, comment=False, depth=False):
-	with_label, with_comment, with_depth = label, comment, depth
-	def _fun(x, **kwargs):
-		y = fun(x, **kwargs)
-		if isinstance(y, tuple):
-			raise ValueError('type conflict: function returned a tuple')
-		return y
-	def _map(analyses, label=None, comment=None, depth=0):
-		kwargs = {}
-		if with_label:
-			kwargs['label'] = label
-		if with_comment:
-			kwargs['comment'] = comment
-		if with_depth:
-			kwargs['depth'] = depth
-		node = _fun(analyses.data, **kwargs)
-		if analyses.instances:
-			depth += 1
-			tree = []
-			for label in analyses.instances:
-				child = analyses.instances[label]
-				comment = analyses.comments[label]
-				if isinstance(child, Analyses):
-					tree.append(_map(child, label, comment, depth))
-				else:
-					if with_label:
-						kwargs['label'] = label
-					if with_comment:
-						kwargs['comment'] = comment
-					if with_depth:
-						kwargs['depth'] = depth
-					tree.append(_fun(child, **kwargs))
-			return (node, tuple(tree))
-		else:
-			return node
-	return _map(analyses)
 
 def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
 	def _format(data, label=None, comment=None, depth=0):

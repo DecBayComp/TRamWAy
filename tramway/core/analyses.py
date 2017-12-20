@@ -13,6 +13,7 @@
 
 
 from .lazy import Lazy
+import itertools
 
 
 class AnalysesView(dict):
@@ -85,14 +86,15 @@ class Analyses(Lazy):
 	Generic container with labels and comments for analyses on some data.
 
 	For example, the various sampling strategies (`instances`) explored 
-	in relation with some molecule location data (`data`)
-	or the various dynamics parameter maps (`instances`) infered from a same sample (`data`).
+	in relation with some molecule location data (`data` or equivalently `artefact`)
+	or the various dynamics parameter maps (`instances`) infered from a same sample (`data` or 
+	`artefact`).
 
 	Instances and comments are addressable with keys refered to as "labels".
 
 	Attributes:
 
-		data (any): common data which the instances apply to or derive from.
+		data/artefact (any): common data which the instances apply to or derive from.
 
 		instances (dict): analyses on the data; keys are natural integers or string labels.
 
@@ -118,6 +120,14 @@ class Analyses(Lazy):
 		self._comments = {}
 
 	@property
+	def artefact(self):
+		return self.data
+
+	@artefact.setter
+	def artefact(self, a):
+		self.data = a
+
+	@property
 	def instances(self):
 		return InstancesView(self)
 
@@ -141,17 +151,29 @@ class Analyses(Lazy):
 	def labels(self, l):
 		raise AttributeError('read-only attribute')
 
-	def autoindex(self):
+	def autoindex(self, pattern=None):
 		"""
 		Determine the lowest available natural integer for use as key in `instances` and `comments`.
+
+		Arguments:
+
+			pattern (str): label with a *'\*'* to be replaced by a natural integer.
+
+		Returns:
+
+			int or str: index or label.
 		"""
+		if pattern:
+			f = lambda i: pattern.replace('*', str(i))
+		else:
+			f = lambda i: i
 		i = 0
 		if self.instances:
-			while i in self.instances:
+			while f(i) in self.instances:
 				i += 1
-		return i
+		return f(i)
 
-	def add(self, analysis, label=None, comment=None):
+	def add(self, analysis, label=None, comment=None, pattern=None):
 		"""
 		Add an analysis.
 
@@ -168,7 +190,7 @@ class Analyses(Lazy):
 
 		"""
 		if label is None:
-			label = self.autoindex()
+			label = self.autoindex(pattern)
 		self.instances[label] = analysis
 		if comment:
 			self.comments[label] = comment
@@ -212,7 +234,45 @@ class Analyses(Lazy):
 		self.instances.__delitem__(label)
 
 
-def select_analysis(analyses, labels):
+def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_tuples=False):
+	with_label, with_comment, with_depth = label, comment, depth
+	def _fun(x, **kwargs):
+		y = fun(x, **kwargs)
+		if not allow_tuples and isinstance(y, tuple):
+			raise ValueError('type conflict: function returned a tuple')
+		return y
+	def _map(analyses, label=None, comment=None, depth=0):
+		kwargs = {}
+		if with_label:
+			kwargs['label'] = label
+		if with_comment:
+			kwargs['comment'] = comment
+		if with_depth:
+			kwargs['depth'] = depth
+		node = _fun(analyses.data, **kwargs)
+		if analyses.instances:
+			depth += 1
+			tree = []
+			for label in analyses.instances:
+				child = analyses.instances[label]
+				comment = analyses.comments[label]
+				if isinstance(child, Analyses):
+					tree.append(_map(child, label, comment, depth))
+				else:
+					if with_label:
+						kwargs['label'] = label
+					if with_comment:
+						kwargs['comment'] = comment
+					if with_depth:
+						kwargs['depth'] = depth
+					tree.append(_fun(child, **kwargs))
+			return (node, tuple(tree))
+		else:
+			return node
+	return _map(analyses)
+
+
+def extract_analysis(analyses, labels):
 	"""
 	Extract an analysis from a hierarchy of analyses.
 
@@ -242,4 +302,102 @@ def select_analysis(analyses, labels):
 			analyses.instances[label].copy(), analyses.comment[label]
 		analyses = analyses.instances[label]
 	return instance
+
+
+def _append(s, ls):
+	"""for internal use in `label_paths`"""
+	if ls:
+		ss = []
+		for ok, _ls in ls:
+			if isinstance(ok, bool):
+				l, _ls = _ls, None
+			else:
+				ok, l = ok
+			_s = list(s) # copy
+			_s.append(l)
+			if ok:
+				ss.append([tuple(_s)])
+			if _ls:
+				ss.append(_append(_s, _ls))
+		return itertools.chain(*ss)
+	else:
+		return []
+
+def label_paths(analyses, filter):
+	"""
+	Find label paths for analyses matching a criterion.
+
+	Arguments:
+
+		analyses (Analyses): hierarchy of analyses, with `instances` possibly containing
+			other :class:`Analyses` instances.
+
+		filter (type or callable): criterion over analysis data.
+
+	Returns:
+
+		list of tuples: list of label paths to matching analyses.
+	"""
+	if isinstance(filter, type):
+		_type = filter
+		_map = lambda node, label: (isinstance(node, _type), label)
+	elif callable(filter):
+		_map = lambda node, label: (filter(node), label)
+	else:
+		raise TypeError('`filter` is neither a type nor a callable')
+	_, labels = map_analyses(_map, analyses, label=True, allow_tuples=True)
+	return list(_append([], labels))
+
+
+def find_artefacts(analyses, filters, labels=None):
+	"""
+	Find related artefacts.
+
+	Filters are applied to find data elements (artefacts) along a single path specified by `labels`.
+
+	Arguments:
+
+		analyses (Analyses): hierarchy of analyses.
+
+		filters (type or callable or tuple or list): list of criteria, a criterion being
+			a boolean function or a type.
+
+		labels (list): label path.
+
+	Returns:
+
+		tuple: matching data elements/artefacts.
+
+	Example:
+
+		cells, maps = find_artefacts(analyses, (CellStats, Maps))
+	"""
+	if not isinstance(filters, (tuple, list)):
+		filters = (filters,)
+	if labels is None:
+		labels = []
+	elif isinstance(labels, (tuple, list)):
+		labels = list(labels) # copy
+	else:
+		labels = [labels]
+	matches = []
+	for i, _filter in enumerate(filters):
+		if isinstance(_filter, type):
+			_type = _filter
+			_filter = lambda a: isinstance(a, _type)
+		while not _filter(analyses.artefact):
+			try:
+				label = labels.pop(0)
+			except IndexError:
+				labels = list(analyses.labels)
+				if not labels:
+					raise ValueError('no match for {}{} filter'.format(i+1,
+						{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
+				elif labels[1:]:
+					raise ValueError('multiple labels; argument `labels` required')
+				else:
+					label = labels[0]
+			analyses = analyses.instances[label]
+		matches.append(analyses.artefact)
+	return tuple(matches)
 

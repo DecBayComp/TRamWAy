@@ -20,8 +20,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import numpy as np
 import pandas as pd
+from tramway.core.analyses import *
+from tramway.helper.analysis import find_analysis
+from tramway.tesselation import CellStats
+from tramway.inference import Maps
 from tramway.io import *
-from tramway.helper.tesselation import find_imt
+from tramway.io.hdf5 import peek_maps
 from ..contour import ContourEditor
 try:
 	from tkinter import BooleanVar, IntVar, DoubleVar, StringVar
@@ -104,7 +108,7 @@ class TkContourEditor(FigureCanvasTkAgg):
 
 	@property
 	def cells(self):
-		raise RuntimeError("'cells' attribute is read-only")
+		return self.plt.cells
 
 	@cells.setter
 	def cells(self, cs):
@@ -116,7 +120,7 @@ class TkContourEditor(FigureCanvasTkAgg):
 
 	@property
 	def map(self):
-		raise RuntimeError("'map' attribute is read-only")
+		return self.plt.map
 
 	@map.setter
 	def map(self, m):
@@ -163,8 +167,12 @@ class FileChooser(tk.Frame):
 class ContourEditingApp(tk.Frame):
 	def __init__(self, parent=None):
 		tk.Frame.__init__(self, parent)
+		self.analysis = StringVar()
+		self.analysis.trace('w', self._analysis)
+		self.analyses = None
+		self.map_labels = []
 		self.create_widgets()
-		self.input_file.filepath.trace('w', self.new_map)
+		self.input_file.filepath.trace('w', self.new_file)
 		self.editor.step.set(1)
 		self.editor.label = self.integral_label
 
@@ -184,6 +192,12 @@ class ContourEditingApp(tk.Frame):
 		self.side_panel.grid(row=1, column=1, sticky=tk.E+tk.N+tk.S, padx=2, pady=2)
 
 		r = c = 1
+		self.analysis_label = tk.Label(self.side_panel, text='Analysis:')
+		self.analysis_label.grid(column=c, row=r, sticky=tk.W)
+		self.analysis_input = ttk.Combobox(self.side_panel, state='readonly',
+			textvariable=self.analysis)
+		self.analysis_input.grid(column=c+1, row=r, sticky=tk.W)
+		r += 1
 		self.cell_label = tk.Label(self.side_panel, text='Cell:')
 		self.cell_label.grid(column=c, row=r, sticky=tk.W)
 		self.cell_input = tk.Entry(self.side_panel, width=4, textvariable=self.editor.cell)
@@ -218,42 +232,54 @@ class ContourEditingApp(tk.Frame):
 		self.disable_widgets()
 
 
-	def new_map(self, *args, **kwargs):
-		map_file = self.input_file.filepath.get()
-		store = HDF5Store(map_file, 'r')
-		try:
-			mode = store.peek('mode')
-			if mode == '(callable)':
-				maps = store.peek('result')
-			else:
-				maps = store.peek(mode)
-		except KeyError:
-			raise ValueError('not a map file: {}'.format(map_file))
-			return
-		else:
-			try:
-				tess_file = store.peek('rwa_file')
-			except KeyError:
-				# old format
-				tess_file = store.peek('imt_file')
-		finally:
-			store.close()
-		if not isinstance(tess_file, str):
-			tess_file = tess_file.decode('utf-8')
-		tess_file = os.path.join(os.path.dirname(map_file), tess_file)
+	def new_file(self, *args, **kwargs):
+		self.analysis.set('')
+		self.analyses = None
+		self.map_labels = None
 		self.disable_widgets()
-		store = HDF5Store(tess_file, 'r')
+		map_file = self.input_file.filepath.get()
 		try:
-			self.editor.cells = store.peek('cells')
-		finally:
-			store.close()
-		self.editor.map = maps
-		self.variable_input['values'] = self.editor.variables
-		if not self.editor.variables[1:]:
-			self.editor.variable.set(self.editor.variables[0])
+			self.analyses = find_analysis(map_file)
+		except KeyError:
+			try:
+				# old format
+				store = HDF5Store(map_file, 'r')
+				maps = peek_maps(store, store.store)
+			finally:
+				store.close()
+		if self.analyses is None:
+			try:
+				tess_file = maps.rwa_file
+			except AttributeError:
+				# even older
+				tess_file = maps.imt_file
+			maps = maps.maps
+			if not isinstance(tess_file, str):
+				tess_file = tess_file.decode('utf-8')
+			tess_file = os.path.join(os.path.dirname(map_file), tess_file)
+			try:
+				store = HDF5Store(tess_file, 'r')
+				try:
+					self.editor.cells = store.peek('cells')
+				finally:
+					store.close()
+			except:
+				print(traceback.format_exc())
+				print('cells not found')
+			self.set_maps(maps)
+		else:
+			self.map_labels = [ ' - '.join(str(a) for a in path)
+				for path in label_paths(self.analyses, Maps) ]
+			self.analysis_input['values'] = self.map_labels
+			if not self.map_labels:
+				raise ValueError('no analyses found')
+			if not self.map_labels[1:]:
+				self.analysis.set(self.map_labels[0])
 		self.enable_widgets()
 
 	def disable_widgets(self):
+		self.analysis_label['state'] = 'disabled'
+		self.analysis_input.state(('disabled',))
 		self.cell_label['state'] = 'disabled'
 		self.cell_input['state'] = 'disabled'
 		self.variable_label['state'] = 'disabled'
@@ -262,10 +288,15 @@ class ContourEditingApp(tk.Frame):
 		self.editor.map = None
 
 	def enable_widgets(self):
-		self.cell_label['state'] = 'normal'
-		self.cell_input['state'] = 'normal'
-		self.variable_label['state'] = 'normal'
-		self.variable_input.state(('!disabled',))
+		if self.map_labels:
+			self.analysis_label['state'] = 'normal'
+			self.analysis_input.state(('!disabled',))
+		if self.editor.cells:
+			self.cell_label['state'] = 'normal'
+			self.cell_input['state'] = 'normal'
+		if self.editor.map is not None:
+			self.variable_label['state'] = 'normal'
+			self.variable_input.state(('!disabled',))
 
 	@property
 	def debug(self):
@@ -275,6 +306,34 @@ class ContourEditingApp(tk.Frame):
 	def debug(self, d):
 		self.editor.debug = d
 
+	def _analysis(self, *args):
+		analysis = self.analysis.get()
+		try:
+			if not analysis:
+				return
+			labels = []
+			for label in analysis.split(' - '):
+				try:
+					label = int(label)
+				except (TypeError, ValueError):
+					pass
+				labels.append(label)
+			cells, maps = find_artefacts(self.analyses, (CellStats, Maps), labels)
+			assert isinstance(maps, Maps)
+			self.editor.cells = cells
+			self.set_maps(maps)
+			self.enable_widgets()
+		except:
+			print(traceback.format_exc())
+			raise
+
+	def set_maps(self, maps):
+		if isinstance(maps, Maps):
+			maps = maps.maps
+		self.editor.map = maps
+		self.variable_input['values'] = self.editor.variables
+		if not self.editor.variables[1:]:
+			self.editor.variable.set(self.editor.variables[0])
 
 
 def contour_utility():
