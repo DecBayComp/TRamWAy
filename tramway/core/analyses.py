@@ -14,6 +14,8 @@
 
 from .lazy import Lazy
 import itertools
+import copy
+import traceback
 
 
 class AnalysesView(dict):
@@ -52,6 +54,12 @@ class InstancesView(AnalysesView):
 		return self.__analyses__._instances.values()
 	def items(self):
 		return self.__analyses__._instances.items()
+	def get(self, label, default=None):
+		return self.__analyses__._instances.get(label, default)
+	def pop(self, label, default=None):
+		analysis = self.get(label, default)
+		self.__delitem__(label)
+		return analysis
 
 class CommentsView(AnalysesView):
 	__slots__ = ()
@@ -297,10 +305,12 @@ def extract_analysis(analyses, labels):
 		labels = [labels]
 	analysis = instance = Analyses(analyses.data)
 	for label in labels:
-		analysis, = \
-			analysis.instances[label], analysis.comment[label] = \
-			analyses.instances[label].copy(), analyses.comment[label]
-		analyses = analyses.instances[label]
+		analysis.instances[label] = copy.copy(analyses.instances[label])
+		try:
+			analysis.comments[label] = analyses.comments[label]
+		except KeyError:
+			pass
+		analysis, analyses = analysis.instances[label], analyses.instances[label]
 	return instance
 
 
@@ -389,15 +399,34 @@ def find_artefacts(analyses, filters, labels=None):
 			try:
 				label = labels.pop(0)
 			except IndexError:
-				labels = list(analyses.labels)
-				if not labels:
+				_labels = list(analyses.labels)
+				if not _labels:
 					raise ValueError('no match for {}{} filter'.format(i+1,
 						{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
-				elif labels[1:]:
+				elif _labels[1:]:
 					raise ValueError('multiple labels; argument `labels` required')
 				else:
-					label = labels[0]
-			analyses = analyses.instances[label]
+					label = _labels[0]
+			try:
+				analyses = analyses.instances[label]
+			except KeyError:
+				raise KeyError("missing label '{}'; available labels are: {}".format(label, str(list(analyses.labels))[1:-1]))
 		matches.append(analyses.artefact)
 	return tuple(matches)
 
+
+def coerce_labels(analyses):
+	for label in tuple(analyses.labels):
+		if isinstance(label, (int, str)):
+			coerced = label
+		else:
+			try: # Py2
+				coerced = label.encode('utf-8')
+			except AttributeError: # Py3
+				coerced = label.decode('utf-8')
+			assert isinstance(coerced, str)
+		analysis = analyses.instances.pop(label)
+		if isinstance(analysis, Analyses):
+			analysis = coerce_labels(analysis)
+		analyses.instances[coerced] = analysis
+	return analyses

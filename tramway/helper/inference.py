@@ -260,7 +260,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 def map_plot(maps, output_file=None, fig_format=None, \
 	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
-	cells=None, mode=None, clip=None, label=None, \
+	cells=None, mode=None, clip=None, label=None, input_label=None, \
 	**kwargs):
 	"""
 	Plot scalar/vector 2D maps.
@@ -291,7 +291,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		clip (float): quantile at which to clip absolute values of the map
 
-		label (int or str): analysis instance label
+		label/input_label (int or str): analysis instance label
 	"""
 
 	if isinstance(maps, tuple):
@@ -302,10 +302,12 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			raise ValueError('`cells` is not defined')
 	else:
 		input_file = maps
-		# TODO: load with `find_analysis` first
+		if label is None:
+			label = input_label
 		try:
-			analyses = find_analysis(input_file)
+			analyses = find_analysis(input_file, label)
 		except KeyError:
+			print(traceback.format_exc())
 			try:
 				# old format
 				store = HDF5Store(input_file, 'r')
@@ -328,18 +330,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 		except ImportError:
 			warn('HDF5 libraries may not be installed', ImportWarning)
 		else:
-			while not isinstance(analyses.data, CellStats):
-				labels = list(analyses.labels)
-				if labels[1:]:
-					raise ValueError('multiple instances; label is required')
-				analyses = analyses[labels[-1]]
-			cells, labels = analyses.data, list(analyses.labels)
-			if not analyses:
-				raise ValueError('no map found')
-			elif labels[1:]:
-				raise ValueError('multiple instances; label is required')
-			analyses = analyses[labels[-1]]
-			maps = analyses.data
+			cells, maps = find_artefacts(analyses, (CellStats, Maps))
 		mode = maps.mode
 		maps = maps.maps
 

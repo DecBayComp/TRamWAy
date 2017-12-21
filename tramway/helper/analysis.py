@@ -55,8 +55,9 @@ def find_analysis(path, labels=None):
 			print(traceback.format_exc())
 			raise OSError('HDF5 libraries may not be installed')
 		else:
+			analyses = coerce_labels(analyses)
 			if labels:
-				analyses = select_analysis(analyses, labels)
+				analyses = extract_analysis(analyses, labels)
 		finally:
 			try:
 				hdf.close()
@@ -66,6 +67,8 @@ def find_analysis(path, labels=None):
 
 
 def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
+	if not isinstance(analyses, Analyses) and os.path.isfile(analyses):
+		analyses = find_analysis(analyses)
 	def _format(data, label=None, comment=None, depth=0):
 		s = [global_prefix + prefix * depth]
 		t = []

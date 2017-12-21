@@ -9,5 +9,5 @@ The ``examples`` repository in ``tramway`` contains a collection of demos. You c
 
 You can for example generate a diffusivity map for a dataset of glycine receptor::
 
-	> tramway-demo gr-kmeans-diffusivity
+	> tramway-demo glycine_receptor
 

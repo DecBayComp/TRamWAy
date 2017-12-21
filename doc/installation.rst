@@ -7,6 +7,10 @@ You will need Python >= 2.7 or >= 3.5.
 
 ::
 
+	pip install --user tramway
+
+or::
+
 	git clone https://github.com/DecBayComp/TRamWAy
 	cd tramway
 	pip install --user -e .

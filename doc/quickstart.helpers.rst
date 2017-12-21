@@ -3,6 +3,8 @@
 High-level library helpers
 ==========================
 
+.. warning:: This section is outdated and needs to be reworked.
+
 Partitioning the tracking data
 ------------------------------
 
@@ -11,7 +13,7 @@ The first step consists of tesselating the space so that the point data can be p
 :mod:`tramway.helper.tesselation` exposes the :func:`~tramway.helper.tesselation.tesselate` method that be called the following way::
 
 	path_to_tracking_data = 'example.trxyt'
-	cells = tesselate(path_to_tracking_data, 'grid', avg_cell_count=40)
+	cells = tesselate(path_to_tracking_data, 'grid', avg_location_count=40)
 
 The input data space will be divided by a regular grid such that on average a cell will accomodate 40 points as specified by the ``avg_cell_count`` argument. This argument is optional with default value 80 (more exactly ``4 * min_cell_count``).
 

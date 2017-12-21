@@ -366,7 +366,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			Overlay Voronoi graph. If :class:`dict`, keyword arguments to 
 			:func:`~tramway.plot.mesh.plot_voronoi`.
 
-		label/input_label (int or str):
+		label/input_label (int or str or list):
 			If `cells` is a filepath, label of the analysis instance in the file.
 
 	Notes:

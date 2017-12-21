@@ -58,13 +58,10 @@ Where to start
 .. in quickstart.commandline, quickstart.fileformats, 
 .. |xyt| replace:: *.xyt*
 .. |trxyt| replace:: *.trxyt*
-.. in quickstart, quickstart.helpers, quickstart.fileformats, 
+.. in quickstart, quickstart.helpers, 
 .. |h5| replace:: *.h5*
-.. in quickstart.fileformats, 
-.. |imtalone| replace:: *.imt*
-.. in quickstart.concepts, quickstart.fileformats, 
-.. |imt| replace:: *.imt.h5*
-.. |map| replace:: *.map.h5*
+.. in datamodel, 
+.. |rwa| replace:: *.rwa*
 .. in quickstart.fileformats, 
 .. |seconds| replace:: **seconds**
 .. |um| replace:: **µm**
