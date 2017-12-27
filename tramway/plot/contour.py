@@ -35,6 +35,7 @@ class ContourEditor(object):
 		self._delaunay_ptr = []
 		self._cell_centers = None
 		self._cell_adjacency = None
+		self._dilation_adjacency = None
 		self._delaunay = False
 		self._cell = None
 		self._step = 1
@@ -83,7 +84,7 @@ class ContourEditor(object):
 	@property
 	def cell_adjacency(self):
 		if self._cell_adjacency is None:
-			self._cell_adjacency = self.cells.tesselation.simplified_adjacency.tocsr()
+			self._cell_adjacency = self.cells.tesselation.simplified_adjacency().tocsr()
 		return self._cell_adjacency
 
 	@property
@@ -99,8 +100,21 @@ class ContourEditor(object):
 		self._cells = cs
 		self._cell_centers = None
 		self._cell_adjacency = None
+		self._dilation_adjacency = None
 		self.map = None
 		self._areas = None
+
+	@property
+	def dilation_adjacency(self):
+		if self._dilation_adjacency is None:
+			try:
+				self._dilation_adjacency = self.cells.tesselation.diagonal_adjacency
+			except AttributeError:
+				self._dilation_adjacency = False
+		if self._dilation_adjacency is False:
+			return self.cell_adjacency
+		else:
+			return self._dilation_adjacency
 
 	def _clear(self):
 		self._cell_ptr = []
@@ -204,8 +218,9 @@ class ContourEditor(object):
 			s = self.step
 		if 0 < s and self.cells is not None:
 			try:
-				cs, ok = contour(c, self.cell_adjacency, s,
-						fallback=True, debug=self.debug, cells=self.cells)
+				cs, ok = self.cells.tesselation.contour(c, s, fallback=True,
+						adjacency=self.cell_adjacency,
+						debug=self.debug, cells=self.cells)
 			except:
 				if self.debug:
 					print(traceback.format_exc())
@@ -215,7 +230,7 @@ class ContourEditor(object):
 		w = None
 		if (isinstance(cs, np.ndarray) and cs.size) or cs:
 			ws = set()
-			for _ws in dilation(c, self.cell_adjacency, (1, s), cs).values():
+			for _ws in dilation(c, self.dilation_adjacency, (1, s), cs).values():
 				ws |= _ws
 			if ws:
 				if self.area:

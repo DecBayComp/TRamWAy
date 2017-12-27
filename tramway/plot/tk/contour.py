@@ -303,7 +303,7 @@ class ContourEditingApp(tk.Frame):
 		return self.editor.debug
 
 	@debug.setter
-	def debug(self, d):
+	def debug(self, d): # this setter is never called
 		self.editor.debug = d
 
 	def _analysis(self, *args):
@@ -343,7 +343,7 @@ def contour_utility():
 	root.columnconfigure(0, weight=1)
 	app = ContourEditingApp(root)
 	app.grid(row=0, column=0, sticky=tk.W+tk.E+tk.N+tk.S)
-	app.debug = '-d' in sys.argv or '--debug' in sys.argv
+	app.editor.debug = '-d' in sys.argv or '--debug' in sys.argv # app.debug property does not work
 	app.mainloop()
 
 if __name__ == '__main__':

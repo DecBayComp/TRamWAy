@@ -49,7 +49,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
 	min_location_count=20, avg_location_count=None, max_location_count=None, \
 	strict_min_location_count=None, \
-	compress=False, label=None, output_label=None, \
+	compress=False, label=None, output_label=None, comment=None, \
 	**kwargs):
 	"""
 	Tesselation from points series and partitioning.
@@ -128,6 +128,9 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 		label/output_label (int or str):
 			Label for the resulting analysis instance.
+
+		comment (str):
+			Description message for the resulting analysis.
 
 	Returns:
 		tramway.tesselation.CellStats: A partition of the data with 
@@ -267,7 +270,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	if label is None:
 		label = output_label
-	analyses.add(Analyses(stats), label=label)
+	analyses.add(Analyses(stats), label=label, comment=comment)
 
 	# save `analyses`
 	if output_file or xyt_path:
@@ -293,6 +296,9 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 				os.unlink(output_file)
 			except:
 				pass
+		if verbose:
+			print('in {}:'.format(output_file))
+			print(format_analyses(analyses, global_prefix='\t'))
 
 	return stats
 

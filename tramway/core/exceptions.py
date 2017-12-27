@@ -5,3 +5,6 @@ class NaNWarning(RuntimeWarning):
 class EfficiencyWarning(RuntimeWarning):
 	pass
 
+class MissingSupportWarning(UserWarning):
+	pass
+

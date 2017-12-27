@@ -133,10 +133,13 @@ def memoize(f):
 	return wrapper
 
 #@memoize
-def contour(cell, adjacency, distance=1, nodes=None, fallback=False, debug=False, cells=None):
+def contour(cell, adjacency, distance=1, nodes=None, dilation_adjacency=None,
+		fallback=False, debug=False, cells=None):
 	# cells was useful to debugging
 	if nodes is None:
-		nodes = dilation(cell, adjacency, step=slice(distance+1))
+		if dilation_adjacency is None:
+			dilation_adjacency = adjacency
+		nodes = dilation(cell, dilation_adjacency, step=slice(distance+1))
 	try:
 		ns = nodes[distance]
 	except KeyError:
@@ -177,8 +180,8 @@ def contour(cell, adjacency, distance=1, nodes=None, fallback=False, debug=False
 		else:
 			raise NoSolutionError
 	# inner contour
-	cont = contour(cell, adjacency, distance=distance-1, nodes=nodes, fallback=fallback,
-		debug=debug, cells=cells)
+	cont = contour(cell, adjacency, distance=distance-1, nodes=nodes,
+		dilation_adjacency=dilation_adjacency, fallback=fallback, debug=debug, cells=cells)
 	if fallback:
 		if cont[1]:
 			cont = cont[0]

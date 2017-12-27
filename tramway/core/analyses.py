@@ -423,10 +423,19 @@ def coerce_labels(analyses):
 			try: # Py2
 				coerced = label.encode('utf-8')
 			except AttributeError: # Py3
-				coerced = label.decode('utf-8')
-			assert isinstance(coerced, str)
+				try:
+					coerced = label.decode('utf-8')
+				except AttributeError: # numpy.int64?
+					coerced = int(label)
+			assert isinstance(coerced, (int, str))
+		try:
+			comment = analyses.comments[label]
+		except KeyError:
+			pass
 		analysis = analyses.instances.pop(label)
 		if isinstance(analysis, Analyses):
 			analysis = coerce_labels(analysis)
 		analyses.instances[coerced] = analysis
+		if comment:
+			analyses.comments[coerced] = comment
 	return analyses

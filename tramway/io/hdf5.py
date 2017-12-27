@@ -50,14 +50,17 @@ from tramway.tesselation import CellStats, Delaunay, Voronoi, RegularMesh, KDTre
 hdf5_storable(default_storable(CellStats), agnostic=True)
 # Delaunay
 delaunay_exposes = ['scaler', 'cell_adjacency', 'cell_label', 'adjacency_label', 'cell_centers']
-# cell_centers should be last
+# scaler should be first and cell_centers should be last
 hdf5_storable(default_storable(Delaunay, exposes=delaunay_exposes), agnostic=True)
 # Voronoi
-voronoi_exposes = ['vertices', 'vertex_adjacency', 'cell_vertices'] + delaunay_exposes
+voronoi_exposes = ['scaler', 'vertices', 'vertex_adjacency', 'cell_vertices'] + delaunay_exposes[1:]
 hdf5_storable(default_storable(Voronoi, exposes=voronoi_exposes), agnostic=True)
 # RegularMesh
-regular_mesh_exposes = voronoi_exposes + ['lower_bound', 'upper_bound', 'count_per_dim', \
-	'min_probability', 'max_probability', 'avg_probability']
+regular_mesh_exposes = \
+	['scaler', 'diagonal_adjacency'] + \
+	voronoi_exposes[1:] + \
+	['lower_bound', 'upper_bound', 'count_per_dim', \
+		'min_probability', 'max_probability', 'avg_probability']
 hdf5_storable(default_storable(RegularMesh, exposes=regular_mesh_exposes), agnostic=True)
 # KDTreeMesh
 kdtree_mesh_exposes = voronoi_exposes + ['_min_distance', '_avg_distance', \

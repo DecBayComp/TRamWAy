@@ -19,9 +19,10 @@ from scipy.spatial.distance import cdist
 import scipy.sparse as sparse
 from scipy.sparse import issparse
 import scipy.spatial as spatial
-from tramway.spatial.scaler import *
 from tramway.core import *
-#from collections import OrderedDict
+from tramway.spatial.scaler import *
+from tramway.spatial.adjacency import contour
+from collections import Counter
 from warnings import warn
 import itertools
 import copy
@@ -341,7 +342,7 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
 
 
-class Tesselation(object):
+class Tesselation(Lazy):
 	"""Abstract class for tesselations.
 
 	The methods to be implemented are :meth:`tesselate` and :meth:`cell_index`.
@@ -364,6 +365,7 @@ class Tesselation(object):
 		scaler (Scaler): scaler.
 	"""
 	def __init__(self, scaler=Scaler()):
+		Lazy.__init__(self)
 		self.scaler = scaler
 		self._cell_adjacency = None
 		self._cell_label = None
@@ -473,20 +475,23 @@ class Tesselation(object):
 	def adjacency_label(self, label):
 		self._adjacency_label = label
 
-	@property
-	def simplified_adjacency(self):
+	def simplified_adjacency(self, adjacency=None):
 		"""
 		Simplified copy of :attr:`cell_adjacency` as a :class:`~scipy.sparse.coo_matrix` sparse 
 		matrix with no explicit zeros.
 
 		Non-zero values indicate adjacency and all these values are strictly positive.
 		"""
-		adj = self.cell_adjacency.tocoo()
+		if adjacency is None:
+			adjacency = self.cell_adjacency
+		adjacency = adjacency.tocoo()
 		if self.adjacency_label is None:
-			ok = 0 < adj.data
+			ok = 0 < adjacency.data
 		else:
-			ok = 0 < self.adjacency_label[adj.data]
-		return sparse.coo_matrix((adj.data[ok], (adj.row[ok], adj.col[ok])), shape=adj.shape)
+			ok = 0 < self.adjacency_label[adjacency.data]
+		return sparse.coo_matrix(
+			(adjacency.data[ok], (adjacency.row[ok], adjacency.col[ok])),
+			shape=adjacency.shape)
 
 	def descriptors(self, points, asarray=False):
 		"""Keep the data columns that were involved in growing the tesselation.
@@ -508,6 +513,11 @@ class Tesselation(object):
 				return np.asarray(points)
 			else:
 				return points
+
+	def contour(self, cell, distance=1, fallback=False, adjacency=None, **kwargs):
+		if adjacency is None:
+			adjacency = self.simplified_adjacency().tocsr()
+		return contour(cell, adjacency, distance, None, fallback=fallback, **kwargs)
 
 
 
@@ -671,6 +681,9 @@ class Voronoi(Delaunay):
 			:attr:`vertices`.
 
 	"""
+	__lazy__ = Delaunay.__lazy__ + \
+		('vertices', 'cell_adjacency', 'cell_vertices', 'vertex_adjacency')
+
 	def __init__(self, scaler=Scaler()):
 		Delaunay.__init__(self, scaler)
 		self._vertices = None
@@ -691,7 +704,9 @@ class Voronoi(Delaunay):
 
 	@vertices.setter
 	def vertices(self, vertices):
-		self._vertices = self.scaler.scale_point(vertices)
+		if vertices is not None:
+			vertices = self.scaler.scale_point(vertices)
+		self.__lazysetter__(vertices)
 
 	# cell_adjacency property
 	@property
@@ -703,7 +718,7 @@ class Voronoi(Delaunay):
 	# whenever you redefine a getter you have to redefine the corresponding setter
 	@cell_adjacency.setter # copy/paste
 	def cell_adjacency(self, matrix):
-		self._cell_adjacency = matrix
+		self.__lazysetter__(matrix)
 
 	# cell_vertices property
 	@property
@@ -714,7 +729,7 @@ class Voronoi(Delaunay):
 
 	@cell_vertices.setter
 	def cell_vertices(self, vertex_indices):
-		self._cell_vertices = vertex_indices
+		self.__lazysetter__(vertex_indices)
 
 	# vertex_adjacency property
 	@property
@@ -725,7 +740,7 @@ class Voronoi(Delaunay):
 
 	@vertex_adjacency.setter
 	def vertex_adjacency(self, matrix):
-		self._vertex_adjacency = matrix
+		self.__lazysetter__(matrix)
 
 	def _postprocess(self):
 		"""Compute the Voronoi.
@@ -776,6 +791,9 @@ class RegularMesh(Voronoi):
 		max_probability:
 
 	Rather slow. May be reimplemented some day."""
+
+	__lazy__ = Voronoi.__lazy__ + ('diagonal_adjacency',)
+
 	def __init__(self, scaler=None, lower_bound=None, upper_bound=None, count_per_dim=None, min_probability=None, max_probability=None, avg_probability=None, **kwargs):
 		Voronoi.__init__(self) # just ignore `scaler`
 		self.lower_bound = lower_bound
@@ -784,6 +802,7 @@ class RegularMesh(Voronoi):
 		self.min_probability = min_probability
 		self.max_probability = max_probability
 		self.avg_probability = avg_probability
+		self._diagonal_adjacency = None
 
 	def tesselate(self, points, **kwargs):
 		points = self._preprocess(points)
@@ -839,7 +858,7 @@ class RegularMesh(Voronoi):
 
 	@vertices.setter
 	def vertices(self, vertices):
-		self._vertices = vertices
+		self.__lazysetter__(vertices)
 
 	# cell_adjacency property
 	@property
@@ -855,7 +874,7 @@ class RegularMesh(Voronoi):
 
 	@cell_adjacency.setter # copy/paste
 	def cell_adjacency(self, matrix):
-		self._cell_adjacency = matrix
+		self.__lazysetter__(matrix)
 
 	# vertex_adjacency property
 	@property
@@ -871,7 +890,7 @@ class RegularMesh(Voronoi):
 
 	@vertex_adjacency.setter # copy/paste
 	def vertex_adjacency(self, matrix):
-		self._vertex_adjacency = matrix
+		self.__lazysetter__(matrix)
 
 	# cell_vertices property
 	@property
@@ -887,9 +906,44 @@ class RegularMesh(Voronoi):
 			self._cell_vertices = sparse_to_dict(self._cell_vertices)
 		return self._cell_vertices
 
-	@cell_vertices.setter
+	@cell_vertices.setter # copy/paste
 	def cell_vertices(self, matching):
-		self._cell_vertices = matching
+		self.__lazysetter__(matching)
+
+	@property
+	def diagonal_adjacency(self):
+		if self._diagonal_adjacency is None:
+			A = self.cell_adjacency.tocsr()
+			indptr, indices = np.zeros_like(A.indptr), []
+			for i in range(A.shape[0]):
+				I = A.indices[A.indptr[i]:A.indptr[i+1]].tolist()
+				J = Counter()
+				for j in I:
+					J.update(A.indices[A.indptr[j]:A.indptr[j+1]])
+				I += [ j for j in J if i != j and 1 < J[j] ]
+				I.sort()
+				indices.append(I)
+				indptr[i+1] = len(I)
+			indices = np.array(list(itertools.chain(*indices)))
+			indptr = np.cumsum(indptr)
+			self._diagonal_adjacency = sparse.csr_matrix(
+				(np.ones(indices.shape, dtype=bool), indices, indptr),
+				shape=A.shape)
+		return self._diagonal_adjacency
+
+	@diagonal_adjacency.setter
+	def diagonal_adjacency(self, matrix):
+		self.__lazysetter__(matrix)
+
+	def contour(self, cell, distance=1, **kwargs):
+		"""
+		See also :func:`tramway.spatial.adjacency.contour`.
+		"""
+		#if kwargs.get('fallback', False):
+		#	warn("no fallback support", exceptions.MissingSupportWarning)
+		if 'dilation_adjacency' not in kwargs:
+			kwargs['dilation_adjacency'] = self.diagonal_adjacency.tocsr()
+		return Voronoi.contour(self, cell, distance, **kwargs)
 
 
 

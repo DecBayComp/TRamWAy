@@ -36,7 +36,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
 	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
 	store_distributed=False, constructor=None, \
-	priorD=None, priorV=None, input_label=None, output_label=None, \
+	priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
 	**kwargs):
 	"""
 	Inference helper.
@@ -80,6 +80,8 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			object in `cells` if the latter is an `Analyses` or filepath
 
 		output_label (str): label for the resulting analysis instance
+
+		comment (str): description message for the resulting analysis
 
 	Returns:
 
@@ -229,7 +231,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	for p in params:
 		if p not in ['worker_count']:
 			setattr(maps, p, params[p])
-	analysis.add(Analyses(maps), label=output_label)
+	analysis.add(Analyses(maps), label=output_label, comment=comment)
 
 	runtime = time() - runtime
 	if verbose:
@@ -251,6 +253,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		except:
 			print(traceback.format_exc())
 			warn('HDF5 libraries may not be installed', ImportWarning)
+		if verbose:
+			print('in {}:'.format(output_file))
+			print(format_analyses(all_analyses, global_prefix='\t'))
 
 	if input_file:
 		return (cells, mode, x)

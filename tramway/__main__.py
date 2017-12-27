@@ -141,6 +141,7 @@ def main():
 	for arg1, arg2, kwargs in global_arguments:
 		tesselate_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	tesselate_parser.add_argument('-l', '--label', '--output-label', help='output label')
+	tesselate_parser.add_argument('--comment', help='description message for the output artefact')
 	tesselate_group1 = tesselate_parser.add_mutually_exclusive_group(required=True)
 	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'])
 	#tesselate_group1.add_argument('-r', '--reuse', \
@@ -181,6 +182,7 @@ def main():
 			infer_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	infer_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
 	infer_parser.add_argument('-l', '--output-label', help='output label')
+	infer_parser.add_argument('--comment', help='description message for the output artefact')
 	infer_parser.add_argument('-m', '--mode', \
 		choices=['D', 'DF', 'DD', 'DV'], help='inference mode') #, metavar='INFERENCE_MODE'
 	infer_parser.add_argument('-e', '--localization-error', \
@@ -224,7 +226,10 @@ def main():
 		args.output = args.opre
 	else:
 		if args.vpost:
-			args.verbose += args.vpost
+			if args.verbose is None:
+				args.verbose = args.vpost
+			else:
+				args.verbose += args.vpost
 		args.input = args.ipre + args.ipost
 		args.output = args.opre if args.opre else args.opost
 		del args.vpost

@@ -122,7 +122,7 @@ class KDTreeMesh(Voronoi):
 			if e in self.dichotomy.adjacency ]) # not symmetric
 		#print(np.sum(np.all(adjacency==np.fliplr(adjacency[0][np.newaxis,:])))) # displays 0
 		nedges = adjacency.shape[0]
-		self._cell_adjacency = sparse.csr_matrix((np.tile(np.arange(nedges), 2), \
+		self.cell_adjacency = sparse.csr_matrix((np.tile(np.arange(nedges), 2), \
 				(adjacency.flatten('F'), np.fliplr(adjacency).flatten('F'))), \
 			shape=(self.dichotomy.cell_counter, self.dichotomy.cell_counter))
 		# (adjacency[i,0], adjacency[i,1], i)
@@ -137,10 +137,10 @@ class KDTreeMesh(Voronoi):
 			else:
 				return uniq.view(data.dtype).reshape(-1, data.shape[1])
 		n = origin.shape[0]
-		self._vertices = []
+		vertices = []
 		ridge_vertices = []
 		for i, v1 in enumerate(self.dichotomy.unit_hypercube):
-			self._vertices.append(origin + \
+			vertices.append(origin + \
 				np.float_(v1) * self.dichotomy.reference_length[self.level[:, np.newaxis]])
 			for jj, v2 in enumerate(self.dichotomy.unit_hypercube[i+1:]):
 				if np.sum(v1 != v2) == 1: # neighbors in the voronoi
@@ -148,18 +148,22 @@ class KDTreeMesh(Voronoi):
 					ridge_vertices.append(np.vstack(\
 						np.hstack((np.arange(i * n, (i+1) * n)[:,np.newaxis], \
 							np.arange(j * n, (j+1) * n)[:,np.newaxis]))))
-		self._vertices, I = unique_rows(np.concatenate(self._vertices, axis=0), \
+		vertices, I = unique_rows(np.concatenate(vertices, axis=0), \
 			return_inverse=True)
+		self.vertices = vertices
 		ridge_vertices = I[np.concatenate(ridge_vertices, axis=0)]
 		u, v = ridge_vertices.T
-		nverts = self._vertices.shape[0]
-		self._vertex_adjacency = sparse.coo_matrix(\
+		nverts = vertices.shape[0]
+		self.vertex_adjacency = sparse.coo_matrix(\
 			(np.ones(2*u.size, dtype=bool), (np.r_[u, v], np.r_[v, u])), \
 			shape=(nverts, nverts))
-		self._cell_vertices = { i: I[i+n*np.arange(self.dichotomy.unit_hypercube.shape[0])] \
+		self.cell_vertices = { i: I[i+n*np.arange(self.dichotomy.unit_hypercube.shape[0])] \
 			for i in range(n) }
 		#self._postprocess()
 
 	def _postprocess(self):
 		pass
+
+	def contour(self, *args, **kwargs):
+		raise NotImplementedError
 

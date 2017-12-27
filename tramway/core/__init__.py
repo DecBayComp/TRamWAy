@@ -18,5 +18,5 @@ from .chain import *
 from . import exceptions
 from .analyses import *
 
-__all__ = ['PermissionError', 'ro_property_assert', 'Lazy', 'lightcopy', 'isstructured', 'columns', 'Matrix', 'ArrayChain', 'ChainArray', 'Analyses', 'map_analyses', 'extract_analysis', 'label_paths']
+__all__ = ['exceptions', 'PermissionError', 'ro_property_assert', 'Lazy', 'lightcopy', 'isstructured', 'columns', 'Matrix', 'ArrayChain', 'ChainArray', 'Analyses', 'map_analyses', 'extract_analysis', 'label_paths']
 
