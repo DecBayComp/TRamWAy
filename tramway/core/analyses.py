@@ -163,6 +163,8 @@ class Analyses(Lazy):
 		"""
 		Determine the lowest available natural integer for use as key in `instances` and `comments`.
 
+		If `pattern` is an integer, `autoindex` returns the pattern unchanged.
+
 		Arguments:
 
 			pattern (str): label with a *'\*'* to be replaced by a natural integer.
@@ -172,7 +174,14 @@ class Analyses(Lazy):
 			int or str: index or label.
 		"""
 		if pattern:
-			f = lambda i: pattern.replace('*', str(i))
+			try:
+				pattern = int(pattern) # this also checks type
+			except ValueError:
+				pass
+			if not isinstance(pattern, int) and '*' in pattern:
+				f = lambda i: pattern.replace('*', str(i))
+			else:
+				return pattern
 		else:
 			f = lambda i: i
 		i = 0
@@ -181,7 +190,7 @@ class Analyses(Lazy):
 				i += 1
 		return f(i)
 
-	def add(self, analysis, label=None, comment=None, pattern=None):
+	def add(self, analysis, label=None, comment=None):
 		"""
 		Add an analysis.
 
@@ -197,8 +206,7 @@ class Analyses(Lazy):
 			comment (str): associated comment.
 
 		"""
-		if label is None:
-			label = self.autoindex(pattern)
+		label = self.autoindex(label)
 		self.instances[label] = analysis
 		if comment:
 			self.comments[label] = comment

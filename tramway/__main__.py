@@ -103,6 +103,11 @@ def _dump_rwa(args):
 		finally:
 			store.close()
 
+def _curl(args):
+	input_files, kwargs = _parse_args(args)
+	raise NotImplementedError
+	pass
+
 
 
 def main():
@@ -215,6 +220,22 @@ def main():
 	dump_parser.set_defaults(func=_dump_rwa)
 	for arg1, arg2, kwargs in global_arguments:
 		dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+
+	# extract features
+	feature_parser = sub.add_parser('quantify')
+	fsub = feature_parser.add_subparsers(title='features', \
+		description="type '%(prog)s quantify feature --help' for additional help")
+	curl_parser = fsub.add_parser('curl')
+	curl_parser.set_defaults(func=_curl)
+	for arg1, arg2, kwargs in global_arguments:
+		if arg1 in ['-v']:
+			curl_parser.add_argument(arg2, dest=arg1[1]+'post', **kwargs)
+		else:
+			curl_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	curl_parser.add_argument('-L', '--label', '--input-label', help='comma-separated list of input labels')
+	#curl_parser.add_argument('-l', '--output-label', help='output label')
+	curl_parser.add_argument('-d', '--distance', type=int, default=1, help='radius in number of cells')
+
 
 	# parse
 	args = parser.parse_args()
