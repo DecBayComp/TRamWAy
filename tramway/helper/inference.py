@@ -158,7 +158,15 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			constructor = Distributed
 		detailled_map = distributed(cells, new=constructor)
 
-		if mode == 'DD' or mode == 'DV':
+		multiscale = mode == 'DD' or mode == 'DV'
+		if not multiscale:
+			try:
+				setup, _ = all_modes[mode]
+			except KeyError:
+				pass
+			else:
+				multiscale = setup.get('cell_sampling', '') == 'group'
+		if multiscale:
 			multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
 				adjacency_margin=dilation)
 			_map = multiscale_map
@@ -224,13 +232,27 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		kwargs.update(params)
 		x = _map.run(inferDV, **kwargs)
 
+	elif mode.lower() in all_modes:
+
+		setup, module = all_modes[mode]
+		args = setup.get('arguments', {})
+		for arg in ('localization_error', 'diffusivity_prior', 'potential_prior',
+				'jeffreys_prior', 'min_diffusivity', 'worker_count'):
+			try:
+				args[arg]
+			except KeyError:
+				pass
+			else:
+				kwargs[arg] = eval(arg)
+		x = _map.run(getattr(module, setup['infer']), **kwargs)
+
 	else:
 		raise ValueError('unknown ''{}'' mode'.format(mode))
 
 	maps = Maps(x, mode=mode)
-	for p in params:
+	for p in kwargs:
 		if p not in ['worker_count']:
-			setattr(maps, p, params[p])
+			setattr(maps, p, kwargs[p])
 	analysis.add(Analyses(maps), label=output_label, comment=comment)
 
 	runtime = time() - runtime

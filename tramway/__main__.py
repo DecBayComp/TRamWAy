@@ -71,12 +71,15 @@ def _tesselate(args):
 		knn=knn, **kwargs)
 	sys.exit(0)
 
-def _infer(args):
-	input_file, kwargs = _parse_args(args)
-	output_file = kwargs.pop('output', None)
-	infer(input_file[0], output_file=output_file, **kwargs)
-	# kwargs: mode, localization_error, diffusivity_prior, potential_prior, jeffreys_prior
-	sys.exit(0)
+def _infer(mode):
+	def __infer(args):
+		input_file, kwargs = _parse_args(args)
+		output_file = kwargs.pop('output', None)
+		kwargs['mode'] = mode
+		infer(input_file[0], output_file=output_file, **kwargs)
+		# kwargs: mode, localization_error, diffusivity_prior, potential_prior, jeffreys_prior
+		sys.exit(0)
+	return __infer
 
 def _render_map(args):
 	input_file, kwargs = _parse_args(args)
@@ -179,33 +182,51 @@ def main():
 
 	# infer
 	infer_parser = sub.add_parser('infer') #, conflict_handler='resolve'
-	infer_parser.set_defaults(func=_infer)
-	for arg1, arg2, kwargs in global_arguments:
-		if arg1 in ['-v']:
-			infer_parser.add_argument(arg2, dest=arg1[1]+'post', **kwargs)
-		else:
-			infer_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
-	infer_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
-	infer_parser.add_argument('-l', '--output-label', help='output label')
-	infer_parser.add_argument('--comment', help='description message for the output artefact')
-	infer_parser.add_argument('-m', '--mode', \
-		choices=['D', 'DF', 'DD', 'DV'], help='inference mode') #, metavar='INFERENCE_MODE'
-	infer_parser.add_argument('-e', '--localization-error', \
-		type=float, default=0.01, help='localization error') #, metavar='LOCALIZATION_ERROR'
-	infer_parser.add_argument('-d', '--diffusivity-prior', type=float, \
-		default=0.01, help='prior on the diffusivity [DD|DV]') #, metavar='DIFFUSIVITY_PRIOR'
-	infer_parser.add_argument('-v', '--potential-prior', type=float, \
-		default=0.01, help='prior on the potential [DV]') #, metavar='POTENTIAL_PRIOR'
-	infer_parser.add_argument('-j', '--jeffreys-prior', \
-		action='store_true', help='Jeffrey''s prior') #metavar='JEFFREYS_PRIOR', 
-	infer_parser.add_argument('-c', '--max-cell-count', type=int, default=20, \
-		help='number of cells per group [DD|DV]')
-	infer_parser.add_argument('-a', '--dilation', type=int, default=1, metavar='DILATION_COUNT', \
-		help='number of incremental dilation of each group, adding adjacent cells [DD|DV]')
-	infer_parser.add_argument('-w', '--worker-count', type=int, \
-		help='number of parallel processes to spawn [DD|DV]')
-	infer_parser.add_argument('-s', '--store-distributed', action='store_true', \
-		help='store data together with map(s)')
+	isub = infer_parser.add_subparsers(title='modes', \
+		description="type '%(prog)s infer mode --help' for additional help about mode")
+	for mode in all_modes:
+		mode_parser = isub.add_parser(mode)
+		setup, _ = all_modes[mode]
+		short_args = [ args[0] for args in setup.get('arguments', {}).values()
+				if isinstance(args, (tuple, list)) ]
+		mode_parser.set_defaults(func=_infer(mode))
+		for short_arg, long_arg, kwargs in global_arguments:
+			dest = short_arg[1:] + 'post'
+			if short_arg in short_args:
+				mode_parser.add_argument(long_arg, dest=dest, **kwargs)
+			else:
+				mode_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
+		mode_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+		mode_parser.add_argument('-l', '--output-label', help='output label')
+		mode_parser.add_argument('--comment', help='description message for the output artefact')
+		#infer_parser.add_argument('-m', '--mode', \
+		#	choices=['D', 'DF', 'DD', 'DV'] + list(all_modes.keys()),
+		#	help='inference mode') #, metavar='INFERENCE_MODE'
+		args = setup['arguments']
+		for arg in args:
+			long_arg = '--' + arg.replace('_', '-')
+			parser_args = args[arg]
+			if isinstance(parser_args, (tuple, list)):
+				short_arg, parser_args = parser_args
+				mode_parser.add_argument(short_arg, long_arg, **parser_args)
+			else:
+				mode_parser.add_argument(long_arg, **parser_args)
+		#infer_parser.add_argument('-e', '--localization-error', \
+		#	type=float, default=0.01, help='localization error') #, metavar='LOCALIZATION_ERROR'
+		#infer_parser.add_argument('-d', '--diffusivity-prior', type=float, \
+		#	default=0.01, help='prior on the diffusivity [DD|DV]') #, metavar='DIFFUSIVITY_PRIOR'
+		#infer_parser.add_argument('-v', '--potential-prior', type=float, \
+		#	default=0.01, help='prior on the potential [DV]') #, metavar='POTENTIAL_PRIOR'
+		#infer_parser.add_argument('-j', '--jeffreys-prior', \
+		#	action='store_true', help='Jeffrey''s prior') #metavar='JEFFREYS_PRIOR', 
+		#infer_parser.add_argument('-c', '--max-cell-count', type=int, default=20, \
+		#	help='number of cells per group [DD|DV]')
+		#infer_parser.add_argument('-a', '--dilation', type=int, default=1, metavar='DILATION_COUNT', \
+		#	help='number of incremental dilation of each group, adding adjacent cells [DD|DV]')
+		#infer_parser.add_argument('-w', '--worker-count', type=int, \
+		#	help='number of parallel processes to spawn [DD|DV]')
+		#infer_parser.add_argument('-s', '--store-distributed', action='store_true', \
+		#	help='store data together with map(s)')
 
 	# plot map(s)
 	map_parser = sub.add_parser('show-map')

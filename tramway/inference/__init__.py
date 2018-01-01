@@ -14,5 +14,13 @@
 
 from .base import *
 from .diffusivity import *
+import os.path
+from tramway.core.plugin import *
 
 #__all__ = ['Local', 'Cell', 'Distributed', 'distributed', 'd_neg_posterior', 'inferD', 'dv_neg_posterior', 'inferDV', 'DV']
+
+__plugin_package__ = 'modes'
+all_modes = list_plugins(os.path.join(os.path.dirname(__file__), __plugin_package__),
+		'.'.join((__package__, __plugin_package__)),
+		{'infer': 'infer.*'})
+
