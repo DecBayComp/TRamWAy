@@ -61,3 +61,16 @@ def columns(x):
 	else:
 		raise ValueError('not structured')
 
+def splitcoord(varnames):
+	import re
+	import collections
+	coord = re.compile('[a-z][0-9]*$')
+	vs = collections.defaultdict(list)
+	for v in varnames:
+		u = [ w[::-1] for w in v[::-1].split(None, 1) ]
+		if u[1:] and coord.match(u[0]):
+			vs[u[1]].append(v)
+		else:
+			vs[v].append(v)
+	return vs
+

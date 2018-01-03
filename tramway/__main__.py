@@ -19,6 +19,7 @@ except ImportError:
 	from configparser import ConfigParser
 import sys
 from .helper import *
+from .feature import *
 
 
 def _parse_args(args):
@@ -107,9 +108,26 @@ def _dump_rwa(args):
 			store.close()
 
 def _curl(args):
-	input_files, kwargs = _parse_args(args)
-	raise NotImplementedError
-	pass
+	input_file, kwargs = _parse_args(args)
+	input_label = kwargs.get('input_label', kwargs.get('label', None))
+	if input_file[1:]:
+		raise NotImplementedError('cannot handle multiple input files')
+	input_file = input_file[0]
+	analyses = load_rwa(input_file)
+	cells, maps = find_artefacts(analyses, (CellStats, Maps), input_label)
+	curl = Curl(cells, maps)
+	vector_fields = { f: vs for f, vs in curl.variables.items() if len(vs) == 2 }
+	curl_name = kwargs.get('output_label', None)
+	if not curl_name:
+		curl_name = 'curl'
+	if 1 < len(vector_fields):
+		raise NotImplementedError('multiple vector fields')
+	distance = kwargs.get('distance', 1)
+	for f in vector_fields:
+		_name = '{} {} {}'.format(curl_name, f, distance)
+		curl.extract(_name, f, distance)
+	output_file = kwargs.get('output_file', input_file)
+	save_rwa(output_file, analyses, force=output_file == input_file)
 
 
 
@@ -128,23 +146,12 @@ def main():
 	sub = parser.add_subparsers(title='commands', \
 		description="type '%(prog)s command --help' for additional help")
 
-	# plot tesselation and partition
-	cells_parser = sub.add_parser('show-cells')
-	cells_parser.set_defaults(func=_render_cells)
-	for arg1, arg2, kwargs in global_arguments:
-		cells_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
-	cells_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
-	cells_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
-		help='minimum number of locations per cell')
-	cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
-	cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers)")
-	cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
 	# tesselate
 	try:
-		tesselate_parser = sub.add_parser('tesselate', aliases=['sample'])
+		tesselate_parser = sub.add_parser('sample', aliases=['tesselate'])
 	except TypeError: # Py2
-		tesselate_parser = sub.add_parser('tesselate')
+		tesselate_parser = sub.add_parser('sample')
 	tesselate_parser.set_defaults(func=_tesselate)
 	for arg1, arg2, kwargs in global_arguments:
 		tesselate_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
@@ -152,9 +159,6 @@ def main():
 	tesselate_parser.add_argument('--comment', help='description message for the output artefact')
 	tesselate_group1 = tesselate_parser.add_mutually_exclusive_group(required=True)
 	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'])
-	#tesselate_group1.add_argument('-r', '--reuse', \
-	#	#nargs='?', type=argparse.FileType('r'), default=sys.stdin, \
-	#	help='apply precomputed tesselation from file')
 	tesselate_parser.add_argument('-n', '--knn', '--min-nn', '--min-knn', '--knn-min', type=int, \
 		help='minimum number of nearest neighbors. Cells can overlap')
 	tesselate_parser.add_argument('--max-nn', '--max-knn', '--knn-max', type=int, \
@@ -179,6 +183,7 @@ def main():
 	#gwr_parser = tesselate_parser
 	#gwr_parser.add_argument('-c', '--location-count', type=int, default=80, \
 	#	help='average number of locations per cell [gwr]')
+
 
 	# infer
 	infer_parser = sub.add_parser('infer') #, conflict_handler='resolve'
@@ -211,30 +216,7 @@ def main():
 				mode_parser.add_argument(short_arg, long_arg, **parser_args)
 			else:
 				mode_parser.add_argument(long_arg, **parser_args)
-		#infer_parser.add_argument('-e', '--localization-error', \
-		#	type=float, default=0.01, help='localization error') #, metavar='LOCALIZATION_ERROR'
-		#infer_parser.add_argument('-d', '--diffusivity-prior', type=float, \
-		#	default=0.01, help='prior on the diffusivity [DD|DV]') #, metavar='DIFFUSIVITY_PRIOR'
-		#infer_parser.add_argument('-v', '--potential-prior', type=float, \
-		#	default=0.01, help='prior on the potential [DV]') #, metavar='POTENTIAL_PRIOR'
-		#infer_parser.add_argument('-j', '--jeffreys-prior', \
-		#	action='store_true', help='Jeffrey''s prior') #metavar='JEFFREYS_PRIOR', 
-		#infer_parser.add_argument('-c', '--max-cell-count', type=int, default=20, \
-		#	help='number of cells per group [DD|DV]')
-		#infer_parser.add_argument('-a', '--dilation', type=int, default=1, metavar='DILATION_COUNT', \
-		#	help='number of incremental dilation of each group, adding adjacent cells [DD|DV]')
-		#infer_parser.add_argument('-w', '--worker-count', type=int, \
-		#	help='number of parallel processes to spawn [DD|DV]')
-		#infer_parser.add_argument('-s', '--store-distributed', action='store_true', \
-		#	help='store data together with map(s)')
 
-	# plot map(s)
-	map_parser = sub.add_parser('show-map')
-	map_parser.set_defaults(func=_render_map)
-	for arg1, arg2, kwargs in global_arguments:
-		map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
-	map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
-	map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
 	# dump analysis tree
 	dump_parser = sub.add_parser('dump')
@@ -242,10 +224,13 @@ def main():
 	for arg1, arg2, kwargs in global_arguments:
 		dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 
+
 	# extract features
-	feature_parser = sub.add_parser('quantify')
+	feature_parser = sub.add_parser('extract')
 	fsub = feature_parser.add_subparsers(title='features', \
-		description="type '%(prog)s quantify feature --help' for additional help")
+		description="type '%(prog)s extract feature --help' for additional help")
+
+	# extract curl
 	curl_parser = fsub.add_parser('curl')
 	curl_parser.set_defaults(func=_curl)
 	for arg1, arg2, kwargs in global_arguments:
@@ -254,8 +239,38 @@ def main():
 		else:
 			curl_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	curl_parser.add_argument('-L', '--label', '--input-label', help='comma-separated list of input labels')
-	#curl_parser.add_argument('-l', '--output-label', help='output label')
+	curl_parser.add_argument('-l', '--output-label', help='output label')
 	curl_parser.add_argument('-d', '--distance', type=int, default=1, help='radius in number of cells')
+
+
+	# plot artefacts
+	try:
+		plot_parser = sub.add_parser('draw', aliases=['show'])
+	except TypeError: # Py2
+		plot_parser = sub.add_parser('draw')
+	psub = plot_parser.add_subparsers(title='show artefacts', \
+		description="type %(prog)s draw artefact --help for additional help")
+
+	# plot cells
+	cells_parser = psub.add_parser('cells')
+	cells_parser.set_defaults(func=_render_cells)
+	for arg1, arg2, kwargs in global_arguments:
+		cells_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	cells_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+	cells_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
+		help='minimum number of locations per cell')
+	cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
+	cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers)")
+	cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
+
+	# plot map(s)
+	map_parser = psub.add_parser('map')
+	map_parser.set_defaults(func=_render_map)
+	for arg1, arg2, kwargs in global_arguments:
+		map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+	map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
+
 
 
 	# parse
@@ -282,8 +297,18 @@ def main():
 	del args.opre
 	if args.verbose is None:
 		args.verbose = False
+	labels = None
 	try:
-		labels = args.input_label.split(',')
+		labels = args.input_label
+	except AttributeError:
+		try:
+			labels = args.label
+		except AttributeError:
+			pass
+	if labels:
+		if labels[0] in "'\"" and labels[0] == labels[-1]:
+			labels = labels[1:-1]
+		labels = labels.split(',')
 		args.input_label = []
 		for label in labels:
 			try:
@@ -291,8 +316,6 @@ def main():
 			except (TypeError, ValueError):
 				pass
 			args.input_label.append(label)
-	except AttributeError:
-		pass
 	try:
 		args.output_label = int(args.output_label)
 	except (AttributeError, TypeError, ValueError):

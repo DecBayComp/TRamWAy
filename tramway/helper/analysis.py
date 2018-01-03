@@ -19,6 +19,12 @@ from tramway.core.analyses import *
 from tramway.io import HDF5Store
 
 
+try:
+	input = raw_input # Py2
+except NameError:
+	pass
+
+
 def list_rwa(path):
 	if not isinstance(path, (tuple, list)):
 		path = (path,)
@@ -46,24 +52,57 @@ def find_analysis(path, labels=None):
 				pass
 		return matches
 	else:
-		if not os.path.isfile(path):
-			raise OSError("missing file '{}'".format(path))
+		analyses = load_rwa(path)
+		if labels:
+			analyses = extract_analysis(analyses, labels)
+		return analyses
+
+
+def load_rwa(path):
+	#if not os.path.isfile(path):
+	#	raise OSError(2, "missing file '{}'".format(path))
+	try:
 		hdf = HDF5Store(path, 'r')
 		try:
 			analyses = hdf.peek('analyses')
-		except EnvironmentError:
-			print(traceback.format_exc())
-			raise OSError('HDF5 libraries may not be installed')
-		else:
-			analyses = coerce_labels(analyses)
-			if labels:
-				analyses = extract_analysis(analyses, labels)
 		finally:
-			try:
-				hdf.close()
-			except:
+			hdf.close()
+	except EnvironmentError:
+		print(traceback.format_exc())
+		raise OSError('HDF5 libraries may not be installed')
+	return coerce_labels(analyses)
+
+
+def save_rwa(path, analyses, verbose=False, force=False):
+	if not force and os.path.isfile(path):
+		answer = input("overwrite file '{}': [N/y] ".format(path))
+		if not (answer and answer[0].lower() == 'y'):
+			return
+	try:
+		store = HDF5Store(path, 'w', int(verbose) - 1 if verbose else False)
+		if verbose:
+			print('writing file: {}'.format(path))
+		store.poke('analyses', analyses)
+		store.close()
+	except Exception as e:
+		try:
+			os.unlink(path)
+		except OSError as e1: # Py3 has FileNotFoundError
+			if e1.errno == 2:
 				pass
-		return analyses
+			elif verbose:
+				print(traceback.format_exc(e1))
+		else:
+			if verbose:
+				print('deleting file: {}'.format(path))
+		if isinstance(e, EnvironmentError):
+			print(traceback.format_exc(e))
+			raise ImportError('HDF5 libraries may not be installed')
+		else:
+			raise e
+	if verbose:
+		print('written analysis tree:'.format(output_file))
+		print(format_analyses(analyses, global_prefix='\t'))
 
 
 def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):

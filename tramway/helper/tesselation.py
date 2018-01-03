@@ -384,19 +384,21 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	else:
 		input_file = cells
 		if label is None:
-			label = input_label
-		analyses = find_analysis(input_file, labels=label)
+			labels = input_label
+		else:
+			labels, label = label, None
+		analyses = find_analysis(input_file, labels=labels)
 		if analyses:
 			if isinstance(analyses, dict):
 				if len(analyses) == 1:
 					analyses = list(analyses.values())[0]
 				else:
 					raise ValueError('multiple files match')
-			if not label:
+			if not labels:
 				labels = list(analyses.labels)
-				if labels[1:]:
-					raise ValueError('multiple instances; label is required')
-				label = labels[-1]
+			if labels[1:]:
+				raise ValueError('multiple instances; label is required')
+			label = labels[-1]
 			cells = analyses[label].data
 		else:
 			# legacy code

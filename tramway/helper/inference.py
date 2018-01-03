@@ -378,91 +378,83 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 	figs = []
 
-	scalar_vars = [('diffusivity', 'D'), ('potential', 'V')]
+	all_vars = splitcoord(maps.columns)
+	scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
+	scalar_vars = [ (v, scalar_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 1 ]
 
-	for keyword, short_name in scalar_vars:
-		for col in maps.columns:
-			if keyword not in col:
-				continue
+	for col, short_name in scalar_vars:
 
-			col_kwargs = {}
-			for a in kwargs:
-				if isinstance(kwargs[a], (dict, pd.DataFrame)) and col in kwargs[a]:
-					col_kwargs[a] = kwargs[a][col]
-				else:
-					col_kwargs[a] = kwargs[a]
-
-			fig = plt.figure(figsize=figsize)
-			figs.append(fig)
-
-			scalar_map_2d(cells, _clip(maps[col], clip), aspect=aspect, **col_kwargs)
-
-			if mode:
-				if col == keyword:
-					title = '{} ({} mode)'.format(short_name, mode)
-				else:
-					title = '{} ({} - {} mode)'.format(short_name, col, mode)
-			elif col == keyword:
-				title = '{}'.format(short_name)
+		col_kwargs = {}
+		for a in kwargs:
+			if isinstance(kwargs[a], (dict, pd.DataFrame)) and col in kwargs[a]:
+				col_kwargs[a] = kwargs[a][col]
 			else:
-				title = '{} ({})'.format(short_name, col)
-			plt.title(title)
+				col_kwargs[a] = kwargs[a]
 
-			if print_figs:
-				if maps.shape[1] == 1:
-					figfile = '{}.{}'.format(filename, figext)
-				else:
-					figfile = '{}_{}.{}'.format(filename, short_name.lower(), figext)
-				if verbose:
-					print('writing file: {}'.format(figfile))
-				fig.savefig(figfile, dpi=dpi)
+		fig = plt.figure(figsize=figsize)
+		figs.append(fig)
 
+		scalar_map_2d(cells, _clip(maps[col], clip), aspect=aspect, **col_kwargs)
 
-	vector_vars = [('force', 'F'), ('grad', '')]
-	for keyword, short_name in vector_vars:
-		cols = collections.defaultdict(list)
-		for col in maps.columns:
-			if keyword in col:
-				parts = col.rsplit(None, 1)
-				if parts[1:]:
-					cols[parts[0]].append(col)
-		
-		for name in cols:
-			fig = plt.figure(figsize=figsize)
-			figs.append(fig)
-
-			field_map_2d(cells, _clip(maps[cols[name]], clip), aspect=aspect)
-
-			extra = None
+		if mode:
 			if short_name:
-				main = short_name
-				if keyword != name:
-					extra = name
+				title = '{} ({} - {} mode)'.format(short_name, col, mode)
 			else:
-				main = name
-			if mode:
-				if extra:
-					extra += ' - {} mode'.format(mode)
-				else:
-					extra = '{} mode'.format(mode)
-			if extra:
-				title = '{} ({})'.format(main, extra)
-			else:
-				title = main
-			plt.title(title)
+				title = '{} ({} mode)'.format(col, mode)
+		elif short_name:
+			title = '{} ({})'.format(short_name, col)
+		else:
+			title = '{}'.format(col)
+		plt.title(title)
 
-			if print_figs:
-				if maps.shape[1] == 1:
-					figfile = '{}.{}'.format(filename, figext)
+		if print_figs:
+			if maps.shape[1] == 1:
+				figfile = '{}.{}'.format(filename, figext)
+			else:
+				figfile = '{}_{}.{}'.format(filename, short_name.lower(), figext)
+			if verbose:
+				print('writing file: {}'.format(figfile))
+			fig.savefig(figfile, dpi=dpi)
+
+	vector_vars = {'force': 'F'}
+	vector_vars = [ (v, vector_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 2 ]
+	for name, short_name in vector_vars:
+		cols = all_vars[name]
+		
+		fig = plt.figure(figsize=figsize)
+		figs.append(fig)
+
+		field_map_2d(cells, _clip(maps[cols], clip), aspect=aspect)
+
+		extra = None
+		if short_name:
+			main = short_name
+			extra = name
+		else:
+			main = name
+		if mode:
+			if extra:
+				extra += ' - {} mode'.format(mode)
+			else:
+				extra = '{} mode'.format(mode)
+		if extra:
+			title = '{} ({})'.format(main, extra)
+		else:
+			title = main
+		plt.title(title)
+
+		if print_figs:
+			if maps.shape[1] == 1:
+				figfile = '{}.{}'.format(filename, figext)
+			else:
+				if short_name:
+					ext = short_name.lower()
 				else:
-					if short_name:
-						ext = short_name.lower()
-					else:
-						ext = keyword
-					figfile = '{}_{}.{}'.format(filename, ext, figext)
-				if verbose:
-					print('writing file: {}'.format(figfile))
-				fig.savefig(figfile, dpi=dpi)
+					ext = keyword
+				figfile = '{}_{}.{}'.format(filename, ext, figext)
+			if verbose:
+				print('writing file: {}'.format(figfile))
+			fig.savefig(figfile, dpi=dpi)
 
 	if show or not print_figs:
 		plt.show()
