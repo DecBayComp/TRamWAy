@@ -20,6 +20,7 @@ import scipy.sparse as sparse
 import matplotlib.pyplot as plt
 from ..core import *
 from ..tesselation import *
+from ..tesselation.plugins import *
 from ..spatial.scaler import *
 from ..spatial.translocation import *
 from ..plot.mesh import *
@@ -31,8 +32,6 @@ import traceback
 
 
 hdf_extensions = ['.rwa', '.h5', '.hdf', '.hdf5']
-#imt_extensions = [ '.imt' + ext for ext in hdf_extensions ]
-#imt_extensions = [ hdf_extensions[0] ] + imt_extensions[1:]
 fig_formats = ['png', 'pdf', 'ps', 'eps', 'svg']
 sub_extensions = dict([ (a, a) for a in ['imt', 'vor', 'hpc', 'hcd', 'hpd'] ])
 
@@ -64,35 +63,35 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			(or any data format documented in :mod:`tramway.spatial.descriptor`).
 
 
-		method ({'grid', 'kdtree', 'kmeans', 'gwr'}, optional):
-			Tesselation method.
-			See respectively 
-			:class:`~tramway.tesselation.RegularMesh`, 
-			:class:`~tramway.tesselation.KDTreeMesh`, 
-			:class:`~tramway.tesselation.KMeansMesh` and 
-			:class:`~tramway.tesselation.GasMesh`.
+		method (str):
+			Tesselation method or plugin name.
+			See also 
+			:class:`~tramway.tesselation.RegularMesh` (``'grid'``), 
+			:class:`~tramway.tesselation.KDTreeMesh` (``'kdtree'``), 
+			:class:`~tramway.tesselation.KMeansMesh` (``'kmeans'``) and 
+			:class:`~tramway.tesselation.GasMesh` (``'gas'``, ``'gng'`` or ``'gwr'``).
 
-		output_file (str, optional):
+		output_file (str):
 			Path to a *.rwa* file. The resulting tesselation and data partition will be 
 			stored in this file. If `xyt_data` is a path to a file and `output_file` is not 
 			defined, then `output_file` will be adapted from `xyt_data` with extension 
 			*.rwa* and possibly overwrite the input file.
 
-		verbose (bool or int, optional): Verbose output.
+		verbose (bool or int): Verbose output.
 
-		scaling (bool or str, optional):
+		scaling (bool or str):
 			Normalization of the data.
 			Any of 'unitrange', 'whiten' or other methods defined in 
 			:mod:`tramway.spatial.scaler`.
 
-		time_scale (bool or float, optional): 
+		time_scale (bool or float): 
 			If this argument is defined and intepretable as ``True``, the time axis is 
 			scaled by this factor and used as a space variable for the tesselation (2D+T or 
 			3D+T, for example).
 			This is equivalent to manually scaling the ``t`` column and passing 
 			``scaling=True``.
 
-		knn (pair of ints, optional):
+		knn (int or pair of ints):
 			After growing the tesselation, a minimum and maximum numbers of nearest 
 			neighbors of each cell center can be used instead of the entire cell 
 			population. Let's denote ``min_nn, max_nn = knn``. Any of ``min_nn`` and 
@@ -101,29 +100,29 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			``min_nn`` enables cell overlap and any point may be associated with several
 			cells.
 
-		ref_distance (float, optional):
+		ref_distance (float):
 			Supposed to be the average translocation distance. Can be modified so that the 
 			cells are smaller or larger.
 
-		rel_min_distance (float, optional):
+		rel_min_distance (float):
 			Multiplies with `ref_distance` to define the minimum inter-cell distance.
 
-		rel_avg_distance (float, optional):
+		rel_avg_distance (float):
 			Multiplies with `ref_distance` to define an upper on the average inter-cell 
 			distance.
 
-		rel_max_distance (float, optional):
+		rel_max_distance (float):
 			Multiplies with `ref_distance` to define the maximum inter-cell distance.
 
-		min_location_count (int, optional):
+		min_location_count (int):
 			Minimum number of points per cell. Depending on the method, can be strictly
-			enforced or interpreted as a hint.
+			enforced or regarded as a recommendation.
 
-		avg_location_count (int, optional):
-			Hint of the average number of points per cell. Per default set to four times
-			`min_location_count`.
+		avg_location_count (int):
+			Average number of points per cell. For non-plugin method, per default, it is
+			set to four times `min_location_count`.
 
-		max_location_count (int, optional):
+		max_location_count (int):
 			Maximum number of points per cell. This is used only by *kdtree*.
 
 		label/output_label (int or str):
@@ -160,6 +159,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		else:
 			analyses = Analyses(xyt_data)
 		#warn('TODO: test direct data input', UseCaseWarning)
+	input_files = xyt_path
 	
 	if ref_distance:
 		transloc_length = None
@@ -181,8 +181,6 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	else:
 		max_distance = None
 
-	methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
-	constructor = methods[method]
 	if not scaling:
 		scaling = 'none'
 	elif scaling is True:
@@ -190,23 +188,35 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scalers = dict(none=Scaler, whiten=whiten, unit=unitrange)
 	scaler = scalers[scaling]()
 
+	try:
+		setup, module = all_plugins[method]
+		constructor = getattr(module, setup['make'])
+	except KeyError: # former code
+		plugin = False
+		methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
+		constructor = methods[method]
+	else:
+		plugin = True
+
 	n_pts = float(xyt_data.shape[0])
 	if min_location_count:
 		min_probability = float(min_location_count) / n_pts
 	else:
 		min_probability = None
-		warn('undefined `min_location_count`; not tested', UseCaseWarning)
-	if not avg_location_count:
+		if not plugin:
+			warn('undefined `min_location_count`; not tested', UseCaseWarning)
+	if not plugin and not avg_location_count:
 		avg_location_count = 4 * min_location_count
 	if avg_location_count:
 		avg_probability = float(avg_location_count) / n_pts
 	else:
 		avg_probability = None
-		warn('undefined `avg_location_count`; not tested', UseCaseWarning)
+		if not plugin:
+			warn('undefined `avg_location_count`; not tested', UseCaseWarning)
 	if max_location_count:
 		# applies only to KDTreeMesh
 		max_probability = float(max_location_count) / n_pts
-		if method != 'kdtree':
+		if not plugin and method != 'kdtree':
 			warn('`max_location_count` is relevant only with `kdtree`', IgnoredInputWarning)
 	else:
 		max_probability = None
@@ -219,14 +229,32 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		scaler.factor = [('t', time_scale)]
 
 	# initialize a Tesselation object
-	tess = constructor(scaler, \
+	params = dict( \
 		min_distance=min_distance, \
 		avg_distance=avg_distance, \
 		max_distance=max_distance, \
 		min_probability=min_probability, \
 		avg_probability=avg_probability, \
 		max_probability=max_probability, \
-		**kwargs)
+		)
+	if plugin:
+		params.update(dict( \
+			min_location_count=min_location_count, \
+			avg_location_count=avg_location_count, \
+			max_location_count=max_location_count, \
+			))
+		params.update(kwargs)
+		for key in setup.get('make_arguments', {}):
+			try:
+				param = params[key]
+			except KeyError:
+				pass
+			else:
+				kwargs[key] = param
+	else:
+		params.update(kwargs)
+		kwargs = params
+	tess = constructor(scaler, **kwargs)
 
 	# grow the tesselation
 	tess.tesselate(xyt_data[colnames], verbose=verbose, **kwargs)
@@ -254,19 +282,21 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		stats.param['avg_distance'] = avg_distance
 	if max_distance:
 		stats.param['max_distance'] = max_distance
-	if min_location_count:
-		stats.param['min_location_count'] = min_location_count
-	if avg_location_count:
-		stats.param['avg_location_count'] = avg_location_count
-	if max_location_count:
-		stats.param['max_location_count'] = min_location_count
+	if not plugin:
+		if min_location_count:
+			stats.param['min_location_count'] = min_location_count
+		if avg_location_count:
+			stats.param['avg_location_count'] = avg_location_count
+		if max_location_count:
+			stats.param['max_location_count'] = min_location_count
 	if knn:
 		stats.param['knn'] = knn
 	#if spatial_overlap: # deprecated
 	#	stats.param['spatial_overlap'] = spatial_overlap
-	if method == 'kdtree':
-		if 'max_level' in kwargs:
-			stats.param['max_level'] = kwargs['max_level']
+	if plugin:
+		stats.param.update(kwargs)
+	elif method == 'kdtree' and 'max_level' in kwargs:
+		stats.param['max_level'] = kwargs['max_level']
 
 	if label is None:
 		label = output_label
@@ -281,24 +311,8 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		else:
 			analyses_ = analyses
 
-		try:
-			store = HDF5Store(output_file, 'w', verbose - 1 if verbose else False)
-			if verbose:
-				print('writing file: {}'.format(output_file))
-			#store.poke('cells', stats_)
-			store.poke('analyses', analyses)
-			store.close()
-		except EnvironmentError:
-			print(traceback.format_exc())
-			warn('HDF5 libraries may not be installed', ImportWarning)
-			store.close()
-			try:
-				os.unlink(output_file)
-			except:
-				pass
-		if verbose:
-			print('in {}:'.format(output_file))
-			print(format_analyses(analyses, global_prefix='\t'))
+		save_rwa(output_file, analyses, verbose, \
+			force=len(input_files)==1 and input_files[0]==output_file)
 
 	return stats
 
@@ -321,45 +335,45 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			Path to a *.imt.rwa* file or :class:`~tramway.tesselation.CellStats` 
 			instance.
 
-		xy_layer ({None, 'delaunay', 'voronoi'}, optional):
+		xy_layer ({None, 'delaunay', 'voronoi'}):
 			Overlay Delaunay or Voronoi graph over the data points. For 2D data only.
 			*Deprecated!* Please use `delaunay` and `voronoi` arguments instead.
 
-		output_file (str, optional):
+		output_file (str):
 			Path to a file in which the figure will be saved. If `cells` is a path and 
 			`fig_format` is defined, `output_file` is automatically set.
 
-		fig_format (str, optional):
+		fig_format (str):
 			Any image format supported by :func:`matplotlib.pyplot.savefig`.
 
-		show (bool, optional):
+		show (bool):
 			Makes `cell_plot` show the figure(s) which is the default behavior if and only 
 			if the figures are not saved.
 
-		verbose (bool, optional): Verbose output.
+		verbose (bool): Verbose output.
 
-		figsize (pair of floats, optional):
+		figsize (pair of floats):
 			Passed to :func:`matplotlib.pyplot.figure`. Applies only to the spatial 
 			representation figure.
 
-		dpi (int, optional):
+		dpi (int):
 			Passed to :func:`matplotlib.pyplot.savefig`. Applies only to the spatial 
 			representation figure.
 
-		location_count_hist (bool, optional):
+		location_count_hist (bool):
 			Plot a histogram of point counts (per cell). If the figure is saved, the 
 			corresponding file will have sub-extension *.hpc*.
 
-		cell_dist_hist (bool, optional):
+		cell_dist_hist (bool):
 			Plot a histogram of distances between neighbor centroids. If the figure is 
 			saved, the corresponding file will have sub-extension *.hcd*.
 
-		location_dist_hist (bool, optional):
+		location_dist_hist (bool):
 			Plot a histogram of distances between points from neighbor cells. If the figure 
 			is saved, the corresponding file will have sub-extension *.hpd*.
 
-		aspect (str, optional):
-			Aspect ratio. Can be *'equal'*.
+		aspect (str):
+			Aspect ratio. Can be ``'equal'``.
 
 		locations (dict):
 			Keyword arguments to :func:`~tramway.plot.mesh.plot_points`.
@@ -387,20 +401,11 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			labels = input_label
 		else:
 			labels, label = label, None
-		analyses = find_analysis(input_file, labels=labels)
-		if analyses:
-			if isinstance(analyses, dict):
-				if len(analyses) == 1:
-					analyses = list(analyses.values())[0]
-				else:
-					raise ValueError('multiple files match')
-			if not labels:
-				labels = list(analyses.labels)
-			if labels[1:]:
-				raise ValueError('multiple instances; label is required')
-			label = labels[-1]
-			cells = analyses[label].data
-		else:
+		try:
+			analyses = find_analysis(input_file, labels=labels)
+		except KeyError as e:
+			if e.args and 'analyses' not in e.args[0]:
+				raise
 			# legacy code
 			if isinstance(input_file, list):
 				input_file = input_file[0]
@@ -441,13 +446,28 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 				warn('HDF5 libraries may not be installed', ImportWarning)
 			finally:
 				hdf.close()
+		else:
+			if isinstance(analyses, dict):
+				if len(analyses) == 1:
+					analyses = list(analyses.values())[0]
+				else:
+					raise ValueError('multiple files match')
+			if not labels:
+				labels = list(analyses.labels)
+			if labels[1:]:
+				raise ValueError('multiple instances; label is required')
+			label = labels[-1]
+			cells = analyses[label].data
 
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'grid', 'regular grid'), \
 		KDTreeMesh: ('kdtree', 'k-d tree', 'k-d tree based tesselation'), \
 		KMeansMesh: ('kmeans', 'k-means', 'k-means based tesselation'), \
 		GasMesh: ('gwr', 'GWR', 'GWR based tesselation')}
-	method_name, pp_method_name, method_title = method_name[type(cells.tesselation)]
+	try:
+		method_name, pp_method_name, method_title = method_name[type(cells.tesselation)]
+	except KeyError:
+		method_name = pp_method_name = method_title = ''
 	min_distance = cells.param.get('min_distance', 0)
 	avg_distance = cells.param.get('avg_distance', None)
 	min_location_count = cells.param.get('min_location_count', 0)
@@ -508,6 +528,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 				print('writing file: {}'.format(vor_file))
 			fig.savefig(vor_file, dpi=dpi)
 
+
+	# the complementary histograms below haven't been tested for a while [TODO]
 
 	if location_count_hist:
 		# plot a histogram of the number of points per cell

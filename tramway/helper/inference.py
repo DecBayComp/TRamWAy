@@ -34,8 +34,8 @@ import traceback
 
 def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
-	max_cell_count=20, dilation=1, worker_count=None, min_diffusivity=0, \
-	store_distributed=False, constructor=None, \
+	max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=0, \
+	store_distributed=False, constructor=None, cell_sampling=None, \
 	priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
 	**kwargs):
 	"""
@@ -75,6 +75,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			in the map file
 
 		constructor (callable): see also :func:`~tramway.inference.base.distributed`
+
+		cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore 
+			`max_cell_count` and `dilation`
 
 		input_label (list): label path to the input :class:`~tramway.tesselation.base.Tesselation`
 			object in `cells` if the latter is an `Analyses` or filepath
@@ -159,14 +162,30 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		detailled_map = distributed(cells, new=constructor)
 
 		multiscale = mode == 'DD' or mode == 'DV'
+		cell_sampling = None
 		if not multiscale:
 			try:
 				setup, _ = all_modes[mode]
 			except KeyError:
 				pass
 			else:
-				multiscale = setup.get('cell_sampling', '') == 'group'
+				try:
+					cell_sampling = setup['cell_sampling']
+				except KeyError:
+					pass
+				else:
+					multiscale = cell_sampling in ['individual', 'group']
 		if multiscale:
+			if max_cell_count is None:
+				if cell_sampling == 'individual':
+					max_cell_count = 1
+				else:
+					max_cell_count = 20
+			if dilation is None:
+				if cell_sampling == 'individual':
+					dilation = 0
+				else:
+					dilation = 1
 			multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
 				adjacency_margin=dilation)
 			_map = multiscale_map

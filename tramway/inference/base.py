@@ -418,14 +418,17 @@ class Distributed(Local):
 				points[i] = self.cells[i].center
 				ok[i] = True
 			if cell_centers is None:
-				avg_probability = 1.0
-				if ngroups:
-					avg_probability = min(1.0 / float(ngroups), avg_probability)
-				if max_cell_count:
-					avg_probability = min(float(max_cell_count) / \
-						float(points.shape[0]), avg_probability)
-				grid = KMeansMesh(avg_probability=avg_probability)
-				grid.tesselate(points[ok])
+				if max_cell_count == 1:
+					grid = copy(self)
+				else:
+					avg_probability = 1.0
+					if ngroups:
+						avg_probability = min(1.0 / float(ngroups), avg_probability)
+					if max_cell_count:
+						avg_probability = min(float(max_cell_count) / \
+							float(points.shape[0]), avg_probability)
+					grid = KMeansMesh(avg_probability=avg_probability)
+					grid.tesselate(points[ok])
 			else:
 				grid = Voronoi()
 				grid.cell_centers = cell_centers
@@ -433,9 +436,7 @@ class Distributed(Local):
 			I[ok] = grid.cell_index(points[ok], min_location_count=1)
 			#if not np.all(ok):
 			#	print(ok.nonzero()[0])
-			A = grid.cell_adjacency
-			new.adjacency = sparse.csr_matrix((np.ones_like(A.data, dtype=bool), \
-				A.indices, A.indptr), shape=A.shape) # macro-cell adjacency matrix
+			new.adjacency = grid.simplified_adjacency().tocsr() # macro-cell adjacency matrix
 			J = np.unique(I)
 			J = J[0 <= J]
 			new.data = type(self.cells)()

@@ -23,7 +23,7 @@ except AttributeError: # Py2
 from warnings import warn
 
 
-def list_plugins(dirname, package, patterns={}):
+def list_plugins(dirname, package, lookup={}, force=False):
 	pattern = re.compile(r'[a-zA-Z0-9].*[.]py')
 	candidate_modules = [ os.path.splitext(fn)[0] \
 		for fn in os.listdir(dirname) \
@@ -41,12 +41,40 @@ def list_plugins(dirname, package, patterns={}):
 		else:
 			setup = dict(name=name)
 		namespace = list(module.__dict__.keys())
-		for key in patterns:
-			matches = [ var for var in namespace if fullmatch(patterns[key], var) is not None ]
+		missing = conflicting = None
+		for key in lookup:
+			if key in setup:
+				continue
+			ref = lookup[key]
+			if isinstance(ref, type):
+				matches = [ var for var in namespace
+					if isinstance(getattr(module, var), ref) ]
+			else:
+				matches = [ var for var in namespace
+					if fullmatch(ref, var) is not None ]
 			if matches:
 				if matches[1:]:
-					warn("multiple matches in module '{}' for key '{}'".format(path, key), RuntimeWarning)
+					conflicting = key
+					if not force:
+						break
 				setup[key] = matches[0]
-		modules[name] = (setup, module)
+			else:
+				missing = key
+				if not force:
+					break
+		if conflicting:
+			warn("multiple matches in module '{}' for key '{}'".format(path, conflicting), ImportWarning)
+			if not force:
+				continue
+		if missing:
+			warn("no match in module '{}' for key '{}'".format(path, missing), ImportWarning)
+			if not force:
+				continue
+		if isinstance(name, (frozenset, set, tuple, list)):
+			names = name
+			for name in names:
+				modules[name] = (setup, module)
+		else:
+			modules[name] = (setup, module)
 	return modules
 

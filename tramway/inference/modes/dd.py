@@ -26,8 +26,7 @@ setup = {'arguments': OrderedDict((
 		('localization_error',	('-e', dict(type=float, default=0.01, help='localization error'))),
 		('diffusivity_prior',	('-d', dict(type=float, default=0.01, help='prior on the diffusivity'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
-		('min_diffusivity',	dict(type=float, default=0, help='minimum diffusivity value allowed')),
-		('worker_count',	('-w', dict(type=int, help='number of parallel processes to spawn'))))),
+		('min_diffusivity',	dict(type=float, default=0, help='minimum diffusivity value allowed')))),
 		'cell_sampling': 'group'}
 
 

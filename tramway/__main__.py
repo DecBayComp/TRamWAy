@@ -20,6 +20,7 @@ except ImportError:
 import sys
 from .helper import *
 from .feature import *
+import tramway.tesselation.plugins as tesselation
 
 
 def _parse_args(args):
@@ -65,7 +66,9 @@ def _tesselate(args):
 	else:
 		knn = None
 	#del kwargs['reuse']
-	if kwargs['method'] == 'kdtree' and min_nn is not None:
+	if kwargs['method'] is None:
+		del kwargs['method']
+	elif kwargs['method'] == 'kdtree' and min_nn is not None:
 		kwargs['metric'] = 'euclidean'
 	tesselate(input_file, output_file=output_file, \
 		avg_location_count=avg_location_count, max_level=max_level, \
@@ -155,10 +158,11 @@ def main():
 	tesselate_parser.set_defaults(func=_tesselate)
 	for arg1, arg2, kwargs in global_arguments:
 		tesselate_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	tesselate_parser.add_argument('-L', '--input-label', help='input label')
 	tesselate_parser.add_argument('-l', '--label', '--output-label', help='output label')
 	tesselate_parser.add_argument('--comment', help='description message for the output artefact')
-	tesselate_group1 = tesselate_parser.add_mutually_exclusive_group(required=True)
-	tesselate_group1.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'])
+	tesselate_parser.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'] + \
+		list(tesselation.all_plugins.keys()))
 	tesselate_parser.add_argument('-n', '--knn', '--min-nn', '--min-knn', '--knn-min', type=int, \
 		help='minimum number of nearest neighbors. Cells can overlap')
 	tesselate_parser.add_argument('--max-nn', '--max-knn', '--knn-max', type=int, \
@@ -183,6 +187,22 @@ def main():
 	#gwr_parser = tesselate_parser
 	#gwr_parser.add_argument('-c', '--location-count', type=int, default=80, \
 	#	help='average number of locations per cell [gwr]')
+	plugin_parser = tesselate_parser
+	for plugin in tesselation.all_plugins:
+		setup, _ = tesselation.all_plugins[plugin]
+		if 'make_arguments' in setup:
+			for arg in setup['make_arguments']:
+				arg_kwargs = setup['make_arguments'][arg]
+				if arg_kwargs:
+					try:
+						arg_args = ('--'+arg.replace('_','-'),)
+						if isinstance(arg_options, (tuple, list)):
+							arg_short, arg_kwargs = arg_kwargs
+							arg_args = (arg_short,)+arg_args
+						plugin_parser.add_argument(*arg_args, **arg_kwargs)
+					except:
+						print("in plugin '{}': error inserting argument '{}':".format(plugin, arg))
+						print(traceback.format_exc())
 
 
 	# infer
