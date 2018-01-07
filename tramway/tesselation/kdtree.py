@@ -40,7 +40,7 @@ class KDTreeMesh(Voronoi):
 		_min_distance (float, private): scaled minimum distance between neighbor cell centers.
 		_avg_distance (float, private): scaled average distance between neighbor cell centers.
 	"""
-	def __init__(self, scaler=Scaler(), min_distance=None, avg_distance=None, \
+	def __init__(self, scaler=None, min_distance=None, avg_distance=None, \
 		min_probability=None, max_probability=None, max_level=None, **kwargs):
 		Voronoi.__init__(self, scaler)
 		self._min_distance = min_distance

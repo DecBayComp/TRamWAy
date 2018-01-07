@@ -196,7 +196,7 @@ def main():
 				if arg_kwargs:
 					try:
 						arg_args = ('--'+arg.replace('_','-'),)
-						if isinstance(arg_options, (tuple, list)):
+						if isinstance(arg_kwargs, (tuple, list)):
 							arg_short, arg_kwargs = arg_kwargs
 							arg_args = (arg_short,)+arg_args
 						plugin_parser.add_argument(*arg_args, **arg_kwargs)

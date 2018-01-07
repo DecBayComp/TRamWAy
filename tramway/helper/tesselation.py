@@ -44,11 +44,11 @@ class IgnoredInputWarning(UserWarning):
 
 def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaling=False, time_scale=None, \
-	knn=None, \
-	ref_distance=None, rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
+	knn=None, distance=None, ref_distance=None, \
+	rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
 	min_location_count=20, avg_location_count=None, max_location_count=None, \
 	strict_min_location_count=None, \
-	compress=False, label=None, output_label=None, comment=None, \
+	compress=False, label=None, output_label=None, comment=None, input_label=None, \
 	**kwargs):
 	"""
 	Tesselation from points series and partitioning.
@@ -100,7 +100,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			``min_nn`` enables cell overlap and any point may be associated with several
 			cells.
 
-		ref_distance (float):
+		distance/ref_distance (float):
 			Supposed to be the average translocation distance. Can be modified so that the 
 			cells are smaller or larger.
 
@@ -125,6 +125,9 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		max_location_count (int):
 			Maximum number of points per cell. This is used only by *kdtree*.
 
+		input_label (str):
+			Label for the input tesselation for nesting tesselations.
+
 		label/output_label (int or str):
 			Label for the resulting analysis instance.
 
@@ -141,16 +144,23 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	methods for more information.
 
 	"""
+	no_nesting_error = ValueError('nesting tesselations does not apply to translocation data')
 	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, (tuple, list, frozenset, set)):
 		xyt_path = list_rwa(xyt_data)
 		if xyt_path:
 			if xyt_path[1:]:
 				raise ValueError('too many files match')
 			analyses = find_analysis(xyt_path[0])
-			xyt_data = analyses.data
+			if input_label:
+				input_partition, = find_artefacts(analyses, CellStats, input_label)
+				raise NotImplementedError
+			else:
+				xyt_data = analyses.data
 		else:
 			xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
 			analyses = Analyses(xyt_data)
+			if input_label is not None:
+				raise no_nesting_error
 	else:
 		xyt_path = []
 		if isinstance(xyt_data, Analyses):
@@ -159,8 +169,22 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		else:
 			analyses = Analyses(xyt_data)
 		#warn('TODO: test direct data input', UseCaseWarning)
+		if input_label is not None:
+			raise no_nesting_error
 	input_files = xyt_path
+
+	try:
+		setup, module = all_plugins[method]
+		constructor = getattr(module, setup['make'])
+	except KeyError: # former code
+		plugin = False
+		methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
+		constructor = methods[method]
+	else:
+		plugin = True
 	
+	if distance:
+		ref_distance = distance
 	if ref_distance:
 		transloc_length = None
 	else:
@@ -187,16 +211,6 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		scaling = 'whiten'
 	scalers = dict(none=Scaler, whiten=whiten, unit=unitrange)
 	scaler = scalers[scaling]()
-
-	try:
-		setup, module = all_plugins[method]
-		constructor = getattr(module, setup['make'])
-	except KeyError: # former code
-		plugin = False
-		methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
-		constructor = methods[method]
-	else:
-		plugin = True
 
 	n_pts = float(xyt_data.shape[0])
 	if min_location_count:
@@ -238,6 +252,12 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		max_probability=max_probability, \
 		)
 	if plugin:
+		for ignored in ['max_level']:
+			try:
+				if kwargs[ignored] is None:
+					del kwargs[ignored]
+			except KeyError:
+				pass
 		params.update(dict( \
 			min_location_count=min_location_count, \
 			avg_location_count=avg_location_count, \

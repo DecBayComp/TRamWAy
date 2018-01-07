@@ -44,12 +44,14 @@ hdf5_storable(kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
 dichotomy_graph_exposes = dichotomy_exposes + ['adjacency']
 hdf5_storable(kwarg_storable(ConnectedDichotomy, exposes=dichotomy_graph_exposes), agnostic=True)
 
-from tramway.tesselation import CellStats, Delaunay, Voronoi, RegularMesh, KDTreeMesh, KMeansMesh, \
-	GasMesh
+from tramway.tesselation import CellStats, Delaunay, Voronoi, \
+	RegularMesh, KDTreeMesh, KMeansMesh, GasMesh, \
+	TimeLattice, NestedTesselations
 # CellStats
 hdf5_storable(default_storable(CellStats), agnostic=True)
 # Delaunay
-delaunay_exposes = ['scaler', 'cell_adjacency', 'cell_label', 'adjacency_label', 'cell_centers']
+tesselation_exposes = ['scaler', 'cell_adjacency', 'cell_label', 'adjacency_label'] # not a storable
+delaunay_exposes = tesselation_exposes + ['cell_centers']
 # scaler should be first and cell_centers should be last
 hdf5_storable(default_storable(Delaunay, exposes=delaunay_exposes), agnostic=True)
 # Voronoi
@@ -72,6 +74,13 @@ hdf5_storable(default_storable(KMeansMesh, exposes=kmeans_mesh_exposes), agnosti
 # GasMesh
 gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_max_distance']
 hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)
+# TimeLattice
+time_lattice_exposes = ['time_lattice', 'time_edge'] + tesselation_exposes + ['spatial_mesh']
+hdf5_storable(default_storable(TimeLattice, exposes=time_lattice_exposes), agnostic=True)
+# NestedTesselations
+nested_tesselations_expose = tesselation_exposes + \
+	['parent', 'children', 'child_factory', 'parent_index_arguments', 'child_factory_arguments']
+hdf5_storable(default_storable(NestedTesselations, exposes=nested_tesselations_expose), agnostic=True)
 
 
 from tramway.inference.base import Cell, Distributed, Maps

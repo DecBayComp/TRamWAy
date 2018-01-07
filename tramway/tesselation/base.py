@@ -39,16 +39,21 @@ class CellStats(Lazy):
 
 	array
 		Cell index of size the number of data points. The element at index ``i`` is the cell
-		index of point ``i`` or ``-1`` (if point ``i`` is not assigned to any cell).
+		index of the ``i``th point or ``-1`` if the ``i``th point is not assigned to any cell.
 
 	pair of arrays
 		Point-cell association in the shape of a sparse representation 
-		``(point_index, cell_index)`` such that for all ``i`` ``point_index[i]`` point is in 
-		``cell_index[i]`` cell.
+		``(point_index, cell_index)`` such that for all ``i`` the ``point_index[i]`` point is in 
+		the ``cell_index[i]`` cell.
 
 	sparse matrix (:mod:`scipy.sparse`)
 		``number_of_points * number_of_cells`` matrix with nonzero element wherever
 		the corresponding point is in the corresponding cell.
+
+	..note::
+
+		If the point coordinates are defined as a :class:`~pandas.DataFrame`, 
+		point indices are row indices and NOT row labels (see also :attr:`~pandas.DataFrame.iloc`).
 
 
 	See also :meth:`Tesselation.cell_index`.
@@ -76,6 +81,12 @@ class CellStats(Lazy):
 			Arguments involved in the tesselation and the partition steps, as key-value 
 			pairs. Such information is maintained in `CellStats` so that it can be stored
 			in *.rwa.h5* files and retrieve for traceability.
+
+	Functional dependencies:
+
+	* setting `tesselation` unsets `cell_index`
+	* setting `points` unsets `cell_index` and `bounding_box`
+	* setting `cell_index` unsets `location_count`
 
 	"""
 
@@ -171,11 +182,14 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 	"""
 	Convert from any valid index format to any other.
 
+	Converting an *array* index to any other format assumes that the point indices are in a
+	contiguous range from 0 to the number of elements in the index.
+
 	Arguments:
 
 		K (any): original point-cell association representation.
 
-		format (str): either 'array', 'pair', 'matrix', 'coo', 'csr' or 'csc'.
+		format (str): either *array*, *pair*, *matrix*, *coo*, *csr* or *csc*.
 			See also :meth:`Tesselation.cell_index`.
 
 		select (callable): called only if ``format == 'array'`` and points are
@@ -184,7 +198,7 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 			as second argument and the extra keyword arguments given to
 			:func:`format_cell_index`.
 
-		shape ((int, int)): number of points, number of cells.
+		shape ((int, int)): number of points, number of cells. 
 
 		copy (bool): if ``True``, ensures that a copy of `K` is returned if `K`
 			is already in the requested format.
@@ -364,9 +378,12 @@ class Tesselation(Lazy):
 	Arguments:
 		scaler (Scaler): scaler.
 	"""
-	def __init__(self, scaler=Scaler()):
+	def __init__(self, scaler=None):
 		Lazy.__init__(self)
-		self.scaler = scaler
+		if scaler is None:
+			self.scaler = Scaler()
+		else:
+			self.scaler = scaler
 		self._cell_adjacency = None
 		self._cell_label = None
 		self._adjacency_label = None
@@ -404,22 +421,22 @@ class Tesselation(Lazy):
 		"""
 		Partition.
 
-		The returned value depends on the ``format`` input argument:
+		The returned value depends on the `format` input argument:
 
-		* ``'array'``: returns a vector ``v`` such that ``v[i]`` is cell index for 
+		* *array*: returns a vector ``v`` such that ``v[i]`` is cell index for 
 			point index ``i`` or ``-1``.
 
-		* ``'pair'``: returns a pair of ``I``-sized arrays ``(p, c)`` where, for each 
+		* *pair*: returns a pair of ``I``-sized arrays ``(p, c)`` where, for each 
 			point-cell association ``i`` in ``range(I)``, ``p[i]`` is a point index 
 			and ``c[i]`` is a corresponding cell index.
 
-		* ``'matrix'`` or ``'coo'`` or ``'csr'`` or ``'csc'``: 
+		* *matrix* or *coo* or *csr* or *csc*: 
 			returns a :mod:`~scipy.sparse` matrix with points as rows and
 			cells as columns; non-zeros are all ``True`` or float weights.
 
 		By default with `format` undefined, any implementation may favor any format.
 
-		Note that ``'array'`` may not be an acceptable format and :meth:`cell_index` may 
+		Note that *array* may not be an acceptable format and :meth:`cell_index` may 
 		not comply with ``format='index'`` unless `select` is defined.
 		When a location or a translocation is associated to several cells, `select` 
 		chooses a single cell among them.
@@ -433,15 +450,19 @@ class Tesselation(Lazy):
 		Arguments:
 			points (array-like): point (location) coordinates.
 
-			format (str): either 'vector', 'pairs' or 'matrix'
-				prefered representation of the point-cell association (or partition).
+			format (str): preferred representation of the point-cell association 
+				(or partition).
 
 			select (callable): takes the point index, an array of cell indices and the 
 				tesselation as arguments, and returns a cell index or ``-1`` for no cell.
 
 		"""
+		point_count = points.shape[0]
+		#if isinstance(points, pd.DataFrame):
+		#	point_count = max(point_count, points.index.max()+1) # NO!
+		# point indices are row indices and NOT rows labels
 		return format_cell_index(self._cell_index(points, **kwargs), format=format, select=select,
-			shape=(points.shape[0], self.cell_adjacency.shape[0]))
+			shape=(point_count, self.cell_adjacency.shape[0]))
 
 	# cell_label property
 	@property
@@ -533,7 +554,7 @@ class Delaunay(Tesselation):
 	Attributes:
 		_cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
 	"""
-	def __init__(self, scaler=Scaler()):
+	def __init__(self, scaler=None):
 		Tesselation.__init__(self, scaler)
 		self._cell_centers = None
 
@@ -547,16 +568,16 @@ class Delaunay(Tesselation):
 
 		A single array representation of the point-cell association may not be possible with
 		`knn` defined, because a point can be associated to multiple cells. If such
-		a case happens the default output format will be ``'pair'``.
+		a case happens the default output format will be *pair*.
 
 		In addition to the values allowed by :meth:`Tesselation.cell_index`, `format` admits
-		value ``'force array'`` that acts like ``format='array', select=nearest_cell(...)``.
+		value *force array* that acts like ``format='array', select=nearest_cell(...)``.
 		The implementation however is more straight-forward and simply ignores 
 		the minimum number of nearest neighbours if provided.
 
 		Arguments:
 			points: see :meth:`Tesselation.cell_index`.
-			format: see :meth:`Tesselation.cell_index`; additionally admits ``'force array'``.
+			format: see :meth:`Tesselation.cell_index`; additionally admits *force array*.
 			select: see :meth:`Tesselation.cell_index`.
 			knn (int or pair of ints, optional):
 				minimum number of points per cell (or of nearest neighbors to the cell 
@@ -564,7 +585,6 @@ class Delaunay(Tesselation):
 				point-cell association.
 				can also be a pair of ints, in which case these ints define the minimum
 				and maximum number of points per cell respectively.
-				See also the `prefered` argument.
 			min_location_count (int, optional):
 				minimum number of points for a cell to be included in the labeling. 
 				This argument applies before `knn`. The points in these cells, if not 
@@ -635,8 +655,12 @@ class Delaunay(Tesselation):
 						K[K == c] = -1
 		else:
 			K = np.argmin(D, axis=1) # cell indices
+		point_count = points.shape[0]
+		#if isinstance(points, pd.DataFrame):
+		#	point_count = max(point_count, points.index.max()+1) # NO!
+		# point indices are row indices and NOT row labels
 		return format_cell_index(K, format=format, select=select,
-			shape=(points.shape[0], self.cell_adjacency.shape[0]))
+			shape=(point_count, self.cell_adjacency.shape[0]))
 
 	# cell_centers property
 	@property
@@ -684,7 +708,7 @@ class Voronoi(Delaunay):
 	__lazy__ = Delaunay.__lazy__ + \
 		('vertices', 'cell_adjacency', 'cell_vertices', 'vertex_adjacency')
 
-	def __init__(self, scaler=Scaler()):
+	def __init__(self, scaler=None):
 		Delaunay.__init__(self, scaler)
 		self._vertices = None
 		self._vertex_adjacency = None
@@ -783,14 +807,14 @@ class RegularMesh(Voronoi):
 	"""Regular k-D grid.
 
 	Attributes:
-		lower_bound:
-		upper_bound:
-		count_per_dim:
-		min_probability:
-		avg_probability:
-		max_probability:
+		lower_bound (pandas.Series or numpy.ndarray):
+		upper_bound (pandas.Series or numpy.ndarray):
+		count_per_dim (list of ints):
+		min_probability (float):
+		avg_probability (float):
+		max_probability (float):
 
-	Rather slow. May be reimplemented some day."""
+	"""
 
 	__lazy__ = Voronoi.__lazy__ + ('diagonal_adjacency',)
 

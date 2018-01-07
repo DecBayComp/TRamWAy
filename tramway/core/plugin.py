@@ -40,15 +40,24 @@ def list_plugins(dirname, package, lookup={}, force=False):
 				setup['name'] = name
 		else:
 			setup = dict(name=name)
-		namespace = list(module.__dict__.keys())
+		try:
+			namespace = module.__all__
+		except AttributeError:
+			namespace = list(module.__dict__.keys())
 		missing = conflicting = None
 		for key in lookup:
 			if key in setup:
 				continue
 			ref = lookup[key]
 			if isinstance(ref, type):
-				matches = [ var for var in namespace
-					if isinstance(getattr(module, var), ref) ]
+				matches = []
+				for var in namespace:
+					try:
+						ok = issubclass(getattr(module, var), ref)
+					except TypeError:
+						ok = False
+					if ok:
+						matches.append(var)
 			else:
 				matches = [ var for var in namespace
 					if fullmatch(ref, var) is not None ]

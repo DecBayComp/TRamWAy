@@ -101,7 +101,7 @@ def save_rwa(path, analyses, verbose=False, force=False):
 		else:
 			raise e
 	if verbose:
-		print('written analysis tree:'.format(output_file))
+		print('written analysis tree:'.format(path))
 		print(format_analyses(analyses, global_prefix='\t'))
 
 

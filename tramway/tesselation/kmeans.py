@@ -31,7 +31,7 @@ class KMeansMesh(Voronoi):
 	Other Attributes:
 		_min_distance (float): scaled minimum distance between adjacent cell centers.
 	"""
-	def __init__(self, scaler=Scaler(), min_probability=None, avg_probability=None, \
+	def __init__(self, scaler=None, min_probability=None, avg_probability=None, \
 		min_distance=None, **kwargs):
 		Voronoi.__init__(self, scaler)
 		#self.min_probability = min_probability

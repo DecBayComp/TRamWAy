@@ -38,7 +38,7 @@ class GasMesh(Voronoi):
 			upper bound on the average scaled distance between adjacent cell centers.
 		_max_distance (float, private):
 			scaled maximum distance between adjacent cell centers."""
-	def __init__(self, scaler=Scaler(), min_distance=None, avg_distance=None, max_distance=None, \
+	def __init__(self, scaler=None, min_distance=None, avg_distance=None, max_distance=None, \
 		min_probability=None, avg_probability=None, **kwargs):
 		Voronoi.__init__(self, scaler)
 		self.gas = None
