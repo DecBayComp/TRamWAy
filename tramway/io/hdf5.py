@@ -18,12 +18,14 @@ from rwa.generic import *
 from rwa.hdf5 import *
 
 # Core datatypes
-from tramway.core import Matrix, ArrayChain, Analyses
+from tramway.core import Lazy, Matrix, ArrayChain, Analyses
 from tramway.inference.diffusivity import DV
+lazy_exposes = list(Lazy.__slots__)
 hdf5_storable(namedtuple_storable(Matrix))
 hdf5_storable(default_storable(ArrayChain))
 hdf5_storable(default_storable(DV), agnostic=True)
-hdf5_storable(default_storable(Analyses), agnostic=True)
+analyses_expose = lazy_exposes + list(Analyses.__slots__)
+hdf5_storable(default_storable(Analyses, exposes=analyses_expose), agnostic=True)
 
 # Scaler
 from tramway.spatial.scaler import Scaler
@@ -44,48 +46,49 @@ hdf5_storable(kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
 dichotomy_graph_exposes = dichotomy_exposes + ['adjacency']
 hdf5_storable(kwarg_storable(ConnectedDichotomy, exposes=dichotomy_graph_exposes), agnostic=True)
 
-from tramway.tesselation import CellStats, Delaunay, Voronoi, \
+from tramway.tesselation import CellStats, Tesselation, Delaunay, Voronoi, \
 	RegularMesh, KDTreeMesh, KMeansMesh, GasMesh, \
 	TimeLattice, NestedTesselations
 # CellStats
 hdf5_storable(default_storable(CellStats), agnostic=True)
 # Delaunay
-tesselation_exposes = ['scaler', 'cell_adjacency', 'cell_label', 'adjacency_label'] # not a storable
-delaunay_exposes = tesselation_exposes + ['cell_centers']
-# scaler should be first and cell_centers should be last
+tesselation_exposes = lazy_exposes + list(Tesselation.__slots__) # not a storable
+delaunay_exposes = tesselation_exposes + ['_cell_centers']
 hdf5_storable(default_storable(Delaunay, exposes=delaunay_exposes), agnostic=True)
 # Voronoi
-voronoi_exposes = ['scaler', 'vertices', 'vertex_adjacency', 'cell_vertices'] + delaunay_exposes[1:]
+voronoi_exposes = delaunay_exposes + ['_vertices', '_vertex_adjacency', '_cell_vertices']
 hdf5_storable(default_storable(Voronoi, exposes=voronoi_exposes), agnostic=True)
 # RegularMesh
-regular_mesh_exposes = \
-	['scaler', 'diagonal_adjacency'] + \
-	voronoi_exposes[1:] + \
-	['lower_bound', 'upper_bound', 'count_per_dim', \
+regular_mesh_exposes = voronoi_exposes + \
+	['_diagonal_adjacency', 'lower_bound', 'upper_bound', 'count_per_dim', \
 		'min_probability', 'max_probability', 'avg_probability']
 hdf5_storable(default_storable(RegularMesh, exposes=regular_mesh_exposes), agnostic=True)
 # KDTreeMesh
 kdtree_mesh_exposes = voronoi_exposes + ['_min_distance', '_avg_distance', \
-	'min_probability', 'dichotomy']
+	'min_probability', 'max_probability', 'max_level', 'dichotomy']
 hdf5_storable(default_storable(KDTreeMesh, exposes=kdtree_mesh_exposes), agnostic=True)
 # KMeansMesh
-kmeans_mesh_exposes = voronoi_exposes + ['avg_probability']
+kmeans_mesh_exposes = voronoi_exposes + ['_min_distance', 'avg_probability']
 hdf5_storable(default_storable(KMeansMesh, exposes=kmeans_mesh_exposes), agnostic=True)
 # GasMesh
-gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_max_distance']
+gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_avg_distance', '_max_distance', \
+	'min_probability']
 hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)
 # TimeLattice
-time_lattice_exposes = ['time_lattice', 'time_edge'] + tesselation_exposes + ['spatial_mesh']
+time_lattice_exposes = tesselation_exposes + list(TimeLattice.__slots__)
 hdf5_storable(default_storable(TimeLattice, exposes=time_lattice_exposes), agnostic=True)
 # NestedTesselations
 nested_tesselations_expose = tesselation_exposes + \
-	['parent', 'children', 'child_factory', 'parent_index_arguments', 'child_factory_arguments']
+	[ _s for _s in NestedTesselations.__slots__ if _s not in ('child_factory',) ]
 hdf5_storable(default_storable(NestedTesselations, exposes=nested_tesselations_expose), agnostic=True)
 
 
-from tramway.inference.base import Cell, Distributed, Maps
-hdf5_storable(default_storable(Cell), agnostic=True)
-hdf5_storable(default_storable(Distributed), agnostic=True)
+from tramway.inference.base import Local, Cell, Distributed, Maps
+local_exposes = lazy_exposes + list(Local.__slots__)
+cell_exposes = local_exposes + list(Cell.__slots__)
+hdf5_storable(default_storable(Cell, exposes=cell_exposes), agnostic=True)
+distributed_exposes = local_exposes + list(Distributed.__slots__)
+hdf5_storable(default_storable(Distributed, exposes=distributed_exposes), agnostic=True)
 
 def poke_maps(store, objname, self, container, visited=None, legacy=False):
 	#print('poke_maps')

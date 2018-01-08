@@ -90,8 +90,8 @@ class CellStats(Lazy):
 
 	"""
 
-	__slots__ = ['_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tesselation']
-	__lazy__ = ['location_count', 'bounding_box']
+	__slots__ = ('_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tesselation')
+	__lazy__ = ('location_count', 'bounding_box')
 
 	def __init__(self, cell_index=None, location_count=None, bounding_box=None, points=None, \
 		tesselation=None, param={}):
@@ -378,6 +378,8 @@ class Tesselation(Lazy):
 	Arguments:
 		scaler (Scaler): scaler.
 	"""
+	__slots__ = ('scaler', '_cell_adjacency', '_cell_label', '_adjacency_label')
+
 	def __init__(self, scaler=None):
 		Lazy.__init__(self)
 		if scaler is None:
@@ -395,7 +397,7 @@ class Tesselation(Lazy):
 		See also:
 			:mod:`tramway.spatial.scaler`.
 		"""
-		if self._cell_centers is None and self.scaler.euclidean is None:
+		if self.scaler.euclidean is None:
 			# initialize
 			if isstructured(points):
 				self.scaler.euclidean = ['x', 'y']
@@ -595,6 +597,8 @@ class Delaunay(Tesselation):
 			see :meth:`Tesselation.cell_index`.
 
 		"""
+		if self._cell_centers.size == 0:
+			return format_cell_index(np.full(points.shape[0], -1, dtype=int), format=format)
 		if isinstance(knn, tuple):
 			min_nn, max_nn = knn
 		else:
@@ -819,7 +823,7 @@ class RegularMesh(Voronoi):
 	__lazy__ = Voronoi.__lazy__ + ('diagonal_adjacency',)
 
 	def __init__(self, scaler=None, lower_bound=None, upper_bound=None, count_per_dim=None, min_probability=None, max_probability=None, avg_probability=None, **kwargs):
-		Voronoi.__init__(self) # just ignore `scaler`
+		Voronoi.__init__(self, scaler)
 		self.lower_bound = lower_bound
 		self.upper_bound = upper_bound
 		self.count_per_dim = count_per_dim
@@ -859,6 +863,10 @@ class RegularMesh(Voronoi):
 			self.grid = [ np.linspace(col[0], col[1], int(col[2])) for col in grid.T ]
 		cs = np.meshgrid(*[ (g[:-1] + g[1:]) / 2 for g in self.grid ], indexing='ij')
 		self._cell_centers = np.column_stack([ c.flatten() for c in cs ])
+
+	def _preprocess(self, points):
+		Voronoi._preprocess(self, points) # initialize `scaler`
+		return points # ... but do not scale
 
 	def _postprocess(self):
 		pass

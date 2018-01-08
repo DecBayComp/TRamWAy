@@ -57,8 +57,7 @@ class Local(Lazy):
 			polygons as vertex indices.
 
 	"""
-	__slots__ = ['index', 'data', 'center', 'span'] #, 'boundary'
-	__lazy__  = []
+	__slots__ = ('index', 'data', 'center', 'span') #, 'boundary'
 
 	def __init__(self, index, data, center=None, span=None): #, boundary=None
 		Lazy.__init__(self)
@@ -117,9 +116,8 @@ class Distributed(Local):
 			number of adjacent cells.
 
 	"""
-	__slots__ = Local.__slots__ + ['_reverse', '_adjacency', 'central', '_degree', \
-		'_ccount', '_tcount', '_dim']
-	__lazy__  = Local.__lazy__  + ['reverse', 'degree', 'ccount', 'tcount', 'dim']
+	__slots__ = ('_reverse', '_adjacency', 'central', '_degree', '_ccount', '_tcount', '_dim')
+	__lazy__  = Local.__lazy__ + ('reverse', 'degree', 'ccount', 'tcount', 'dim')
 
 	def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
 		boundary=None):
@@ -601,9 +599,8 @@ class Cell(Local):
 			is totally free and comes without support for concurrency.
 
 	"""
-	__slots__ = Local.__slots__ + ['_time_col', '_space_cols', 'cache', 'origins', 'destinations', \
-		'fuzzy']
-	__lazy__  = Local.__lazy__  + ['time_col', 'space_cols']
+	__slots__ = ('_time_col', '_space_cols', 'cache', 'origins', 'destinations', 'fuzzy')
+	__lazy__  = Local.__lazy__ + ('time_col', 'space_cols')
 
 	def __init__(self, index, translocations, center=None, span=None, origins=None):
 		if not (isinstance(translocations, np.ndarray) or isinstance(translocations, pd.DataFrame)):

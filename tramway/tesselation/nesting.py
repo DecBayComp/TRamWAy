@@ -34,7 +34,7 @@ class NestedTesselations(Tesselation):
 	__slots__ = ('_parent', '_children', 'child_factory', \
 		'parent_index_arguments', 'child_factory_arguments')
 
-	__lazy__ = ('cell_label', 'cell_adjacency', 'adjacency_label')
+	__lazy__ = Tesselation.__lazy__ + ('cell_label', 'cell_adjacency', 'adjacency_label')
 
 	def __init__(self, scaler=None, parent=None, factory=None, parent_index_arguments={}, **kwargs):
 		Tesselation.__init__(self, scaler)
@@ -60,7 +60,6 @@ class NestedTesselations(Tesselation):
 
 	@children.setter
 	def children(self, tesselations):
-		self.cell_centers = None
 		self.cell_label = None
 		self.cell_adjacency = None
 		self.adjacency_label = None
@@ -71,14 +70,14 @@ class NestedTesselations(Tesselation):
 			parent = self.parent
 		else: # preferred usage
 			parent = CellStats(tesselation=self.parent)
-		if parent.points != points or \
+		if points is not parent.points or \
 				(self.parent_index_arguments and parent._cell_index is None):
 			parent.points = points
 			parent.cell_index = parent.tesselation.cell_index(points, \
 					**self.parent_index_arguments)
 		parent_index = format_cell_index(parent.cell_index, 'pair') # ignore association weights
 		pt_ids, cell_ids = parent_index
-		if isintance(points, pd.DataFrame):
+		if isinstance(points, pd.DataFrame):
 			def rows(pts, ids):
 				return pts.iloc[ids,:]
 		else:
@@ -87,12 +86,19 @@ class NestedTesselations(Tesselation):
 		return (pt_ids, cell_ids, rows)
 
 	def tesselate(self, points, *args, **kwargs):
+		# initialize `self.scaler`;
+		# if we didn't, we should pass copies of `self.scaler` instead, to `self.child_factory`
+		any_child = self.child_factory(scaler=self.scaler, **self.child_factory_arguments)
+		any_child._preprocess(points)
+		#
 		pt_ids, cell_ids, rows = self._parent_index(points)
 		self.children = {}
 		for u in np.unique(cell_ids):
-			child = self.child_factory(self.scaler, **self.child_factory_arguments)
-			child.tesselate(rows(points, pt_ids[cell_ids==u]), *args, **kwargs)
-			self.children[u] = child
+			child = self.child_factory(scaler=self.scaler, **self.child_factory_arguments)
+			child_pts = rows(points, pt_ids[cell_ids==u])
+			if child_pts.size:
+				child.tesselate(child_pts, *args, **kwargs)
+				self.children[u] = child
 
 	def cell_index(self, points, *args, **kwargs):
 		point_count = points.shape[0]
@@ -184,11 +190,6 @@ class NestedTesselations(Tesselation):
 			return pt_cell
 		elif _is_pair_:
 			return (pt_ids, cell_ids)
-
-	## descriptors
-	#def descriptors(self, *args, **kwargs):
-	#	# to comply with `cell_centers`
-	#	return list(self.children.values())[0].descriptors(*args, **kwargs)
 
 	# cell_adjacency property
 	@property

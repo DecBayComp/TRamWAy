@@ -110,9 +110,10 @@ class Analyses(Lazy):
 			in `instances`.
 
 	"""
-	__slots__ = ['_data', '_instances', '_comments']
+	__slots__ = ('_data', '_instances', '_comments')
 
 	def __init__(self, data=None):
+		Lazy.__init__(self)
 		self._data = data
 		self._instances = {}
 		self._comments = {}

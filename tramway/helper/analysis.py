@@ -67,9 +67,12 @@ def load_rwa(path):
 			analyses = hdf.peek('analyses')
 		finally:
 			hdf.close()
-	except EnvironmentError:
-		print(traceback.format_exc())
-		raise OSError('HDF5 libraries may not be installed')
+	except EnvironmentError as e:
+		if e.args[1:]:
+			print(traceback.format_exc())
+			raise OSError('HDF5 libraries may not be installed')
+		else:
+			raise
 	return coerce_labels(analyses)
 
 

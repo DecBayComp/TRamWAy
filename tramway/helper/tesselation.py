@@ -45,10 +45,10 @@ class IgnoredInputWarning(UserWarning):
 def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaling=False, time_scale=None, \
 	knn=None, distance=None, ref_distance=None, \
-	rel_min_distance=0.8, rel_avg_distance=2.0, rel_max_distance=None, \
+	rel_min_distance=None, rel_avg_distance=None, rel_max_distance=None, \
 	min_location_count=20, avg_location_count=None, max_location_count=None, \
-	strict_min_location_count=None, \
-	compress=False, label=None, output_label=None, comment=None, input_label=None, \
+	strict_min_location_count=None, compress=False, \
+	label=None, output_label=None, comment=None, input_label=None, inplace=False, \
 	**kwargs):
 	"""
 	Tesselation from points series and partitioning.
@@ -131,6 +131,10 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		label/output_label (int or str):
 			Label for the resulting analysis instance.
 
+		inplace (bool):
+			if True, `label`/`output_label`/`input_label` are exclusive, they all define
+			a same analysis and the resulting analysis replaces the input analysis.
+
 		comment (str):
 			Description message for the resulting analysis.
 
@@ -144,6 +148,24 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	methods for more information.
 
 	"""
+	if inplace:
+		labels_exclusive = ValueError("multiple different values in exclusive arguments 'label', 'input_label' and 'output_label'")
+		if label:
+			if (input_label and input_label != label) or \
+				(output_label and output_label != label):
+				raise labels_exclusive
+		elif input_label:
+			if output_label and output_label == input_label:
+				raise labels_exclusive
+			label = input_label
+		elif output_label:
+			label = output_label
+		output_label = input_label = label
+	elif label is None:
+		label = output_label
+	elif output_label and output_label != label:
+		raise ValueError("'label' and 'output_label' are both defined and are different")
+
 	no_nesting_error = ValueError('nesting tesselations does not apply to translocation data')
 	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, (tuple, list, frozenset, set)):
 		xyt_path = list_rwa(xyt_data)
@@ -153,9 +175,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			analyses = find_analysis(xyt_path[0])
 			if input_label:
 				input_partition, = find_artefacts(analyses, CellStats, input_label)
-				raise NotImplementedError
-			else:
-				xyt_data = analyses.data
+			xyt_data = analyses.data
 		else:
 			xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
 			analyses = Analyses(xyt_data)
@@ -183,11 +203,23 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	else:
 		plugin = True
 	
-	if distance:
+	transloc_length = min_distance = avg_distance = max_distance = None
+	if ref_distance is None and distance is not None:
+		# `distance` is only for compatibility with the tramway commandline
 		ref_distance = distance
-	if ref_distance:
-		transloc_length = None
-	else:
+	if input_label and input_partition.param is not None:
+		if not ref_distance:
+			ref_distance = input_partition.param.get('ref_distance', None)
+		min_distance = input_partition.param.get('min_distance', min_distance)
+		avg_distance = input_partition.param.get('avg_distance', avg_distance)
+		max_distance = input_partition.param.get('max_distance', max_distance)
+	# former default values for `rel_min_distance` and `rel_avg_distance`
+	if rel_min_distance is None and min_distance is None:
+		rel_min_distance = .8
+	if rel_avg_distance is None and avg_distance is None:
+		rel_avg_distance = 2.
+		
+	if not ref_distance:
 		transloc_xy = np.asarray(translocations(xyt_data))
 		if transloc_xy.shape[0] == 0:
 			raise ValueError('no translocation found')
@@ -195,22 +227,22 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		if verbose:
 			print('average translocation distance: {}'.format(transloc_length))
 		ref_distance = transloc_length
-	min_distance = rel_min_distance * ref_distance
-	avg_distance = rel_avg_distance * ref_distance
-	if rel_max_distance:
+	if rel_min_distance is not None:
+		min_distance = rel_min_distance * ref_distance
+	if rel_avg_distance is not None:
+		avg_distance = rel_avg_distance * ref_distance
+	if rel_max_distance is not None:
 		# applies only to KDTreeMesh
 		max_distance = rel_max_distance * ref_distance
 		if method != 'kdtree':
 			warn('`rel_max_distance` is relevant only with `kdtree`', IgnoredInputWarning)
-	else:
-		max_distance = None
 
-	if not scaling:
-		scaling = 'none'
-	elif scaling is True:
-		scaling = 'whiten'
-	scalers = dict(none=Scaler, whiten=whiten, unit=unitrange)
-	scaler = scalers[scaling]()
+	if scaling:
+		if scaling is True:
+			scaling = 'whiten'
+		scaler = dict(whiten=whiten, unit=unitrange)[scaling]()
+	else:
+		scaler = None
 
 	n_pts = float(xyt_data.shape[0])
 	if min_location_count:
@@ -219,7 +251,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		min_probability = None
 		if not plugin:
 			warn('undefined `min_location_count`; not tested', UseCaseWarning)
-	if not plugin and not avg_location_count:
+	if not avg_location_count:
 		avg_location_count = 4 * min_location_count
 	if avg_location_count:
 		avg_probability = float(avg_location_count) / n_pts
@@ -235,6 +267,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	else:
 		max_probability = None
 
+	# actually useful only if no tesselation nesting
 	colnames = ['x', 'y']
 	if 'z' in xyt_data:
 		colnames.append('z')
@@ -274,10 +307,15 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	else:
 		params.update(kwargs)
 		kwargs = params
-	tess = constructor(scaler, **kwargs)
+	if input_label:
+		tess = NestedTesselations(scaler, input_partition, factory=constructor, **kwargs)
+		xyt_data = data = input_partition.points
+	else:
+		tess = constructor(scaler, **kwargs)
+		data = xyt_data[colnames]
 
 	# grow the tesselation
-	tess.tesselate(xyt_data[colnames], verbose=verbose, **kwargs)
+	tess.tesselate(data, verbose=verbose, **kwargs)
 
 	# partition the dataset into the cells of the tesselation
 	if knn is None:
@@ -291,6 +329,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	stats = CellStats(cell_index, points=xyt_data, tesselation=tess)
 
+	# store some parameters together with the partition
 	stats.param['method'] = method
 	if transloc_length:
 		stats.param['transloc_length'] = transloc_length
@@ -318,11 +357,28 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	elif method == 'kdtree' and 'max_level' in kwargs:
 		stats.param['max_level'] = kwargs['max_level']
 
-	if label is None:
-		label = output_label
-	analyses.add(Analyses(stats), label=label, comment=comment)
+	# insert the resulting analysis in the analysis tree
+	if input_label:
+		input_analysis = analyses
+		if isinstance(input_label, (tuple, list)):
+			prefix_labels = list(input_label)
+			terminal_label = prefix_labels.pop()
+			for _label in prefix_labels:
+				input_analysis = input_analysis.instances[_label]
+		else:
+			terminal_label = input_label
+		# `input_analysis` is already in `analyses`
+		if inplace and comment:
+			input_analysis.comments[terminal_label] = comment
+		input_analysis = input_analysis.instances[terminal_label]
+		if inplace:
+			input_analysis.artefact = stats
+		else:
+			input_analysis.add(Analyses(stats), label=label, comment=comment)
+	else:
+		analyses.add(Analyses(stats), label=label, comment=comment)
 
-	# save `analyses`
+	# save the analysis tree (`analyses`)
 	if output_file or xyt_path:
 		if output_file is None:
 			output_file = os.path.splitext(xyt_path[0])[0] + hdf_extensions[0]
