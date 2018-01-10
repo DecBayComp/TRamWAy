@@ -19,7 +19,7 @@ import numpy.ma as ma
 Matrix = namedtuple('Matrix', 'size shape dtype order')
 
 class ArrayChain(object):
-	__slots__ = ['members', 'order']
+	__slots__ = ('members', 'order')
 
 	def __init__(self, *members, **kwargs):
 		order = kwargs.pop('order', 'simple') # Py2 workaround
@@ -45,7 +45,7 @@ class ArrayChain(object):
 			self.members[member] = Matrix(sz, sh, dt, rd)
 
 	def __contains__(self, member):
-		return member in self.seq
+		return member in self.members
 
 	def __getitem__(self, member):
 		return self.members[member]
@@ -73,7 +73,7 @@ class ArrayChain(object):
 		else:
 			raise NotImplementedError("only 'simple' order is supported")
 
-	def at(self, a, matrix):
+	def at(self, a, member):
 		matrix = self.members[member]
 		return self._at(a, member, matrix)
 
@@ -99,7 +99,7 @@ class ArrayChain(object):
 
 
 class ChainArray(ArrayChain):
-	__slots__ = ArrayChain.__slots__ + ['combined']
+	__slots__ = ('combined',)
 
 	def __init__(self, *members, **kwargs):
 		ArrayChain.__init__(self, *members, **kwargs)

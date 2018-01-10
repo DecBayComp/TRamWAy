@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 
-__all__ = ('setup', 'SlidingWindow', 'sliding_window_exposes')
+__all__ = ('setup', 'SlidingWindow')
 
 
 setup = {
@@ -66,6 +66,11 @@ class SlidingWindow(TimeLattice):
 		return TimeLattice.cell_index(self, points, *args, **kwargs)
 
 
-sliding_window_exposes = time_lattice_exposes + ['duration', 'shift']
-hdf5_storable(default_storable(SlidingWindow, exposes=sliding_window_exposes), agnostic=True)
+import sys
+if sys.version_info[0] < 3:
+
+	sliding_window_exposes = time_lattice_exposes + ['duration', 'shift']
+	hdf5_storable(default_storable(SlidingWindow, exposes=sliding_window_exposes), agnostic=True)
+
+	__all__ = __all__ + ('sliding_window_exposes', )
 

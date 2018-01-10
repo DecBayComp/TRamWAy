@@ -11,20 +11,19 @@
 # The fact that you are presently reading this means that you have had
 # knowledge of the CeCILL license and that you accept its terms.
 
-"""This module does not export any symbol. It implements the :class:`~tramway.io.store.storable.Storable` class for TRamWAy datatypes."""
-
 from rwa.storable import *
 from rwa.generic import *
 from rwa.hdf5 import *
+
 
 # Core datatypes
 from tramway.core import Lazy, Matrix, ArrayChain, Analyses
 from tramway.inference.diffusivity import DV
 lazy_exposes = list(Lazy.__slots__)
+analyses_expose = lazy_exposes + list(Analyses.__slots__)
 hdf5_storable(namedtuple_storable(Matrix))
 hdf5_storable(default_storable(ArrayChain))
 hdf5_storable(default_storable(DV), agnostic=True)
-analyses_expose = lazy_exposes + list(Analyses.__slots__)
 hdf5_storable(default_storable(Analyses, exposes=analyses_expose), agnostic=True)
 
 # Scaler
@@ -78,71 +77,15 @@ hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True
 time_lattice_exposes = tesselation_exposes + list(TimeLattice.__slots__)
 hdf5_storable(default_storable(TimeLattice, exposes=time_lattice_exposes), agnostic=True)
 # NestedTesselations
-nested_tesselations_expose = tesselation_exposes + \
-	[ _s for _s in NestedTesselations.__slots__ if _s not in ('child_factory',) ]
+nested_tesselations_expose = tesselation_exposes + list(NestedTesselations.__slots__)#\
+#	[ _s for _s in NestedTesselations.__slots__ if _s not in ('child_factory',) ]
 hdf5_storable(default_storable(NestedTesselations, exposes=nested_tesselations_expose), agnostic=True)
 
 
-from tramway.inference.base import Local, Cell, Distributed, Maps
+from tramway.inference.base import Local, Cell, Distributed
 local_exposes = lazy_exposes + list(Local.__slots__)
 cell_exposes = local_exposes + list(Cell.__slots__)
 hdf5_storable(default_storable(Cell, exposes=cell_exposes), agnostic=True)
 distributed_exposes = local_exposes + list(Distributed.__slots__)
 hdf5_storable(default_storable(Distributed, exposes=distributed_exposes), agnostic=True)
-
-def poke_maps(store, objname, self, container, visited=None, legacy=False):
-	#print('poke_maps')
-	sub_container = store.newContainer(objname, self, container)
-	attrs = dict(self.__dict__) # dict
-	#print(list(attrs.keys()))
-	if legacy:
-		# legacy format
-		if callable(self.mode):
-			store.poke('mode', '(callable)', sub_container)
-			store.poke('result', self.maps, sub_container)
-		else:
-			store.poke('mode', self.mode, sub_container)
-			store.poke(self.mode, self.maps, sub_container)
-	else:
-		#print("poke 'maps'")
-		store.poke('maps', self.maps, sub_container, visited=visited)
-		del attrs['maps']
-	deprecated = {}
-	for a in ('distributed_translocations','partition_file','tesselation_param','version'):
-		deprecated[a] = attrs.pop(a, None)
-	for a in attrs:
-		if attrs[a] is not None:
-			if attrs[a] or attrs[a] == 0:
-				#print("poke '{}'".format(a))
-				store.poke(a, attrs[a], sub_container, visited=visited)
-	for a in deprecated:
-		if deprecated[a]:
-			warn('`{}` is deprecated'.format(a), DeprecationWarning)
-			#print("poke '{}'".format(a))
-			store.poke(a, deprecated[a], sub_container, visited=visited)
-
-def peek_maps(store, container):
-	#print('peek_maps')
-	read = []
-	mode = store.peek('mode', container)
-	read.append('mode')
-	try:
-		maps = store.peek('maps', container)
-		read.append('maps')
-	except KeyError:
-		# former standalone files
-		if mode == '(callable)':
-			maps = store.peek('result', container)
-			read.append('result')
-			mode = None
-		else:
-			maps = store.peek(mode, container)
-			read.append(mode)
-	maps = Maps(maps, mode=mode)
-	for r in container:
-		if r not in read:
-			setattr(maps, r, store.peek(r, container))
-	return maps
-
-hdf5_storable(Storable(Maps, handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
 

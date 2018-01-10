@@ -199,7 +199,7 @@ def inferDD(cells, localization_error=0.0, diffusivity_prior=None, jeffreys_prio
 
 
 class DV(ChainArray):
-	__slots__ = ChainArray.__slots__ + ['diffusivity_prior', 'potential_prior', 'minimum_diffusivity']
+	__slots__ = ('diffusivity_prior', 'potential_prior', 'minimum_diffusivity')
 
 	def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None, \
 		minimum_diffusivity=None, positive_diffusivity=None):
