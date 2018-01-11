@@ -691,7 +691,10 @@ class Cell(Local):
 
 	@property
 	def dim(self):
-		return self.center.size
+		#try:
+		#	return self.center.size
+		#except AttributeError:
+		return self.dxy.shape[1]
 
 	@dim.setter
 	def dim(self, d): # ro

@@ -16,6 +16,7 @@ from .lazy import Lazy
 import itertools
 import copy
 import traceback
+import warnings
 
 
 class AnalysesView(dict):
@@ -368,7 +369,7 @@ def label_paths(analyses, filter):
 	return list(_append([], labels))
 
 
-def find_artefacts(analyses, filters, labels=None):
+def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 	"""
 	Find related artefacts.
 
@@ -383,6 +384,10 @@ def find_artefacts(analyses, filters, labels=None):
 
 		labels (list): label path.
 
+		quantifiers (str or tuple or list): list of quantifers, a quantifier for now being
+			either 'first', 'last' or 'all'; a quantifier should be defined for each filter;
+			default is 'last' (admits value ``None``).
+
 	Returns:
 
 		tuple: matching data elements/artefacts.
@@ -391,36 +396,72 @@ def find_artefacts(analyses, filters, labels=None):
 
 		cells, maps = find_artefacts(analyses, (CellStats, Maps))
 	"""
+	# filters
 	if not isinstance(filters, (tuple, list)):
 		filters = (filters,)
+	# quantifiers
+	quantifier = 'last'
+	if quantifiers:
+		if not isinstance(quantifiers, (tuple, list)):
+			quantifiers = (quantifiers,)
+		if len(quantifiers) == len(filters):
+			filters = zip(quantifiers, filters)
+		elif quantifiers[1:]:
+			warnings.warn('wrong number of quantifiers; ignoring them')
+		else:
+			quantifier = quantifiers[0]
+	# labels
 	if labels is None:
 		labels = []
 	elif isinstance(labels, (tuple, list)):
 		labels = list(labels) # copy
 	else:
 		labels = [labels]
-	matches = []
+	matches, lookup = [], True
 	for i, _filter in enumerate(filters):
+		if quantifiers:
+			quantifier, _fitler = _filter
 		if isinstance(_filter, type):
 			_type = _filter
 			_filter = lambda a: isinstance(a, _type)
-		while not _filter(analyses.artefact):
-			try:
-				label = labels.pop(0)
-			except IndexError:
-				_labels = list(analyses.labels)
-				if not _labels:
-					raise ValueError('no match for {}{} filter'.format(i+1,
-						{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
-				elif _labels[1:]:
-					raise ValueError('multiple labels; argument `labels` required')
-				else:
-					label = _labels[0]
-			try:
-				analyses = analyses.instances[label]
-			except KeyError:
-				raise KeyError("missing label '{}'; available labels are: {}".format(label, str(list(analyses.labels))[1:-1]))
-		matches.append(analyses.artefact)
+		match = []
+		while True:
+			if lookup:
+				try:
+					label = labels.pop(0)
+				except IndexError:
+					_labels = list(analyses.labels)
+					if not _labels:
+						if match:
+							break
+						else:
+							raise ValueError('no match for {}{} filter'.format(i+1,
+								{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
+					elif _labels[1:]:
+						raise ValueError('multiple labels; argument `labels` required')
+					else:
+						label = _labels[0]
+				try:
+					analyses = analyses.instances[label]
+				except KeyError:
+					available = str(list(analyses.labels))[1:-1]
+					if available:
+						raise KeyError("missing label '{}'; available labels are: {}".format(label, available))
+					else:
+						raise KeyError("missing label '{}'; no labels available".format(label))
+			lookup = True
+			if _filter(analyses.artefact):
+				match.append(analyses.artefact)
+			elif match:
+				lookup = False
+				break
+		if quantifier in ('first', ):
+			match = match[0]
+		elif quantifier in ('last', None):
+			match = match[-1]
+		elif quantifier not in ('all', '+'):
+			raise ValueError('invalid quantifier: {}'.format(quantifier))
+		matches.append(match)
 	return tuple(matches)
 
 

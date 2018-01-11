@@ -376,7 +376,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 		except ImportError:
 			warn('HDF5 libraries may not be installed', ImportWarning)
 		else:
-			cells, maps = find_artefacts(analyses, (CellStats, Maps))
+			cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
 		mode = maps.mode
 		maps = maps.maps
 
