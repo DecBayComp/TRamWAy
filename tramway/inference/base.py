@@ -799,7 +799,10 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 	if isinstance(cells, CellStats):
 		# simplify the adjacency matrix
 		if cells.tesselation.adjacency_label is None:
-			_adjacency = cells.tesselation.cell_adjacency.tocsr(True)
+			try:
+				_adjacency = cells.tesselation.cell_adjacency.tocsr(True)
+			except TypeError: # "TypeError: tocsr() takes exactly 1 argument (2 given)"??
+				_adjacency = cells.tesselation.cell_adjacency.tocsr()
 		else:
 			_adjacency = cells.tesselation.cell_adjacency.tocoo()
 			ok = 0 < cells.tesselation.adjacency_label[_adjacency.data]

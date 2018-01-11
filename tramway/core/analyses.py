@@ -438,6 +438,8 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 							raise ValueError('no match for {}{} filter'.format(i+1,
 								{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
 					elif _labels[1:]:
+						if match and i + 1 == len(filters):
+							break
 						raise ValueError('multiple labels; argument `labels` required')
 					else:
 						label = _labels[0]

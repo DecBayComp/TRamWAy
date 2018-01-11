@@ -65,7 +65,8 @@ def _tesselate(args):
 		knn = (min_nn, max_nn)
 	else:
 		knn = None
-	#del kwargs['reuse']
+	if kwargs.get('inplace', not None) is None:
+		del kwargs['inplace']
 	if kwargs['method'] is None:
 		del kwargs['method']
 	elif kwargs['method'] == 'kdtree' and min_nn is not None:
@@ -159,6 +160,8 @@ def main():
 	for arg1, arg2, kwargs in global_arguments:
 		tesselate_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	tesselate_parser.add_argument('-L', '--input-label', help='input label')
+	tesselate_parser.add_argument('--inplace', action='store_true', \
+		help='replace the input sampling by the output one (only when --input-label is defined)')
 	tesselate_parser.add_argument('-l', '--label', '--output-label', help='output label')
 	tesselate_parser.add_argument('--comment', help='description message for the output artefact')
 	tesselate_parser.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'] + \
