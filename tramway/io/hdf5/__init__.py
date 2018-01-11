@@ -13,9 +13,8 @@
 
 """This module implements the :class:`~rwa.storable.Storable` class for TRamWAy datatypes."""
 
-from rwa.storable import *
-from rwa.generic import *
-from rwa.hdf5 import *
+from rwa import *
+from rwa.generic import kwarg_storable
 import sys
 
 hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.spatial', 'tramway.tesselation', \
@@ -23,6 +22,13 @@ hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.spatial', 'tramway.t
 
 if sys.version_info[0] < 3:
 	from .rules import *
+
+from tramway.spatial.dichotomy import Dichotomy, ConnectedDichotomy
+dichotomy_exposes = ['base_edge', 'min_depth', 'max_depth', 'origin', 'lower_bound', 'upper_bound', \
+	'min_count', 'max_count', 'subset', 'cell']
+hdf5_storable(kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
+dichotomy_graph_exposes = dichotomy_exposes + ['adjacency']
+hdf5_storable(kwarg_storable(ConnectedDichotomy, exposes=dichotomy_graph_exposes), agnostic=True)
 
 from tramway.inference.base import Maps
 

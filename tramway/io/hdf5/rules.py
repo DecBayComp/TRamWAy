@@ -11,10 +11,7 @@
 # The fact that you are presently reading this means that you have had
 # knowledge of the CeCILL license and that you accept its terms.
 
-from rwa.storable import *
-from rwa.generic import *
-from rwa.hdf5 import *
-
+from rwa import *
 
 # Core datatypes
 from tramway.core import Lazy, Matrix, ArrayChain, Analyses
@@ -37,13 +34,6 @@ hdf5_storable(default_storable(Gas), agnostic=True)
 # ArrayGraph
 from tramway.spatial.graph.array import ArrayGraph
 hdf5_storable(default_storable(ArrayGraph), agnostic=True)
-
-from tramway.spatial.dichotomy import Dichotomy, ConnectedDichotomy
-dichotomy_exposes = ['base_edge', 'min_depth', 'max_depth', 'origin', 'lower_bound', 'upper_bound', \
-	'min_count', 'max_count', 'subset', 'cell']
-hdf5_storable(kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
-dichotomy_graph_exposes = dichotomy_exposes + ['adjacency']
-hdf5_storable(kwarg_storable(ConnectedDichotomy, exposes=dichotomy_graph_exposes), agnostic=True)
 
 from tramway.tesselation import CellStats, Tesselation, Delaunay, Voronoi, \
 	RegularMesh, KDTreeMesh, KMeansMesh, GasMesh, \
