@@ -25,10 +25,12 @@ class KMeansMesh(Voronoi):
 	"""K-Means and Voronoi based tesselation.
 
 	Attributes:
+
 		avg_probability (float): probability of a point to be in a given cell (controls the
 			number of cells and indirectly their size).
 	
 	Other Attributes:
+
 		_min_distance (float): scaled minimum distance between adjacent cell centers.
 	"""
 	def __init__(self, scaler=None, min_probability=None, avg_probability=None, \

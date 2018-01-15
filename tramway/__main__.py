@@ -76,6 +76,26 @@ def _tesselate(args):
 		knn=knn, **kwargs)
 	sys.exit(0)
 
+
+def _sample(method, parse_extra=None):
+	def sample(args):
+		input_file, kwargs = _parse_args(args)
+		output_file = kwargs.pop('output', None)
+		scaling = kwargs.pop('w', None)
+		if scaling and not kwargs['scaling']:
+			kwargs['scaling'] = 'whiten'
+		min_nn = kwargs.pop('knn', None)
+		max_nn = kwargs.pop('max_nn', None)
+		if not (min_nn is None and max_nn is None):
+			kwargs['knn'] = (min_nn, max_nn)
+		if parse_extra:
+			for extra_arg, parse_arg in parse_extra:
+				kwargs[extra_arg] = parse_arg(**kwargs)
+		kwargs = { kw: arg for kw, arg in kwargs.items() if arg is not None }
+		tesselate(input_file, output_file=output_file, method=method, **kwargs)
+		sys.exit(0)
+	return sample
+
 def _infer(mode):
 	def __infer(args):
 		input_file, kwargs = _parse_args(args)
@@ -143,7 +163,7 @@ def main():
 	global_arguments = [
 		('-v', '--verbose', dict(action='count', help='increase verbosity')),
 		('-i', '--input', dict(action='append', default=[],
-			metavar='INPUT_FILE', help='path to input file or directory')),
+			metavar='INPUT_FILE', help='path to input file')),
 		('-o', '--output', dict(metavar='OUTPUT_FILE', help='path to output file'))]
 	for arg1, arg2, kwargs in global_arguments:
 		parser.add_argument(arg1, arg2, dest=arg1[1]+'pre', **kwargs)
@@ -156,56 +176,35 @@ def main():
 		tesselate_parser = sub.add_parser('sample', aliases=['tesselate'])
 	except TypeError: # Py2
 		tesselate_parser = sub.add_parser('sample')
-	tesselate_parser.set_defaults(func=_tesselate)
-	for arg1, arg2, kwargs in global_arguments:
-		tesselate_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
-	tesselate_parser.add_argument('-L', '--input-label', help='input label')
-	tesselate_parser.add_argument('--inplace', action='store_true', \
-		help='replace the input sampling by the output one (only when --input-label is defined)')
-	tesselate_parser.add_argument('-l', '--label', '--output-label', help='output label')
-	tesselate_parser.add_argument('--comment', help='description message for the output artefact')
-	tesselate_parser.add_argument('-m', '--method', choices=['grid', 'kdtree', 'kmeans', 'gwr'] + \
-		list(tesselation.all_plugins.keys()))
-	tesselate_parser.add_argument('-n', '--knn', '--min-nn', '--min-knn', '--knn-min', type=int, \
-		help='minimum number of nearest neighbors. Cells can overlap')
-	tesselate_parser.add_argument('--max-nn', '--max-knn', '--knn-max', type=int, \
-		help='maximum number of nearest neighbors')
-	tesselate_parser.add_argument('-d', '--distance', type=float, help='average jump distance')
-	#tesselate_parser.add_argument('-r', '--frame-rate', type=float, help='frame rate')
-	#tesselate_parser.add_argument('-t', '--time-scale', type=float, nargs='+', help='time multiplier(s) for tesselation(s) 2/3d + t')
-	tesselate_parser.add_argument('-t', '--time-scale', type=float, help='time multiplier for 2/3d+t tesselation')
-	tesselate_group2 = tesselate_parser.add_mutually_exclusive_group()
-	tesselate_group2.add_argument('-w', action='store_true', help='whiten the input data')
-	tesselate_group2.add_argument('--scaling', choices=['whiten', 'unit'])
-	tesselate_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
-		help='minimum number of locations per cell. This affects the tesselation only and not directly the partition. See --min-knn for a partition-related parameter')
-	kdtree_parser = tesselate_parser
-	kdtree_parser.add_argument('-S', '--max-location-count', type=int, \
-		help='maximum number of locations per cell [kdtree]')
-	kdtree_parser.add_argument('-ll', '--lower-levels', type=int, \
-		help='number of levels below the smallest one [kdtree]')
-	grid_parser = tesselate_parser
-	grid_parser.add_argument('-c', '--location-count', type=int, default=80, \
-		help='average number of locations per cell [grid|kmeans]')
-	#gwr_parser = tesselate_parser
-	#gwr_parser.add_argument('-c', '--location-count', type=int, default=80, \
-	#	help='average number of locations per cell [gwr]')
-	plugin_parser = tesselate_parser
-	for plugin in tesselation.all_plugins:
-		setup, _ = tesselation.all_plugins[plugin]
-		if 'make_arguments' in setup:
-			for arg in setup['make_arguments']:
-				arg_kwargs = setup['make_arguments'][arg]
-				if arg_kwargs:
-					try:
-						arg_args = ('--'+arg.replace('_','-'),)
-						if isinstance(arg_kwargs, (tuple, list)):
-							arg_short, arg_kwargs = arg_kwargs
-							arg_args = (arg_short,)+arg_args
-						plugin_parser.add_argument(*arg_args, **arg_kwargs)
-					except:
-						print("in plugin '{}': error inserting argument '{}':".format(plugin, arg))
-						print(traceback.format_exc())
+	tsub = tesselate_parser.add_subparsers(title='methods', \
+		description="type '%(prog)s sample method --help' for additional help about method")
+	for method in tesselation.all_plugins:
+		method_parser = tsub.add_parser(method)
+		setup, _ = tesselation.all_plugins[method]
+		short_args = short_options(setup.get('make_arguments', {}))
+		for short_arg, long_arg, kwargs in global_arguments:
+			dest = short_arg[1:] + 'post'
+			if short_arg in short_args:
+				method_parser.add_argument(long_arg, dest=dest, **kwargs)
+			else:
+				method_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
+		method_parser.add_argument('-l', '--label', '--output-label', help='output label')
+		method_parser.add_argument('--comment', help='description message')
+		method_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+		method_parser.add_argument('--inplace', action='store_true', \
+			help='replace the input sampling by the output one (only when --input-label is defined)')
+		method_parser.add_argument('-n', '--knn', '--min-nn', '--knn-min', type=int, \
+			help='minimum number of nearest neighbors; cells can overlap')
+		method_parser.add_argument('-N', '--max-nn', '--knn-max', type=int, \
+			help='maximum number of nearest neighbors')
+		method_parser.add_argument('-d', '--distance', type=float, help='average jump distance')
+		method_group = method_parser.add_mutually_exclusive_group()
+		method_group.add_argument('-w', action='store_true', help='whiten the input data')
+		method_group.add_argument('--scaling', choices=['whiten', 'unit'])
+		method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
+			help='minimum number of locations per cell; this affects the tesselation only and not directly the partition; see --knn for a partition-related parameter')
+		translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
+		method_parser.set_defaults(func=_sample(method, translations))
 
 
 	# infer
@@ -215,9 +214,7 @@ def main():
 	for mode in all_modes:
 		mode_parser = isub.add_parser(mode)
 		setup, _ = all_modes[mode]
-		short_args = [ args[0] for args in setup.get('arguments', {}).values()
-				if isinstance(args, (tuple, list)) ]
-		mode_parser.set_defaults(func=_infer(mode))
+		short_args = short_options(setup.get('arguments', {}))
 		for short_arg, long_arg, kwargs in global_arguments:
 			dest = short_arg[1:] + 'post'
 			if short_arg in short_args:
@@ -227,18 +224,8 @@ def main():
 		mode_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
 		mode_parser.add_argument('-l', '--output-label', help='output label')
 		mode_parser.add_argument('--comment', help='description message for the output artefact')
-		#infer_parser.add_argument('-m', '--mode', \
-		#	choices=['D', 'DF', 'DD', 'DV'] + list(all_modes.keys()),
-		#	help='inference mode') #, metavar='INFERENCE_MODE'
-		args = setup['arguments']
-		for arg in args:
-			long_arg = '--' + arg.replace('_', '-')
-			parser_args = args[arg]
-			if isinstance(parser_args, (tuple, list)):
-				short_arg, parser_args = parser_args
-				mode_parser.add_argument(short_arg, long_arg, **parser_args)
-			else:
-				mode_parser.add_argument(long_arg, **parser_args)
+		add_arguments(mode_parser, setup['arguments'], name=mode)
+		mode_parser.set_defaults(func=_infer(mode))
 
 
 	# dump analysis tree

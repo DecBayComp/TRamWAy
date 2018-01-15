@@ -87,3 +87,82 @@ def list_plugins(dirname, package, lookup={}, force=False):
 			modules[name] = (setup, module)
 	return modules
 
+
+def add_arguments(parser, arguments, name=None):
+	translations = []
+	for arg, options in arguments.items():
+		if not options:
+			continue
+		long_arg = '--' + arg.replace('_', '-')
+		has_options = False
+		if isinstance(options, (tuple, list)):
+			args = list(options)
+			kwargs = args.pop()
+			options = {}
+		else:
+			args = []
+			try:
+				_parse = options['parse']
+			except KeyError:
+				pass
+			else:
+				if callable(_parse):
+					translations.append((arg, _parse))
+					has_options = True
+			try:
+				kwargs = options['kwargs']
+			except KeyError:
+				if has_options or not options:
+					continue
+				kwargs = options
+				options = None # should not be used anymore
+			else:
+				has_options = True
+				try:
+					args = list(options.get('args'))
+				except KeyError:
+					pass
+		if has_options and options.get('translate', False):
+			try:
+				_arg = args[1]
+			except IndexError:
+				_arg = args[0]
+			_arg = _arg.replace('-', '_')
+			def _translate(**_kwargs):
+				try:
+					return _kwargs[_arg]
+				except KeyError:
+					return None
+			translations.append((arg, _translate))
+		elif long_arg not in args:
+			if args:
+				args.insert(1, long_arg)
+			else:
+				args = (long_arg,)
+		try:
+			parser.add_argument(*args, **kwargs)
+		except:
+			if name:
+				print("WARNING: option `{}` from plugin '{}' ignored".format(arg, name))
+			else:
+				print("WARNING: option `{}` ignored".format(arg))
+	return translations
+
+
+def short_options(arguments):
+	_options = []
+	for args in arguments.values():
+		if args:
+			if isinstance(args, (tuple, list)):
+				args = args[0]
+			elif 'args' in args:
+				args = args['args']
+			else:
+				continue
+			if not isinstance(args, (tuple, list)):
+				args = (args,)
+			for arg in args:
+				if arg[0] != arg[1]:
+					_options.append(arg)
+	return _options
+

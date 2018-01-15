@@ -1,10 +1,10 @@
-# test plugin
+# Growing When Required
 
 from ..gas import GasMesh
 from collections import OrderedDict
 
 setup = {
-	'name': ('gas', 'gng'),
+	'name': ('gas', 'gwr'),
 	'make': GasMesh,
 	'make_arguments': OrderedDict((
 		('min_distance', ()),

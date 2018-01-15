@@ -195,7 +195,9 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	try:
 		setup, module = all_plugins[method]
-		constructor = getattr(module, setup['make'])
+		constructor = setup['make']
+		if isinstance(constructor, str):
+			constructor = getattr(module, setup['make'])
 	except KeyError: # former code
 		plugin = False
 		methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
