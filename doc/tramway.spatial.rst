@@ -62,10 +62,10 @@ tramway.spatial.scaler module
     :show-inheritance:
 
 
-tramway.spatial.translocations module
--------------------------------------
+tramway.spatial.translocation module
+------------------------------------
 
-.. automodule:: tramway.spatial.translocations
+.. automodule:: tramway.spatial.translocation
     :members:
     :undoc-members:
     :show-inheritance:

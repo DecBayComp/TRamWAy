@@ -46,7 +46,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		cells (str or CellStats or Analyses): data partition or path to partition file
 
 		mode (str or callable): either ``'D'``, ``'DF'``, ``'DD'``, ``'DV'`` or a function
-			suitable for :met:`Distributed.run`
+			suitable for :meth:`Distributed.run`
 
 		output_file (str): desired path for the output map file
 

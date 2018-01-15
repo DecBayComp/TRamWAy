@@ -382,29 +382,33 @@ class Distributed(Local):
 		"""
 		Make groups of cells.
 
-		This builds up an extra hierarchical level. For example if `self` is a `Distributed` of
-		`Cell`s, then this returns a `Distributed` of `Distributed` (the groups) of `Cell`s.
-		Several grouping strategy are proposed.
+		This builds up an extra hierarchical level. 
+		For example if `self` is a `Distributed` of `Cell`, then this returns a `Distributed` 
+		of `Distributed` (the groups) of `Cell`.
+
+		Several grouping strategies are proposed.
 
 		Arguments:
 
-			ngroups (int, optional):
+			ngroups (int):
 				number of groups.
 
-			max_cell_count (int, optional):
+			max_cell_count (int):
 				maximum number of cells per group.
 
-			cell_centers (array-like, optional):
+			cell_centers (array-like):
 				spatial centers of the groups. A cell is associated to the group which 
 				center is the nearest one. If not provided, :meth:`group` will use 
 				a k-means approach to positionning the centers.
 
-			adjacency_margin (int, optional):
-				groups are dilated to the adjacent cells `adjacency_margin` times. Default to 1.
+			adjacency_margin (int):
+				groups are dilated to the adjacent cells `adjacency_margin` times. 
+				Defaults to 1.
 
 		Returns:
 
-			Distributed: a new object of the same type as `self` that contains other such
+			Distributed:
+				a new object of the same type as `self` that contains other such
 				objects as cells.
 
 		"""
@@ -476,22 +480,22 @@ class Distributed(Local):
 		"""
 		Apply a function to the groups (:class:`Distributed`) of terminal cells.
 
-		The results are merged into a single :class:`DataFrame` array, handling adjacency 
-		margins if any.
+		The results are merged into a single :class:`~pandas.DataFrame` array, 
+		handling adjacency margins if any.
 
-		Although this method was designed for `Distributed`s of `Distributed`s, its usage is 
+		Although this method was designed for `Distributed` of `Distributed`, its usage is 
 		advised to call any function that returns a DataFrame with cell indices as indices.
 
 		Multiples processes may be spawned.
 
 		Arguments:
 
-			function (function): 
+			function (function):
 				the function to be called on each terminal :class:`Distributed`. 
 				Its first argument is the :class:`Distributed` object.
 				It should return a :class:`~pandas.DataFrame`.
 
-			args (list): 
+			args (list):
 				positional arguments for `function` after the first one.
 
 			kwargs (dict):
@@ -502,8 +506,9 @@ class Distributed(Local):
 
 		Returns:
 
-			DataFrame: single merged array.
-		
+			pandas.DataFrame:
+				single merged array.
+
 		"""
 		if all([ isinstance(cell, Distributed) for cell in self.cells.values() ]):
 			worker_count = kwargs.pop('worker_count', None)

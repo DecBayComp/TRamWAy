@@ -17,6 +17,8 @@ The recommended starting point is :mod:`tramway.helper`.
     tramway.spatial
     tramway.tesselation
     tramway.inference
+    tramway.feature
+    tramway.utils
 
 .. |tramway| replace:: **TRamWAy**
 

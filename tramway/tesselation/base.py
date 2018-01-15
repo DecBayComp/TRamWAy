@@ -38,17 +38,18 @@ class CellStats(Lazy):
 	The partition :attr:`cell_index` may be in any of the following formats:
 
 	array
-		Cell index of size the number of data points. The element at index ``i`` is the cell
-		index of the ``i``th point or ``-1`` if the ``i``th point is not assigned to any cell.
+		Cell index of size the number of data points. The element at index ``i`` is the cell 
+		index of the ``i``th point or ``-1`` if the ``i`` th point is not assigned to any cell.
 
 	pair of arrays
-		Point-cell association in the shape of a sparse representation 
-		``(point_index, cell_index)`` such that for all ``i`` the ``point_index[i]`` point is in 
-		the ``cell_index[i]`` cell.
+		Point-cell association in the shape of a sparse representation  
+		``(point_index, cell_index)`` such that for all ``i`` the ``point_index[i]`` point is 
+		in the ``cell_index[i]`` cell.
 
 	sparse matrix (:mod:`scipy.sparse`)
 		``number_of_points * number_of_cells`` matrix with nonzero element wherever
 		the corresponding point is in the corresponding cell.
+
 
 	..note::
 
@@ -61,7 +62,8 @@ class CellStats(Lazy):
 
 	Attributes:
 
-		points (array-like): the original point coordinates, unchanged.
+		points (array-like):
+			the original point coordinates, unchanged.
 
 		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
 			Point-cell association (or data partition).
@@ -69,7 +71,7 @@ class CellStats(Lazy):
 		tesselation (Tesselation):
 			The tesselation that defined the partition.
 
-		location_count (numpy.ndarray, lazy): 
+		location_count (numpy.ndarray, lazy):
 			point count per cell; ``location_count[i]`` is the number of 
 			points in cell ``i``.
 
@@ -79,8 +81,8 @@ class CellStats(Lazy):
 
 		param (dict):
 			Arguments involved in the tesselation and the partition steps, as key-value 
-			pairs. Such information is maintained in `CellStats` so that it can be stored
-			in *.rwa.h5* files and retrieve for traceability.
+			pairs. Such information is maintained in :class:`~tramway.tesselation.CellStats`
+			so that it can be stored in *.rwa* files and retrieve for traceability.
 
 	Functional dependencies:
 
@@ -281,25 +283,29 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 	adjacent iif they belong to adjacent and distinct cells.
 
 	Arguments:
-		cells (CellStats):
+
+		cells (tramway.tesselation.CellStats):
 			CellStats with both partition and tesselation defined.
 
-		symetric (bool, optional):
+		symetric (bool):
 			If ``False``, the returned matrix will not be symetric, i.e. wherever i->j is
 			defined, j->i is not.
 
-		cell_labels (callable, optional):
+		cell_labels (callable):
 			Takes an array of cell labels as input 
 			(see :attr:`Tesselation.cell_label`)
 			and returns a bool array of equal shape.
 
-		adjacency_labels (callable, optional):
+		adjacency_labels (callable):
 			Takes an array of edge labels as input 
 			(see :attr:`Tesselation.adjacency_label`) 
 			and returns a bool array of equal shape.
 
 	Returns:
-		scipy.sparse.csr_matrix: Sparse square matrix with as many rows as data points.
+
+		scipy.sparse.csr_matrix:
+			Sparse square matrix with as many rows as data points.
+
 	"""
 	if not isinstance(cells.cell_index, np.ndarray):
 		raise NotImplementedError('cell overlap support has not been implemented here')
@@ -999,7 +1005,7 @@ def dict_to_sparse(cell_vertex, shape=None):
 
 def sparse_to_dict(cell_vertex):
 	"""
-	Convert cell-vertex associations :mod:`~scipy.sparse` matrices to :class:`dict`s.
+	Convert cell-vertex associations :mod:`~scipy.sparse` matrices to :class:`dict`.
 	"""
 	if sparse.issparse(cell_vertex):
 		matrix = cell_vertex.tocsr()

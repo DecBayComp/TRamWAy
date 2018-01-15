@@ -25,3 +25,12 @@ tramway.inference.diffusivity module
     :undoc-members:
     :show-inheritance:
 
+
+tramway.inference.modes package
+-------------------------------
+
+.. automodule:: tramway.inference.modes
+    :members:
+    :undoc-members:
+    :show-inheritance:
+

@@ -203,7 +203,7 @@ class Analyses(Lazy):
 
 			analysis (any): analysis instance.
 
-			label (any): key for the analysis; calls :met:`autoindex` if undefined.
+			label (any): key for the analysis; calls :meth:`autoindex` if undefined.
 
 			comment (str): associated comment.
 
@@ -220,7 +220,7 @@ class Analyses(Lazy):
 
 	def unload(self, visited=None):
 		"""
-		Overloads :met:`Lazy.unload`.
+		Overloads :meth:`Lazy.unload`.
 		"""
 		if visited is None:
 			visited = set()
@@ -294,22 +294,25 @@ def extract_analysis(analyses, labels):
 	"""
 	Extract an analysis from a hierarchy of analyses.
 
-	The elements of an :class:`Analyses` instance can be other :class:`Analyses` objects. 
+	The elements of an :class:`~tramway.core.analyses.Analyses` instance can be other 
+	:class:`~tramway.core.analyses.Analyses` objects. 
 	As such, analyses are structured in a tree that exhibits as many logically-consecutive 
 	layers as there are processing steps.
 
 	Arguments:
 
-		analyses (Analyses): hierarchy of analyses, with `instances` possibly containing
-			other :class:`Analyses` instances.
+		analyses (tramway.core.analyses.Analyses):
+			hierarchy of analyses, with `instances` possibly containing
+			other :class:`~tramway.core.analyses.Analyses` instances.
 
-		labels (int, str or sequence of int and str): analyses label(s); the first label
-			addresses the first layer of analyses instances, the second label addresses
-			the second layer of analyses and so on.
+		labels (int, str or sequence of int and str):
+			analyses label(s); the first label addresses the first layer of 
+			analyses instances, the second label addresses the second layer of 
+			analyses and so on.
 
 	Returns:
 
-		Analyses: copy of the analyses along the path defined by `labels`. 
+		tramway.core.analyses.Analyses: copy of the analyses along the path defined by `labels`. 
 	"""
 	if not isinstance(labels, (tuple, list)):
 		labels = [labels]
@@ -325,7 +328,7 @@ def extract_analysis(analyses, labels):
 
 
 def _append(s, ls):
-	"""for internal use in `label_paths`"""
+	"""for internal use in :fun:`label_paths`."""
 	if ls:
 		ss = []
 		for ok, _ls in ls:
@@ -349,14 +352,18 @@ def label_paths(analyses, filter):
 
 	Arguments:
 
-		analyses (Analyses): hierarchy of analyses, with `instances` possibly containing
-			other :class:`Analyses` instances.
+		analyses (tramway.core.analyses.Analyses):
+			hierarchy of analyses, with `instances` possibly containing
+			other :class:`~tramway.core.analyses.Analyses` instances.
 
-		filter (type or callable): criterion over analysis data.
+		filter (type or callable):
+			criterion over analysis data.
 
 	Returns:
 
-		list of tuples: list of label paths to matching analyses.
+		list of tuples:
+			list of label paths to matching analyses.
+
 	"""
 	if isinstance(filter, type):
 		_type = filter
@@ -377,7 +384,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 
 	Arguments:
 
-		analyses (Analyses): hierarchy of analyses.
+		analyses (tramway.core.analyses.Analyses): hierarchy of analyses.
 
 		filters (type or callable or tuple or list): list of criteria, a criterion being
 			a boolean function or a type.
@@ -385,8 +392,8 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 		labels (list): label path.
 
 		quantifiers (str or tuple or list): list of quantifers, a quantifier for now being
-			either 'first', 'last' or 'all'; a quantifier should be defined for each filter;
-			default is 'last' (admits value ``None``).
+			either *'first'*, *'last'* or *'all'*; a quantifier should be defined for each 
+			filter;	default is 'last' (admits value ``None``).
 
 	Returns:
 

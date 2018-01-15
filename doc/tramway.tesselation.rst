@@ -42,10 +42,28 @@ tramway.tesselation.kmeans module
     :show-inheritance:
  
 
+tramway.tesselation.nesting module
+----------------------------------
+
+.. automodule:: tramway.tesselation.nesting
+    :members:
+    :show-inheritance:
+    :undoc-members:   :undoc-members:
+ 
+
 tramway.tesselation.time module
 -------------------------------
 
 .. automodule:: tramway.tesselation.time
+    :members:
+    :show-inheritance:
+    :undoc-members:   :undoc-members:
+ 
+
+tramway.tesselation.plugins package
+-----------------------------------
+
+.. automodule:: tramway.tesselation.plugins
     :members:
     :show-inheritance:
     :undoc-members:   :undoc-members:
