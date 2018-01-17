@@ -15,7 +15,7 @@ The recommended starting point is :mod:`tramway.helper`.
     tramway.io
     tramway.plot
     tramway.spatial
-    tramway.tesselation
+    tramway.tessellation
     tramway.inference
     tramway.feature
     tramway.utils

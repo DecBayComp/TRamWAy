@@ -36,9 +36,9 @@ def main():
 		return '{}.{}{}'.format(output_basename, method, extension)
 
 	xyt_file = out('', 'trxyt')
-	tesselation_file = out(method, '.rwa')
+	tessellation_file = out(method, '.rwa')
 	new_xyt = not os.path.exists(xyt_file)
-	new_tesselation = not os.path.isfile(tesselation_file)
+	new_tessellation = not os.path.isfile(tessellation_file)
 
 	## define the ground truth (xyt_file)
 	if new_xyt:
@@ -77,20 +77,20 @@ def main():
 		#print(df)
 		df.to_csv(xyt_file, sep="\t", header=False)
 		# mesh regularly to sample ground truth for illustrative purposes
-		grid = tesselate(df, method='grid', min_location_count=10)
+		grid = tessellate(df, method='grid', min_location_count=10)
 		cells = distributed(grid)
 		true_map = cells.run(truth, diffusivity=diffusivity_map, force=force_map)
 		print('ploting ground truth maps: {}'.format(out('*.truth', '.png')))
 		map_plot((cells, 'true', true_map), output_file=out('truth', '.png'), show=True, aspect='equal')
-		if not new_tesselation:
-			print("WARNING: tesselation will overwrite file '{}'".format(tesselation_file))
-			new_tesselation = True
+		if not new_tessellation:
+			print("WARNING: tessellation will overwrite file '{}'".format(tessellation_file))
+			new_tessellation = True
 
-	## tesselate (tesselation_file)
-	if new_tesselation:
-		tesselate(xyt_file, method, output_file=tesselation_file, \
+	## tessellate (tessellation_file)
+	if new_tessellation:
+		tessellate(xyt_file, method, output_file=tessellation_file, \
 			verbose=True, strict_min_location_count=10)
-		cell_plot(tesselation_file, output_file=out(method, '.mesh.png'), \
+		cell_plot(tessellation_file, output_file=out(method, '.mesh.png'), \
 			show=True, aspect='equal')
 
 	## infer and plot
@@ -98,21 +98,21 @@ def main():
 	warnings.filterwarnings('error', '', DiffusivityWarning)
 
 	print("running D inference mode...")
-	D_ = infer(tesselation_file, mode='D', localization_error=localization_error, \
+	D_ = infer(tessellation_file, mode='D', localization_error=localization_error, \
 		min_diffusivity=minD)
 	map_plot(D_, output_file=out(method, '.d.png'), show=True, aspect='equal')
 
 	print("running DF inference mode...")
-	DF = infer(tesselation_file, mode='DF', localization_error=localization_error)
+	DF = infer(tessellation_file, mode='DF', localization_error=localization_error)
 	map_plot(DF, output_file=out(method, '.df.png'), show=True, aspect='equal')
 
 	print("running DD inference mode...")
-	DD = infer(tesselation_file, mode='DD', localization_error=localization_error, \
+	DD = infer(tessellation_file, mode='DD', localization_error=localization_error, \
 		priorD=priorD, min_diffusivity=minD)
 	map_plot(DD, output_file=out(method, '.dd.png'), show=True, aspect='equal')
 
 	print("running DV inference mode...")
-	DV = infer(tesselation_file, mode='DV', localization_error=localization_error, \
+	DV = infer(tessellation_file, mode='DV', localization_error=localization_error, \
 		priorD=priorD, priorV=priorV)
 	map_plot(DV, output_file=out(method, '.dv.png'), show=True, aspect='equal')
 

@@ -29,10 +29,10 @@ def _face_hash(v1, n1):
 
 
 class KDTreeMesh(Voronoi):
-	"""k-dimensional tree (quad tree in 2D) based tesselation.
+	"""k-dimensional tree (quad tree in 2D) based tessellation.
 
 	Attributes:
-		scaler: see :class:`Tesselation`.
+		scaler: see :class:`Tessellation`.
 		min_probability (float): minimum probability of a point to be in a given cell.
 		max_probability (float): maximum probability of a point to be in a given cell.
 		max_level (float): maximum level, considering that the smallest cells are at level 0
@@ -59,7 +59,7 @@ class KDTreeMesh(Voronoi):
 			min_nn, max_nn = knn, None
 		if format == 'force array':
 			min_nn = None
-		#if max_nn: # valid only if points are those the tesselation was grown with
+		#if max_nn: # valid only if points are those the tessellation was grown with
 		#	max_location_count = int(floor(self.max_probability * points.shape[0]))
 		#	if max_nn < max_location_count:
 		#		max_nn = None
@@ -90,7 +90,7 @@ class KDTreeMesh(Voronoi):
 			return Delaunay.cell_index(self, points, format=format, select=select, knn=knn,
 				min_location_count=min_location_count, metric=metric, **kwargs)
 
-	def tesselate(self, points, **kwargs):
+	def tessellate(self, points, **kwargs):
 		init = self.scaler.init
 		points = self._preprocess(points)
 		if init:

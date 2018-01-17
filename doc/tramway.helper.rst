@@ -31,10 +31,10 @@ tramway.helper.simulation module
     :show-inheritance:
 
 
-tramway.helper.tesselation module
----------------------------------
+tramway.helper.tessellation module
+----------------------------------
 
-.. automodule:: tramway.helper.tesselation
+.. automodule:: tramway.helper.tessellation
     :members:
     :show-inheritance:
 

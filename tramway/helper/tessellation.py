@@ -19,8 +19,8 @@ import scipy.linalg as la
 import scipy.sparse as sparse
 import matplotlib.pyplot as plt
 from ..core import *
-from ..tesselation import *
-from ..tesselation.plugins import *
+from ..tessellation import *
+from ..tessellation.plugins import *
 from ..spatial.scaler import *
 from ..spatial.translocation import *
 from ..plot.mesh import *
@@ -42,7 +42,7 @@ class IgnoredInputWarning(UserWarning):
 	pass
 
 
-def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
+def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaling=False, time_scale=None, \
 	knn=None, distance=None, ref_distance=None, \
 	rel_min_distance=None, rel_avg_distance=None, rel_max_distance=None, \
@@ -51,9 +51,9 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	label=None, output_label=None, comment=None, input_label=None, inplace=False, \
 	**kwargs):
 	"""
-	Tesselation from points series and partitioning.
+	Tessellation from points series and partitioning.
 
-	This helper routine is a high-level interface to the various tesselation techniques 
+	This helper routine is a high-level interface to the various tessellation techniques 
 	implemented in TRamWAy.
 
 	Arguments:
@@ -64,15 +64,15 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 
 		method (str):
-			Tesselation method or plugin name.
+			Tessellation method or plugin name.
 			See also 
-			:class:`~tramway.tesselation.RegularMesh` (``'grid'``), 
-			:class:`~tramway.tesselation.KDTreeMesh` (``'kdtree'``), 
-			:class:`~tramway.tesselation.KMeansMesh` (``'kmeans'``) and 
-			:class:`~tramway.tesselation.GasMesh` (``'gas'``, ``'gng'`` or ``'gwr'``).
+			:class:`~tramway.tessellation.RegularMesh` (``'grid'``), 
+			:class:`~tramway.tessellation.KDTreeMesh` (``'kdtree'``), 
+			:class:`~tramway.tessellation.KMeansMesh` (``'kmeans'``) and 
+			:class:`~tramway.tessellation.GasMesh` (``'gas'``, ``'gng'`` or ``'gwr'``).
 
 		output_file (str):
-			Path to a *.rwa* file. The resulting tesselation and data partition will be 
+			Path to a *.rwa* file. The resulting tessellation and data partition will be 
 			stored in this file. If `xyt_data` is a path to a file and `output_file` is not 
 			defined, then `output_file` will be adapted from `xyt_data` with extension 
 			*.rwa* and possibly overwrite the input file.
@@ -86,13 +86,13 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 		time_scale (bool or float): 
 			If this argument is defined and intepretable as ``True``, the time axis is 
-			scaled by this factor and used as a space variable for the tesselation (2D+T or 
+			scaled by this factor and used as a space variable for the tessellation (2D+T or 
 			3D+T, for example).
 			This is equivalent to manually scaling the ``t`` column and passing 
 			``scaling=True``.
 
 		knn (int or pair of ints):
-			After growing the tesselation, a minimum and maximum numbers of nearest 
+			After growing the tessellation, a minimum and maximum numbers of nearest 
 			neighbors of each cell center can be used instead of the entire cell 
 			population. Let's denote ``min_nn, max_nn = knn``. Any of ``min_nn`` and 
 			``max_nn`` can be ``None``.
@@ -126,7 +126,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			Maximum number of points per cell. This is used only by *kdtree*.
 
 		input_label (str):
-			Label for the input tesselation for nesting tesselations.
+			Label for the input tessellation for nesting tessellations.
 
 		label/output_label (int or str):
 			Label for the resulting analysis instance.
@@ -139,12 +139,12 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			Description message for the resulting analysis.
 
 	Returns:
-		tramway.tesselation.CellStats: A partition of the data with 
-			:attr:`~tramway.tesselation.CellStats.tesselation` attribute set.
+		tramway.tessellation.CellStats: A partition of the data with 
+			:attr:`~tramway.tessellation.CellStats.tessellation` attribute set.
 
 
 	Apart from the parameters defined above, extra input arguments are admitted and passed to the
-	initializer of the selected tesselation method. See the individual documentation of these 
+	initializer of the selected tessellation method. See the individual documentation of these 
 	methods for more information.
 
 	"""
@@ -166,7 +166,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	elif output_label and output_label != label:
 		raise ValueError("'label' and 'output_label' are both defined and are different")
 
-	no_nesting_error = ValueError('nesting tesselations does not apply to translocation data')
+	no_nesting_error = ValueError('nesting tessellations does not apply to translocation data')
 	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, (tuple, list, frozenset, set)):
 		xyt_path = list_rwa(xyt_data)
 		if xyt_path:
@@ -269,7 +269,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	else:
 		max_probability = None
 
-	# actually useful only if no tesselation nesting
+	# actually useful only if no tessellation nesting
 	colnames = ['x', 'y']
 	if 'z' in xyt_data:
 		colnames.append('z')
@@ -277,7 +277,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		colnames.append('t')
 		scaler.factor = [('t', time_scale)]
 
-	# initialize a Tesselation object
+	# initialize a Tessellation object
 	params = dict( \
 		min_distance=min_distance, \
 		avg_distance=avg_distance, \
@@ -310,16 +310,16 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		params.update(kwargs)
 		kwargs = params
 	if input_label:
-		tess = NestedTesselations(scaler, input_partition, factory=constructor, **kwargs)
+		tess = NestedTessellations(scaler, input_partition, factory=constructor, **kwargs)
 		xyt_data = data = input_partition.points
 	else:
 		tess = constructor(scaler, **kwargs)
 		data = xyt_data[colnames]
 
-	# grow the tesselation
-	tess.tesselate(data, verbose=verbose, **kwargs)
+	# grow the tessellation
+	tess.tessellate(data, verbose=verbose, **kwargs)
 
-	# partition the dataset into the cells of the tesselation
+	# partition the dataset into the cells of the tessellation
 	if knn is None:
 		cell_index = tess.cell_index(xyt_data, min_location_count=strict_min_location_count)
 	else:
@@ -329,7 +329,7 @@ def tesselate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			min_location_count=strict_min_location_count, \
 			metric='euclidean')
 
-	stats = CellStats(cell_index, points=xyt_data, tesselation=tess)
+	stats = CellStats(cell_index, points=xyt_data, tessellation=tess)
 
 	# store some parameters together with the partition
 	stats.param['method'] = method
@@ -405,12 +405,12 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	"""
 	Partition plots.
 
-	Plots a spatial representation of the tesselation and partition if data are 2D, and optionally
+	Plots a spatial representation of the tessellation and partition if data are 2D, and optionally
 	histograms.
 
 	Arguments:
 		cells (str or CellStats):
-			Path to a *.imt.rwa* file or :class:`~tramway.tesselation.CellStats` 
+			Path to a *.imt.rwa* file or :class:`~tramway.tessellation.CellStats` 
 			instance.
 
 		xy_layer ({None, 'delaunay', 'voronoi'}):
@@ -509,10 +509,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 				if candidates:
 					imt_path = candidates[0]
 				else:
-					raise IOError('no tesselation file found in {}'.format(imt_path))
+					raise IOError('no tessellation file found in {}'.format(imt_path))
 				auto_select = True
 			if auto_select and verbose:
-				print('selecting {} as a tesselation file'.format(imt_path))
+				print('selecting {} as a tessellation file'.format(imt_path))
 
 			# load the data
 			input_file = imt_path
@@ -539,20 +539,20 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
 	# guess back some input parameters
 	method_name = {RegularMesh: ('grid', 'grid', 'regular grid'), \
-		KDTreeMesh: ('kdtree', 'k-d tree', 'k-d tree based tesselation'), \
-		KMeansMesh: ('kmeans', 'k-means', 'k-means based tesselation'), \
-		GasMesh: ('gwr', 'GWR', 'GWR based tesselation')}
+		KDTreeMesh: ('kdtree', 'k-d tree', 'k-d tree based tessellation'), \
+		KMeansMesh: ('kmeans', 'k-means', 'k-means based tessellation'), \
+		GasMesh: ('gwr', 'GWR', 'GWR based tessellation')}
 	try:
-		method_name, pp_method_name, method_title = method_name[type(cells.tesselation)]
+		method_name, pp_method_name, method_title = method_name[type(cells.tessellation)]
 	except KeyError:
 		method_name = pp_method_name = method_title = ''
 	min_distance = cells.param.get('min_distance', 0)
 	avg_distance = cells.param.get('avg_distance', None)
 	min_location_count = cells.param.get('min_location_count', 0)
 
-	# plot the data points together with the tesselation
+	# plot the data points together with the tessellation
 	figs = []
-	dim = cells.tesselation.cell_centers.shape[1]
+	dim = cells.tessellation.cell_centers.shape[1]
 	if dim == 2:
 		fig = plt.figure(figsize=figsize)
 		figs.append(fig)
@@ -625,13 +625,13 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
 	if cell_dist_hist:
 		# plot a histogram of the distance between adjacent cell centers
-		A = sparse.triu(cells.tesselation.cell_adjacency, format='coo')
+		A = sparse.triu(cells.tessellation.cell_adjacency, format='coo')
 		i, j, k = A.row, A.col, A.data
-		label = cells.tesselation.adjacency_label
+		label = cells.tessellation.adjacency_label
 		if label is not None:
 			i = i[0 < label[k]]
 			j = j[0 < label[k]]
-		pts = cells.tesselation.cell_centers
+		pts = cells.tessellation.cell_centers
 		dist = la.norm(pts[i,:] - pts[j,:], axis=1)
 		fig = plt.figure()
 		figs.append(fig)

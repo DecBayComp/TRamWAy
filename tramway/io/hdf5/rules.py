@@ -35,14 +35,14 @@ hdf5_storable(default_storable(Gas), agnostic=True)
 from tramway.spatial.graph.array import ArrayGraph
 hdf5_storable(default_storable(ArrayGraph), agnostic=True)
 
-from tramway.tesselation import CellStats, Tesselation, Delaunay, Voronoi, \
+from tramway.tessellation import CellStats, Tessellation, Delaunay, Voronoi, \
 	RegularMesh, KDTreeMesh, KMeansMesh, GasMesh, \
-	TimeLattice, NestedTesselations
+	TimeLattice, NestedTessellations
 # CellStats
 hdf5_storable(default_storable(CellStats), agnostic=True)
 # Delaunay
-tesselation_exposes = lazy_exposes + list(Tesselation.__slots__) # not a storable
-delaunay_exposes = tesselation_exposes + ['_cell_centers']
+tessellation_exposes = lazy_exposes + list(Tessellation.__slots__) # not a storable
+delaunay_exposes = tessellation_exposes + ['_cell_centers']
 hdf5_storable(default_storable(Delaunay, exposes=delaunay_exposes), agnostic=True)
 # Voronoi
 voronoi_exposes = delaunay_exposes + ['_vertices', '_vertex_adjacency', '_cell_vertices']
@@ -64,12 +64,12 @@ gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_avg_distance', '
 	'min_probability']
 hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)
 # TimeLattice
-time_lattice_exposes = tesselation_exposes + list(TimeLattice.__slots__)
+time_lattice_exposes = tessellation_exposes + list(TimeLattice.__slots__)
 hdf5_storable(default_storable(TimeLattice, exposes=time_lattice_exposes), agnostic=True)
-# NestedTesselations
-nested_tesselations_expose = tesselation_exposes + list(NestedTesselations.__slots__)#\
-#	[ _s for _s in NestedTesselations.__slots__ if _s not in ('child_factory',) ]
-hdf5_storable(default_storable(NestedTesselations, exposes=nested_tesselations_expose), agnostic=True)
+# NestedTessellations
+nested_tessellations_expose = tessellation_exposes + list(NestedTessellations.__slots__)#\
+#	[ _s for _s in NestedTessellations.__slots__ if _s not in ('child_factory',) ]
+hdf5_storable(default_storable(NestedTessellations, exposes=nested_tessellations_expose), agnostic=True)
 
 
 from tramway.inference.base import Local, Cell, Distributed

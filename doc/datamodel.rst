@@ -14,7 +14,7 @@ The term *analysis* here refers to a process that takes a single data input and 
 Artefacts are thus organized in a tree structure such that artefacts are nodes and analyses are edges.
 
 A typical *.rwa* file or :class:`~tramway.core.analyses.Analyses` object will contain an array of molecule locations or trajectories as topmost data element.
-A first level of analyses will consist of spatial tesselations (or data partitions) with resulting :class:`~tramway.tesselation.base.CellStats` partition objects (one per analysis).
+A first level of analyses will consist of spatial tessellations (or data partitions) with resulting :class:`~tramway.tessellation.base.CellStats` partition objects (one per analysis).
 A second level of analyses will consist of inferences with resulting :class:`~tramway.inference.base.Maps` map objects (again, one per analysis).
 
 Each analysis can be addressed with a label and augmented with comments.

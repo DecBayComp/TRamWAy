@@ -22,7 +22,7 @@ from scipy.spatial.distance import cdist
 
 
 class KMeansMesh(Voronoi):
-	"""K-Means and Voronoi based tesselation.
+	"""K-Means and Voronoi based tessellation.
 
 	Attributes:
 
@@ -48,7 +48,7 @@ class KMeansMesh(Voronoi):
 		if init:
 			self._min_distance = self.scaler.scale_distance(self._min_distance)
 		grid = RegularMesh(avg_probability=self.avg_probability)
-		grid.tesselate(points)
+		grid.tessellate(points)
 		self._cell_centers = grid._cell_centers
 		self.lower_bound = grid.lower_bound
 		self.upper_bound = grid.upper_bound
@@ -56,12 +56,12 @@ class KMeansMesh(Voronoi):
 		self.roi_subset_count = 10
 		return points
 
-	def tesselate(self, points, tol=1e-3, prune=True, plot=False, **kwargs):
+	def tessellate(self, points, tol=1e-3, prune=True, plot=False, **kwargs):
 		points = self._preprocess(points)
-		"""Grow the tesselation.
+		"""Grow the tessellation.
 
 		Attributes:
-			points: see :meth:`~tramway.tesselation.base.Tesselation.tesselate`.
+			points: see :meth:`~tramway.tessellation.base.Tessellation.tessellate`.
 			tol (float, optional): error tolerance. 
 				Passed as `thresh` to :func:`scipy.cluster.vq.kmeans`.
 			prune (bool, optional): prunes the Voronoi and removes the longest edges.
@@ -88,7 +88,7 @@ class KMeansMesh(Voronoi):
 				selected_vertices = np.logical_or(selected_vertices, roi.predict(self._cell_vertices) == 1)
 				self.roi.append(roi)
 			self._adjacency_label = np.ones(self._cell_adjacency.data.size, dtype=bool)
-			# copy/paste from tesselation.gas
+			# copy/paste from tessellation.gas
 			points = np.asarray(points)
 			ix = np.argmin(cdist(points, self._cell_centers), axis=1)
 			I = np.repeat(np.arange(self._cell_adjacency.indptr.size - 1), \
@@ -102,7 +102,7 @@ class KMeansMesh(Voronoi):
 						# delete link
 						self._adjacency_label[edge] = False
 					else:
-						# check just like tesselation.gas
+						# check just like tessellation.gas
 						xi = points[ix == I[edge]]
 						xj = points[ix == J[edge]]
 						if xi.size and xj.size:

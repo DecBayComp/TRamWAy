@@ -1,7 +1,7 @@
 
 import os
 import sys
-from tramway.helper import tesselate, find_imt, infer, map_plot, cell_plot
+from tramway.helper import tessellate, find_imt, infer, map_plot, cell_plot
 import warnings
 
 short_description = 'infer and plot gwr-based diffusivity and potential maps for the glycine receptor dataset'
@@ -46,7 +46,7 @@ def main(**kwargs):
 
 	output_basename, _ = os.path.splitext(local)
 
-	# determine which tesselation method
+	# determine which tessellation method
 	method = None
 	for m in methods:
 		if kwargs.get(m, False):
@@ -58,30 +58,30 @@ def main(**kwargs):
 	def out(method, extension):
 		return '{}.{}{}'.format(output_basename, method, extension)
 
-	# tesselate
-	tesselation_file = out(method, '.rwa')
-	if not os.path.isfile(tesselation_file):
-		mesh = tesselate(local, method, output_file=tesselation_file, \
+	# tessellate
+	tessellation_file = out(method, '.rwa')
+	if not os.path.isfile(tessellation_file):
+		mesh = tessellate(local, method, output_file=tessellation_file, \
 			verbose=True, strict_min_cell_size=10)
 
 	# plot locations and meshes
 	pt_size_low, pt_size_high = 8, 6
 	res_low, res_high = 200, 400
 	if kwargs.get('ll', False):
-		cell_plot(tesselation_file, output_file='gr_locations_low.png',
+		cell_plot(tessellation_file, output_file='gr_locations_low.png',
 			verbose=True, voronoi=False,
 			locations=dict(color=['k']*9999, size=pt_size_low), dpi=res_low)
 	if kwargs.get('lh', False):
-		cell_plot(tesselation_file, output_file='gr_locations_high.png',
+		cell_plot(tessellation_file, output_file='gr_locations_high.png',
 			verbose=True, voronoi=False,
 			locations=dict(color=['k']*9999, size=pt_size_high), dpi=res_high)
 	if kwargs.get('ml', False):
-		cell_plot(tesselation_file, output_file='gr_{}_low.png'.format(method),
+		cell_plot(tessellation_file, output_file='gr_{}_low.png'.format(method),
 			verbose=True, voronoi=False,
 			delaunay=dict(color='kkk', linewidth=2, centroid_style=None),
 			locations=dict(color='light', size=pt_size_low), dpi=res_low)
 	if kwargs.get('mh', False):
-		cell_plot(tesselation_file, output_file='gr_{}_high.png'.format(method),
+		cell_plot(tessellation_file, output_file='gr_{}_high.png'.format(method),
 			verbose=True,
 			delaunay=dict(color='kkk', linewidth=1, centroid_style=None),
 			voronoi=dict(color='yyyy', linewidth=.5, centroid_style=None,
@@ -102,20 +102,20 @@ def main(**kwargs):
 
 	# infer and plot maps
 	if _d:
-		D = infer(tesselation_file, mode='D', localization_error=localization_error)
+		D = infer(tessellation_file, mode='D', localization_error=localization_error)
 		map_plot(D, output_file=out(method, '.d.png'), show=True)
 
 	if _df:
-		DF = infer(tesselation_file, mode='DF', localization_error=localization_error)
+		DF = infer(tessellation_file, mode='DF', localization_error=localization_error)
 		map_plot(DF, output_file=out(method, '.df.png'), show=True, clip=.99) 
 
 	if _dd:
-		DD = infer(tesselation_file, mode='DD', localization_error=localization_error, \
+		DD = infer(tessellation_file, mode='DD', localization_error=localization_error, \
 			priorD=priorD)
 		map_plot(DD, output_file=out(method, '.dd.png'), show=True)
 
 	if _dv:
-		DV = infer(tesselation_file, mode='DV', localization_error=localization_error, \
+		DV = infer(tessellation_file, mode='DV', localization_error=localization_error, \
 			priorD=priorD, priorV=priorV)
 		map_plot(DV, output_file=out(method, '.dv.png'), show=True)
 

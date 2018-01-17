@@ -20,7 +20,7 @@ from copy import deepcopy
 import scipy.sparse as sparse
 from scipy.spatial.distance import cdist
 from ..core import *
-from ..tesselation import dict_to_sparse
+from ..tessellation import dict_to_sparse
 
 
 def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None):
@@ -33,7 +33,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 		npts = points.shape[0]
 		ncells = cells.location_count.size
 		# if label is not a single index vector, convert it following 
-		# tesselation.base.Delaunay.cellIndex with `prefered`='force index'.
+		# tessellation.base.Delaunay.cellIndex with `prefered`='force index'.
 		if isinstance(label, tuple):
 			label = sparse.csr_matrix((np.ones_like(label[0], dtype=bool), \
 				label), shape=(npts, ncells))
@@ -54,7 +54,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 				allright_points = 1 == cell_count_per_point # bool
 				allright_cells = label[allright_points].indices # indices
 				#_, allright_cells = label[allright_points,:].nonzero()
-				if cells.tesselation is None:
+				if cells.tessellation is None:
 					# to compute again the point-center distance matrix first estimate
 					# cell centers as the centers of gravity of the associated points
 					cell_centers = np.zeros((ncells, points.shape[1]),
@@ -66,7 +66,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 							jj = affected_points[j]
 							cell_centers[i] = np.mean(points[jj], axis=0)
 				else:
-					cell_centers = cells.tesselation.cell_centers
+					cell_centers = cells.tessellation.cell_centers
 				spmat = label
 				label = -np.ones(npts, dtype=int)
 				label[allright_points] = allright_cells
@@ -118,28 +118,28 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 
 def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
 		linewidth=1):
-	vertices = cells.tesselation.vertices
-	labels, color = _graph_theme(cells.tesselation, labels, color, negative)
+	vertices = cells.tessellation.vertices
+	labels, color = _graph_theme(cells.tessellation, labels, color, negative)
 	color += 'w'
 	try:
-		special_edges = cells.tesselation.candidate_edges
+		special_edges = cells.tessellation.candidate_edges
 		#points = cells.descriptors(cells.points, asarray=True)
 	except:
 		special_edges = {}
-	c = 0 # if cells.tesselation.adjacency_label is None
+	c = 0 # if cells.tessellation.adjacency_label is None
 	# plot voronoi
 	#plt.plot(vertices[:,0], vertices[:,1], 'b+')
-	if cells.tesselation.adjacency_label is not None or special_edges:
-		n_cells = cells.tesselation._cell_centers.shape[0]
+	if cells.tessellation.adjacency_label is not None or special_edges:
+		n_cells = cells.tessellation._cell_centers.shape[0]
 		n_vertices = vertices.shape[0]
-		cell_vertex = dict_to_sparse(cells.tesselation.cell_vertices, \
+		cell_vertex = dict_to_sparse(cells.tessellation.cell_vertices, \
 				shape=(n_cells, n_vertices)).tocsc()
-		adjacency = cells.tesselation.cell_adjacency.tocsr()
-	Av = sparse.tril(cells.tesselation.vertex_adjacency, format='coo')
+		adjacency = cells.tessellation.cell_adjacency.tocsr()
+	Av = sparse.tril(cells.tessellation.vertex_adjacency, format='coo')
 	d2 = np.sum((vertices[Av.row[0]] - vertices[Av.col[0]])**2)
 	for u, v in zip(Av.row, Av.col):
 		x, y = vertices[[u, v]].T
-		if cells.tesselation.adjacency_label is not None or special_edges:
+		if cells.tessellation.adjacency_label is not None or special_edges:
 			try:
 				a, b = set(cell_vertex[:,u].indices) & set(cell_vertex[:,v].indices)
 				# adjacency may contain explicit zeros
@@ -150,9 +150,9 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 				print(traceback.format_exc())
 				print("vertices {} and {} do not match with a ridge".format(u, v))
 				continue
-		if cells.tesselation.adjacency_label is not None:
+		if cells.tessellation.adjacency_label is not None:
 			try:
-				c = labels.index(cells.tesselation.adjacency_label[edge_ix])
+				c = labels.index(cells.tessellation.adjacency_label[edge_ix])
 			except ValueError:
 				continue
 		plt.plot(x, y, style, color=color[c], linewidth=linewidth)
@@ -173,7 +173,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 			plt.text(x_, y_, str(edge_ix), \
 				horizontalalignment='center', verticalalignment='center')
 
-	centroids = cells.tesselation.cell_centers
+	centroids = cells.tessellation.cell_centers
 	# plot cell centers
 	if centroid_style:
 		plt.plot(centroids[:,0], centroids[:,1], centroid_style)
@@ -187,21 +187,21 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 	if axes is None:
 		axes = plt
 	try:
-		tesselation = cells.tesselation
+		tessellation = cells.tessellation
 	except AttributeError:
-		tesselation = cells
+		tessellation = cells
 
-	vertices = tesselation.cell_centers
+	vertices = tessellation.cell_centers
 	if negative is 'voronoi':
-		voronoi = tesselation.cell_vertices
+		voronoi = tessellation.cell_vertices
 
-	labels, color = _graph_theme(tesselation, labels, color, negative)
+	labels, color = _graph_theme(tessellation, labels, color, negative)
 
 	# if asymetric, can be either triu or tril
-	A = sparse.triu(tesselation.cell_adjacency, format='coo')
+	A = sparse.triu(tessellation.cell_adjacency, format='coo')
 	I, J, K = A.row, A.col, A.data
 	if not I.size:
-		A = sparse.tril(tesselation.cell_adjacency, format='coo')
+		A = sparse.tril(tessellation.cell_adjacency, format='coo')
 		I, J, K = A.row, A.col, A.data
 
 	# plot delaunay
@@ -211,7 +211,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 		if labels is None:
 			c = 0
 		else:
-			label = tesselation.adjacency_label[k]
+			label = tessellation.adjacency_label[k]
 			try:
 				c = labels.index(label)
 			except ValueError:
@@ -219,7 +219,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 			if label <= 0:
 				if negative is 'voronoi':
 					try:
-						vert_ids = set(tesselation.cell_vertices.get(i, [])) & set(tesselation.cell_vertices.get(j, []))
+						vert_ids = set(tessellation.cell_vertices.get(i, [])) & set(tessellation.cell_vertices.get(j, []))
 						x, y = voronoi[vert_ids].T
 					except ValueError:
 						continue

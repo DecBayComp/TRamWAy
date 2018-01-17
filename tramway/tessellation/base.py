@@ -29,9 +29,9 @@ import copy
 
 
 class CellStats(Lazy):
-	"""Container datatype for a point dataset together with a tesselation.
+	"""Container datatype for a point dataset together with a tessellation.
 
-	A `CellStats` instance conveniently stores the tesselation (:attr:`tesselation`) and the 
+	A `CellStats` instance conveniently stores the tessellation (:attr:`tessellation`) and the 
 	partition of the data (:attr:`cell_index`) together with the data itself (:attr:`points`) and 
 	a few more intermediate results frequently derivated from a data partition.
 
@@ -57,7 +57,7 @@ class CellStats(Lazy):
 		point indices are row indices and NOT row labels (see also :attr:`~pandas.DataFrame.iloc`).
 
 
-	See also :meth:`Tesselation.cell_index`.
+	See also :meth:`Tessellation.cell_index`.
 
 
 	Attributes:
@@ -68,8 +68,8 @@ class CellStats(Lazy):
 		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
 			Point-cell association (or data partition).
 
-		tesselation (Tesselation):
-			The tesselation that defined the partition.
+		tessellation (Tessellation):
+			The tessellation that defined the partition.
 
 		location_count (numpy.ndarray, lazy):
 			point count per cell; ``location_count[i]`` is the number of 
@@ -80,35 +80,35 @@ class CellStats(Lazy):
 			where ``D`` is the dimension of the point data.
 
 		param (dict):
-			Arguments involved in the tesselation and the partition steps, as key-value 
-			pairs. Such information is maintained in :class:`~tramway.tesselation.CellStats`
+			Arguments involved in the tessellation and the partition steps, as key-value 
+			pairs. Such information is maintained in :class:`~tramway.tessellation.CellStats`
 			so that it can be stored in *.rwa* files and retrieve for traceability.
 
 	Functional dependencies:
 
-	* setting `tesselation` unsets `cell_index`
+	* setting `tessellation` unsets `cell_index`
 	* setting `points` unsets `cell_index` and `bounding_box`
 	* setting `cell_index` unsets `location_count`
 
 	"""
 
-	__slots__ = ('_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tesselation')
+	__slots__ = ('_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tessellation')
 	__lazy__ = ('location_count', 'bounding_box')
 
 	def __init__(self, cell_index=None, location_count=None, bounding_box=None, points=None, \
-		tesselation=None, param={}):
+		tessellation=None, param={}):
 		Lazy.__init__(self)
 		self._points = points
 		self.cell_index = cell_index
 		self._location_count = location_count
 		self._bounding_box = bounding_box
 		self.param = param
-		self._tesselation = tesselation
+		self._tessellation = tessellation
 
 	@property
 	def cell_index(self):
 		if self._cell_index is None:
-			self._cell_index = self.tesselation.cell_index(self.points)
+			self._cell_index = self.tessellation.cell_index(self.points)
 		return self._cell_index
 
 	@cell_index.setter
@@ -127,22 +127,22 @@ class CellStats(Lazy):
 		self.bounding_box = None
 
 	@property
-	def tesselation(self):
-		return self._tesselation
+	def tessellation(self):
+		return self._tessellation
 
-	@tesselation.setter
-	def tesselation(self, mesh):
-		self._tesselation = mesh
+	@tessellation.setter
+	def tessellation(self, mesh):
+		self._tessellation = mesh
 		self.cell_index = None
 
 	def descriptors(self, *vargs, **kwargs):
-		"""Proxy method for :meth:`Tesselation.descriptors`."""
-		return self.tesselation.descriptors(*vargs, **kwargs)
+		"""Proxy method for :meth:`Tessellation.descriptors`."""
+		return self.tessellation.descriptors(*vargs, **kwargs)
 
 	@property
 	def location_count(self):
 		if self._location_count is None:
-			ncells = self.tesselation._cell_centers.shape[0]
+			ncells = self.tessellation._cell_centers.shape[0]
 			if isinstance(self.cell_index, tuple):
 				ci = sparse.csr_matrix((np.ones_like(self.cell_index[0], dtype=bool), \
 					self.cell_index), \
@@ -192,7 +192,7 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 		K (any): original point-cell association representation.
 
 		format (str): either *array*, *pair*, *matrix*, *coo*, *csr* or *csc*.
-			See also :meth:`Tesselation.cell_index`.
+			See also :meth:`Tessellation.cell_index`.
 
 		select (callable): called only if ``format == 'array'`` and points are
 			associated to multiple cells; `select` takes the point index
@@ -209,7 +209,7 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 
 		any: point-cell association in the requested format.
 
-	See also :meth:`Tesselation.cell_index` and :func:`nearest_cell`.
+	See also :meth:`Tessellation.cell_index` and :func:`nearest_cell`.
 	"""
 	if isinstance(K, np.ndarray) and format not in [None, 'array']:
 		K = (np.arange(K.size), K)
@@ -284,8 +284,8 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
 	Arguments:
 
-		cells (tramway.tesselation.CellStats):
-			CellStats with both partition and tesselation defined.
+		cells (tramway.tessellation.CellStats):
+			CellStats with both partition and tessellation defined.
 
 		symetric (bool):
 			If ``False``, the returned matrix will not be symetric, i.e. wherever i->j is
@@ -293,12 +293,12 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
 		cell_labels (callable):
 			Takes an array of cell labels as input 
-			(see :attr:`Tesselation.cell_label`)
+			(see :attr:`Tessellation.cell_label`)
 			and returns a bool array of equal shape.
 
 		adjacency_labels (callable):
 			Takes an array of edge labels as input 
-			(see :attr:`Tesselation.adjacency_label`) 
+			(see :attr:`Tessellation.adjacency_label`) 
 			and returns a bool array of equal shape.
 
 	Returns:
@@ -317,10 +317,10 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 	J = []
 	D = []
 	n = []
-	for i in np.arange(cells.tesselation.cell_adjacency.shape[0]):
-		if cell_labels is not None and not cell_labels(cells.tesselation.cell_label[i]):
+	for i in np.arange(cells.tessellation.cell_adjacency.shape[0]):
+		if cell_labels is not None and not cell_labels(cells.tessellation.cell_label[i]):
 			continue
-		_, js, k = sparse.find(cells.tesselation.cell_adjacency[i])
+		_, js, k = sparse.find(cells.tessellation.cell_adjacency[i])
 		if js.size == 0:
 			continue
 		# the upper triangular part of the adjacency matrix should be defined...
@@ -329,13 +329,13 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 		if js.size == 0:
 			continue
 		if adjacency_labels is not None:
-			if cells.tesselation.adjacency_label is not None:
-				k = cells.tesselation.adjacency_label
+			if cells.tessellation.adjacency_label is not None:
+				k = cells.tessellation.adjacency_label
 			js = js[adjacency_labels(k)]
 			if js.size == 0:
 				continue
 		if cell_labels is not None:
-			js = js[cell_labels(cells.tesselation.cell_label[js])]
+			js = js[cell_labels(cells.tessellation.cell_label[js])]
 			if js.size == 0:
 				continue
 		ii = ij[cells.cell_index == i]
@@ -362,10 +362,10 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
 
 
-class Tesselation(Lazy):
-	"""Abstract class for tesselations.
+class Tessellation(Lazy):
+	"""Abstract class for tessellations.
 
-	The methods to be implemented are :meth:`tesselate` and :meth:`cell_index`.
+	The methods to be implemented are :meth:`tessellate` and :meth:`cell_index`.
 
 	Attributes:
 		scaler (Scaler): scaler.
@@ -414,9 +414,9 @@ class Tesselation(Lazy):
 			else:	self.scaler.euclidean = np.arange(0, points.shape[1])
 		return self.scaler.scale_point(points)
 
-	def tesselate(self, points, **kwargs):
+	def tessellate(self, points, **kwargs):
 		"""
-		Grow the tesselation.
+		Grow the tessellation.
 
 		Arguments:
 			points (array-like): point coordinates.
@@ -450,7 +450,7 @@ class Tesselation(Lazy):
 		chooses a single cell among them.
 
 		The default implementation calls :func:`format_cell_index` on the result of an
-		abstract `_cell_index` method that any :class:`Tesselation` implementation can
+		abstract `_cell_index` method that any :class:`Tessellation` implementation can
 		implement instead of :meth:`cell_index`.
 
 		See also :func:`format_cell_index`.
@@ -462,7 +462,7 @@ class Tesselation(Lazy):
 				(or partition).
 
 			select (callable): takes the point index, an array of cell indices and the 
-				tesselation as arguments, and returns a cell index or ``-1`` for no cell.
+				tessellation as arguments, and returns a cell index or ``-1`` for no cell.
 
 		"""
 		point_count = points.shape[0]
@@ -523,7 +523,7 @@ class Tesselation(Lazy):
 			shape=adjacency.shape)
 
 	def descriptors(self, points, asarray=False):
-		"""Keep the data columns that were involved in growing the tesselation.
+		"""Keep the data columns that were involved in growing the tessellation.
 
 		Arguments:
 			points (array-like): point coordinates.
@@ -550,7 +550,7 @@ class Tesselation(Lazy):
 
 
 
-class Delaunay(Tesselation):
+class Delaunay(Tessellation):
 	"""
 	Delaunay graph.
 
@@ -563,30 +563,30 @@ class Delaunay(Tesselation):
 		_cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
 	"""
 	def __init__(self, scaler=None):
-		Tesselation.__init__(self, scaler)
+		Tessellation.__init__(self, scaler)
 		self._cell_centers = None
 
-	def tesselate(self, points):
+	def tessellate(self, points):
 		self._cell_centers = self._preprocess(points)
 
 	def cell_index(self, points, format=None, select=None, knn=None,
 		min_location_count=None, metric='euclidean', **kwargs):
 		"""
-		See :meth:`Tesselation.cell_index`.
+		See :meth:`Tessellation.cell_index`.
 
 		A single array representation of the point-cell association may not be possible with
 		`knn` defined, because a point can be associated to multiple cells. If such
 		a case happens the default output format will be *pair*.
 
-		In addition to the values allowed by :meth:`Tesselation.cell_index`, `format` admits
+		In addition to the values allowed by :meth:`Tessellation.cell_index`, `format` admits
 		value *force array* that acts like ``format='array', select=nearest_cell(...)``.
 		The implementation however is more straight-forward and simply ignores 
 		the minimum number of nearest neighbours if provided.
 
 		Arguments:
-			points: see :meth:`Tesselation.cell_index`.
-			format: see :meth:`Tesselation.cell_index`; additionally admits *force array*.
-			select: see :meth:`Tesselation.cell_index`.
+			points: see :meth:`Tessellation.cell_index`.
+			format: see :meth:`Tessellation.cell_index`; additionally admits *force array*.
+			select: see :meth:`Tessellation.cell_index`.
 			knn (int or pair of ints, optional):
 				minimum number of points per cell (or of nearest neighbors to the cell 
 				center). Cells may overlap and the returned cell index may be a sparse 
@@ -600,7 +600,7 @@ class Delaunay(Tesselation):
 				do not change.
 
 		Returns:
-			see :meth:`Tesselation.cell_index`.
+			see :meth:`Tessellation.cell_index`.
 
 		"""
 		if self._cell_centers.size == 0:
@@ -783,7 +783,7 @@ class Voronoi(Delaunay):
 		or :attr:`cell_vertices`.
 		"""
 		if self._cell_centers is None:
-			raise NameError('`cell_centers` not defined; tesselation has not been grown yet')
+			raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
 		else:
 			voronoi = spatial.Voronoi(np.asarray(self._cell_centers))
 			self._vertices = voronoi.vertices
@@ -838,7 +838,7 @@ class RegularMesh(Voronoi):
 		self.avg_probability = avg_probability
 		self._diagonal_adjacency = None
 
-	def tesselate(self, points, **kwargs):
+	def tessellate(self, points, **kwargs):
 		points = self._preprocess(points)
 		if self.lower_bound is None:
 	 		self.lower_bound = points.min(axis=0)

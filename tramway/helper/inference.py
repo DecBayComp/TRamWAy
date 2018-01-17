@@ -18,7 +18,7 @@ from tramway.core import lightcopy
 from tramway.inference import *
 from tramway.plot.map import *
 from tramway.helper.analysis import *
-from tramway.helper.tesselation import *
+from tramway.helper.tessellation import *
 from rwa import *
 from rwa.storable import *
 import matplotlib.pyplot as plt
@@ -50,7 +50,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 		output_file (str): desired path for the output map file
 
-		partition (dict): keyword arguments for :func:`~tramway.helper.tesselation.find_partition`
+		partition (dict): keyword arguments for :func:`~tramway.helper.tessellation.find_partition`
 			if `cells` is a path
 
 		verbose (bool or int): verbosity level
@@ -79,7 +79,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore 
 			`max_cell_count` and `dilation`
 
-		input_label (list): label path to the input :class:`~tramway.tesselation.base.Tesselation`
+		input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
 			object in `cells` if the latter is an `Analyses` or filepath
 
 		output_label (str): label for the resulting analysis instance
@@ -331,7 +331,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		aspect (float or str): aspect ratio or *'equal'*
 
-		cells (CellStats or Tesselation): mesh
+		cells (CellStats or Tessellation): mesh
 
 		mode (str): inference mode
 

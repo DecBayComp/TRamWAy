@@ -17,7 +17,7 @@ from rwa import *
 from rwa.generic import kwarg_storable
 import sys
 
-hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.spatial', 'tramway.tesselation', \
+hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.spatial', 'tramway.tessellation', \
 	'tramway.inference']
 
 if sys.version_info[0] < 3:
@@ -50,7 +50,7 @@ def poke_maps(store, objname, self, container, visited=None, legacy=False):
 		store.poke('maps', self.maps, sub_container, visited=visited)
 		del attrs['maps']
 	deprecated = {}
-	for a in ('distributed_translocations','partition_file','tesselation_param','version'):
+	for a in ('distributed_translocations','partition_file','tessellation_param','version'):
 		deprecated[a] = attrs.pop(a, None)
 	for a in attrs:
 		if attrs[a] is not None:

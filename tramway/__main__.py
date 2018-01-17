@@ -20,7 +20,7 @@ except ImportError:
 import sys
 from .helper import *
 from .feature import *
-import tramway.tesselation.plugins as tesselation
+import tramway.tessellation.plugins as tessellation
 
 
 def _parse_args(args):
@@ -51,7 +51,7 @@ def _render_cells(args):
 	sys.exit(0)
 
 
-def _tesselate(args):
+def _tessellate(args):
 	input_file, kwargs = _parse_args(args)
 	output_file = kwargs.pop('output', None)
 	scaling = kwargs.pop('w', None)
@@ -71,7 +71,7 @@ def _tesselate(args):
 		del kwargs['method']
 	elif kwargs['method'] == 'kdtree' and min_nn is not None:
 		kwargs['metric'] = 'euclidean'
-	tesselate(input_file, output_file=output_file, \
+	tessellate(input_file, output_file=output_file, \
 		avg_location_count=avg_location_count, max_level=max_level, \
 		knn=knn, **kwargs)
 	sys.exit(0)
@@ -92,7 +92,7 @@ def _sample(method, parse_extra=None):
 			for extra_arg, parse_arg in parse_extra:
 				kwargs[extra_arg] = parse_arg(**kwargs)
 		kwargs = { kw: arg for kw, arg in kwargs.items() if arg is not None }
-		tesselate(input_file, output_file=output_file, method=method, **kwargs)
+		tessellate(input_file, output_file=output_file, method=method, **kwargs)
 		sys.exit(0)
 	return sample
 
@@ -171,16 +171,16 @@ def main():
 		description="type '%(prog)s command --help' for additional help")
 
 
-	# tesselate
+	# tessellate
 	try:
-		tesselate_parser = sub.add_parser('sample', aliases=['tesselate'])
+		tessellate_parser = sub.add_parser('sample', aliases=['tessellate'])
 	except TypeError: # Py2
-		tesselate_parser = sub.add_parser('sample')
-	tsub = tesselate_parser.add_subparsers(title='methods', \
+		tessellate_parser = sub.add_parser('sample')
+	tsub = tessellate_parser.add_subparsers(title='methods', \
 		description="type '%(prog)s sample method --help' for additional help about method")
-	for method in tesselation.all_plugins:
+	for method in tessellation.all_plugins:
 		method_parser = tsub.add_parser(method)
-		setup, _ = tesselation.all_plugins[method]
+		setup, _ = tessellation.all_plugins[method]
 		short_args = short_options(setup.get('make_arguments', {}))
 		for short_arg, long_arg, kwargs in global_arguments:
 			dest = short_arg[1:] + 'post'
@@ -202,7 +202,7 @@ def main():
 		method_group.add_argument('-w', action='store_true', help='whiten the input data')
 		method_group.add_argument('--scaling', choices=['whiten', 'unit'])
 		method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
-			help='minimum number of locations per cell; this affects the tesselation only and not directly the partition; see --knn for a partition-related parameter')
+			help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn for a partition-related parameter')
 		translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
 		method_parser.set_defaults(func=_sample(method, translations))
 

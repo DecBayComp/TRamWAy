@@ -19,7 +19,7 @@ from .gas import *
 from .time import *
 from .nesting import *
 
-__all__ = ['CellStats', 'point_adjacency_matrix', 'Tesselation', 'Delaunay', 'Voronoi', \
+__all__ = ['CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
 	'RegularMesh', 'KDTreeMesh', 'KMeansMesh', 'GasMesh', 'dict_to_sparse', 'sparse_to_dict', \
-	'TimeLattice', 'NestedTesselations']
+	'TimeLattice', 'NestedTessellations']
 

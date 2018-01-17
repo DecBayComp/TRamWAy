@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import numpy.ma as ma
 from tramway.core.exceptions import NaNWarning
-from tramway.tesselation import *
+from tramway.tessellation import *
 from tramway.inference import Distributed
 from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
@@ -51,19 +51,19 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 				if region[1:]:
 					vertices = voronoi.vertices[region]
 					polygons.append(Polygon(vertices, True))
-	elif isinstance(cells, CellStats) and isinstance(cells.tesselation, Voronoi):
-		Av = cells.tesselation.vertex_adjacency.tocsr()
-		xy = cells.tesselation.cell_centers
+	elif isinstance(cells, CellStats) and isinstance(cells.tessellation, Voronoi):
+		Av = cells.tessellation.vertex_adjacency.tocsr()
+		xy = cells.tessellation.cell_centers
 		ix = np.arange(xy.shape[0])
 		ok = 0 < cells.location_count
 		for i in ix[ok]:
-			vs = cells.tesselation.cell_vertices[i]
+			vs = cells.tessellation.cell_vertices[i]
 			# order the vertices so that they draw a polygon
 			v = vs[0]
 			vs = set(list(vs))
 			vertices = []
 			while True:
-				vertices.append(cells.tesselation.vertices[v])
+				vertices.append(cells.tessellation.vertices[v])
 				vs.remove(v)
 				ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
 				if not ws:
@@ -152,17 +152,17 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
 	# compute the distance between adjacent cell centers
 	if isinstance(cells, Distributed):
 		A = cells.adjacency
-	elif isinstance(cells, CellStats) and isinstance(cells.tesselation, Delaunay):
-		A = cells.tesselation.cell_adjacency
+	elif isinstance(cells, CellStats) and isinstance(cells.tessellation, Delaunay):
+		A = cells.tessellation.cell_adjacency
 	A = sparse.triu(A, format='coo')
 	I, J = A.row, A.col
 	if isinstance(cells, Distributed):
 		pts_i = np.stack([ cells.cells[i].center for i in I ])
 		pts_j = np.stack([ cells.cells[j].center for j in J ])
 	elif isinstance(cells, CellStats):
-		assert isinstance(cells.tesselation, Tesselation)
-		pts_i = cells.tesselation.cell_centers[I]
-		pts_j = cells.tesselation.cell_centers[J]
+		assert isinstance(cells.tessellation, Tessellation)
+		pts_i = cells.tessellation.cell_centers[I]
+		pts_j = cells.tessellation.cell_centers[J]
 	dist = la.norm(pts_i - pts_j, axis=1)
 	# scale force amplitude
 	scale = np.nanmedian(force_amplitude)
@@ -176,7 +176,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
 	markers = []
 	for i in values.index:
 		try:
-			center = cells.tesselation.cell_centers[i]
+			center = cells.tessellation.cell_centers[i]
 		except AttributeError:
 			center = cells.cells[i].center
 		radius = force_amplitude[i]

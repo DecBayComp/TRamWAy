@@ -13,15 +13,15 @@ A preliminary processing step before generating maps consists of segmentating sp
 
 At this stage, |tramway| distinguishes between several entities.
 
-	Tesselation and point-cell association
-		The tesselation that can be viewed as a graph of cells such that an edge is indicative of a neighborhood relationship between the connected cells. 
-		A tesselation may be grown from the data and is formaly represented as a separate entity.
-		These data are maintained together in such a collection so that the tesselation can be edited with some features that may not necessary while - for example - performing the inference.
-		See also the :class:`~tramway.tesselation.CellStats` datatype.
+	Tessellation and point-cell association
+		The tessellation that can be viewed as a graph of cells such that an edge is indicative of a neighborhood relationship between the connected cells. 
+		A tessellation may be grown from the data and is formaly represented as a separate entity.
+		These data are maintained together in such a collection so that the tessellation can be edited with some features that may not necessary while - for example - performing the inference.
+		See also the :class:`~tramway.tessellation.CellStats` datatype.
 
 	Dynamic parameters map
 		The dataset is prepared again for the inference so that each cell is reified and can contain both the corresponding locations/translocations and physical parameters.
-		The graphical structure of the tesselation is also reflected at this stage in a simplified form so that implementing the inference is made easier.
+		The graphical structure of the tessellation is also reflected at this stage in a simplified form so that implementing the inference is made easier.
 		See also the :class:`~tramway.inference.Distributed`.
 
 

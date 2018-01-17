@@ -78,18 +78,18 @@ class ContourEditor(object):
 	@property
 	def cell_centers(self):
 		if self._cell_centers is None:
-			self._cell_centers = self.cells.tesselation.cell_centers
+			self._cell_centers = self.cells.tessellation.cell_centers
 		return self._cell_centers
 
 	@property
 	def cell_adjacency(self):
 		if self._cell_adjacency is None:
-			self._cell_adjacency = self.cells.tesselation.simplified_adjacency().tocsr()
+			self._cell_adjacency = self.cells.tessellation.simplified_adjacency().tocsr()
 		return self._cell_adjacency
 
 	@property
 	def cell_count(self):
-		return self.cells.tesselation.cell_adjacency.shape[0]
+		return self.cells.tessellation.cell_adjacency.shape[0]
 
 	@property
 	def cells(self):
@@ -108,7 +108,7 @@ class ContourEditor(object):
 	def dilation_adjacency(self):
 		if self._dilation_adjacency is None:
 			try:
-				self._dilation_adjacency = self.cells.tesselation.diagonal_adjacency
+				self._dilation_adjacency = self.cells.tessellation.diagonal_adjacency
 			except AttributeError:
 				self._dilation_adjacency = False
 		if self._dilation_adjacency is False:
@@ -218,7 +218,7 @@ class ContourEditor(object):
 			s = self.step
 		if 0 < s and self.cells is not None:
 			try:
-				cs, ok = self.cells.tesselation.contour(c, s, fallback=True,
+				cs, ok = self.cells.tessellation.contour(c, s, fallback=True,
 						adjacency=self.cell_adjacency,
 						debug=self.debug, cells=self.cells)
 			except:
@@ -294,7 +294,7 @@ class ContourEditor(object):
 			pt = pd.DataFrame(data=pt, columns=coord_names)
 		elif isstructured(self.cells.points):
 			raise NotImplementedError
-		ix = self.cells.tesselation.cell_index(pt)
+		ix = self.cells.tessellation.cell_index(pt)
 		return ix[0]
 
 	def field(self, cs):
@@ -310,17 +310,17 @@ class ContourEditor(object):
 			return self.sum(field, tangent, area)
 
 	def tangent(self, cs):
-		X = self.cells.tesselation.cell_centers
+		X = self.cells.tessellation.cell_centers
 		uvw = zip([cs[-1]]+cs[:-1], cs, cs[1:]+[cs[0]])
 		return np.vstack([ (X[w]-X[u])*.5 for u, v, w in uvw ])
 
 	def surface_area(self, contour, inner):
 		if self._areas is None:
-			ncells = self.cells.tesselation.cell_adjacency.shape[0]
-			centers = self.cells.tesselation.cell_centers
-			vertices = self.cells.tesselation.cell_vertices
-			adjacency = self.cells.tesselation.vertex_adjacency.tocsr()
-			vert_coords = self.cells.tesselation.vertices
+			ncells = self.cells.tessellation.cell_adjacency.shape[0]
+			centers = self.cells.tessellation.cell_centers
+			vertices = self.cells.tessellation.cell_vertices
+			adjacency = self.cells.tessellation.vertex_adjacency.tocsr()
+			vert_coords = self.cells.tessellation.vertices
 			self._areas = np.zeros(ncells)
 			for c in range(ncells):
 				u = centers[c]

@@ -101,7 +101,7 @@ class TestTesselation(object):
 		self.tmpdir, self.datadir = tmpdir, datadir
 		numpy.random.seed(seed)
 		input_file = self.xytfile()
-		status = execute('{} -m tramway sample -m {} -i {}', sys.executable, cmd, input_file)
+		status = execute('{} -m tramway sample {} -i {}', sys.executable, cmd, input_file)
 		assert status == 0
 		output_file = '{}.rwa'.format(os.path.splitext(input_file)[0])
 		assert os.path.isfile(output_file)

@@ -25,7 +25,7 @@ import time
 
 
 class GasMesh(Voronoi):
-	"""GWR based tesselation.
+	"""GWR based tessellation.
 
 	Attributes:
 		gas (:class:`~tramway.spatial.gas.Gas`):
@@ -82,13 +82,13 @@ class GasMesh(Voronoi):
 				self.gas.collapse_below = self._min_distance# * 0.9
 		return points
 
-	def tesselate(self, points, pass_count=(), residual_factor=.7, error_count_tol=5e-3, \
+	def tessellate(self, points, pass_count=(), residual_factor=.7, error_count_tol=5e-3, \
 		min_growth=1e-4, collapse_tol=.01, stopping_criterion=0, verbose=False, \
 		plot=False, alpha_risk=1e-15, **kwargs):
-		"""Grow the tesselation.
+		"""Grow the tessellation.
 
 		Arguments:
-			points: see :meth:`~tramway.tesselation.Tesselation.tesselate`.
+			points: see :meth:`~tramway.tessellation.Tessellation.tessellate`.
 			pass_count (float or pair of floats): 
 				number of points to sample (with replacement) from data `points`, as
 				a multiple of the size of the data.
@@ -111,7 +111,7 @@ class GasMesh(Voronoi):
 				are compared with a t-test
 
 		Returns:
-			See :meth:`~tramway.tesselation.Tesselation.tesselate`.
+			See :meth:`~tramway.tessellation.Tessellation.tessellate`.
 
 		See also:
 			:class:`tramway.spatial.gas.Gas` and 

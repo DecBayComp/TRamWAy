@@ -13,10 +13,10 @@
 
 
 from .analysis import *
-from .tesselation import *
+from .tessellation import *
 from .inference import *
 
 #__all__ = ['UseCaseWarning', 'IgnoredInputWarning', 'hdf_extensions', 'imt_extensions', 'fig_formats', \
-#	'tesselate', 'cell_plot', 'find_imt', \
+#	'tessellate', 'cell_plot', 'find_imt', \
 #	'infer', 'map_plot']
 

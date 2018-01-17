@@ -399,9 +399,10 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 
 		tuple: matching data elements/artefacts.
 
-	Example:
+	Example::
 
 		cells, maps = find_artefacts(analyses, (CellStats, Maps))
+
 	"""
 	# filters
 	if not isinstance(filters, (tuple, list)):

@@ -13,7 +13,7 @@
 
 
 from tramway.core import *
-from tramway.tesselation import CellStats, Voronoi, KMeansMesh
+from tramway.tessellation import CellStats, Voronoi, KMeansMesh
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -430,7 +430,7 @@ class Distributed(Local):
 						avg_probability = min(float(max_cell_count) / \
 							float(points.shape[0]), avg_probability)
 					grid = KMeansMesh(avg_probability=avg_probability)
-					grid.tesselate(points[ok])
+					grid.tessellate(points[ok])
 			else:
 				grid = Voronoi()
 				grid.cell_centers = cell_centers
@@ -786,7 +786,7 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 		# `new` is for backward compatibility
 		new_mesh = new
 	if fuzzy is None:
-		def f(tesselation, cell, initial_point, final_point,
+		def f(tessellation, cell, initial_point, final_point,
 				initial_cell=None, final_cell=None, get_point=None):
 			## example handling:
 			#j = np.logical_or(initial_cell == cell, final_cell == cell)
@@ -803,14 +803,14 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 		fuzzy = f
 	if isinstance(cells, CellStats):
 		# simplify the adjacency matrix
-		if cells.tesselation.adjacency_label is None:
+		if cells.tessellation.adjacency_label is None:
 			try:
-				_adjacency = cells.tesselation.cell_adjacency.tocsr(True)
+				_adjacency = cells.tessellation.cell_adjacency.tocsr(True)
 			except TypeError: # "TypeError: tocsr() takes exactly 1 argument (2 given)"??
-				_adjacency = cells.tesselation.cell_adjacency.tocsr()
+				_adjacency = cells.tessellation.cell_adjacency.tocsr()
 		else:
-			_adjacency = cells.tesselation.cell_adjacency.tocoo()
-			ok = 0 < cells.tesselation.adjacency_label[_adjacency.data]
+			_adjacency = cells.tessellation.cell_adjacency.tocoo()
+			ok = 0 < cells.tessellation.adjacency_label[_adjacency.data]
 			row, col = _adjacency.row[ok], _adjacency.col[ok]
 			data = np.ones(np.count_nonzero(ok)) # the values do not matter
 			_adjacency = sparse.csr_matrix((data, (row, col)), \
@@ -842,7 +842,7 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 		# build every cells
 		_cells = OrderedDict()
 		for j in range(ncells): # for each cell
-			i = fuzzy(cells.tesselation, j,
+			i = fuzzy(cells.tessellation, j,
 				initial_point, final_point, initial_cell, final_cell, get_point,
 				**fuzzy_kwargs)
 			if i.dtype in (bool, np.bool, np.bool8, np.bool_):
@@ -856,12 +856,12 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 			__origin.index += 1
 			translocations = _destination - __origin
 			try:
-				center = cells.tesselation.cell_centers[j]
+				center = cells.tessellation.cell_centers[j]
 			except AttributeError:
 				center = span = None
 			else:
 				adj = _adjacency[j].indices
-				span = cells.tesselation.cell_centers[adj] - center
+				span = cells.tessellation.cell_centers[adj] - center
 			#if translocations.size:
 			# make cell object
 			_cells[j] = new_cell(j, translocations, center, span, **new_cell_kwargs)
@@ -906,7 +906,7 @@ class Maps(object):
 		self.extra_args = None
 		self.distributed_translocations = None # legacy attribute
 		self.partition_file = None # legacy attribute
-		self.tesselation_param = None # legacy attribute
+		self.tessellation_param = None # legacy attribute
 		self.version = None # legacy attribute
 		self.runtime = None
 

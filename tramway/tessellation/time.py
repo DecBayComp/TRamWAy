@@ -13,15 +13,15 @@
 
 
 from tramway.core import *
-from tramway.tesselation import *
+from tramway.tessellation import *
 import numpy as np
 import pandas as pd
 import copy
 import scipy.sparse as sparse
 
 
-class TimeLattice(Tesselation):
-	"""Proxy `Tesselation` for time lattice expansion.
+class TimeLattice(Tessellation):
+	"""Proxy `Tessellation` for time lattice expansion.
 
 	If `time_lattice` contains integers, these elements are regarded as frame indices,
 	whereas if it contains floats, the elements represent time.
@@ -35,11 +35,11 @@ class TimeLattice(Tesselation):
 	"""
 	__slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers')
 
-	__lazy__ = Tesselation.__lazy__ + \
+	__lazy__ = Tessellation.__lazy__ + \
 		('cell_adjacency', 'cell_label', 'adjacency_label')
 
 	def __init__(self, scaler=None, segments=None, label=None, mesh=None):
-		Tesselation.__init__(self, scaler) # scaler is ignored
+		Tessellation.__init__(self, scaler) # scaler is ignored
 		self._time_lattice = segments
 		self.time_edge = label
 		self._cell_adjacency = None
@@ -64,16 +64,16 @@ class TimeLattice(Tesselation):
 		return self._spatial_mesh
 
 	@spatial_mesh.setter
-	def spatial_mesh(self, tesselation):
+	def spatial_mesh(self, tessellation):
 		self.cell_label = None
 		self.cell_adjacency = None
 		self.adjacency_label = None
-		self._spatial_mesh = tesselation
+		self._spatial_mesh = tessellation
 		self.cell_centers = None
 
-	def tesselate(self, points, **kwargs):
+	def tessellate(self, points, **kwargs):
 		if self.spatial_mesh is not None:
-			self.spatial_mesh.tesselate(points, **kwargs)
+			self.spatial_mesh.tessellate(points, **kwargs)
 
 	def cell_index(self, points, *args, **kwargs):
 		exclude = kwargs.pop('exclude_cells_by_location_count', None)
@@ -291,7 +291,7 @@ class TimeLattice(Tesselation):
 				raise ValueError('cannot return timestamps')
 			nsegments = self.time_lattice.shape[0]
 			if self.spatial_mesh is None:
-				raise AttributeError('`cell_centers` is defined only for time lattices combined with spatial tesselations')
+				raise AttributeError('`cell_centers` is defined only for time lattices combined with spatial tessellations')
 				self._cell_centers = np.mean(self.time_lattice, axis=1) # valid only if `time_lattice` are timestamps!
 			else:
 				self._cell_centers = self.spatial_mesh.cell_centers
@@ -307,7 +307,7 @@ class TimeLattice(Tesselation):
 		if pts is None:
 			self.__lazysetter__(pts)
 		elif self.spatial_mesh is None:
-			raise AttributeError('`cell_centers` is defined only for time lattices combined with spatial tesselations')
+			raise AttributeError('`cell_centers` is defined only for time lattices combined with spatial tessellations')
 		else:
 			raise AttributeError('`cell_centers` is read-only')
 
@@ -316,7 +316,7 @@ class TimeLattice(Tesselation):
 		if not isinstance(df, pd.DataFrame):
 			raise TypeError('implemented only for `pandas.DataFrame`s')
 		if self.spatial_mesh is None:
-			raise NotImplementedError('missing spatial tesselation')
+			raise NotImplementedError('missing spatial tessellation')
 		ncells = self.spatial_mesh.cell_adjacency.shape[0]
 		nsegments = self.time_lattice.shape[0]
 		try:
@@ -344,8 +344,8 @@ class TimeLattice(Tesselation):
 
 def with_time_lattice(cells, frames, exclude_cells_by_location_count=None, **kwargs):
 	dynamic_cells = copy.deepcopy(cells)
-	dynamic_cells.tesselation = TimeLattice(cells.tesselation, frames)
-	dynamic_cells.cell_index = dynamic_cells.tesselation.cell_index(cells.points, \
+	dynamic_cells.tessellation = TimeLattice(cells.tessellation, frames)
+	dynamic_cells.cell_index = dynamic_cells.tessellation.cell_index(cells.points, \
 		exclude_cells_by_location_count=exclude_cells_by_location_count, **kwargs)
 	return dynamic_cells
 

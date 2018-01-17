@@ -13,21 +13,21 @@ The extension of input data files will usually be |xyt| or |trxyt| but this is n
 Partitioning the data points
 ----------------------------
 
-The first step consists of tesselating the space and partitioning the data points into the cells of the tesselation::
+The first step consists of tessellating the space and partitioning the data points into the cells of the tessellation::
 
-	> tramway tesselate -h
-	> tramway -i example.trxyt tesselate kmeans -l my-mesh*
+	> tramway tessellate -h
+	> tramway -i example.trxyt tessellate kmeans -l my-mesh*
 
-``-h`` shows the help message for the ``tesselate`` command. 
-``-i`` permits to specify the tracking data file, ``kmeans`` is the tesselation method and ``-l`` specifies a label to attach to the analysis for further reference.
+``-h`` shows the help message for the ``tessellate`` command. 
+``-i`` permits to specify the tracking data file, ``kmeans`` is the tessellation method and ``-l`` specifies a label to attach to the analysis for further reference.
 The ``*`` symbol will be replaced by a natural integer starting from 0.
 
 The available methods are:
 
 * ``grid``: regular grid with equally sized square or cubic areas.
-* ``kdtree``: kd-tree tesselation with midpoint splits.
-* ``kmeans``: tesselation based on the k-means clustering algorithm.
-* ``gwr`` (or ``gas``): tesselation based on the Growing-When-Required self-organizing gas.
+* ``kdtree``: kd-tree tessellation with midpoint splits.
+* ``kmeans``: tessellation based on the k-means clustering algorithm.
+* ``gwr`` (or ``gas``): tessellation based on the Growing-When-Required self-organizing gas.
 
 ``kmeans`` and ``gwr`` methods run optimization on the data and consequently are vulnerable to numerical scaling. 
 It is recommended to scale your data adding the option ``-w``.
@@ -35,7 +35,7 @@ It is recommended to scale your data adding the option ``-w``.
 A key parameter is ``--knn`` (or shorter ``-n``). 
 It combines with any of the above methods and allows to impose a lower bound on the number of points (or nearest neighbors) associated with each cell of the mesh, independently of the way the mesh has been grown::
 
-	> tramway -i example.rwa tesselate gwr -w -n 50 -l my-mesh*
+	> tramway -i example.rwa tessellate gwr -w -n 50 -l my-mesh*
 
 Note that in the above example the *example.rwa* file already exists and we add the analysis.
 The ``*`` again prevents from overwriting an analysis with the same label, if any.
@@ -46,8 +46,8 @@ You can check the content of the *example.rwa* file::
 
 	in example.rwa:
 		<class 'pandas.core.frame.DataFrame'>
-			'my-mesh0' <class 'tramway.tesselation.base.CellStats'>
-			'my-mesh1' <class 'tramway.tesselation.base.CellStats'>
+			'my-mesh0' <class 'tramway.tessellation.base.CellStats'>
+			'my-mesh1' <class 'tramway.tessellation.base.CellStats'>
 
 
 Visualizing the partition

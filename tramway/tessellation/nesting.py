@@ -13,31 +13,31 @@
 
 
 from tramway.core import *
-from tramway.tesselation import *
+from tramway.tessellation import *
 import numpy as np
 import pandas as pd
 import copy
 import scipy.sparse as sparse
 
 
-class NestedTesselations(Tesselation):
-	"""Tesselation of tesselations.
+class NestedTessellations(Tessellation):
+	"""Tessellation of tessellations.
 
-	When nesting, the parent tesselation should have been grown already. 
+	When nesting, the parent tessellation should have been grown already. 
 
-	`tesselation` grows all the nested tesselations.
+	`tessellation` grows all the nested tessellations.
 
-	In `__init__`, `tesselation` and `cell_index`, 
+	In `__init__`, `tessellation` and `cell_index`, 
 	the `scaler` (if any), `args` (if any) and `kwargs` arguments 
-	only apply to the nested tesselations.
+	only apply to the nested tessellations.
 	"""
 	__slots__ = ('_parent', '_children', 'child_factory', \
 		'parent_index_arguments', 'child_factory_arguments')
 
-	__lazy__ = Tesselation.__lazy__ + ('cell_label', 'cell_adjacency', 'adjacency_label')
+	__lazy__ = Tessellation.__lazy__ + ('cell_label', 'cell_adjacency', 'adjacency_label')
 
 	def __init__(self, scaler=None, parent=None, factory=None, parent_index_arguments={}, **kwargs):
-		Tesselation.__init__(self, scaler)
+		Tessellation.__init__(self, scaler)
 		self._parent = parent
 		self._children = {}
 		self.child_factory = factory
@@ -49,31 +49,31 @@ class NestedTesselations(Tesselation):
 		return self._parent
 
 	@parent.setter
-	def parent(self, tesselation):
-		if tesselation != self._parent:
+	def parent(self, tessellation):
+		if tessellation != self._parent:
 			self.children = {}
-			self._parent = tesselation
+			self._parent = tessellation
 
 	@property
 	def children(self):
 		return self._children
 
 	@children.setter
-	def children(self, tesselations):
+	def children(self, tessellations):
 		self.cell_label = None
 		self.cell_adjacency = None
 		self.adjacency_label = None
-		self._children = tesselations
+		self._children = tessellations
 
 	def _parent_index(self, points):
 		if isinstance(self.parent, CellStats):
 			parent = self.parent
 		else: # preferred usage
-			parent = CellStats(tesselation=self.parent)
+			parent = CellStats(tessellation=self.parent)
 		if points is not parent.points or \
 				(self.parent_index_arguments and parent._cell_index is None):
 			parent.points = points
-			parent.cell_index = parent.tesselation.cell_index(points, \
+			parent.cell_index = parent.tessellation.cell_index(points, \
 					**self.parent_index_arguments)
 		parent_index = format_cell_index(parent.cell_index, 'pair') # ignore association weights
 		pt_ids, cell_ids = parent_index
@@ -85,7 +85,7 @@ class NestedTesselations(Tesselation):
 				return pts[ids]
 		return (pt_ids, cell_ids, rows)
 
-	def tesselate(self, points, *args, **kwargs):
+	def tessellate(self, points, *args, **kwargs):
 		# initialize `self.scaler`;
 		# if we didn't, we should pass copies of `self.scaler` instead, to `self.child_factory`
 		any_child = self.child_factory(scaler=self.scaler, **self.child_factory_arguments)
@@ -97,7 +97,7 @@ class NestedTesselations(Tesselation):
 			child = self.child_factory(scaler=self.scaler, **self.child_factory_arguments)
 			child_pts = rows(points, pt_ids[cell_ids==u])
 			if child_pts.size:
-				child.tesselate(child_pts, *args, **kwargs)
+				child.tessellate(child_pts, *args, **kwargs)
 				self.children[u] = child
 
 	def cell_index(self, points, *args, **kwargs):
@@ -241,7 +241,7 @@ class NestedTesselations(Tesselation):
 	@property
 	def cell_label(self):
 		if self._cell_label is None:
-			_err_ = AttributeError('not all the nested tesselations have cell labels')
+			_err_ = AttributeError('not all the nested tessellations have cell labels')
 			_missing_label_ = False
 			labels = []
 			for u in self.children:
