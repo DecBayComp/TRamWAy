@@ -21,7 +21,8 @@ from .scaler import *
 from .xyt import *
 from .hdf5 import *
 
-__all__ = ['exceptions', 'ro_property_assert', 'Lazy', 'lightcopy', 'isstructured', 'columns', \
+__all__ = ['exceptions', 'ro_property_assert', 'Lazy', 'lightcopy', \
+	'isstructured', 'columns', 'splitcoord', \
 	'Matrix', 'ArrayChain', 'ChainArray', \
 	'Analyses', 'map_analyses', 'extract_analysis', 'label_paths', \
 	'Scaler', 'whiten', 'unitrange', \

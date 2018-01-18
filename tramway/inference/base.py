@@ -494,7 +494,7 @@ class Distributed(Local):
 
 		Arguments:
 
-			function (function):
+			function (callable):
 				the function to be called on each terminal :class:`Distributed`. 
 				Its first argument is the :class:`Distributed` object.
 				It should return a :class:`~pandas.DataFrame`.

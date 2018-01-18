@@ -139,7 +139,8 @@ class CellStats(Lazy):
 
 	@_tesselation.setter
 	def _tesselation(self, mesh):
-		self._tessellation = mesh
+		if mesh is not None:
+			self._tessellation = mesh
 
 	def descriptors(self, *vargs, **kwargs):
 		"""Proxy method for :meth:`Tessellation.descriptors`."""
@@ -290,7 +291,7 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
 	Arguments:
 
-		cells (tramway.tessellation.CellStats):
+		cells (CellStats):
 			CellStats with both partition and tessellation defined.
 
 		symetric (bool):
@@ -374,7 +375,7 @@ class Tessellation(Lazy):
 	The methods to be implemented are :meth:`tessellate` and :meth:`cell_index`.
 
 	Attributes:
-		scaler (Scaler): scaler.
+		scaler (tramway.core.scaler.Scaler): scaler.
 
 		_cell_adjacency (private):
 			square adjacency matrix for cells.
@@ -388,7 +389,7 @@ class Tessellation(Lazy):
 			inter-cell edge labels with as many elements as there are edges.
 
 	Arguments:
-		scaler (Scaler): scaler.
+		scaler (tramway.core.scaler.Scaler): scaler.
 	"""
 	__slots__ = ('scaler', '_cell_adjacency', '_cell_label', '_adjacency_label')
 
@@ -821,7 +822,7 @@ class Voronoi(Delaunay):
 
 def dict_to_sparse(cell_vertex, shape=None):
 	"""
-	Convert cell-vertex association :class:`dict`s to :mod:`~scipy.sparse` matrices.
+	Convert cell-vertex association :class:`dict` to :mod:`~scipy.sparse` matrices.
 	"""
 	if not sparse.issparse(cell_vertex):
 		if shape:

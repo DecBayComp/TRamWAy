@@ -55,17 +55,16 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	Arguments:
 		xyt_data (str or matrix):
 			Path to a *.trxyt* or *.rwa* file or raw data in the shape of 
-			:class:`pandas.DataFrame` 
-			(or any data format documented in :mod:`tramway.spatial.descriptor`).
+			:class:`pandas.DataFrame`. 
 
 
 		method (str):
 			Tessellation method or plugin name.
-			See also 
-			:class:`~tramway.tessellation.RegularMesh` (``'grid'``), 
-			:class:`~tramway.tessellation.KDTreeMesh` (``'kdtree'``), 
-			:class:`~tramway.tessellation.KMeansMesh` (``'kmeans'``) and 
-			:class:`~tramway.tessellation.GasMesh` (``'gas'``, ``'gng'`` or ``'gwr'``).
+			See for example 
+			:class:`~tramway.tessellation.grid.RegularMesh` (``'grid'``), 
+			:class:`~tramway.tessellation.kdtree.KDTreeMesh` (``'kdtree'``), 
+			:class:`~tramway.tessellation.kmeans.KMeansMesh` (``'kmeans'``) and 
+			:class:`~tramway.tessellation.gwr.GasMesh` (``'gas'`` or ``'gwr'``).
 
 		output_file (str):
 			Path to a *.rwa* file. The resulting tessellation and data partition will be 
@@ -135,8 +134,8 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			Description message for the resulting analysis.
 
 	Returns:
-		tramway.tessellation.CellStats: A partition of the data with 
-			:attr:`~tramway.tessellation.CellStats.tessellation` attribute set.
+		tramway.tessellation.base.CellStats: A partition of the data with 
+			:attr:`~tramway.tessellation.base.CellStats.tessellation` attribute set.
 
 
 	Apart from the parameters defined above, extra input arguments are admitted and passed to the
@@ -200,6 +199,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		constructor = methods[method]
 	else:
 		plugin = True
+	assert plugin
 	
 	transloc_length = min_distance = avg_distance = max_distance = None
 	if ref_distance is None and distance is not None:
@@ -339,21 +339,16 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		stats.param['avg_distance'] = avg_distance
 	if max_distance:
 		stats.param['max_distance'] = max_distance
-	if not plugin:
-		if min_location_count:
-			stats.param['min_location_count'] = min_location_count
-		if avg_location_count:
-			stats.param['avg_location_count'] = avg_location_count
-		if max_location_count:
-			stats.param['max_location_count'] = min_location_count
+	#if not plugin:
+	#	if min_location_count:
+	#		stats.param['min_location_count'] = min_location_count
+	#	if avg_location_count:
+	#		stats.param['avg_location_count'] = avg_location_count
+	#	if max_location_count:
+	#		stats.param['max_location_count'] = min_location_count
 	if knn:
 		stats.param['knn'] = knn
-	#if spatial_overlap: # deprecated
-	#	stats.param['spatial_overlap'] = spatial_overlap
-	if plugin:
-		stats.param.update(kwargs)
-	elif method == 'kdtree' and 'max_level' in kwargs:
-		stats.param['max_level'] = kwargs['max_level']
+	stats.param.update(kwargs)
 
 	# insert the resulting analysis in the analysis tree
 	if input_label:

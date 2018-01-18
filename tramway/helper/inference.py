@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.core import HDF5Store, peek_maps
+from tramway.core import *
 from tramway.inference import *
 import tramway.inference as inference # inference.plugins
 from tramway.plot.map import *
@@ -42,13 +42,17 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 		cells (str or CellStats or Analyses): data partition or path to partition file
 
-		mode (str or callable): either ``'D'``, ``'DF'``, ``'DD'``, ``'DV'`` or a function
-			suitable for :meth:`Distributed.run`
+		mode (str or callable): plugin name; see for example 
+			:mod:`~tramway.inference.d` (``'d'``), 
+			:mod:`~tramway.inference.df` (``'df'``), 
+			:mod:`~tramway.inference.dd` (``'dd'``), 
+			:mod:`~tramway.inference.dv` (``'dv'``); 
+			can be also a function suitable for :meth:`Distributed.run`
 
 		output_file (str): desired path for the output map file
 
 		partition (dict): keyword arguments for :func:`~tramway.helper.tessellation.find_partition`
-			if `cells` is a path
+			if `cells` is a path; deprecated
 
 		verbose (bool or int): verbosity level
 
@@ -97,7 +101,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	if isinstance(cells, str):
 		try:
 			input_file = cells
-			if not output_file or output_file == input_file:
+			if output_file and output_file == input_file:
 				all_analyses = find_analysis(input_file)
 			else:
 				all_analyses = find_analysis(input_file, input_label)
@@ -146,11 +150,13 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		assert input_label is None
 		input_label = tuple(all_analyses.labels)
 
+	setup, module = inference.plugins[mode]
+
 	if isinstance(analysis.data, Distributed):
 		_map = analysis.data
 	else:
 
-		if cells is None:
+		if cells is None or cells.tessellation is None:
 			raise ValueError('no cells found')
 
 		# prepare the data for the inference
@@ -158,20 +164,12 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			constructor = Distributed
 		detailled_map = distributed(cells, new=constructor)
 
-		multiscale = mode == 'DD' or mode == 'DV'
-		cell_sampling = None
-		if not multiscale:
+		if cell_sampling is None:
 			try:
-				setup, _ = inference.plugins[mode]
+				cell_sampling = setup['cell_sampling']
 			except KeyError:
 				pass
-			else:
-				try:
-					cell_sampling = setup['cell_sampling']
-				except KeyError:
-					pass
-				else:
-					multiscale = cell_sampling in ['individual', 'group']
+		multiscale = cell_sampling in ['individual', 'group']
 		if multiscale:
 			if max_cell_count is None:
 				if cell_sampling == 'individual':
@@ -198,59 +196,8 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 	runtime = time()
 
-	if mode is None:
+	if mode in inference.plugins:
 
-		params = dict(localization_error=localization_error, \
-			diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
-			worker_count=worker_count)
-		kwargs.update(params)
-		x = _map.run(**kwargs)
-
-	elif callable(mode):
-
-		params = dict(localization_error=localization_error, \
-			diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity, \
-			worker_count=worker_count)
-		kwargs.update(params)
-		x = _map.run(**kwargs)
-		
-	elif mode == 'D':
-
-		# infer diffusivity (D mode)
-		params = dict(localization_error=localization_error, jeffreys_prior=jeffreys_prior, \
-			min_diffusivity=min_diffusivity)
-		kwargs.update(params)
-		x = _map.run(inferD, **kwargs)
-
-	elif mode == 'DF':
-		
-		# infer diffusivity and force (DF mode)
-		params = dict(localization_error=localization_error, \
-			jeffreys_prior=jeffreys_prior, min_diffusivity=min_diffusivity)
-		kwargs.update(params)
-		x = _map.run(inferDF, **kwargs)
-
-	elif mode == 'DD':
-
-		params = dict(localization_error=localization_error, \
-			diffusivity_prior=diffusivity_prior, jeffreys_prior=jeffreys_prior, \
-			min_diffusivity=min_diffusivity, worker_count=worker_count)
-		kwargs.update(params)
-		x = _map.run(inferDD, **kwargs)
-
-	elif mode == 'DV':
-
-		params = dict(localization_error=localization_error, \
-			diffusivity_prior=diffusivity_prior, jeffreys_prior=jeffreys_prior, \
-			min_diffusivity=min_diffusivity, worker_count=worker_count)
-		kwargs.update(params)
-		x = _map.run(inferDV, **kwargs)
-
-	elif mode.lower() in inference.plugins:
-
-		setup, module = inference.plugins[mode]
 		args = setup.get('arguments', {})
 		for arg in ('localization_error', 'diffusivity_prior', 'potential_prior',
 				'jeffreys_prior', 'min_diffusivity', 'worker_count'):
@@ -281,7 +228,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 	if output_file:
 		# store the result
-		save_rwa(output_file, verbose, force=input_file == output_file)
+		save_rwa(output_file, all_analyses, verbose, force=input_file == output_file)
 
 	if input_file:
 		return (cells, mode, x)

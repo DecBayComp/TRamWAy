@@ -55,33 +55,30 @@ def main(**kwargs):
 	if not method:
 		method = methods[-1]
 
-	def out(method, extension):
-		return '{}.{}{}'.format(output_basename, method, extension)
-
 	# tessellate
-	tessellation_file = out(method, '.rwa')
-	if not os.path.isfile(tessellation_file):
-		mesh = tessellate(local, method, output_file=tessellation_file, \
-			verbose=True, strict_min_cell_size=10)
+	rwa_file = output_basename + '.rwa'
+	if not os.path.isfile(rwa_file):
+		tessellate(local, method, output_file=rwa_file, \
+			label=method, verbose=True, strict_min_cell_size=10)
 
 	# plot locations and meshes
 	pt_size_low, pt_size_high = 8, 6
 	res_low, res_high = 200, 400
 	if kwargs.get('ll', False):
-		cell_plot(tessellation_file, output_file='gr_locations_low.png',
+		cell_plot(rwa_file, label=method, output_file='gr_locations_low.png',
 			verbose=True, voronoi=False,
 			locations=dict(color=['k']*9999, size=pt_size_low), dpi=res_low)
 	if kwargs.get('lh', False):
-		cell_plot(tessellation_file, output_file='gr_locations_high.png',
+		cell_plot(rwa_file, label=method, output_file='gr_locations_high.png',
 			verbose=True, voronoi=False,
 			locations=dict(color=['k']*9999, size=pt_size_high), dpi=res_high)
 	if kwargs.get('ml', False):
-		cell_plot(tessellation_file, output_file='gr_{}_low.png'.format(method),
+		cell_plot(rwa_file, label=method, output_file='gr_{}_low.png'.format(method),
 			verbose=True, voronoi=False,
 			delaunay=dict(color='kkk', linewidth=2, centroid_style=None),
 			locations=dict(color='light', size=pt_size_low), dpi=res_low)
 	if kwargs.get('mh', False):
-		cell_plot(tessellation_file, output_file='gr_{}_high.png'.format(method),
+		cell_plot(rwa_file, label=method, output_file='gr_{}_high.png'.format(method),
 			verbose=True,
 			delaunay=dict(color='kkk', linewidth=1, centroid_style=None),
 			voronoi=dict(color='yyyy', linewidth=.5, centroid_style=None,
@@ -100,24 +97,29 @@ def main(**kwargs):
 	priorD = kwargs.get('prior_diffusivity', default_prior_diffusivity)
 	priorV = kwargs.get('prior_potential', default_prior_potential)
 
+	def img(mode):
+		return '{}.{}.{}.png'.format(output_basename, method, mode)
+
 	# infer and plot maps
 	if _d:
-		D = infer(tessellation_file, mode='D', localization_error=localization_error)
-		map_plot(D, output_file=out(method, '.d.png'), show=True)
+		D = infer(rwa_file, mode='d', input_label=method, output_label='D',
+			localization_error=localization_error)
+		map_plot(D, output_file=img('d'), show=True)
 
 	if _df:
-		DF = infer(tessellation_file, mode='DF', localization_error=localization_error)
-		map_plot(DF, output_file=out(method, '.df.png'), show=True, clip=.99) 
+		DF = infer(rwa_file, mode='df', input_label=method, output_label='DF',
+			localization_error=localization_error)
+		map_plot(DF, output_file=img('df'), show=True, clip=.99) 
 
 	if _dd:
-		DD = infer(tessellation_file, mode='DD', localization_error=localization_error, \
-			priorD=priorD)
-		map_plot(DD, output_file=out(method, '.dd.png'), show=True)
+		DD = infer(rwa_file, mode='dd', input_label=method, output_label='DD',
+			localization_error=localization_error, priorD=priorD)
+		map_plot(DD, output_file=img('dd'), show=True)
 
 	if _dv:
-		DV = infer(tessellation_file, mode='DV', localization_error=localization_error, \
-			priorD=priorD, priorV=priorV)
-		map_plot(DV, output_file=out(method, '.dv.png'), show=True)
+		DV = infer(rwa_file, mode='dv', input_label=method, output_label='DV',
+			localization_error=localization_error, priorD=priorD, priorV=priorV)
+		map_plot(DV, output_file=img('dv'), show=True)
 
 	sys.exit(0)
 

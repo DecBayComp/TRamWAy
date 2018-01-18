@@ -12,6 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
+from tramway.core import ChainArray
 from .base import *
 from warnings import warn
 from math import pi, log
