@@ -34,6 +34,35 @@ tramway.core.exceptions module
     :show-inheritance:
 
 
+tramway.core.hdf5 package
+-------------------------
+
+.. automodule:: tramway.core.hdf5
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.core.hdf5.compat module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+.. automodule:: tramway.core.hdf5.compat
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.core.hdf5.rules module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+.. automodule:: tramway.core.hdf5.rules
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.core.lazy module
 ------------------------
 
@@ -50,4 +79,32 @@ tramway.core.namedcolumns module
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+tramway.core.plugin module
+--------------------------
+
+.. automodule:: tramway.core.plugin
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.core.scaler module
+--------------------------
+
+.. automodule:: tramway.core.scaler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.core.xyt module
+-----------------------
+
+.. automodule:: tramway.core.xyt
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 

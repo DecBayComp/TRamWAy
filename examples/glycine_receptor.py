@@ -1,7 +1,7 @@
 
 import os
 import sys
-from tramway.helper import tessellate, find_imt, infer, map_plot, cell_plot
+from tramway.helper import tessellate, infer, map_plot, cell_plot
 import warnings
 
 short_description = 'infer and plot gwr-based diffusivity and potential maps for the glycine receptor dataset'

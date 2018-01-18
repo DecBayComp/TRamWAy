@@ -12,12 +12,12 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from ..base import *
+from tramway.core import ChainArray
+from .base import *
 from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
-from ..diffusivity import DiffusivityWarning, DV
 from scipy.optimize import minimize
 from collections import OrderedDict
 
@@ -29,6 +29,37 @@ setup = {'arguments': OrderedDict((
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
 		('min_diffusivity',	dict(type=float, default=0, help='minimum diffusivity value allowed')))),
 		'cell_sampling': 'group'}
+
+
+class DV(ChainArray):
+	__slots__ = ('diffusivity_prior', 'potential_prior', 'minimum_diffusivity')
+
+	def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None, \
+		minimum_diffusivity=None, positive_diffusivity=None):
+		# positive_diffusivity is for backward compatibility
+		ChainArray.__init__(self, 'D', diffusivity, 'V', potential)
+		self.diffusivity_prior = diffusivity_prior
+		self.potential_prior = potential_prior
+		self.minimum_diffusivity = minimum_diffusivity
+		if minimum_diffusivity is None and positive_diffusivity is True:
+			self.minimum_diffusivity = 0
+
+	@property
+	def D(self):
+		return self['D']
+
+	@property
+	def V(self):
+		return self['V']
+
+	@D.setter
+	def D(self, diffusivity):
+		self['D'] = diffusivity
+
+	@V.setter
+	def V(self, potential):
+		self['V'] = potential
+
 
 
 def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):

@@ -8,6 +8,15 @@ tramway.feature package
     :show-inheritance:
 
 
+tramway.feature.adjacency module
+--------------------------------
+
+.. automodule:: tramway.feature.adjacency
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.feature.curl module
 ---------------------------
 

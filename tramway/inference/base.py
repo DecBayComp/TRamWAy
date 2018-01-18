@@ -13,7 +13,7 @@
 
 
 from tramway.core import *
-from tramway.tessellation import CellStats, Voronoi, KMeansMesh
+import tramway.tessellation as tessellation
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -429,10 +429,14 @@ class Distributed(Local):
 					if max_cell_count:
 						avg_probability = min(float(max_cell_count) / \
 							float(points.shape[0]), avg_probability)
-					grid = KMeansMesh(avg_probability=avg_probability)
-					grid.tessellate(points[ok])
+					grid = tessellation.KMeansMesh(avg_probability=avg_probability)
+					try:
+						grid.tessellate(points[ok])
+					except ValueError:
+						print(points)
+						raise
 			else:
-				grid = Voronoi()
+				grid = tessellation.Voronoi()
 				grid.cell_centers = cell_centers
 			I = np.full(ok.size, -1, dtype=int)
 			I[ok] = grid.cell_index(points[ok], min_location_count=1)
@@ -801,7 +805,7 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 				raise ValueError('missing cell index')
 			return final_cell == cell
 		fuzzy = f
-	if isinstance(cells, CellStats):
+	if isinstance(cells, tessellation.CellStats):
 		# simplify the adjacency matrix
 		if cells.tessellation.adjacency_label is None:
 			try:
@@ -912,4 +916,21 @@ class Maps(object):
 
 	def __nonzero__(self):
 		return self.maps.__nonzero__()
+
+
+class DiffusivityWarning(RuntimeWarning):
+	def __init__(self, diffusivity, lower_bound):
+		self.diffusivity = diffusivity
+		self.lower_bound = lower_bound
+
+	def __repr__(self):
+		return 'DiffusivityWarning({}, {})'.format(self.diffusivity, self.lower_bound)
+
+	def __str__(self):
+		return 'diffusivity too low: {} < {}'.format(self.diffusivity, self.lower_bound)
+
+
+
+__all__ = ['Local', 'Distributed', 'Cell', 'get_translocations', 'distributed', 'Maps', \
+	'DiffusivityWarning']
 

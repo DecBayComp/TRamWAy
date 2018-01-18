@@ -16,16 +16,24 @@ tramway.tessellation.base module
     :undoc-members:
 
 
-tramway.tessellation.gas module
+tramway.tessellation.grid plugin
+--------------------------------
+
+.. automodule:: tramway.tessellation.grid
+    :members:
+    :show-inheritance:
+
+
+tramway.tessellation.gwr plugin
 -------------------------------
 
-.. automodule:: tramway.tessellation.gas
+.. automodule:: tramway.tessellation.gwr
     :members:
     :show-inheritance:
     :undoc-members:
 
 
-tramway.tessellation.kdtree module
+tramway.tessellation.kdtree plugin
 ----------------------------------
 
 .. automodule:: tramway.tessellation.kdtree
@@ -34,7 +42,7 @@ tramway.tessellation.kdtree module
     :undoc-members:
 
 
-tramway.tessellation.kmeans module
+tramway.tessellation.kmeans plugin
 ----------------------------------
 
 .. automodule:: tramway.tessellation.kmeans
@@ -60,10 +68,10 @@ tramway.tessellation.time module
     :undoc-members:   :undoc-members:
  
 
-tramway.tessellation.plugins package
-------------------------------------
+tramway.tessellation.window plugin
+----------------------------------
 
-.. automodule:: tramway.tessellation.plugins
+.. automodule:: tramway.tessellation.window
     :members:
     :show-inheritance:
     :undoc-members:   :undoc-members:

@@ -13,7 +13,7 @@
 
 
 from tramway.core import *
-from tramway.tessellation import *
+from tramway.tessellation.base import *
 import numpy as np
 import pandas as pd
 import copy
@@ -278,4 +278,7 @@ class NestedTessellations(Tessellation):
 	@adjacency_label.setter
 	def adjacency_label(self, label):
 		self.__lazysetter__(label)
+
+
+__all__ = ['NestedTessellations']
 

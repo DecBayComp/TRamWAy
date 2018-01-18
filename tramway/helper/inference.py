@@ -12,15 +12,12 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.io import *
-from tramway.io.hdf5 import peek_maps
-from tramway.core import lightcopy
+from tramway.core import HDF5Store, peek_maps
 from tramway.inference import *
+import tramway.inference as inference # inference.plugins
 from tramway.plot.map import *
 from tramway.helper.analysis import *
 from tramway.helper.tessellation import *
-from rwa import *
-from rwa.storable import *
 import matplotlib.pyplot as plt
 from warnings import warn
 import os
@@ -165,7 +162,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		cell_sampling = None
 		if not multiscale:
 			try:
-				setup, _ = all_modes[mode]
+				setup, _ = inference.plugins[mode]
 			except KeyError:
 				pass
 			else:
@@ -251,9 +248,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		kwargs.update(params)
 		x = _map.run(inferDV, **kwargs)
 
-	elif mode.lower() in all_modes:
+	elif mode.lower() in inference.plugins:
 
-		setup, module = all_modes[mode]
+		setup, module = inference.plugins[mode]
 		args = setup.get('arguments', {})
 		for arg in ('localization_error', 'diffusivity_prior', 'potential_prior',
 				'jeffreys_prior', 'min_diffusivity', 'worker_count'):
@@ -284,19 +281,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 	if output_file:
 		# store the result
-		if verbose:
-			print('writing file: {}'.format(output_file))
-		try:
-			# Python 3.6 raises tables.exceptions.PerformanceWarning
-			store = HDF5Store(output_file, 'w', verbose - 1 if verbose else False)
-			store.poke('analyses', all_analyses)
-			store.close()
-		except:
-			print(traceback.format_exc())
-			warn('HDF5 libraries may not be installed', ImportWarning)
-		if verbose:
-			print('in {}:'.format(output_file))
-			print(format_analyses(all_analyses, global_prefix='\t'))
+		save_rwa(output_file, verbose, force=input_file == output_file)
 
 	if input_file:
 		return (cells, mode, x)

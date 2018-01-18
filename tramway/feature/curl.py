@@ -14,7 +14,7 @@
 import numpy as np
 import pandas as pd
 from tramway.core.namedcolumns import splitcoord
-from tramway.spatial.adjacency import *
+from .adjacency import *
 from tramway.inference import Maps
 import traceback
 

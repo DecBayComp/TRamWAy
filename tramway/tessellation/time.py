@@ -13,7 +13,7 @@
 
 
 from tramway.core import *
-from tramway.tessellation import *
+from tramway.tessellation.base import *
 import numpy as np
 import pandas as pd
 import copy
@@ -348,4 +348,7 @@ def with_time_lattice(cells, frames, exclude_cells_by_location_count=None, **kwa
 	dynamic_cells.cell_index = dynamic_cells.tessellation.cell_index(cells.points, \
 		exclude_cells_by_location_count=exclude_cells_by_location_count, **kwargs)
 	return dynamic_cells
+
+
+__all__ = ['TimeLattice', 'with_time_lattice']
 

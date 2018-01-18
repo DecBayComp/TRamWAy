@@ -13,13 +13,18 @@
 
 
 from .base import *
-from .kdtree import *
-from .kmeans import *
-from .gas import *
 from .time import *
 from .nesting import *
+from tramway.core.plugin import list_plugins
+import os.path
 
-__all__ = ['CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
-	'RegularMesh', 'KDTreeMesh', 'KMeansMesh', 'GasMesh', 'dict_to_sparse', 'sparse_to_dict', \
-	'TimeLattice', 'NestedTessellations']
+
+try:
+	from .grid import RegularMesh
+except ImportError:
+	pass
+
+
+plugins = list_plugins(os.path.dirname(__file__), __package__, \
+	{'make': Tessellation}, require='setup')
 

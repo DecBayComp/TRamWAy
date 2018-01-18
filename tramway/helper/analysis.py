@@ -16,7 +16,7 @@ import os
 import itertools
 import traceback
 from tramway.core.analyses import *
-from tramway.io import HDF5Store
+from tramway.core.hdf5 import HDF5Store
 
 
 try:

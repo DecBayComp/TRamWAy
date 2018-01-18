@@ -17,19 +17,37 @@ tramway.inference.base module
     :show-inheritance:
 
 
-tramway.inference.diffusivity module
-------------------------------------
+tramway.inference.d plugin
+--------------------------
 
-.. automodule:: tramway.inference.diffusivity
+.. automodule:: tramway.inference.d
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-tramway.inference.modes package
--------------------------------
+tramway.inference.dd plugin
+---------------------------
 
-.. automodule:: tramway.inference.modes
+.. automodule:: tramway.inference.dd
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.df plugin
+---------------------------
+
+.. automodule:: tramway.inference.df
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.dv plugin
+---------------------------
+
+.. automodule:: tramway.inference.dv
     :members:
     :undoc-members:
     :show-inheritance:

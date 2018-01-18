@@ -18,9 +18,11 @@ try:
 except ImportError:
 	from configparser import ConfigParser
 import sys
-from .helper import *
+import tramway.tessellation as tessellation
+import tramway.inference as inference
 from .feature import *
-import tramway.tessellation.plugins as tessellation
+from .helper import *
+import tramway.core.hdf5.compat
 
 
 def _parse_args(args):
@@ -178,9 +180,9 @@ def main():
 		tessellate_parser = sub.add_parser('sample')
 	tsub = tessellate_parser.add_subparsers(title='methods', \
 		description="type '%(prog)s sample method --help' for additional help about method")
-	for method in tessellation.all_plugins:
+	for method in tessellation.plugins:
 		method_parser = tsub.add_parser(method)
-		setup, _ = tessellation.all_plugins[method]
+		setup, _ = tessellation.plugins[method]
 		short_args = short_options(setup.get('make_arguments', {}))
 		for short_arg, long_arg, kwargs in global_arguments:
 			dest = short_arg[1:] + 'post'
@@ -211,9 +213,9 @@ def main():
 	infer_parser = sub.add_parser('infer') #, conflict_handler='resolve'
 	isub = infer_parser.add_subparsers(title='modes', \
 		description="type '%(prog)s infer mode --help' for additional help about mode")
-	for mode in all_modes:
+	for mode in inference.plugins:
 		mode_parser = isub.add_parser(mode)
-		setup, _ = all_modes[mode]
+		setup, _ = inference.plugins[mode]
 		short_args = short_options(setup.get('arguments', {}))
 		for short_arg, long_arg, kwargs in global_arguments:
 			dest = short_arg[1:] + 'post'

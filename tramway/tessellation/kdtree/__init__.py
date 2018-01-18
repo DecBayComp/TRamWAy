@@ -12,15 +12,17 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from .base import *
-from tramway.spatial.scaler import *
+from ..base import *
+from tramway.core.scaler import *
 from math import *
 import numpy as np
 import pandas as pd
 from threading import Lock
 import itertools
 import scipy.sparse as sparse
-from tramway.spatial.dichotomy import ConnectedDichotomy
+from scipy.spatial.distance import cdist
+from .dichotomy import ConnectedDichotomy
+from collections import OrderedDict
 
 
 def _face_hash(v1, n1):
@@ -166,4 +168,20 @@ class KDTreeMesh(Voronoi):
 
 	def contour(self, *args, **kwargs):
 		raise NotImplementedError
+
+
+
+setup = {
+	'make': KDTreeMesh,
+	'make_arguments': OrderedDict((
+		('min_distance', ()),
+		('avg_distance', ()),
+		('min_probability', ()),
+		('max_probability', ()),
+		('max_location_count', ('-S', dict(type=int, help='maximum number of locations per cell'))),
+		('max_level', ('-ll', '--lower-levels', dict(type=int, help='number of levels below the smallest one', metavar='LOWER_LEVELS'))),
+		)),
+	}
+
+__all__ = ['KDTreeMesh', 'setup']
 

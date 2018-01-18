@@ -1,3 +1,2 @@
 
-from .curl import *
 

@@ -1,7 +1,7 @@
 
-from ..time import TimeLattice
+from .time import TimeLattice
 from tramway.core import isstructured
-from tramway.io.hdf5 import *
+from tramway.core.hdf5 import *
 from collections import OrderedDict
 import numpy as np
 import pandas as pd

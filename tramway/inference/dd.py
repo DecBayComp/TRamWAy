@@ -12,12 +12,11 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from ..base import *
+from .base import *
 from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
-from ..diffusivity import DiffusivityWarning
 from scipy.optimize import minimize
 from collections import OrderedDict
 

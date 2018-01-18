@@ -17,6 +17,14 @@ from .namedcolumns import *
 from .chain import *
 from . import exceptions
 from .analyses import *
+from .scaler import *
+from .xyt import *
+from .hdf5 import *
 
-__all__ = ['exceptions', 'PermissionError', 'ro_property_assert', 'Lazy', 'lightcopy', 'isstructured', 'columns', 'Matrix', 'ArrayChain', 'ChainArray', 'Analyses', 'map_analyses', 'extract_analysis', 'label_paths']
+__all__ = ['exceptions', 'ro_property_assert', 'Lazy', 'lightcopy', 'isstructured', 'columns', \
+	'Matrix', 'ArrayChain', 'ChainArray', \
+	'Analyses', 'map_analyses', 'extract_analysis', 'label_paths', \
+	'Scaler', 'whiten', 'unitrange', \
+	'translocations', 'load_xyt', \
+	'hdf5_storable', 'hdf5_not_storable', 'HDF5Store']
 

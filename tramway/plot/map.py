@@ -74,7 +74,16 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 				vertices = np.vstack(vertices)
 				polygons.append(Polygon(vertices, True))
 	else:
-		raise TypeError('wrong type for `cells`: {}'.format(type(cells)))
+		_type = repr(type(cells))
+		if _type.endswith("'>"):
+			_type = _type.split("'")[1]
+		try:
+			_nested_type = repr(type(cells.tessellation))
+			if _nested_type.endswith("'>"):
+				_nested_type = _nested_type.split("'")[1]
+			raise TypeError('wrong type for `cells`: {}<{}>'.format(_type, _nested_type))
+		except AttributeError:
+			raise TypeError('wrong type for `cells`: {}'.format(_type))
 
 	xy_min, xy_max = xy.min(axis=0), xy.max(axis=0)
 

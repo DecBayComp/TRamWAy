@@ -107,11 +107,16 @@ class TestTesselation(object):
 		assert os.path.isfile(output_file)
 		if reference:
 			reference = self.rwafile(reference)
-			p = subprocess.Popen(('h5diff', reference, output_file))
+			p = subprocess.Popen(('h5diff', reference, output_file),
+				stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			out, err = p.communicate()
 			if out:
+				if not isinstance(out, str):
+					out = out.decode('utf-8')
 				self.print(out)
 			if err:
+				if not isinstance(err, str):
+					err = err.decode('utf-8')
 				self.print(err)
 			assert not out
 

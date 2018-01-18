@@ -13,7 +13,7 @@
 
 import numpy as np
 import pandas as pd
-from tramway.spatial.adjacency import *
+from tramway.feature.adjacency import *
 from tramway.plot.mesh import *
 from tramway.plot.map import *
 import traceback

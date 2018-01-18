@@ -20,11 +20,7 @@ import scipy.sparse as sparse
 import matplotlib.pyplot as plt
 from ..core import *
 from ..tessellation import *
-from ..tessellation.plugins import *
-from ..spatial.scaler import *
-from ..spatial.translocation import *
 from ..plot.mesh import *
-from ..io import *
 from .analysis import *
 from warnings import warn
 import six
@@ -194,7 +190,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	input_files = xyt_path
 
 	try:
-		setup, module = all_plugins[method]
+		setup, module = plugins[method]
 		constructor = setup['make']
 		if isinstance(constructor, str):
 			constructor = getattr(module, setup['make'])
@@ -538,14 +534,36 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			cells = analyses[label].data
 
 	# guess back some input parameters
-	method_name = {RegularMesh: ('grid', 'grid', 'regular grid'), \
-		KDTreeMesh: ('kdtree', 'k-d tree', 'k-d tree based tessellation'), \
-		KMeansMesh: ('kmeans', 'k-means', 'k-means based tessellation'), \
-		GasMesh: ('gwr', 'GWR', 'GWR based tessellation')}
+	method_name = {}
+	try:
+		method_name[RegularMesh] = ('grid', 'grid', 'regular grid')
+	except NameError:
+		pass
+	try:
+		import tramway.tessellation.kdtree
+	except ImportError:
+		pass
+	else:
+		method_name[tramway.tessellation.kdtree.KDTreeMesh] = \
+			('kdtree', 'k-d tree', 'k-d tree based tessellation')
+	try:
+		import tramway.tessellation.kmeans
+	except ImportError:
+		pass
+	else:
+		method_name[tramway.tessellation.kmeans.KMeansMesh] = \
+			('kmeans', 'k-means', 'k-means based tessellation')
+	try:
+		import tramway.tessellation.gwr
+	except ImportError:
+		pass
+	else:
+		method_name[tramway.tessellation.gwr.GasMesh] = ('gwr', 'GWR', 'GWR based tessellation')
 	try:
 		method_name, pp_method_name, method_title = method_name[type(cells.tessellation)]
 	except KeyError:
 		method_name = pp_method_name = method_title = ''
+
 	min_distance = cells.param.get('min_distance', 0)
 	avg_distance = cells.param.get('avg_distance', None)
 	min_location_count = cells.param.get('min_location_count', 0)
@@ -680,6 +698,7 @@ def find_mesh(path, method=None, full_list=False):
 	"""
 	*from version 0.3:* deprecated.
 	"""
+	warn('`find_mesh`, `find_imt` and `find_partition` are deprecated in favor of `find_analysis`', DeprecationWarning)
 	if not isinstance(path, (tuple, list)):
 		path = (path,)
 	paths = []

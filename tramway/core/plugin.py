@@ -23,15 +23,32 @@ except AttributeError: # Py2
 from warnings import warn
 
 
-def list_plugins(dirname, package, lookup={}, force=False):
-	pattern = re.compile(r'[a-zA-Z0-9].*[.]py')
+def list_plugins(dirname, package, lookup={}, force=False, require=None):
+	if not require:
+		require = ()
+	elif isinstance(require, str):
+		require = (require,)
+	pattern = re.compile(r'[a-zA-Z0-9].*([.]py)?')
 	candidate_modules = [ os.path.splitext(fn)[0] \
 		for fn in os.listdir(dirname) \
 		if fullmatch(pattern, fn) is not None ]
 	modules = {}
+	provided = {}
 	for name in candidate_modules:
 		path = '{}.{}'.format(package, name)
-		module = importlib.import_module(path)
+		# load module
+		try:
+			module = importlib.import_module(path)
+		except:
+			continue
+		# ensure that all the required attributes are available
+		_continue = False
+		for required in require:
+			if not hasattr(module, required):
+				_continue = True
+				break
+		if _continue:	continue
+		# parse setup
 		if hasattr(module, 'setup'):
 			setup = module.setup
 			try:
@@ -40,6 +57,7 @@ def list_plugins(dirname, package, lookup={}, force=False):
 				setup['name'] = name
 		else:
 			setup = dict(name=name)
+		# parse other attributes
 		try:
 			namespace = module.__all__
 		except AttributeError:
@@ -79,12 +97,27 @@ def list_plugins(dirname, package, lookup={}, force=False):
 			warn("no match in module '{}' for key '{}'".format(path, missing), ImportWarning)
 			if not force:
 				continue
-		if isinstance(name, (frozenset, set, tuple, list)):
+		# register plugin
+		plugin = (setup, module)
+		if isinstance(name, str):
+			modules[name] = plugin
+		else:
 			names = name
 			for name in names:
-				modules[name] = (setup, module)
+				modules[name] = plugin
+		try:
+			provides = setup['provides']
+		except KeyError:
+			pass
 		else:
-			modules[name] = (setup, module)
+			if isinstance(provides, str):
+				provided[provides] = plugin
+			else:
+				for _provides in provides:
+					provided[_provides] = plugin
+	for provides in provided:
+		if provides not in modules:
+			modules[provides] = provided[provides]
 	return modules
 
 

@@ -12,13 +12,16 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from .base import *
-from tramway.spatial.scaler import *
+from ..base import *
+from ..grid import RegularMesh
+from tramway.core.scaler import *
 from math import *
 import numpy as np
 import pandas as pd
+import scipy.sparse as sparse
 from scipy.cluster.vq import kmeans
 from scipy.spatial.distance import cdist
+from collections import OrderedDict
 
 
 class KMeansMesh(Voronoi):
@@ -163,4 +166,26 @@ class KMeansMesh(Voronoi):
 			edge = k[d0 * 2.5 < d] # edges to be discarded; 2.5 is empirical
 			if edge.size:
 				self._adjacency_label[edge] = False
+
+
+
+def _metric(knn=None, **kwargs):
+	if isinstance(knn, (tuple, list)):
+		knn = knn[0]
+	if knn is None:
+		return None
+	else:
+		return 'euclidian'
+
+setup = {
+	'make': KMeansMesh,
+	'make_arguments': OrderedDict((
+		('min_distance', ()),
+		('avg_probability', ()),
+		('avg_location_count', dict(args=('-c', '--location-count'), kwargs=dict(type=int, default=80, help='average number of locations per cell'), translate=True)),
+		('metric', dict(parse=_metric)),
+		)),
+	}
+
+__all__ = ['KMeansMesh', 'setup']
 

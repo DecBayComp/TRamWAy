@@ -17,11 +17,12 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
 import scipy.stats as stats
-from .base import *
-from tramway.spatial.scaler import *
-from tramway.spatial.gas import Gas
+from ..base import *
+from tramway.core.scaler import *
+from .gas import Gas
 from scipy.spatial.distance import cdist
 import time
+from collections import OrderedDict
 
 
 class GasMesh(Voronoi):
@@ -235,4 +236,19 @@ class GasMesh(Voronoi):
 		# after: -2=not congruent (voronoi only), -1=not congruent (gas only), 0=[none], 
 		#         1=congruent, 2=congruent after post-processing (initially voronoi only)
 		self._adjacency_label = new_labels[self._adjacency_label]
+
+
+setup = {
+	'name': ('gas', 'gwr'),
+	'make': GasMesh,
+	'make_arguments': OrderedDict((
+		('min_distance', ()),
+		('avg_distance', ()),
+		('max_distance', ()),
+		('min_probability', ()),
+		('avg_probability', ()),
+		)),
+	}
+
+__all__ = ['GasMesh', 'setup']
 

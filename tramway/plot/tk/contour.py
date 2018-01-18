@@ -20,12 +20,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import numpy as np
 import pandas as pd
+from tramway.core.hdf5 import HDF5Store, peek_maps
+import tramway.core.hdf5.compat
 from tramway.core.analyses import *
 from tramway.helper.analysis import find_analysis
 from tramway.tessellation import CellStats
 from tramway.inference import Maps
-from tramway.io import *
-from tramway.io.hdf5 import peek_maps
 from ..contour import ContourEditor
 try:
 	from tkinter import BooleanVar, IntVar, DoubleVar, StringVar

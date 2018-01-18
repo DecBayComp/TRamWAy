@@ -16,15 +16,36 @@ import os
 import numpy as np
 import pandas as pd
 import warnings
-import scipy.sparse as sparse
-import h5py
 import itertools
-from ..core.exceptions import EfficiencyWarning
+from .exceptions import *
 
-class IOWarning(Warning):
-	pass
-class FileNotFoundWarning(IOWarning):
-	pass
+
+def _translocations(df, sort=True): # very slow; may soon be deprecated
+	def diff(df):
+		df = df.sort_values('t')
+		t = df['t'][1:]
+		df = df.diff()
+		df['t'] = t
+		return df
+	return df.groupby(['n'], sort=False).apply(diff)
+
+def translocations(df, sort=False):
+	'''each trajectories should be represented by consecutive rows sorted by time.'''
+	if sort:
+		return _translocations(df) # not exactly equivalent
+		#raise NotImplementedError
+	i = 'n'
+	xyz = ['x', 'y']
+	if 'z' in df.columns:
+		xyz.append('z')
+	ixyz = xyz + [i]
+	jump = df[ixyz].diff()
+	#df[xyz] = jump[xyz]
+	#df = df[jump[i] != 0]
+	#return df
+	jump = jump[jump[i] == 0][xyz]
+	return jump#np.sqrt(np.sum(jump * jump, axis=1))
+
 
 def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False, verbose=False):
 	if 'n' not in columns:

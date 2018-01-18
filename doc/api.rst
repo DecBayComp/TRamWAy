@@ -12,9 +12,7 @@ The recommended starting point is :mod:`tramway.helper`.
 
     tramway.helper
     tramway.core
-    tramway.io
     tramway.plot
-    tramway.spatial
     tramway.tessellation
     tramway.inference
     tramway.feature
