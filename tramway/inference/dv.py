@@ -18,6 +18,7 @@ from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
+import numpy.ma as ma
 from scipy.optimize import minimize
 from collections import OrderedDict
 

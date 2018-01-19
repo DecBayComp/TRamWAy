@@ -1,7 +1,9 @@
 
 import os
 import sys
-from tramway.helper import tessellate, infer, map_plot, cell_plot
+from tramway.core import find_artefacts
+from tramway.tessellation import CellStats
+from tramway.helper import load_rwa, tessellate, infer, map_plot, cell_plot
 import warnings
 
 short_description = 'infer and plot gwr-based diffusivity and potential maps for the glycine receptor dataset'
@@ -57,7 +59,15 @@ def main(**kwargs):
 
 	# tessellate
 	rwa_file = output_basename + '.rwa'
-	if not os.path.isfile(rwa_file):
+	_tessellate = True
+	if os.path.isfile(rwa_file):
+		try:
+			_, = find_artefacts(load_rwa(rwa_file), CellStats, labels=method)
+		except:
+			raise
+		else:
+			_tessellate = False
+	if _tessellate :
 		tessellate(local, method, output_file=rwa_file, \
 			label=method, verbose=True, strict_min_cell_size=10)
 

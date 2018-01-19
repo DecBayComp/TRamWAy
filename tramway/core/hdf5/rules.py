@@ -98,10 +98,13 @@ else:
 		agnostic=True)
 
 
-from tramway.inference.base import Local, Cell, Distributed
+from tramway.inference.base import Local, Distributed, Cell, Locations, Translocations
 local_exposes = lazy_exposes + list(Local.__slots__)
 cell_exposes = local_exposes + list(Cell.__slots__)
-hdf5_storable(default_storable(Cell, exposes=cell_exposes), agnostic=True)
+locations_expose = cell_exposes + list(Locations.__slots__)
+hdf5_storable(default_storable(Locations, exposes=locations_expose), agnostic=True)
+translocations_expose = cell_exposes + list(Translocations.__slots__)
+hdf5_storable(default_storable(Translocations, exposes=translocations_expose), agnostic=True)
 distributed_exposes = local_exposes + list(Distributed.__slots__)
 hdf5_storable(default_storable(Distributed, exposes=distributed_exposes), agnostic=True)
 

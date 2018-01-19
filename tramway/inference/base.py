@@ -13,6 +13,7 @@
 
 
 from tramway.core import *
+from tramway.tessellation import format_cell_index, nearest_cell
 import tramway.tessellation as tessellation
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ from collections import OrderedDict
 from multiprocessing import Pool, Lock
 import six
 from functools import partial
+from warnings import warn
 
 
 
@@ -429,7 +431,8 @@ class Distributed(Local):
 					if max_cell_count:
 						avg_probability = min(float(max_cell_count) / \
 							float(points.shape[0]), avg_probability)
-					grid = tessellation.KMeansMesh(avg_probability=avg_probability)
+					import tramway.tessellation.kmeans as kmeans
+					grid = kmeans.KMeansMesh(avg_probability=avg_probability)
 					try:
 						grid.tessellate(points[ok])
 					except ValueError:
@@ -568,16 +571,12 @@ def __run_star__(args):
 
 class Cell(Local):
 	"""
-	Spatially constrained subset of translocations with associated intermediate calculations.
+	Spatially constrained subset of (trans-)locations with associated intermediate calculations.
 
 	Attributes:
 
 		index (int):
 			this cell's index as granted in :class:`Distributed`'s `cells` dict.
-
-		translocations (array-like, property):
-			translocations as a matrix of variations of coordinate and time with as many 
-			columns as dimensions. Alias for :attr:`~Local.data`.
 
 		center (array-like):
 			cell center coordinates.
@@ -587,12 +586,6 @@ class Cell(Local):
 			mixing coefficients for summing the multiple local gradients of a scalar 
 			dynamic parameter.
 
-		dt (array-like, ro property):
-			translocation durations.
-
-		dxy (array-like, ro property):
-			translocation changes in coordinate.
-
 		time_col (int or string, lazy):
 			column index for time.
 
@@ -600,7 +593,7 @@ class Cell(Local):
 			column indices for coordinates.
 
 		tcount (int):
-			number of translocations.
+			number of (trans-)locations.
 
 		cache (any):
 			depending on the inference approach and objective, caching an intermediate
@@ -608,34 +601,24 @@ class Cell(Local):
 			is totally free and comes without support for concurrency.
 
 	"""
-	__slots__ = ('_time_col', '_space_cols', 'cache', 'origins', 'destinations', 'fuzzy')
+	__slots__ = ('_time_col', '_space_cols', 'cache', 'fuzzy')
 	__lazy__  = Local.__lazy__ + ('time_col', 'space_cols')
 
-	def __init__(self, index, translocations, center=None, span=None, origins=None):
-		if not (isinstance(translocations, np.ndarray) or isinstance(translocations, pd.DataFrame)):
-			raise TypeError('unsupported translocation type `{}`'.format(type(translocations)))
-		Local.__init__(self, index, translocations, center, span)
-		#self._tcount = translocations.shape[0]
+	def __init__(self, index, data, center=None, span=None):
+		if not (isinstance(data, np.ndarray) or isinstance(data, pd.DataFrame)):
+			raise TypeError('unsupported (trans-)location type `{}`'.format(type(data)))
+		Local.__init__(self, index, data, center, span)
+		#self._tcount = data.shape[0]
 		self._time_col = None
 		self._space_cols = None
 		self.cache = None
-		#self.translocations = (self.dxy, self.dt)
-		self.origins = None
-		self.destinations = None
+		#self.data = (self.space_data, self.time_data)
 		self.fuzzy = None
-
-	@property
-	def translocations(self):
-		return self.data
-
-	@translocations.setter
-	def translocations(self, tr):
-		self.data = tr
 
 	@property
 	def time_col(self):
 		if self._time_col is None:
-			if isstructured(self.translocations):
+			if isstructured(self.data):
 				self._time_col = 't'
 			else:
 				self._time_col = 0
@@ -649,17 +632,17 @@ class Cell(Local):
 	@property
 	def space_cols(self):
 		if self._space_cols is None:
-			if isstructured(self.translocations):
-				self._space_cols = columns(self.translocations)
+			if isstructured(self.data):
+				self._space_cols = columns(self.data)
 				if isinstance(self._space_cols, pd.Index):
 					self._space_cols = self._space_cols.drop(self.time_col)
 				else:
 					self._space_cols.remove(self.time_col)
 			else:
 				if self.time_col == 0:
-					self._space_cols = np.arange(1, self.translocations.shape[1])
+					self._space_cols = np.arange(1, self.data.shape[1])
 				else:
-					self._space_cols = np.ones(self.translocations.shape[1], \
+					self._space_cols = np.ones(self.data.shape[1], \
 						dtype=bool)
 					self._space_cols[self.time_col] = False
 					self._space_cols, = self._space_cols.nonzero()
@@ -671,51 +654,147 @@ class Cell(Local):
 		self.__lazysetter__(cols)
 
 	@property
-	def dt(self):
-		if not isinstance(self.translocations, tuple):
-			self.translocations = (self._dxy(), self._dt())
-		return self.translocations[1]
-
-	@dt.setter
-	def dt(self, dt):
-		self.translocations = (self.dxy, dt)
-
-	def _dt(self):
-		if isstructured(self.translocations):
-			return np.asarray(self.translocations[self.time_col])
-		else:
-			return np.asarray(self.translocations[:,self.time_col])
-
-	@property
-	def dxy(self):
-		if not isinstance(self.translocations, tuple):
-			self.translocations = (self._dxy(), self._dt())
-		return self.translocations[0]
-
-	def _dxy(self):
-		if isstructured(self.translocations):
-			return np.asarray(self.translocations[self.space_cols])
-		else:
-			return np.asarray(self.translocations[:,self.space_cols])
-
-	@property
 	def dim(self):
-		#try:
-		#	return self.center.size
-		#except AttributeError:
-		return self.dxy.shape[1]
+		return len(self.space_cols)
 
 	@dim.setter
 	def dim(self, d): # ro
-		self.__lazyassert__(d, 'translocations')
+		self.__lazyassert__(d, 'data')
 
 	@property
 	def tcount(self):
-		return self.dxy.shape[0]
+		return self.space_data.shape[0]
 
 	@tcount.setter
 	def tcount(self, c): # ro
-		self.__lazyassert__(c, 'translocations')
+		self.__lazyassert__(c, 'data')
+
+	@property
+	def time_data(self):
+		if not isinstance(self.data, tuple):
+			self.data = (self._extract_space(), self._extract_time())
+		return self.data[1]
+
+	@time_data.setter
+	def time_data(self, t):
+		self.data = (self.space_data, t)
+
+	def _extract_time(self):
+		if isstructured(self.data):
+			return np.asarray(self.data[self.time_col])
+		else:
+			return np.asarray(self.data[:,self.time_col])
+
+	@property
+	def space_data(self):
+		if not isinstance(self.data, tuple):
+			self.data = (self._extract_space(), self._extract_time())
+		return self.data[0]
+
+	@space_data.setter
+	def space_data(self, xy):
+		self.data = (xy, self.time_data)
+
+	def _extract_space(self):
+		if isstructured(self.data):
+			return np.asarray(self.data[self.space_cols])
+		else:
+			return np.asarray(self.data[:,self.space_cols])
+
+
+class Locations(Cell):
+	"""
+	Attributes:
+
+		locations (array-like, property):
+			locations as a matrix of coordinates and times with as many 
+			columns as dimensions; this is an alias for :attr:`~Local.data`.
+
+		t (array-like, ro property):
+			location timestamps.
+
+		xy (array-like, ro property):
+			location coordinates.
+
+	"""
+	__slots__ = ()
+
+	@property
+	def locations(self):
+		return self.data
+
+	@locations.setter
+	def locations(self, tr):
+		self.data = tr
+
+	@property
+	def t(self):
+		return self.time_data
+
+	@t.setter
+	def t(self, t):
+		self.time_data = t
+
+	@property
+	def xy(self):
+		return self.space_data
+
+	@xy.setter
+	def xy(self, xy):
+		self.space_data = xy
+
+
+class Translocations(Cell):
+	"""
+	Attributes:
+
+		translocations (array-like, property):
+			translocations as a matrix of variations of coordinate and time with as many 
+			columns as dimensions; this is an alias for :attr:`~Local.data`.
+
+		dt (array-like, ro property):
+			translocation durations.
+
+		dxy (array-like, ro property):
+			translocation changes in coordinate.
+
+		origins (array-like, ro property):
+			initial locations (both spatial coordinates and times).
+
+		t (array-like, ro property):
+			initial timestamps.
+
+	"""
+	__slots__ = ('origins', 'destinations')
+
+	def __init__(self, index, translocations, center=None, span=None, origins=None):
+		Cell.__init__(self, index, translocations, center, span)
+		self.origins = None
+		self.destinations = None
+
+	@property
+	def translocations(self):
+		return self.data
+
+	@translocations.setter
+	def translocations(self, tr):
+		self.data = tr
+
+	@property
+	def dt(self):
+		return self.time_data
+
+	@dt.setter
+	def dt(self, dt):
+		self.time_data = dt
+
+	@property
+	def dxy(self):
+		return self.space_data
+
+	@dxy.setter
+	def dxy(self, dxy):
+		self.space_data = dxy
 
 	@property
 	def t(self):
@@ -725,36 +804,73 @@ class Cell(Local):
 			return np.asarray(self.origins[:,self.time_col])
 
 
-def get_translocations(points, index=None):
+
+def identify_columns(points, trajectory_col=True):
+	_has_trajectory = trajectory_col not in [False, None]
+	_traj_undefined = trajectory_col is True
 	if isstructured(points):
-		trajectory_col = 'n'
 		coord_cols = columns(points)
-		if isinstance(coord_cols, pd.Index):
-			coord_cols = coord_cols.drop(trajectory_col)
-		else:
-			coord_cols.remove(trajectory_col)
+		if _has_trajectory:
+			if _traj_undefined:
+				trajectory_col = 'n'
+			try:
+				if isinstance(coord_cols, pd.Index):
+					coord_cols = coord_cols.drop(trajectory_col)
+				else:
+					coord_cols.remove(trajectory_col)
+			except:
+				if _traj_undefined:
+					_has_trajectory = False
+				else:
+					raise
 	else:
-		trajectory_col = 0
-		coord_cols = np.arange(1, points.shape[1])
+		if not _has_trajectory:
+			coord_cols = np.arange(points.shape[1])
+		elif _traj_undefined:
+			trajectory_col = 0
+			coord_cols = np.arange(1, points.shape[1])
+		else:
+			coord_cols = np.r_[np.arange(trajectory_col), \
+				np.arange(trajectory_col+1, points.shape[1])]
+	if not _has_trajectory:
+		trajectory_col = None
 	if isinstance(points, pd.DataFrame):
 		def get_point(a, i):
 			return a.iloc[i]
-		final = np.asarray(points[trajectory_col].diff() == 0)
-		points = points[coord_cols]
+		def get_var(a, j):
+			return a[j]
 	else:
 		if isstructured(points):
 			def get_point(a, i):
 				return a[i,:]
-			n = points[trajectory_col]
-			points = points[coord_cols]
+			def get_var(a, j):
+				return a[j]
 		else:
 			def get_point(a, i):
 				return a[i]
-			n = points[:,trajectory_col]
-			points = points[:,coord_cols]
-		final = np.r_[False, np.diff(n, axis=0) == 0]
+			def get_var(a, j):
+				return a[:,j]
+	return coord_cols, trajectory_col, get_var, get_point
+
+
+def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=None):
+	if coord_cols is None:
+		coord_cols, _, get_var, get_point = identify_columns(points)
+	locations = get_var(points, coord_cols)
+	location_cell = format_cell_index(index, 'array', nearest_cell, (locations.shape[0],))
+	return locations, location_cell, get_point
+
+
+def get_translocations(points, index=None, coord_cols=None, trajectory_col=True, get_var=None, get_point=None):
+	if coord_cols is None:
+		coord_cols, trajectory_col, get_var, get_point = identify_columns(points, trajectory_col)
+	if trajectory_col is None:
+		raise ValueError('cannot find trajectory indices')
+	n = np.asarray(get_var(points, trajectory_col))
+	final = np.r_[False, np.diff(n, axis=0) == 0]
 	initial = np.r_[final[1:], False]
 	# points
+	points = get_var(points, coord_cols)
 	initial_point = get_point(points, initial)
 	final_point = get_point(points, final)
 	# cell indices
@@ -766,10 +882,10 @@ def get_translocations(points, index=None):
 	elif isinstance(index, tuple):
 		ix = np.full(points.shape[0], -1, dtype=index[1].dtype)
 		if isinstance(points, pd.DataFrame):
-			points['cell'] = ix
-			points.loc[index[0], 'cell'] = index[1]
-			initial_cell = np.asarray(points['cell'].iloc[initial])
-			final_cell = np.asarray(points['cell'].iloc[final])
+			ix = pd.DataFrame(data=ix, index=points.index, columns=('cell',))
+			ix.loc[index[0], 'cell'] = index[1]
+			initial_cell = np.asarray(ix['cell'].iloc[initial])
+			final_cell = np.asarray(ix['cell'].iloc[final])
 		else:
 			ix[index[0]] = index[1]
 			initial_cell = ix[initial]
@@ -783,94 +899,129 @@ def get_translocations(points, index=None):
 	return initial_point, final_point, initial_cell, final_cell, get_point
 
 
-def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
+def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 		new_cell_kwargs={}, new_mesh_kwargs={}, fuzzy_kwargs={},
 		new=None):
 	if new is not None:
 		# `new` is for backward compatibility
+		warn('`new` is deprecated in favor of `new_cell`', DeprecationWarning)
 		new_mesh = new
-	if fuzzy is None:
-		def f(tessellation, cell, initial_point, final_point,
-				initial_cell=None, final_cell=None, get_point=None):
-			## example handling:
-			#j = np.logical_or(initial_cell == cell, final_cell == cell)
-			#initial_point = get_point(initial_point, j)
-			#final_point = get_point(final_point, j)
-			#initial_cell = initial_cell[j]
-			#final_cell = final_cell[j]
-			#i = final_cell == cell # criterion i could be more sophisticated
-			#j[j] = i
-			#return j
-			if final_cell is None:
-				raise ValueError('missing cell index')
-			return final_cell == cell
-		fuzzy = f
-	if isinstance(cells, tessellation.CellStats):
-		# simplify the adjacency matrix
-		if cells.tessellation.adjacency_label is None:
-			try:
-				_adjacency = cells.tessellation.cell_adjacency.tocsr(True)
-			except TypeError: # "TypeError: tocsr() takes exactly 1 argument (2 given)"??
-				_adjacency = cells.tessellation.cell_adjacency.tocsr()
+	if not isinstance(cells, tessellation.CellStats):
+		raise TypeError('`cells` is not a `CellStats`')
+	# simplify the adjacency matrix
+	if cells.tessellation.adjacency_label is None:
+		try:
+			_adjacency = cells.tessellation.cell_adjacency.tocsr(True)
+		except TypeError: # "TypeError: tocsr() takes exactly 1 argument (2 given)"??
+			_adjacency = cells.tessellation.cell_adjacency.tocsr()
+	else:
+		_adjacency = cells.tessellation.cell_adjacency.tocoo()
+		ok = 0 < cells.tessellation.adjacency_label[_adjacency.data]
+		row, col = _adjacency.row[ok], _adjacency.col[ok]
+		data = np.ones(np.count_nonzero(ok)) # the values do not matter
+		_adjacency = sparse.csr_matrix((data, (row, col)),
+			shape=_adjacency.shape)
+	# reweight each row i as 1/n_i where n_i is the degree of cell i
+	n = np.diff(_adjacency.indptr)
+	_adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
+	ncells = _adjacency.shape[0]
+
+	# format (trans-)locations
+	precomputed = ()
+	if isinstance(new_cell, Locations):
+		are_translocations = False
+	elif isinstance(new_cell, Translocations):
+		are_translocations = True
+	else:
+		coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
+		are_translocations = trajectory_col is not None
+		if are_translocations:
+			precomputed = (coord_cols, trajectory_col, get_var, get_point)
 		else:
-			_adjacency = cells.tessellation.cell_adjacency.tocoo()
-			ok = 0 < cells.tessellation.adjacency_label[_adjacency.data]
-			row, col = _adjacency.row[ok], _adjacency.col[ok]
-			data = np.ones(np.count_nonzero(ok)) # the values do not matter
-			_adjacency = sparse.csr_matrix((data, (row, col)), \
-				shape=_adjacency.shape)
-		# reweight each row i as 1/n_i where n_i is the degree of cell i
-		n = np.diff(_adjacency.indptr)
-		_adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
-		# time and space columns in translocations array
-		if isstructured(cells.points):
-			time_col = 't'
-			not_space = ['n', time_col]
-			space_cols = columns(cells.points)
-			if isinstance(space_cols, pd.Index):
-				space_cols = space_cols.drop(not_space)
-			else:
-				space_cols = [ c for c in space_cols if c not in not_space ]
-		else:
-			time_col = cells.points.shape[1] - 1
-			if time_col == cells.points.shape[1] - 1:
-				space_cols = np.arange(time_col)
-			else:
-				space_cols = np.ones(cells.points.shape[1], dtype=bool)
-				space_cols[time_col] = False
-				space_cols, = space_cols.nonzero()
-		# format translocations
-		ncells = _adjacency.shape[0]
+			precomputed = (coord_cols, get_var, get_point)
+	if are_translocations:
 		initial_point, final_point, initial_cell, final_cell, get_point = \
-			get_translocations(cells.points, cells.cell_index)
-		# build every cells
-		_cells = OrderedDict()
-		for j in range(ncells): # for each cell
-			i = fuzzy(cells.tessellation, j,
-				initial_point, final_point, initial_cell, final_cell, get_point,
-				**fuzzy_kwargs)
-			if i.dtype in (bool, np.bool, np.bool8, np.bool_):
-				_fuzzy = None
-			else:
-				_fuzzy = i[i != 0]
-				i = i != 0
+			get_translocations(cells.points, cells.cell_index, *precomputed)
+		if new_cell is None:
+			new_cell = Translocations
+		fuzzy_args = (final_point, final_cell, initial_point, initial_cell, get_point)
+	else:
+		locations, location_index, get_point = \
+			get_locations(cells.points, cells.cell_index, *precomputed)
+		fuzzy_args = (locations, location_index, get_point)
+		if new_cell is None:
+			new_cell = Locations
+
+	if fuzzy is None:
+		if are_translocations:
+			def f(tessellation, cell, final_point, final_cell,
+				initial_point, initial_cell, get_point):
+				## example handling:
+				#j = np.logical_or(initial_cell == cell, final_cell == cell)
+				#initial_point = get_point(initial_point, j)
+				#final_point = get_point(final_point, j)
+				#initial_cell = initial_cell[j]
+				#final_cell = final_cell[j]
+				#i = final_cell == cell # criterion i could be more sophisticated
+				#j[j] = i
+				#return j
+				return final_cell == cell
+		else:
+			def f(tesselation, cell, locations, location_cell, get_point):
+				return location_cell == cell
+		fuzzy = f
+
+	# time and space columns in (trans-)locations array
+	if isstructured(cells.points):
+		time_col = 't'
+		space_cols = columns(cells.points)
+		if 'n' in space_cols:
+			not_space = ['n', time_col]
+		else:
+			not_space = [time_col]
+		if isinstance(space_cols, pd.Index):
+			space_cols = space_cols.drop(not_space)
+		else:
+			space_cols = [ c for c in space_cols if c not in not_space ]
+	else:
+		time_col = cells.points.shape[1] - 1
+		if time_col == cells.points.shape[1] - 1:
+			space_cols = np.arange(time_col)
+		else:
+			space_cols = np.ones(cells.points.shape[1], dtype=bool)
+			space_cols[time_col] = False
+			space_cols, = space_cols.nonzero()
+
+	# build every cells
+	_cells = OrderedDict()
+	for j in range(ncells): # for each cell
+		i = fuzzy(cells.tessellation, j, *fuzzy_args, **fuzzy_kwargs)
+		if i.dtype in (bool, np.bool, np.bool8, np.bool_):
+			_fuzzy = None
+		else:
+			_fuzzy = i[i != 0]
+			i = i != 0
+		if are_translocations:
 			_origin = get_point(initial_point, i)
 			_destination = get_point(final_point, i)
 			__origin = _origin.copy() # make copy
 			__origin.index += 1
-			translocations = _destination - __origin
-			try:
-				center = cells.tessellation.cell_centers[j]
-			except AttributeError:
-				center = span = None
-			else:
-				adj = _adjacency[j].indices
-				span = cells.tessellation.cell_centers[adj] - center
-			#if translocations.size:
-			# make cell object
-			_cells[j] = new_cell(j, translocations, center, span, **new_cell_kwargs)
-			_cells[j].time_col = time_col
-			_cells[j].space_cols = space_cols
+			data = translocations = _destination - __origin
+		else:
+			data = locations
+		try:
+			center = cells.tessellation.cell_centers[j]
+		except AttributeError:
+			center = span = None
+		else:
+			adj = _adjacency[j].indices
+			span = cells.tessellation.cell_centers[adj] - center
+		#if translocations.size:
+		# make cell object
+		_cells[j] = new_cell(j, data, center, span, **new_cell_kwargs)
+		_cells[j].time_col = time_col
+		_cells[j].space_cols = space_cols
+		if are_translocations:
 			try:
 				_cells[j].origins = _origin
 			except AttributeError:
@@ -879,18 +1030,14 @@ def distributed(cells, new_cell=Cell, new_mesh=Distributed, fuzzy=None,
 				_cells[j].destinations = _destination
 			except AttributeError:
 				pass
-			try:
-				_cells[j].fuzzy = _fuzzy
-			except AttributeError:
-				pass
-		#print(sum([ c.tcount == 0 for c in _cells.values() ]))
-		self = new_mesh(_cells, _adjacency, **new_mesh_kwargs)
-		self.tcount = cells.points.shape[0]
-		#self.dim = cells.points.shape[1]
-		#self.dt = np.asarray(get_point(cells.points, time_col))
-		#self.dxy = np.asarray(get_point(cells.points, space_cols))
-	else:
-		raise TypeError('`cells` is not a `CellStats`')
+		try:
+			_cells[j].fuzzy = _fuzzy
+		except AttributeError:
+			pass
+	#print(sum([ c.tcount == 0 for c in _cells.values() ]))
+	self = new_mesh(_cells, _adjacency, **new_mesh_kwargs)
+	self.tcount = cells.points.shape[0]
+	#self.dim = cells.points.shape[1]
 	self.ccount = self.adjacency.shape[0]
 	return self
 
@@ -931,6 +1078,7 @@ class DiffusivityWarning(RuntimeWarning):
 
 
 
-__all__ = ['Local', 'Distributed', 'Cell', 'get_translocations', 'distributed', 'Maps', \
+__all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
+	'identify_columns', 'get_locations', 'get_translocations', 'distributed',
 	'DiffusivityWarning']
 

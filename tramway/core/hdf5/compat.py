@@ -31,6 +31,11 @@ translation_table += [
 	('tramway.tessellation.plugins.window.SlidingWindow',	'tramway.tessellation.window.SlidingWindow'),
 	]
 
+# 0.2 -> 0.3: type refinements
+translation_table += [
+	('tramway.inference.base.Cell',	'tramway.inference.base.Translocations'),
+	]
+
 
 def translate_types(translation_table):
 	"""Translate types for rwa files.

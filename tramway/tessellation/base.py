@@ -851,6 +851,6 @@ def sparse_to_dict(cell_vertex):
 
 
 __all__ = ['CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
-	'format_cell_index', 'dict_to_sparse', 'sparse_to_dict']
+	'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict']
 
 
