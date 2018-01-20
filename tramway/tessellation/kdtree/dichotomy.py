@@ -26,29 +26,6 @@ class Dichotomy(object):
 		subset=None, cell=None):
 		self.subset_lock = Lock()
 		self.cell_lock = Lock()
-		if isinstance(points, Dichotomy): # useless
-			obj = points
-			self.base_edge = obj.base_edge
-			self.min_depth = obj.min_depth
-			self.max_depth = obj.max_depth
-			self.origin = obj.origin.copy()
-			self.lower_bound = obj.lower_bound.copy()
-			self.upper_bound = obj.upper_bound.copy()
-			self.min_count = obj.min_count
-			self.max_count = obj.max_count
-			self.unit_hypercube = obj.unit_hypercube.copy()
-			self.reference_length = obj.reference_length.copy()
-			self.subset = obj.subset.copy()
-			self.subset_counter = obj.subset_counter
-			self.cell = obj.cell.copy()
-			self.cell_counter = obj.cell_counter
-			#Dichotomy.__init__(self, \
-			#	min_depth=points.min_depth, max_depth=points.max_depth, \
-			#	min_count=points.min_count, max_count=points.max_count, \
-			#	origin=points.origin.copy(), \
-			#	lower_bound=points.lower_bound.copy(), upper_bound=points.upper_bound.copy(), \
-			#	subset=points.subset.copy(), cell=points.cell.copy())
-			return
 		self.base_edge = base_edge
 		self.min_depth = min_depth
 		self.max_depth = max_depth
@@ -113,9 +90,6 @@ class Dichotomy(object):
 				self.cell_counter = max(cell.keys()) + 1
 			else:
 				self.cell_counter = 0
-		# already done at the beginning of __init__
-		#self.subset_lock = Lock()
-		#self.cell_lock = Lock()
 
 
 	def split(self, points=None):
@@ -188,13 +162,6 @@ class ConnectedDichotomy(Dichotomy):
 		adjacency = kwargs.pop('adjacency', None)
 		Dichotomy.__init__(self, *args, **kwargs)
 		self.adjacency_lock = Lock()
-		if len(args) == 1 and not kwargs and isinstance(args[0], DichotomyGraph): # useless
-			obj = args[0]
-			self.face_normal = obj.face_normal.copy()
-			self.face_vertex = obj.face_vertex.copy()
-			self.exterior = obj.exterior.copy()
-			self.adjacency = obj.adjacency.copy()
-			self.edge_counter = self.edge_counter
 		dim = self.unit_hypercube.shape[1]
 		eye = np.eye(dim, dtype=int)
 		self.face_normal = np.vstack((eye[::-1], eye))
@@ -209,8 +176,6 @@ class ConnectedDichotomy(Dichotomy):
 		else:
 			self.adjacency = adjacency
 			self.edge_counter = max(adjacency.keys()) + 1
-		# already done earlier (above)
-		#self.adjacency_lock = Lock()
 
 	def merge_Faces(self, face1, face2, axis):
 		dim = self.unit_hypercube.shape[1]

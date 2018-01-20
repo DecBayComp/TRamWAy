@@ -16,10 +16,13 @@ import tarfile
 import traceback
 
 
-data_server = 'http://dl.pasteur.fr/fop/WjVX3div/'
-data_archive = 'glycine_receptor_171218.tar.bz2'
+data_server = 'http://dl.pasteur.fr/fop/W0YrVCSc/'
+data_archive = 'glycine_receptor_180120.tar.bz2'
 data_file = 'glycine_receptor.trxyt'
 data_dir = 'data'
+
+ref_py_ver = (2,7,12)
+py_ver = tuple(sys.version_info[:3])
 
 seed = 4294947105
 
@@ -101,7 +104,7 @@ class TestTesselation(object):
 		self.tmpdir, self.datadir = tmpdir, datadir
 		numpy.random.seed(seed)
 		input_file = self.xytfile()
-		status = execute('{} -m tramway sample {} -i {}', sys.executable, cmd, input_file)
+		status = execute('{} -m tramway tessellate {} -i {}', sys.executable, cmd, input_file)
 		assert status == 0
 		output_file = '{}.rwa'.format(os.path.splitext(input_file)[0])
 		assert os.path.isfile(output_file)
@@ -114,10 +117,18 @@ class TestTesselation(object):
 				if not isinstance(out, str):
 					out = out.decode('utf-8')
 				self.print(out)
+				out = '\n'.join([ line for line in out.splitlines()
+					if not line.startswith('Failed reading attribute') ])
 			if err:
 				if not isinstance(err, str):
 					err = err.decode('utf-8')
 				self.print(err)
+			if out and py_ver != ref_py_ver:
+				# differences can come from e.g. string types or hash functions for dictionnaries
+				#_expected = load_rwa(reference)
+				#_generated = load_rwa(output_file)
+				# TODO: compare `_expected` and `_generated`
+				pass
 			assert not out
 
 	def test_grid(self, tmpdir, datadir):

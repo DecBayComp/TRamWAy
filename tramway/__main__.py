@@ -175,9 +175,9 @@ def main():
 
 	# tessellate
 	try:
-		tessellate_parser = sub.add_parser('sample', aliases=['tessellate'])
+		tessellate_parser = sub.add_parser('tessellate', aliases=['sample'])
 	except TypeError: # Py2
-		tessellate_parser = sub.add_parser('sample')
+		tessellate_parser = sub.add_parser('tessellate')
 	tsub = tessellate_parser.add_subparsers(title='methods', \
 		description="type '%(prog)s sample method --help' for additional help about method")
 	for method in tessellation.plugins:
