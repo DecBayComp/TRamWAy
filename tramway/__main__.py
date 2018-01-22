@@ -226,7 +226,10 @@ def main():
 		mode_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
 		mode_parser.add_argument('-l', '--output-label', help='output label')
 		mode_parser.add_argument('--comment', help='description message for the output artefact')
-		add_arguments(mode_parser, setup['arguments'], name=mode)
+		try:
+			add_arguments(mode_parser, setup['arguments'], name=mode)
+		except KeyError:
+			pass
 		mode_parser.set_defaults(func=_infer(mode))
 
 

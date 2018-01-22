@@ -3,11 +3,7 @@ TRamWAy
 
 *TRamWAy* helps analyzing single molecule dynamics. It infers the diffusivity, drift, force and potential across space and time. It will eventually localize and track molecules in stacks of images.
 
-**Disclaimer:**
-This implementation is under heavy development and is not yet suitable even for testing purposes!
-To get similar software, please follow `this link <https://research.pasteur.fr/en/software/inferencemap/>`_.
-
-The `official documentation <http://TRamWAy.readthedocs.io/en/latest/>`_ is now on `readthedocs <http://TRamWAy.readthedocs.io/en/latest/>`_.
+The `official documentation <http://TRamWAy.readthedocs.io>`_ is now on `readthedocs <http://TRamWAy.readthedocs.io>`_.
 
 Installation
 ------------

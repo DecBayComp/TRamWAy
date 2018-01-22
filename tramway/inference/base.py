@@ -538,6 +538,39 @@ class Distributed(Local):
 			result = function(self, *args, **kwargs)
 		return result
 
+	# `dict` interface
+	def __len__(self):
+		return self.adjacency.shape[0]
+
+	def __nonzero__(self):
+		return nonzero(self.cells)
+
+	def __getitem__(self, i):
+		return self.cells[i]
+
+	def __setitem__(self, i, cell):
+		self.cells[i] = cell
+
+	def __delitem__(self, i):
+		self.cells.__delitem__(i)
+
+	def keys(self):
+		try:
+			return self.cells.keys()
+		except AttributeError:
+			return range(len(self.cells))
+
+	def values(self):
+		try:
+			return self.cells.values()
+		except AttributeError:
+			return self.cells
+
+	def items(self):
+		try:
+			return self.cells.items()
+		except AttributeError:
+			return enumerate(self.cells)
 
 
 def __run__(func, cell):
@@ -700,6 +733,12 @@ class Cell(Local):
 			return np.asarray(self.data[self.space_cols])
 		else:
 			return np.asarray(self.data[:,self.space_cols])
+
+	def __nonzero__(self):
+		if isinstance(self.data, tuple):
+			return 0 < self.data[0].size
+		else:
+			return 0 < self.data.size
 
 
 class Locations(Cell):

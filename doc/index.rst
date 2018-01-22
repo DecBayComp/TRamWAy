@@ -12,12 +12,6 @@ TRamWAy documentation
 
 Finally, |tramway| provides multiple representations of both raw data and inferred fields.
 
-.. warning::
-
-   This implementation is under heavy development and is not yet suitable even for testing purposes!
-
-   You can get similar software `here <https://research.pasteur.fr/en/software/inferencemap/>`_.
-
 
 Where to start
 --------------

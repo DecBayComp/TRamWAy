@@ -64,7 +64,7 @@ def main(**kwargs):
 		try:
 			_, = find_artefacts(load_rwa(rwa_file), CellStats, labels=method)
 		except:
-			raise
+			pass
 		else:
 			_tessellate = False
 	if _tessellate :
