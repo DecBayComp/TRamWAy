@@ -84,7 +84,13 @@ class ContourEditor(object):
 	@property
 	def cell_adjacency(self):
 		if self._cell_adjacency is None:
-			self._cell_adjacency = self.cells.tessellation.simplified_adjacency().tocsr()
+			if self.cells.tessellation.cell_label is None:
+				label = self.cells.location_count
+			else:
+				label = np.logicial_and(0 < self.cells.tessellation.cell_label,
+					0 < self.cells.location_count)
+			self._cell_adjacency = self.cells.tessellation.simplified_adjacency(
+				label=label, format='csr')
 		return self._cell_adjacency
 
 	@property
@@ -111,6 +117,14 @@ class ContourEditor(object):
 				self._dilation_adjacency = self.cells.tessellation.diagonal_adjacency
 			except AttributeError:
 				self._dilation_adjacency = False
+			else:
+				if self.cells.tessellation.cell_label is None:
+					label = self.cells.location_count
+				else:
+					label = np.logicial_and(0 < self.cells.tessellation.cell_label,
+						0 < self.cells.location_count)
+				self.cells.tessellation.simplified_adjacency(
+					adjacency=self._dilation_adjacency, label=label, format='csr')
 		if self._dilation_adjacency is False:
 			return self.cell_adjacency
 		else:

@@ -445,7 +445,7 @@ class Distributed(Local):
 			I[ok] = grid.cell_index(points[ok], min_location_count=1)
 			#if not np.all(ok):
 			#	print(ok.nonzero()[0])
-			new.adjacency = grid.simplified_adjacency().tocsr() # macro-cell adjacency matrix
+			new.adjacency = grid.simplified_adjacency(format='csr') # macro-cell adjacency matrix
 			J = np.unique(I)
 			J = J[0 <= J]
 			new.data = type(self.cells)()
@@ -948,18 +948,11 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 	if not isinstance(cells, tessellation.CellStats):
 		raise TypeError('`cells` is not a `CellStats`')
 	# simplify the adjacency matrix
-	if cells.tessellation.adjacency_label is None:
-		try:
-			_adjacency = cells.tessellation.cell_adjacency.tocsr(True)
-		except TypeError: # "TypeError: tocsr() takes exactly 1 argument (2 given)"??
-			_adjacency = cells.tessellation.cell_adjacency.tocsr()
+	if cells.tessellation.cell_label is None:
+		J = cells.location_count
 	else:
-		_adjacency = cells.tessellation.cell_adjacency.tocoo()
-		ok = 0 < cells.tessellation.adjacency_label[_adjacency.data]
-		row, col = _adjacency.row[ok], _adjacency.col[ok]
-		data = np.ones(np.count_nonzero(ok)) # the values do not matter
-		_adjacency = sparse.csr_matrix((data, (row, col)),
-			shape=_adjacency.shape)
+		J = np.logical_and(0 < cells.location_count, 0 < cells.tessellation.cell_label)
+	_adjacency = cells.tessellation.simplified_adjacency(label=J, format='csr')
 	# reweight each row i as 1/n_i where n_i is the degree of cell i
 	n = np.diff(_adjacency.indptr)
 	_adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
@@ -1032,8 +1025,11 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 			space_cols, = space_cols.nonzero()
 
 	# build every cells
+	J, = np.nonzero(J)
 	_cells = OrderedDict()
-	for j in range(ncells): # for each cell
+	for j in J: # for each cell
+		if cells.location_count[j] == 0:
+			continue
 		i = fuzzy(cells.tessellation, j, *fuzzy_args, **fuzzy_kwargs)
 		if i.dtype in (bool, np.bool, np.bool8, np.bool_):
 			_fuzzy = None

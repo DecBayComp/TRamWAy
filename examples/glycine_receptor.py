@@ -74,7 +74,7 @@ def main(**kwargs):
 		print('glycine receptor demo (verbose mode: on)')
 	if _tessellate :
 		tessellate(local, method, output_file=rwa_file, \
-			label=method, verbose=verbose, strict_min_cell_size=10)
+			label=method, verbose=verbose, strict_min_location_count=20)
 
 	# plot locations and meshes
 	pt_size_low, pt_size_high = 8, 6

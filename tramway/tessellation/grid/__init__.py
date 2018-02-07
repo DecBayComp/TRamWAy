@@ -14,7 +14,7 @@
 
 from math import *
 from tramway.core import *
-from ..base import Voronoi
+from ..base import Voronoi, sparse_to_dict
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse

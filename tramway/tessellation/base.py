@@ -20,7 +20,6 @@ import scipy.sparse as sparse
 from scipy.sparse import issparse
 import scipy.spatial as spatial
 from tramway.core import *
-from tramway.feature.adjacency import contour
 import itertools
 import copy
 
@@ -158,11 +157,12 @@ class CellStats(Lazy):
 			elif sparse.issparse(self.cell_index):
 				self._location_count = np.diff(self.cell_index.tocsc().indptr)
 			else:
-				valid_cell_centers, _location_count = np.unique(self.cell_index, \
+				valid_cells, _location_count = np.unique(self.cell_index, \
 					return_counts=True)
+				_location_count = _location_count[0 <= valid_cells]
+				valid_cells = valid_cells[0 <= valid_cells]
 				self._location_count = np.zeros(ncells, dtype=_location_count.dtype)
-				self._location_count[valid_cell_centers] = _location_count
-				#center_to_point = valid_cell_centers[center_to_point]
+				self._location_count[valid_cells] = _location_count
 		return self._location_count
 
 	@location_count.setter
@@ -511,23 +511,67 @@ class Tessellation(Lazy):
 	def adjacency_label(self, label):
 		self._adjacency_label = label
 
-	def simplified_adjacency(self, adjacency=None):
+	def simplified_adjacency(self, adjacency=None, label=None, format='coo'):
 		"""
-		Simplified copy of :attr:`cell_adjacency` as a :class:`~scipy.sparse.coo_matrix` sparse 
+		Simplified copy of :attr:`cell_adjacency` as a :class:`scipy.sparse.spmatrix` sparse 
 		matrix with no explicit zeros.
 
 		Non-zero values indicate adjacency and all these values are strictly positive.
+
+		In addition, cells with negative (or null) labels are also disconnected from their 
+		neighbours.
+
+		Labels are `cell_label` by default. Alternative labels can be provided as `label`.
+
+		To prevent label-based disconnection, set `label` to ``False``.
+
+		Multiple arrays of labels can also be supplied as a tuple. 
+		Note that explicit labels always supersede `cell_label` and the later should be 
+		explicitely listed in the tuple so that it is applied in combination with other
+		label arrays.
+
+		Arguments:
+
+			adjacency (scipy.sparse.spmatrix): adjacency matrix (`cell_adjacency` is used
+				if `adjacency` is ``None``).
+
+			label (bool or array-like or tuple): cell labels.
+
+			format (str): any of *'coo'*, *'csr'* and *'csc'*.
+
+		Returns:
+
+			scipy.sparse.spmatrix: simplified adjacency matrix.
+
 		"""
 		if adjacency is None:
 			adjacency = self.cell_adjacency
+		if label is False:
+			pass
+		elif label is True: # `cell_label` is required (cannot be None)
+			label = (self.cell_label, )
+		elif label is None: # `cell_label` can be None
+			if self.cell_label is not None:
+				label = (self.cell_label, )
+		elif not isinstance(label, tuple):
+			label = (label, )
 		adjacency = adjacency.tocoo()
 		if self.adjacency_label is None:
 			ok = 0 < adjacency.data
 		else:
 			ok = 0 < self.adjacency_label[adjacency.data]
-		return sparse.coo_matrix(
-			(adjacency.data[ok], (adjacency.row[ok], adjacency.col[ok])),
-			shape=adjacency.shape)
+		row, col = adjacency.row[ok], adjacency.col[ok]
+		if label:
+			edges_not_ok = np.zeros(row.size, dtype=bool)
+			for cell_label in label:
+				cells_not_ok = cell_label < 1
+				edges_not_ok[cells_not_ok[row]] = True
+				edges_not_ok[cells_not_ok[col]] = True
+			edges_ok = np.logical_not(edges_not_ok)
+			row, col = row[edges_ok], col[edges_ok]
+		data = np.ones(row.size, dtype=bool)
+		matrix = dict(coo=sparse.coo_matrix, csc=sparse.csc_matrix, csr=sparse.csr_matrix)
+		return matrix[format]((data, (row, col)), shape=adjacency.shape)
 
 	def descriptors(self, points, asarray=False):
 		"""Keep the data columns that were involved in growing the tessellation.
@@ -551,9 +595,10 @@ class Tessellation(Lazy):
 				return points
 
 	def contour(self, cell, distance=1, fallback=False, adjacency=None, **kwargs):
+		import tramway.feature.adjacency as feature
 		if adjacency is None:
 			adjacency = self.simplified_adjacency().tocsr()
-		return contour(cell, adjacency, distance, None, fallback=fallback, **kwargs)
+		return feature.contour(cell, adjacency, distance, None, fallback=fallback, **kwargs)
 
 
 

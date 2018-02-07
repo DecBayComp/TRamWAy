@@ -71,8 +71,9 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 	for i in cells.cells:
 		cell = cells.cells[i]
 		n = cell.tcount
-		if n == 0:
-			continue
+		assert 0 < n
+		#if n == 0:
+		#	continue
 		# gradient of potential
 		gradV = cells.grad(i, V)
 		if gradV is None:

@@ -40,8 +40,7 @@ def dd_neg_posterior(diffusivity, cells, square_localization_error, diffusivity_
 	for i in cells.cells:
 		cell = cells.cells[i]
 		n = cell.tcount
-		if n == 0:
-			continue
+		assert 0 < n
 		# posterior calculations
 		if cell.cache['dxy2'] is None:
 			cell.cache['dxy2'] = np.sum(cell.dxy * cell.dxy, axis=1) # dx**2 + dy**2 + ..
@@ -70,16 +69,16 @@ def inferDD(cells, localization_error=0.0, diffusivity_prior=None, jeffreys_prio
 	j = 0
 	for i in cells.cells:
 		cell = cells.cells[i]
-		if 0 < cell.tcount:
-			if not np.all(0 < cell.dt):
-				warn('translocation dts are non-positive', RuntimeWarning)
-				cell.dt = abs(cell.dt)
-			cell.cache = dict(dxy2=None, area=None) # initialize cached constants
-			dt_mean_i = np.mean(cell.dt)
-			initial.append((i, j, \
-				dt_mean_i, \
-				np.mean(cell.dxy * cell.dxy) / (2.0 * dt_mean_i)))
-			j += 1
+		assert 0 < cell.tcount
+		if not np.all(0 < cell.dt):
+			warn('translocation dts are non-positive', RuntimeWarning)
+			cell.dt = abs(cell.dt)
+		cell.cache = dict(dxy2=None, area=None) # initialize cached constants
+		dt_mean_i = np.mean(cell.dt)
+		initial.append((i, j, \
+			dt_mean_i, \
+			np.mean(cell.dxy * cell.dxy) / (2.0 * dt_mean_i)))
+		j += 1
 	i, j, dt_mean, initial_diffusivity = (np.array(xs) for xs in zip(*initial))
 	index = np.full(cells.adjacency.shape[0], -1, dtype=int)
 	index[i] = j
