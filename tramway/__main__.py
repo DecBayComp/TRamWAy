@@ -121,8 +121,9 @@ def _dump_rwa(args):
 	for input_file in input_files:
 		print('in {}:'.format(input_file))
 		store = HDF5Store(input_file, 'r', verbose)
+		store.lazy = True
 		try:
-			analyses = store.peek('analyses')
+			analyses = lazyvalue(store.peek('analyses'))
 		except EnvironmentError:
 			print(traceback.format_exc())
 			raise OSError('HDF5 libraries may not be installed')

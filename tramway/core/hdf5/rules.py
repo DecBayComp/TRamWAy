@@ -19,7 +19,7 @@ lazy_exposes = list(Lazy.__slots__)
 analyses_expose = lazy_exposes + list(Analyses.__slots__)
 hdf5_storable(namedtuple_storable(Matrix))
 hdf5_storable(default_storable(ArrayChain))
-hdf5_storable(default_storable(Analyses, exposes=analyses_expose), agnostic=True)
+#hdf5_storable(default_storable(Analyses, exposes=analyses_expose), agnostic=True)
 hdf5_storable(default_storable(Scaler), agnostic=True)
 
 from tramway.tessellation.base import Tessellation, Delaunay, Voronoi

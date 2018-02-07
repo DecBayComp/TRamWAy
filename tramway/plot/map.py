@@ -29,7 +29,7 @@ from warnings import warn
 
 
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
-		delaunay=False, **kwargs):
+		delaunay=False, colorbar=True, **kwargs):
 	if isinstance(values, pd.DataFrame):
 		if values.shape[1] != 1:
 			warn('multiple parameters available; mapping first one only', UserWarning)
@@ -131,10 +131,11 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 	if aspect is not None:
 		axes.set_aspect(aspect)
 
-	try:
-		figure.colorbar(patches)
-	except AttributeError as e:
-		warn(e.args[0], RuntimeWarning)
+	if colorbar:
+		try:
+			figure.colorbar(patches)
+		except AttributeError as e:
+			warn(e.args[0], RuntimeWarning)
 
 	if delaunay:
 		return obj

@@ -470,6 +470,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			labels = input_label
 		else:
 			labels, label = label, None
+		if not labels:
+			labels = ()
+		elif not isinstance(labels, (tuple, list)):
+			labels = (labels, )
 		try:
 			analyses = find_analysis(input_file, labels=labels)
 		except KeyError as e:
@@ -509,6 +513,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			input_file = imt_path
 			try:
 				hdf = HDF5Store(input_file, 'r')
+				hdf.lazy = False
 				cells = hdf.peek('cells')
 			except:
 				print(traceback.format_exc())
@@ -517,7 +522,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 				hdf.close()
 		else:
 			if isinstance(analyses, dict):
-				if len(analyses) == 1:
+				if not analyses:
+					raise ValueError('not any file matches')
+				elif len(analyses) == 1:
 					analyses = list(analyses.values())[0]
 				else:
 					raise ValueError('multiple files match')
@@ -718,6 +725,7 @@ def find_mesh(path, method=None, full_list=False):
 	for path in paths:
 		try:
 			hdf = HDF5Store(path, 'r')
+			hdf.lazy = False
 			try:
 				cells = hdf.peek('cells')
 				if isinstance(cells, CellStats) and \

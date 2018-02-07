@@ -110,3 +110,8 @@ else:
 	hdf5_storable(Storable(Maps, \
 		handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
 
+from tramway.core.analyses import Analyses
+_analyses_storable = default_storable(Analyses, exposes=('_data', '_instances', '_comments'))
+_analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
+hdf5_storable(_analyses_storable)
+

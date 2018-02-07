@@ -289,6 +289,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			try:
 				# old format
 				store = HDF5Store(input_file, 'r')
+				store.lazy = False
 				maps = peek_maps(store, store.store)
 			finally:
 				store.close()
@@ -301,6 +302,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 				tess_file = tess_file.decode('utf-8')
 			tess_file = os.path.join(os.path.dirname(input_file), tess_file)
 			store = HDF5Store(tess_file, 'r')
+			store.lazy = False
 			try:
 				cells = store.peek('cells')
 			finally:
@@ -311,6 +313,12 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
 		mode = maps.mode
 		maps = maps.maps
+
+	if mode and not isinstance(mode, str):
+		try: # Py2
+			mode = mode.encode('utf-8')
+		except AttributeError: # Py3
+			mode = mode.decode('utf-8')
 
 	print_figs = output_file or (input_file and fig_format)
 
@@ -371,11 +379,18 @@ def map_plot(maps, output_file=None, fig_format=None, \
 	vector_vars = [ (v, vector_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 2 ]
 	for name, short_name in vector_vars:
 		cols = all_vars[name]
+
+		var_kwargs = {}
+		for a in kwargs:
+			if isinstance(kwargs[a], (dict, pd.DataFrame)) and name in kwargs[a]:
+				var_kwargs[a] = kwargs[a][name]
+			else:
+				var_kwargs[a] = kwargs[a]
 		
 		fig = plt.figure(figsize=figsize)
 		figs.append(fig)
 
-		field_map_2d(cells, _clip(maps[cols], clip), aspect=aspect)
+		field_map_2d(cells, _clip(maps[cols], clip), aspect=aspect, **var_kwargs)
 
 		extra = None
 		if short_name:

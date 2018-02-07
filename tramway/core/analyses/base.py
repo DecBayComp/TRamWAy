@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from .lazy import Lazy
+from ..lazy import Lazy
 import itertools
 import copy
 import traceback
@@ -141,25 +141,13 @@ class Analyses(Lazy):
 	def instances(self):
 		return InstancesView(self)
 
-	@instances.setter
-	def instances(self, a):
-		raise AttributeError('read-only attribute')
-
 	@property
 	def comments(self):
 		return CommentsView(self)
 
-	@comments.setter
-	def comments(self, c):
-		raise AttributeError('read-only attribute')
-
 	@property
 	def labels(self):
 		return self.instances.keys()
-
-	@labels.setter
-	def labels(self, l):
-		raise AttributeError('read-only attribute')
 
 	def autoindex(self, pattern=None):
 		"""
@@ -267,7 +255,7 @@ def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_t
 			kwargs['comment'] = comment
 		if with_depth:
 			kwargs['depth'] = depth
-		node = _fun(analyses.data, **kwargs)
+		node = _fun(analyses._data, **kwargs)
 		if analyses.instances:
 			depth += 1
 			tree = []
@@ -294,16 +282,16 @@ def extract_analysis(analyses, labels):
 	"""
 	Extract an analysis from a hierarchy of analyses.
 
-	The elements of an :class:`~tramway.core.analyses.Analyses` instance can be other 
-	:class:`~tramway.core.analyses.Analyses` objects. 
+	The elements of an :class:`~tramway.core.analyses.base.Analyses` instance can be other 
+	:class:`~tramway.core.analyses.base.Analyses` objects. 
 	As such, analyses are structured in a tree that exhibits as many logically-consecutive 
 	layers as there are processing steps.
 
 	Arguments:
 
-		analyses (tramway.core.analyses.Analyses):
+		analyses (tramway.core.analyses.base.Analyses):
 			hierarchy of analyses, with `instances` possibly containing
-			other :class:`~tramway.core.analyses.Analyses` instances.
+			other :class:`~tramway.core.analyses.base.Analyses` instances.
 
 		labels (int, str or sequence of int and str):
 			analyses label(s); the first label addresses the first layer of 
@@ -312,11 +300,13 @@ def extract_analysis(analyses, labels):
 
 	Returns:
 
-		tramway.core.analyses.Analyses: copy of the analyses along the path defined by `labels`. 
+		tramway.core.analyses.base.Analyses: copy of the analyses along the path defined by `labels`. 
 	"""
+	if not labels:
+		raise ValueError('labels required')
 	if not isinstance(labels, (tuple, list)):
 		labels = [labels]
-	analysis = instance = Analyses(analyses.data)
+	analysis = instance = type(analyses)(analyses._data)
 	for label in labels:
 		analysis.instances[label] = copy.copy(analyses.instances[label])
 		try:
@@ -352,9 +342,9 @@ def label_paths(analyses, filter):
 
 	Arguments:
 
-		analyses (tramway.core.analyses.Analyses):
+		analyses (tramway.core.analyses.base.Analyses):
 			hierarchy of analyses, with `instances` possibly containing
-			other :class:`~tramway.core.analyses.Analyses` instances.
+			other :class:`~tramway.core.analyses.base.Analyses` instances.
 
 		filter (type or callable):
 			criterion over analysis data.
@@ -376,7 +366,7 @@ def label_paths(analyses, filter):
 	return list(_append([], labels))
 
 
-def find_artefacts(analyses, filters, labels=None, quantifiers=None):
+def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=False):
 	"""
 	Find related artefacts.
 
@@ -384,7 +374,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 
 	Arguments:
 
-		analyses (tramway.core.analyses.Analyses): hierarchy of analyses.
+		analyses (tramway.core.analyses.base.Analyses): hierarchy of analyses.
 
 		filters (type or callable or tuple or list): list of criteria, a criterion being
 			a boolean function or a type.
@@ -393,7 +383,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 
 		quantifiers (str or tuple or list): list of quantifers, a quantifier for now being
 			either *'first'*, *'last'* or *'all'*; a quantifier should be defined for each 
-			filter;	default is 'last' (admits value ``None``).
+			filter;	default is *'last'* (admits value ``None``).
 
 	Returns:
 
@@ -431,7 +421,13 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 			quantifier, _fitler = _filter
 		if isinstance(_filter, type):
 			_type = _filter
-			_filter = lambda a: isinstance(a, _type)
+			_filter = lambda a: isinstance(a.data, _type)
+		elif callable(_filter):
+			if not fullnode:
+				f = _filter
+				_fitler = lambda a: f(a.data)
+		else:
+			raise TypeError('invalid filter type: {}'.format(type(_filter)))
 		match = []
 		while True:
 			if lookup:
@@ -460,8 +456,8 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None):
 					else:
 						raise KeyError("missing label '{}'; no labels available".format(label))
 			lookup = True
-			if _filter(analyses.artefact):
-				match.append(analyses.artefact)
+			if _filter(analyses):
+				match.append(analyses._data)
 			elif match:
 				lookup = False
 				break

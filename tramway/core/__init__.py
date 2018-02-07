@@ -25,6 +25,7 @@ __all__ = ['exceptions', 'ro_property_assert', 'Lazy', 'lightcopy', \
 	'isstructured', 'columns', 'splitcoord', \
 	'Matrix', 'ArrayChain', 'ChainArray', \
 	'Analyses', 'map_analyses', 'extract_analysis', 'label_paths', \
+	'lazytype', 'lazyvalue', \
 	'Scaler', 'whiten', 'unitrange', \
 	'translocations', 'load_xyt', \
 	'hdf5_storable', 'hdf5_not_storable', 'HDF5Store']

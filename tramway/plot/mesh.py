@@ -21,6 +21,7 @@ import scipy.sparse as sparse
 from scipy.spatial.distance import cdist
 from ..core import *
 from ..tessellation import dict_to_sparse
+import traceback
 
 
 def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None):
@@ -114,6 +115,8 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 		plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
 	except AttributeError:
 		pass
+	except ValueError:
+		print(traceback.format_exc())
 
 
 def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
@@ -179,7 +182,12 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 		plt.plot(centroids[:,0], centroids[:,1], centroid_style)
 
 	# resize window
-	plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+	try:
+		plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+	except AttributeError:
+		pass
+	except ValueError:
+		print(traceback.format_exc())
 
 
 def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
@@ -232,8 +240,10 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 	# resize window
 	try:
 		axes.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
-	except (ValueError, AttributeError):
+	except AttributeError:
 		pass
+	except ValueError:
+		print(traceback.format_exc())
 
 	if obj:
 		return list(itertools.chain(*obj))

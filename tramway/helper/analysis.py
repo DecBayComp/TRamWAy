@@ -16,7 +16,7 @@ import os
 import itertools
 import traceback
 from tramway.core.analyses import *
-from tramway.core.hdf5 import HDF5Store
+from tramway.core.hdf5 import HDF5Store, lazytype, lazyvalue
 
 
 try:
@@ -59,12 +59,11 @@ def find_analysis(path, labels=None):
 
 
 def load_rwa(path):
-	#if not os.path.isfile(path):
-	#	raise OSError(2, "missing file '{}'".format(path))
 	try:
 		hdf = HDF5Store(path, 'r')
+		hdf.lazy = True
 		try:
-			analyses = hdf.peek('analyses')
+			analyses = lazyvalue(hdf.peek('analyses'))
 		finally:
 			hdf.close()
 	except EnvironmentError as e:
@@ -87,30 +86,20 @@ def save_rwa(path, analyses, verbose=False, force=False):
 			print('writing file: {}'.format(path))
 		store.poke('analyses', analyses)
 		store.close()
-	except Exception as e:
-		try:
-			os.unlink(path)
-		except OSError as e1: # Py3 has FileNotFoundError
-			if e1.errno == 2:
-				pass
-			elif verbose:
-				print(traceback.format_exc(e1))
-		else:
-			if verbose:
-				print('deleting file: {}'.format(path))
-		if isinstance(e, EnvironmentError):
-			print(traceback.format_exc(e))
-			raise ImportError('HDF5 libraries may not be installed')
-		else:
-			raise e
+	except EnvironmentError:
+		print(traceback.format_exc())
+		raise ImportError('HDF5 libraries may not be installed')
 	if verbose:
-		print('written analysis tree:'.format(path))
+		print('written analysis tree:')
 		print(format_analyses(analyses, global_prefix='\t'))
 
 
-def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
+def format_analyses(analyses, prefix='\t', node=None, global_prefix=''):
 	if not isinstance(analyses, Analyses) and os.path.isfile(analyses):
 		analyses = find_analysis(analyses)
+	if node is None:
+		try:	node = lazytype
+		except:	node = type
 	def _format(data, label=None, comment=None, depth=0):
 		s = [global_prefix + prefix * depth]
 		t = []

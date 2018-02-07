@@ -244,6 +244,7 @@ class ContourEditingApp(tk.Frame):
 			try:
 				# old format
 				store = HDF5Store(map_file, 'r')
+				store.lazy = False
 				maps = peek_maps(store, store.store)
 			finally:
 				store.close()
@@ -259,6 +260,7 @@ class ContourEditingApp(tk.Frame):
 			tess_file = os.path.join(os.path.dirname(map_file), tess_file)
 			try:
 				store = HDF5Store(tess_file, 'r')
+				store.lazy = False
 				try:
 					self.editor.cells = store.peek('cells')
 				finally:
