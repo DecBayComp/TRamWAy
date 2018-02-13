@@ -279,6 +279,10 @@ class NestedTessellations(Tessellation):
 	def adjacency_label(self, label):
 		self.__lazysetter__(label)
 
+	def freeze(self):
+		for child in self.children.values():
+			child.freeze()
+
 
 __all__ = ['NestedTessellations']
 

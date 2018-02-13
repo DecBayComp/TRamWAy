@@ -29,7 +29,7 @@ from warnings import warn
 
 
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
-		delaunay=False, colorbar=True, **kwargs):
+		delaunay=False, colorbar=True, alpha=None, **kwargs):
 	if isinstance(values, pd.DataFrame):
 		if values.shape[1] != 1:
 			warn('multiple parameters available; mapping first one only', UserWarning)
@@ -56,6 +56,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		xy = cells.tessellation.cell_centers
 		ix = np.arange(xy.shape[0])
 		ok = 0 < cells.location_count
+		if cells.tessellation.cell_label is not None:
+			ok = np.logical_and(ok, 0 < cells.tessellation.cell_label)
+		ok[ok] = np.logical_not(np.isnan(values.loc[ix[ok]].values))
 		for i in ix[ok]:
 			vs = cells.tessellation.cell_vertices[i]
 			# order the vertices so that they draw a polygon
@@ -109,7 +112,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		figure = plt.gcf() # before PatchCollection
 	if axes is None:
 		axes = figure.gca()
-	patches = PatchCollection(polygons, alpha=0.9, linewidth=linewidth)
+	if alpha is None:
+		alpha = .9
+	patches = PatchCollection(polygons, alpha=alpha, linewidth=linewidth)
 	patches.set_array(scalar_map)
 	if clim is not None:
 		patches.set_clim(clim)

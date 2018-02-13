@@ -210,6 +210,7 @@ class Analyses(Lazy):
 		"""
 		Overloads :meth:`Lazy.unload`.
 		"""
+		warnings.warn(DeprecationWarning)
 		if visited is None:
 			visited = set()
 		elif self in visited:

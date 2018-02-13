@@ -150,6 +150,8 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		assert input_label is None
 		input_label = tuple(all_analyses.labels)
 
+	if mode in ('D', 'DF', 'DD', 'DV'):
+		mode = mode.lower()
 	setup, module = inference.plugins[mode]
 
 	if isinstance(analysis.data, Distributed):
@@ -237,8 +239,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 
 def map_plot(maps, output_file=None, fig_format=None, \
-	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
-	cells=None, mode=None, clip=None, label=None, input_label=None, \
+	show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
+	cells=None, mode=None, clip=None, alpha=None, point_style=None, \
+	label=None, input_label=None, \
 	**kwargs):
 	"""
 	Plot scalar/vector 2D maps.
@@ -263,19 +266,25 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		aspect (float or str): aspect ratio or *'equal'*
 
-		cells (CellStats or Tessellation): mesh
+		cells (CellStats or Tessellation): mesh with optional partition
 
 		mode (str): inference mode
 
-		clip (float): quantile at which to clip absolute values of the map
+		clip (float): clips map values by absolute values;
+			if ``clip < 1``, it is the quantile at which to clip absolute values of the map;
+			otherwise it defines: ``threshold = median + clip * (third_quartile - first_quartile)``
+
+		alpha (float): alpha value for scalar maps; useful in combination with `point_style`
+
+		point_style (dict): if defined, points are overlaid
 
 		label/input_label (int or str): analysis instance label
 	"""
 
+	input_file = None
 	if isinstance(maps, tuple):
 		cells, mode, maps = maps
-		input_file = None
-	elif isinstance(maps, pd.DataFrame):
+	elif isinstance(maps, (pd.DataFrame, Maps)):
 		if cells is None:
 			raise ValueError('`cells` is not defined')
 	else:
@@ -311,6 +320,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			warn('HDF5 libraries may not be installed', ImportWarning)
 		else:
 			cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
+	if isinstance(maps, Maps):
 		mode = maps.mode
 		maps = maps.maps
 
@@ -345,15 +355,36 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		col_kwargs = {}
 		for a in kwargs:
-			if isinstance(kwargs[a], (dict, pd.DataFrame)) and col in kwargs[a]:
+			if isinstance(kwargs[a], (dict, pd.Series, pd.DataFrame)) and col in kwargs[a]:
 				col_kwargs[a] = kwargs[a][col]
 			else:
 				col_kwargs[a] = kwargs[a]
 
-		fig = plt.figure(figsize=figsize)
+		if figsize:
+			fig = plt.figure(figsize=figsize)
+		else:
+			fig = plt.gcf()
 		figs.append(fig)
 
-		scalar_map_2d(cells, _clip(maps[col], clip), aspect=aspect, **col_kwargs)
+		_map = maps[col]
+		if isinstance(clip, (dict, pd.Series, pd.DataFrame)):
+			try:
+				__clip = clip[col]
+			except:
+				__clip = None
+		else:
+			__clip = clip
+		if __clip:
+			_map = _clip(_map, __clip)
+		scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
+
+		if point_style is not None:
+			points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
+			#_pt_map = np.zeros(points.shape[0])
+			#ok = 0 <= cells.cell_index
+			#_pt_map[ok] = _map[cells.cell_index[ok]]
+			_pt_map = None
+			plot_points(points, color=_pt_map, **point_style)
 
 		if mode:
 			if short_name:
@@ -382,15 +413,39 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		var_kwargs = {}
 		for a in kwargs:
-			if isinstance(kwargs[a], (dict, pd.DataFrame)) and name in kwargs[a]:
+			if isinstance(kwargs[a], (dict, pd.Series, pd.DataFrame)) and name in kwargs[a]:
 				var_kwargs[a] = kwargs[a][name]
 			else:
 				var_kwargs[a] = kwargs[a]
 		
-		fig = plt.figure(figsize=figsize)
+		if figsize:
+			fig = plt.figure(figsize=figsize)
+		else:
+			fig = plt.gcf()
 		figs.append(fig)
 
-		field_map_2d(cells, _clip(maps[cols], clip), aspect=aspect, **var_kwargs)
+		_vector_map = maps[cols]
+		if isinstance(clip, (dict, pd.Series, pd.DataFrame)):
+			try:
+				__clip = clip[name]
+			except:
+				__clip = None
+		else:
+			__clip = clip
+		if __clip:
+			_vector_map = _clip(_vector_map, __clip)
+		if point_style is None:
+			field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
+		else:
+			_scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
+			scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
+			points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
+			#_pt_scalars = np.zeros(points.shape[0])
+			#ok = 0 <= cells.cell_index
+			#_pt_scalars[ok] = _scalar_map[cells.cell_index[ok]]
+			_pt_scalars = None
+			plot_points(points, color=_pt_scalars, **point_style)
+			field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
 
 		extra = None
 		if short_name:
@@ -423,24 +478,29 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			fig.savefig(figfile, dpi=dpi)
 
 	if show or not print_figs:
-		plt.show()
+		if show is not False:
+			plt.show()
 	else:
 		for fig in figs:
 			plt.close(fig)
 
 
 def _clip(m, q):
-	if q:
-		amplitude = m.pow(2)
-		if 1 < len(m.shape):
-			amplitude = amplitude.sum(1)
-		amplitude = amplitude.apply(np.sqrt)
+	if q <= 0:
+		return m
+	amplitude = m.pow(2)
+	if 1 < len(m.shape):
+		amplitude = amplitude.sum(1)
+	amplitude = amplitude.apply(np.sqrt)
+	if q < 1:
 		amax = amplitude.quantile(q)
-		m = m.copy()
-		factor = amplitude[amplitude > amax].rdiv(amax)
-		if 1 < len(m.shape):
-			m.loc[amplitude > amax, :] *= factor
-		else:
-			m.loc[amplitude > amax] *= factor
+	else:
+		amax = amplitude.quantile(.5) + q * (amplitude.quantile(.75) - amplitude.quantile(.25))
+	m = m.copy()
+	factor = amplitude[amplitude > amax].rdiv(amax)
+	if 1 < len(m.shape):
+		m.loc[amplitude > amax, :] *= factor
+	else:
+		m.loc[amplitude > amax] *= factor
 	return m
 

@@ -130,6 +130,8 @@ class TimeLattice(Tessellation):
 			if exclude and not count_shape[1:]:
 				ok = exclude(location_count)
 				ok = ok[0 < location_count]
+				if not np.any(ok):
+					return ([], [])
 				ps, cs = zip(*[ (p, c) for p, c, b in zip(ps, cs, ok) if b ])
 			ps = np.concatenate(ps)
 			cs = np.concatenate(cs)
@@ -209,7 +211,8 @@ class TimeLattice(Tessellation):
 						shape=A.shape).tocsr()
 					self._adjacency_label = np.ones(n_spatial_edges)
 				else:
-					A = self.spatial_mesh.adjacency.tocsr()
+					self._adjacency_label = self.spatial_mesh.adjacency_label
+					A = self.spatial_mesh.cell_adjacency.tocsr()
 					edge_max = int(A.data.max())
 					n_spatial_edges = int(self._adjacency_label.max())
 				ncells = A.shape[0]
@@ -260,7 +263,7 @@ class TimeLattice(Tessellation):
 	@property
 	def cell_label(self):
 		if self._cell_label is None:
-			if self.spatial_mesh is None:
+			if self.spatial_mesh is None or self.spatial_mesh.cell_label is None:
 				return None
 			else:
 				nsegments = self.time_lattice.shape[0]
@@ -341,10 +344,14 @@ class TimeLattice(Tessellation):
 				ts.append(xt)
 		return ts
 
+	def freeze(self):
+		if self.spatial_mesh is not None:
+			self.spatial_mesh.freeze()
+
 
 def with_time_lattice(cells, frames, exclude_cells_by_location_count=None, **kwargs):
 	dynamic_cells = copy.deepcopy(cells)
-	dynamic_cells.tessellation = TimeLattice(cells.tessellation, frames)
+	dynamic_cells.tessellation = TimeLattice(mesh=cells.tessellation, segments=frames)
 	dynamic_cells.cell_index = dynamic_cells.tessellation.cell_index(cells.points, \
 		exclude_cells_by_location_count=exclude_cells_by_location_count, **kwargs)
 	return dynamic_cells

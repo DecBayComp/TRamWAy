@@ -36,18 +36,18 @@ class Scaler(object):
 	Attributes:
 		init (bool):
 			``True`` as long as `Scaler` has not been initialized.
-		center (array or Series):
+		center (array or pandas.Series):
 			Vector that is substracted to each row of the data matrix to be scaled.
-		factor (array or Series):
+		factor (array or pandas.Series):
 			Vector by which each row of the data matrix to be scaled is divided.
 			Applies after `center`.
-		columns (list or Index):
+		columns (list or pandas.Index):
 			Sequence of column names along which scaling applies. This applies only to
 			structured data. `columns` is determined even if `Scaler` is set to do nothing,
 			so that :meth:`scaled` can still apply.
 			`columns` can be manually set after the first call to :meth:`scale_point` if data
 			are not structured (do not have named columns).
-		function (function handler):
+		function (callable):
 			A function that takes a data matrix as input and returns `center` and `factor`.
 			`function` is called once during the first call to :meth:`scale_point`.
 		euclidian (list):
@@ -58,7 +58,7 @@ class Scaler(object):
 	def __init__(self, scale=None, euclidean=None):
 		"""
 		Arguments:
-			scale (function handler):
+			scale (callable):
 				A function that takes a data matrix as input and returns `center` and 
 				`factor`. `scale` becomes the :attr:`function` attribute.
 			euclidian (list):
@@ -82,7 +82,8 @@ class Scaler(object):
 
 	def scaled(self, points, asarray=False):
 		"""Discard columns that are not recognized by the initialized scaler. 
-		Applies to points and vectors."""
+
+		Applies to points and vectors, not distances, surface areas or volumes."""
 		if (isinstance(self.columns, list) and self.columns) or self.columns.size:
 			if isstructured(points):
 				points = points[self.columns]
@@ -107,25 +108,25 @@ class Scaler(object):
 
 	def scale_point(self, points, inplace=True, scaledonly=False, asarray=False):
 		"""
-		Scales data.
+		Scale data.
 
 		When this method is called for the first time, the `Scaler` instance initializes itself 
 		for further call of any of its methods.
 
-		Args:
+		Arguments:
 			points (array-like):
 				Data matrix to be scaled. When :meth:`scale_point` is called for the
 				first time, `points` can be structured or not, without the unnecessary 
 				columns, if any.
 				At further calls of any (un-)scaling method, data should be in the same
 				format but may feature extra columns.
-			inplace (bool, optional):
+			inplace (bool):
 				Per default, scaling is performed in-place. With ``inplace=False``, 
 				`points` are first copied.
-			scaledonly (bool, optional):
+			scaledonly (bool):
 				If ``True``, undeclared columns are stripped away out of the returned 
 				data.
-			asarray (bool, optional):
+			asarray (bool):
 				If ``True``, the returned data is formatted as a :class:`numpy.array`.
 
 		Returns:
@@ -187,6 +188,21 @@ class Scaler(object):
 		return points
 
 	def unscale_point(self, points, inplace=True):
+		"""
+		Scale data back to original domain.
+
+		The calling `Scaler` instance must have been initialized.
+
+		Arguments:
+			points (array-like):
+				Scaled data matrix to be unscaled.
+			inplace (bool):
+				Per default, scaling is performed in-place. With ``inplace=False``, 
+				`points` are first copied.
+
+		Returns:
+			array-like: unscaled data matrix.
+		"""
 		if self.init:
 			raise AttributeError('scaler has not been initialized')
 		if not (self.center is None and self.factor is None):
@@ -200,6 +216,26 @@ class Scaler(object):
 
 
 	def scale_vector(self, vect, inplace=True, scaledonly=False, asarray=False):
+		"""
+		Scale vectors.
+
+		The calling `Scaler` instance must have been initialized.
+
+		Arguments:
+			vect (array-like):
+				Data matrix to be scaled.
+			inplace (bool):
+				Per default, scaling is performed in-place. With ``inplace=False``, 
+				`vect` is first copied.
+			scaledonly (bool):
+				If ``True``, undeclared columns are stripped away out of the returned 
+				data.
+			asarray (bool):
+				If ``True``, the returned data is formatted as a :class:`numpy.array`.
+
+		Returns:
+			array-like: scaled data matrix.
+		"""
 		if self.init:
 			raise AttributeError('scaler has not been initialized')
 		if self.factor is not None:
@@ -212,24 +248,95 @@ class Scaler(object):
 			vect = np.asarray(vect)
 		return vect
 
-	def unscale_vector(self, points, inplace=True):
-		raise NotImplementedError
+	def unscale_vector(self, vect, inplace=True):
+		"""
+		Scale vectors back to original range.
 
+		The calling `Scaler` instance must have been initialized.
 
-	def scale_distance(self, dist, inplace=True):
+		Arguments:
+			vect (array-like):
+				Scaled data matrix to be unscaled.
+			inplace (bool):
+				Per default, scaling is performed in-place. With ``inplace=False``, 
+				`points` are first copied.
+
+		Returns:
+			array-like: unscaled data matrix.
+		"""
 		if self.init:
 			raise AttributeError('scaler has not been initialized')
 		if self.factor is not None:
-			if self.euclidean:
-				if not inplace:
-					dist = dist.copy(deep=False)
-				dist /= self.factor[self.euclidean[0]]
-			else:
-				raise AttributeError('distance cannot be scaled because no euclidean variables have been designated')
-		return dist
+			if not inplace:
+				vect = vect.copy(deep=False)
+			vect *= self.factor
+		return vect
 
-	def unscale_distance(self, points, inplace=True):
-		raise NotImplementedError
+	def scale_size(self, size, dim=None, inplace=True, _unscale=False):
+		"""
+		Scale/unscale lengths, surface areas, volumes and other scalar sizes.
+
+		The calling `Scaler` instance must have been initialized.
+
+		Arguments:
+			size (array-like):
+				Values to be scaled, per element.
+			dim (int):
+				Number of characteristic dimensions, with 0 referring to all the
+				euclidean dimensions (e.g. lengths: 1, areas: 2, volumes: 0).
+			inplace (bool):
+				Per default, scaling is performed in-place. With ``inplace=False``, 
+				`size` is first copied.
+			_unscale (bool):
+				If ``True``, unscales instead.
+
+		Returns:
+			array-like: scaled values.
+		"""
+		if self.init:
+			raise AttributeError('scaler has not been initialized')
+		if self.factor is not None:
+			_dim = len(self.euclidean)
+			if not dim:
+				dim = _dim
+			if _dim < min(1, dim):
+				raise ValueError('not enough euclidean dimensions')
+			factor = self.factor[self.euclidean[0]]
+			if self.euclidean[1:] and not np.all(self.factor[self.euclidean[1:]] == factor):
+				raise ValueError('the scaling factors for the euclidean variables are not all equal')
+			if not inplace:
+				size = size.copy(deep=False)
+			if 1 < dim:
+				factor **= dim
+			if _unscale:
+				size *= factor
+			else:
+				size /= factor
+		return size
+
+	def scale_distance(self, dist, inplace=True):
+		return self.scale_size(dist, 1, inplace)
+
+	def unscale_distance(self, dist, inplace=True):
+		return self.scale_size(dist, 1, inplace, True)
+
+	def scale_length(self, dist, inplace=True):
+		return self.scale_size(dist, 1, inplace)
+
+	def unscale_length(self, dist, inplace=True):
+		return self.scale_size(dist, 1, inplace, True)
+
+	def scale_surface_area(self, area, inplace=True):
+		return self.scale_size(area, 2, inplace)
+
+	def unscale_surface_area(self, area, inplace=True):
+		return self.scale_size(area, 2, inplace, True)
+
+	def scale_volume(self, vol, inplace=True):
+		return self.scale_size(vol, 0, inplace)
+
+	def unscale_volume(self, vol, inplace=True):
+		return self.scale_size(vol, 0, inplace, True)
 
 
 def _whiten(x):

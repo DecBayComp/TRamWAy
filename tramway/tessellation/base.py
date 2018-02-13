@@ -148,21 +148,22 @@ class CellStats(Lazy):
 	@property
 	def location_count(self):
 		if self._location_count is None:
-			ncells = self.tessellation._cell_centers.shape[0]
+			ncells = self.tessellation.cell_adjacency.shape[0]
 			if isinstance(self.cell_index, tuple):
-				ci = sparse.csr_matrix((np.ones_like(self.cell_index[0], dtype=bool), \
-					self.cell_index), \
+				ci = sparse.csc_matrix(
+					(np.ones_like(self.cell_index[0]), self.cell_index),
 					shape=(self.points.shape[0], ncells))
 				self._location_count = np.diff(ci.indptr)
 			elif sparse.issparse(self.cell_index):
 				self._location_count = np.diff(self.cell_index.tocsc().indptr)
 			else:
-				valid_cells, _location_count = np.unique(self.cell_index, \
+				valid_cells, _location_count = np.unique(self.cell_index,
 					return_counts=True)
 				_location_count = _location_count[0 <= valid_cells]
 				valid_cells = valid_cells[0 <= valid_cells]
 				self._location_count = np.zeros(ncells, dtype=_location_count.dtype)
 				self._location_count[valid_cells] = _location_count
+			assert self._location_count.size == ncells
 		return self._location_count
 
 	@location_count.setter
@@ -184,6 +185,13 @@ class CellStats(Lazy):
 	@bounding_box.setter
 	def bounding_box(self, bb):
 		self.__lazysetter__(bb)
+
+	def freeze(self):
+		"""
+		Proxy method for :meth:`Tessellation.freeze`.
+		"""
+		if self.tessellation is not None:
+			self.tessellation.freeze()
 
 
 
@@ -405,7 +413,7 @@ class Tessellation(Lazy):
 
 	def _preprocess(self, points):
 		"""
-		Identify euclidian variables (usually called 'x', 'y', 'z') and scale the coordinates.
+		Identify euclidian variables (usually called *x*, *y*, *z*) and scale the coordinates.
 
 		See also:
 			:mod:`tramway.core.scaler`.
@@ -588,6 +596,8 @@ class Tessellation(Lazy):
 		"""
 		try:
 			return self.scaler.scaled(points, asarray)
+		except (KeyboardInterrupt, SystemExit):
+			raise
 		except:
 			if asarray:
 				return np.asarray(points)
@@ -595,10 +605,25 @@ class Tessellation(Lazy):
 				return points
 
 	def contour(self, cell, distance=1, fallback=False, adjacency=None, **kwargs):
+		"""
+		Select a close path around a cell.
+
+		This method may be moved out of `Tessellation` in the near future.
+		"""
 		import tramway.feature.adjacency as feature
 		if adjacency is None:
 			adjacency = self.simplified_adjacency().tocsr()
 		return feature.contour(cell, adjacency, distance, None, fallback=fallback, **kwargs)
+
+	def freeze(self):
+		"""
+		Delete the data required to and only to incrementally update the tessellation.
+
+		This may save large amounts of memory but differs from 
+		:meth:`~tramway.core.lazy.Lazy.unload` in that the subsequent data loss may not 
+		be undone.
+		"""
+		pass
 
 
 
@@ -622,7 +647,8 @@ class Delaunay(Tessellation):
 		self._cell_centers = self._preprocess(points)
 
 	def cell_index(self, points, format=None, select=None, knn=None,
-		min_location_count=None, metric='euclidean', **kwargs):
+		min_location_count=None, metric='euclidean', filter=None, 
+		filter_descriptors_only=False, **kwargs):
 		"""
 		See :meth:`Tessellation.cell_index`.
 
@@ -639,17 +665,23 @@ class Delaunay(Tessellation):
 			points: see :meth:`Tessellation.cell_index`.
 			format: see :meth:`Tessellation.cell_index`; additionally admits *force array*.
 			select: see :meth:`Tessellation.cell_index`.
-			knn (int or pair of ints, optional):
+			knn (int or tuple):
 				minimum number of points per cell (or of nearest neighbors to the cell 
 				center). Cells may overlap and the returned cell index may be a sparse 
 				point-cell association.
 				can also be a pair of ints, in which case these ints define the minimum
 				and maximum number of points per cell respectively.
-			min_location_count (int, optional):
+			min_location_count (int):
 				minimum number of points for a cell to be included in the labeling. 
 				This argument applies before `knn`. The points in these cells, if not 
 				associated with	another cell, are labeled ``-1``. The other cell labels
 				do not change.
+			metric (str): any metric name understandable by :func:`~scipy.spatial.distance.cdist`.
+			filter (callable): takes the calling instance, a cell index and the corresponding
+				subset of points; returns ``True`` if the corresponding cell should be 
+				included in the labeling.
+			filter_descriptors_only (bool): whether `filter` should get points as 
+				descriptors only.
 
 		Returns:
 			see :meth:`Tessellation.cell_index`.
@@ -662,15 +694,24 @@ class Delaunay(Tessellation):
 		else:
 			min_nn, max_nn = knn, None
 		points = self.scaler.scale_point(points, inplace=False)
-		D = cdist(self.descriptors(points, asarray=True), \
-			self._cell_centers, metric, **kwargs)
+		X = self.descriptors(points, asarray=True)
+		D = cdist(X, self._cell_centers, metric, **kwargs)
 		ncells = self._cell_centers.shape[0]
 		if format == 'force array':
 			min_nn = None
 			format = 'array' # for later call to :func:`format_cell_index`
-		if max_nn or min_nn or min_location_count:
+		if max_nn or min_nn or min_location_count or filter is not None:
 			K = np.argmin(D, axis=1) # cell indices
 			nonempty, positive_count = np.unique(K, return_counts=True)
+			if filter is not None:
+				for c in nonempty:
+					cell = K == c
+					if filter_descriptors_only:
+						x = X[cell]
+					else:
+						x = points[cell]
+					if not filter(self, c, x):
+						K[cell] = -1
 			# max_nn:
 			# set K[i] = -1 for all point i in cells that are too large
 			if max_nn:
@@ -766,15 +807,19 @@ class Voronoi(Delaunay):
 			mapping of cell indices to their associated vertices as indices in 
 			:attr:`vertices`.
 
+		_cell_volume (numpy.ndarray):
+			cell volume (or surface area in 2D); only 2D is supported for now.
+
 	"""
 	__lazy__ = Delaunay.__lazy__ + \
-		('vertices', 'cell_adjacency', 'cell_vertices', 'vertex_adjacency')
+		('vertices', 'cell_adjacency', 'cell_vertices', 'vertex_adjacency', 'cell_volume')
 
 	def __init__(self, scaler=None):
 		Delaunay.__init__(self, scaler)
 		self._vertices = None
 		self._vertex_adjacency = None
 		self._cell_vertices = None
+		self._cell_volume = None
 
 	# vertices property
 	@property
@@ -862,6 +907,38 @@ class Voronoi(Delaunay):
 					np.fliplr(voronoi.ridge_points).flatten('F'))), \
 					shape=(n_centers, n_centers))
 			return voronoi
+
+	@property
+	def cell_volume(self):
+		if self._cell_volume is None:
+			if len(self._cell_centers.shape) != 2:
+				raise NotImplementedError('not 2D locations or single cell')
+			adjacency = self.vertex_adjacency.tocsr()
+			self._cell_volume = np.zeros(adjacency.shape[0])
+			for c, u in enumerate(self._cell_centers):
+				vs = set(self.cell_vertices[c].tolist()) # vertex indices
+				ordered_vs = []
+				next_vs = set(vs) # copy
+				try:
+					while vs:
+						v = next_vs.pop()
+						ordered_vs.append(v)
+						vs.remove(v)
+						next_vs = set(adjacency.indices[adjacency.indptr[v]:adjacency.indptr[v+1]]) & vs
+				except KeyError:
+					continue
+				for a, b in zip(ordered_vs, ordered_vs[1:]+[ordered_vs[0]]):
+					v, w = self._vertices[a], self._vertices[b]
+					self._cell_volume[c] += abs( \
+							(v[0] - u[0]) * (w[1] - u[1]) - \
+							(w[0] - u[0]) * (v[1] - u[1]) \
+						)
+			self._cell_volume = self.scaler.unscale_surface_area(self._cell_volume * .5)
+		return self._cell_volume
+
+	@cell_volume.setter
+	def cell_volume(self, area):
+		self.__lazysetter__(area)
 
 
 

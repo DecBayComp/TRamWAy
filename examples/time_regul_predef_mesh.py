@@ -29,16 +29,16 @@ minD = -localization_error
 D0 = .1 # um2.s-1
 D = .01 # um2.s-1
 
-R = .2 # um
+R = 1. # um
 
 dim = 2
 x0 = y0 = t0 = 0.
-width = height = 1. # um
+width = height = 10. # um
 duration = 10. # s
 time_step = .05 # s
 tessellation_dt = 2. # s
 
-min_count = 10 # number of points per cell
+min_count = 40 # number of points per cell
 
 
 _box = (x0, y0, width, height)
@@ -60,11 +60,14 @@ def diffusivity_map(xy, t):
 
 def main():
 	output_basename = name
-	def out(method, extension):
-		return '{}.{}{}'.format(output_basename, method, extension)
+	def out(method=method, extension='rwa', rwa=False):
+		if rwa or not method:
+			return '{}.{}'.format(output_basename, extension)
+		else:
+			return '{}.{}.{}'.format(output_basename, method, extension)
 
-	xyt_file = out('', 'trxyt')
-	tessellation_file = out(method, '.rwa')
+	xyt_file = out(None, 'trxyt')
+	tessellation_file = out(rwa=True)
 	new_xyt = not os.path.exists(xyt_file)
 	new_tessellation = not os.path.isfile(tessellation_file)
 
@@ -75,7 +78,7 @@ def main():
 	if new_xyt:
 		# simulate random walks
 		print('generating trajectories: {}'.format(xyt_file))
-		df = random_walk(diffusivity_map, None, 1000, 30, box=_box)
+		df = random_walk(diffusivity_map, None, 1000, 100, box=_box)
 		#print(df)
 		df.to_csv(xyt_file, sep="\t", header=False)
 		# mesh regularly to sample ground truth for illustrative purposes
@@ -86,9 +89,10 @@ def main():
 			true_map = cells.run(truth, t, diffusivity_map)
 			subext = 'truth.{}'.format(i)
 			print('plotting ground truth maps at time {}: {}'.format(t, \
-				out(subext, '.png')))
+				out(subext, 'png')))
 			map_plot(true_map, cells=cells, mode='true', \
-				output_file=out(subext, '.png'), aspect='equal', clim=[D, D0])
+				output_file=out(subext, 'png'), aspect='equal', clim=[D, D0], \
+				colorbar=None)
 		if not new_tessellation:
 			print("WARNING: tessellation will overwrite file '{}'".format(tessellation_file))
 			new_tessellation = True
@@ -97,10 +101,11 @@ def main():
 	if new_tessellation:
 		tessellate(xyt_file, method, min_location_count=min_count * nsegments, \
 			output_file=tessellation_file, verbose=True)
-		cell_plot(tessellation_file, output_file=out(method, '.mesh.png'), \
+		cell_plot(tessellation_file, output_file=out(extension='mesh.png'), \
 			show=True, aspect='equal')
 
-	_, static_cells = find_imt(tessellation_file)
+	analyses = load_rwa(tessellation_file)
+	static_cells, = find_artefacts(analyses, CellStats)
 	if static_cells is None:
 		raise EnvironmentError("cannot load file: {}".format(tessellation_file))
 
@@ -127,31 +132,12 @@ def main():
 	print("running D inference mode...")
 	D_ = infer(dynamic_cells, mode='D', localization_error=localization_error, \
 		min_diffusivity=minD)
-	Dlim = np.r_[0, D_.quantile(.95).values]
+	Dlim = np.r_[D_.quantile(.01).values, D_.quantile(.97).values]
 	D_ = dynamic_cells.tessellation.split_frames(D_)
 	for t, frame_map in enumerate(D_):
 		map_plot(frame_map, cells=static_cells, mode='D', \
-			output_file=out(method, '.d.{}.png'.format(t)), \
-			aspect='equal', clim=Dlim)
-
-	#print("running DF inference mode...")
-	#DF = infer(tessellation_file, mode='DF', localization_error=localization_error)
-	#map_plot(DF, output_file=out(method, '.df.png'), show=True, aspect='equal')
-
-	#print("running DD inference mode...")
-	#DD = infer(dynamic_cells, mode='DD', localization_error=localization_error, \
-	#	priorD=priorD, min_diffusivity=minD)
-	#Dlim = np.r_[0, DD.quantile(.95).values]
-	#DD = dynamic_cells.tessellation.split_frames(DD)
-	#for t, frame_map in enumerate(DD):
-	#	map_plot(frame_map, cells=static_cells, mode='DD', \
-	#		output_file=out(method, '.dd.{}.png'.format(t)), \
-	#		aspect='equal', clim=Dlim)
-
-	#print("running DV inference mode...")
-	#DV = infer(tessellation_file, mode='DV', localization_error=localization_error, \
-	#	priorD=priorD, priorV=priorV)
-	#map_plot(DV, output_file=out(method, '.dv.png'), show=True, aspect='equal')
+			output_file=out(extension='d.{}.png'.format(t)), \
+			aspect='equal', clim=Dlim, colorbar=None)
 
 	sys.exit(0)
 

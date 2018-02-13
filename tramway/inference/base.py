@@ -276,7 +276,7 @@ class Distributed(Local):
 				return None
 		except AttributeError:
 			ok = slice(dX.size)
-		gradX = np.array([ np.linalg.lstsq(vander[ok], dX[ok])[0][1] \
+		gradX = np.array([ np.linalg.lstsq(vander[ok], dX[ok], rcond=None)[0][1] \
 			for vander in cell.cache['vanders'] ])
 		return gradX
 
@@ -857,6 +857,8 @@ def identify_columns(points, trajectory_col=True):
 					coord_cols = coord_cols.drop(trajectory_col)
 				else:
 					coord_cols.remove(trajectory_col)
+			except (KeyboardInterrupt, SystemExit):
+				raise
 			except:
 				if _traj_undefined:
 					_has_trajectory = False

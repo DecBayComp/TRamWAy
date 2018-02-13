@@ -54,7 +54,8 @@ class KDTreeMesh(Voronoi):
 		self.max_level = max_level
 
 	def cell_index(self, points, format=None, select=None, knn=None,
-		min_location_count=None, metric='chebyshev', **kwargs):
+		min_location_count=None, metric='chebyshev', filter=None,
+		filter_descriptors_only=False, **kwargs):
 		if isinstance(knn, tuple):
 			min_nn, max_nn = knn
 		else:
@@ -70,15 +71,26 @@ class KDTreeMesh(Voronoi):
 				raise NotImplementedError('knn support has evolved and KDTreeMesh still lacks a proper support for it. You can still call cell_index with argument metric=\'euclidean\'')
 			# TODO: pass relevant kwargs to cdist
 			points = self.scaler.scale_point(points, inplace=False)
-			D = cdist(self.descriptors(points, asarray=True), \
-				self._cell_centers, metric) # , **kwargs
-			dmax = self.dichotomy.reference_length[self.level[np.newaxis,:] + 1]
-			I, J = np.nonzero(D <= dmax)
-			if min_location_count:
+			X = self.descriptors(points, asarray=True)
+			D = cdist(X, self._cell_centers, metric) # , **kwargs
+			I, J = np.nonzero(D <= self.reference_length)
+			if min_location_count or filter is not None:
 				K, count = np.unique(J, return_counts=True)
-				K = K[count < min_location_count]
-				for k in K:
-					J[J == k] = -1
+				if min_location_count:
+					for k in K[count < min_location_count]:
+						J[J == k] = -1
+				if filter is not None:
+					if min_location_count:
+						K = K[min_location_count <= K]
+					for k in K:
+						cell = J == k
+						if filter_descriptors_only:
+							x = X[cell]
+						else:
+							x = points[cell]
+						if not filter(self, k, x):
+							J[cell] = -1
+						
 			if I[0] == 0 and I.size == points.shape[0] and I[-1] == points.shape[0] - 1:
 				K = J
 			else:
@@ -118,8 +130,8 @@ class KDTreeMesh(Voronoi):
 		
 		origin, level = zip(*[ self.dichotomy.cell[c][:2] for c in range(self.dichotomy.cell_counter) ])
 		origin = np.vstack(origin)
-		self.level = np.array(level)
-		self._cell_centers = origin + self.dichotomy.reference_length[self.level[:, np.newaxis] + 1]
+		level = np.array(level)
+		self._cell_centers = origin + self.dichotomy.reference_length[level[:, np.newaxis] + 1]
 		adjacency = np.vstack([ self.dichotomy.adjacency[e] for e in range(self.dichotomy.edge_counter) \
 			if e in self.dichotomy.adjacency ]) # not symmetric
 		#print(np.sum(np.all(adjacency==np.fliplr(adjacency[0][np.newaxis,:])))) # displays 0
@@ -143,7 +155,7 @@ class KDTreeMesh(Voronoi):
 		ridge_vertices = []
 		for i, v1 in enumerate(self.dichotomy.unit_hypercube):
 			vertices.append(origin + \
-				np.float_(v1) * self.dichotomy.reference_length[self.level[:, np.newaxis]])
+				np.float_(v1) * self.dichotomy.reference_length[level[:, np.newaxis]])
 			for jj, v2 in enumerate(self.dichotomy.unit_hypercube[i+1:]):
 				if np.sum(v1 != v2) == 1: # neighbors in the voronoi
 					j = i + 1 + jj
@@ -161,6 +173,8 @@ class KDTreeMesh(Voronoi):
 			shape=(nverts, nverts))
 		self.cell_vertices = { i: I[i+n*np.arange(self.dichotomy.unit_hypercube.shape[0])] \
 			for i in range(n) }
+		# for `cell_index` even after call to `freeze`
+		self.reference_length = self.dichotomy.reference_length[level[np.newaxis,:] + 1]
 		#self._postprocess()
 
 	def _postprocess(self):
@@ -168,6 +182,9 @@ class KDTreeMesh(Voronoi):
 
 	def contour(self, *args, **kwargs):
 		raise NotImplementedError
+
+	def freeze(self):
+		self.dichotomy = None
 
 
 

@@ -70,29 +70,37 @@ def main(**kwargs):
 			pass
 		else:
 			_tessellate = False
-	if verbose:
-		print('glycine receptor demo (verbose mode: on)')
+	#if verbose:
+	#	print('glycine receptor demo (verbose mode: on)')
 	if _tessellate :
 		tessellate(local, method, output_file=rwa_file, \
-			label=method, verbose=verbose, strict_min_location_count=20)
+			label=method, verbose=verbose, strict_min_location_count=10)
 
 	# plot locations and meshes
 	pt_size_low, pt_size_high = 8, 6
-	res_low, res_high = 200, 400
+	res_low, res_high = 100, 200
+	other_plots = False
 	if kwargs.get('ll', False):
+		other_plots = True
 		cell_plot(rwa_file, label=method, output_file='gr_locations_low.png',
 			verbose=verbose, voronoi=False,
 			locations=dict(color=['k']*9999, size=pt_size_low), dpi=res_low)
 	if kwargs.get('lh', False):
+		other_plots = True
 		cell_plot(rwa_file, label=method, output_file='gr_locations_high.png',
 			verbose=verbose, voronoi=False,
 			locations=dict(color=['k']*9999, size=pt_size_high), dpi=res_high)
 	if kwargs.get('ml', False):
+		other_plots = True
+		#cell_plot(rwa_file, label=method, output_file='gr_{}_low.png'.format(method),
+		#	verbose=verbose, voronoi=dict(centroid_style=None, color='k'),
+		#	locations=dict(size=pt_size_low), dpi=res_low)
 		cell_plot(rwa_file, label=method, output_file='gr_{}_low.png'.format(method),
 			verbose=verbose, voronoi=False,
 			delaunay=dict(color='kkk', linewidth=2, centroid_style=None),
 			locations=dict(color='light', size=pt_size_low), dpi=res_low)
 	if kwargs.get('mh', False):
+		other_plots = True
 		cell_plot(rwa_file, label=method, output_file='gr_{}_high.png'.format(method),
 			verbose=verbose,
 			delaunay=dict(color='kkk', linewidth=1, centroid_style=None),
@@ -105,7 +113,7 @@ def main(**kwargs):
 	_dd = kwargs.get('dd', False)
 	_df = kwargs.get('df', False)
 	_dv = kwargs.get('dv', False)
-	if not any((_d, _dd, _df, _dv)):
+	if not any((_d, _dd, _df, _dv)) and not other_plots:
 		_df = True
 
 	localization_error = kwargs.get('locatization_error', default_localization_error)
@@ -116,29 +124,27 @@ def main(**kwargs):
 		return '{}.{}.{}.png'.format(output_basename, method, mode)
 
 	# infer and plot maps
+	map_plot_args = dict(show=True, point_style=dict(alpha=.05), clip=4.,
+			colorbar=not kwargs.get('nc', False))
 	if _d:
 		D = infer(rwa_file, mode='d', input_label=method, output_label='D',
 			localization_error=localization_error)
-		map_plot(D, output_file=img('d'), show=True,
-			colorbar=not kwargs.get('nc', False))
+		map_plot(D, output_file=img('d'), **map_plot_args)
 
 	if _df:
 		DF = infer(rwa_file, mode='df', input_label=method, output_label='DF',
 			localization_error=localization_error)
-		map_plot(DF, output_file=img('df'), show=True, clip=.99,
-			colorbar=not kwargs.get('nc', False))
+		map_plot(DF, output_file=img('df'), **map_plot_args)
 
 	if _dd:
 		DD = infer(rwa_file, mode='dd', input_label=method, output_label='DD',
 			localization_error=localization_error, priorD=priorD)
-		map_plot(DD, output_file=img('dd'), show=True,
-			colorbar=not kwargs.get('nc', False))
+		map_plot(DD, output_file=img('dd'), **map_plot_args)
 
 	if _dv:
 		DV = infer(rwa_file, mode='dv', input_label=method, output_label='DV',
 			localization_error=localization_error, priorD=priorD, priorV=priorV)
-		map_plot(DV, output_file=img('dv'), show=True,
-			colorbar=not kwargs.get('nc', False))
+		map_plot(DV, output_file=img('dv'), **map_plot_args)
 
 	sys.exit(0)
 

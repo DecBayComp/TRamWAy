@@ -131,7 +131,7 @@ class Curl(object):
 		return np.vstack([ (X[w]-X[u])*.5 for u, v, w in uvw ])
 
 	def surface_area(self, contour, inner):
-		if self._areas is None:
+		if False:#self._areas is None:
 			ncells = self.cells.tesselation.cell_adjacency.shape[0]
 			centers = self.cells.tesselation.cell_centers
 			vertices = self.cells.tesselation.cell_vertices
@@ -157,7 +157,7 @@ class Curl(object):
 					v, w = vert_coords[a], vert_coords[b]
 					self._areas[c] += abs((v[0]-u[0])*(w[1]-u[1])-(w[0]-u[0])*(v[1]-u[1]))
 			self._areas *= .5
-		return np.sum(self._areas[list(inner)])
+		return np.sum(self.cell_volume[list(inner)])
 
 	def extract(self, label, variable=None, distance=1):
 		if variable is None:

@@ -120,19 +120,8 @@ def _dump_rwa(args):
 	verbose = kwargs.get('verbose', False)
 	for input_file in input_files:
 		print('in {}:'.format(input_file))
-		store = HDF5Store(input_file, 'r', verbose)
-		store.lazy = True
-		try:
-			analyses = lazyvalue(store.peek('analyses'))
-		except EnvironmentError:
-			print(traceback.format_exc())
-			raise OSError('HDF5 libraries may not be installed')
-		except KeyError:
-			print('no analyses found')
-		else:
-			print(format_analyses(analyses, global_prefix='\t'))
-		finally:
-			store.close()
+		analyses = load_rwa(input_file)
+		print(format_analyses(analyses, global_prefix='\t'))
 
 def _curl(args):
 	input_file, kwargs = _parse_args(args)

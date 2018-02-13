@@ -15,8 +15,11 @@
 import os
 import itertools
 import traceback
+from tramway.core.lazy import lightcopy
 from tramway.core.analyses import *
 from tramway.core.hdf5 import HDF5Store, lazytype, lazyvalue
+from tramway.tessellation.base import Tessellation, CellStats
+from rwa.lazy import LazyPeek, PermissivePeek
 
 
 try:
@@ -61,6 +64,7 @@ def find_analysis(path, labels=None):
 def load_rwa(path):
 	try:
 		hdf = HDF5Store(path, 'r')
+		#hdf._default_lazy = PermissivePeek
 		hdf.lazy = True
 		try:
 			analyses = lazyvalue(hdf.peek('analyses'))
@@ -75,7 +79,41 @@ def load_rwa(path):
 	return coerce_labels(analyses)
 
 
-def save_rwa(path, analyses, verbose=False, force=False):
+
+known_lossy = [Tessellation, CellStats]
+
+
+def save_rwa(path, analyses, verbose=False, force=False, compress=True, lossy=None):
+	if compress or lossy:
+		import warnings
+		warnings.warn('the `compression` and `lossy` are currently ignored', DeprecationWarning)
+		try:
+			pass#analyses = lightcopy(analyses)
+		except (KeyboardInterrupt, SystemExit):
+			raise
+		except:
+			if verbose:
+				print('loss-less compression failed with the following error:')
+				print(traceback.format_exc())
+		if False:#lossy:
+			if isinstance(lossy, (type, tuple, list, frozenset, set)):
+				lossy = set(lossy) + known_lossy
+			else:
+				lossy = known_lossy
+			def lossy_compress(data):
+				t = lazytype(data)
+				if any(issubclass(t, _t) for _t in lossy):
+					if isinstance(data, LazyPeek):
+						data = data.deep()
+					data.freeze()
+			try:
+				map_analyses(lossy_compress, analyses)
+			except (KeyboardInterrupt, SystemExit):
+				raise
+			except:
+				if verbose:
+					print('lossy compression failed with the following error:')
+					print(traceback.format_exc())
 	if not force and os.path.isfile(path):
 		answer = input("overwrite file '{}': [N/y] ".format(path))
 		if not (answer and answer[0].lower() == 'y'):

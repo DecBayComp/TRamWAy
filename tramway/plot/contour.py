@@ -16,6 +16,7 @@ import pandas as pd
 from tramway.feature.adjacency import *
 from tramway.plot.mesh import *
 from tramway.plot.map import *
+from tramway.helper.inference import _clip
 import traceback
 import matplotlib.pyplot as plt
 
@@ -41,7 +42,7 @@ class ContourEditor(object):
 		self._step = 1
 		self._variable = None
 		self._area = True
-		self.clip = .99 # quantile
+		self.clip = 4.
 		self.debug = False
 		self._areas = None
 		self.callback = None
@@ -87,7 +88,7 @@ class ContourEditor(object):
 			if self.cells.tessellation.cell_label is None:
 				label = self.cells.location_count
 			else:
-				label = np.logicial_and(0 < self.cells.tessellation.cell_label,
+				label = np.logical_and(0 < self.cells.tessellation.cell_label,
 					0 < self.cells.location_count)
 			self._cell_adjacency = self.cells.tessellation.simplified_adjacency(
 				label=label, format='csr')
@@ -121,7 +122,7 @@ class ContourEditor(object):
 				if self.cells.tessellation.cell_label is None:
 					label = self.cells.location_count
 				else:
-					label = np.logicial_and(0 < self.cells.tessellation.cell_label,
+					label = np.logical_and(0 < self.cells.tessellation.cell_label,
 						0 < self.cells.location_count)
 				self.cells.tessellation.simplified_adjacency(
 					adjacency=self._dilation_adjacency, label=label, format='csr')
@@ -179,10 +180,10 @@ class ContourEditor(object):
 		else:
 			kwargs = {'linewidth': 0}
 		if self._variables[v][1:]:
-			obj = field_map_2d(self.cells, self._clip(self.map[self._variables[v]]),
+			obj = field_map_2d(self.cells, _clip(self.map[self._variables[v]], self.clip),
 				figure=self.figure, **kwargs)
 		else:
-			obj = scalar_map_2d(self.cells, self._clip(self.map[v]),
+			obj = scalar_map_2d(self.cells, _clip(self.map[v], self.clip),
 				figure=self.figure, **kwargs)
 		if obj:
 			self._delaunay_ptr = obj
@@ -362,19 +363,4 @@ class ContourEditor(object):
 
 	def curl(self, F, dr, A):
 		return np.sum(F * dr) / A
-
-	def _clip(self, m):
-		if self.clip:
-			amplitude = m.pow(2)
-			if 1 < len(m.shape):
-				amplitude = amplitude.sum(1)
-			amplitude = amplitude.apply(np.sqrt)
-			amax = amplitude.quantile(self.clip)
-			m = m.copy()
-			factor = amplitude[amplitude > amax].rdiv(amax)
-			if 1 < len(m.shape):
-				m.loc[amplitude > amax, :] *= factor
-			else:
-				m.loc[amplitude > amax] *= factor
-		return m
 

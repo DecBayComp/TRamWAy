@@ -43,7 +43,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	knn=None, distance=None, ref_distance=None, \
 	rel_min_distance=None, rel_avg_distance=None, rel_max_distance=None, \
 	min_location_count=20, avg_location_count=None, max_location_count=None, \
-	strict_min_location_count=None, compress=False, \
+	rel_max_size=None, rel_max_volume=None, \
 	label=None, output_label=None, comment=None, input_label=None, inplace=False, \
 	**kwargs):
 	"""
@@ -51,6 +51,13 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	This helper routine is a high-level interface to the various tessellation techniques 
 	implemented in TRamWAy.
+
+	In addition to `knn`, *filter* and *metric*, arguments with prefix *strict_* in their name 
+	apply to the partitioning step only, while the others apply to the tessellation step.
+
+	*rel_max_size* and *rel_max_volume* are notable exceptions in that they currently apply to 
+	the partitioning step whereas they should conceptually apply to the tessellation step instead.
+	This may change in a future version.
 
 	Arguments:
 		xyt_data (str or matrix):
@@ -120,6 +127,24 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		max_location_count (int):
 			Maximum number of points per cell. This is used only by *kdtree*.
 
+		rel_max_size (float):
+			Maximum cell radius as a number of `ref_distance`. Radius (or size) is
+			estimated as twice the distance between the center of cell and the nearest 
+			vertex. Cells of excess size are ignored so as the associated locations.
+
+		rel_max_volume (float):
+			Maximum cell volume (or surface area in 2D) as a number of `ref_distance`. 
+			Cells of excess volume are ignored so as the associated locations.
+
+		strict_min_location_count (int):
+			Minimum number of points per cell in the eventual partition. Cells with 
+			insufficient points are ignored so as the associated locations.
+
+		strict_rel_max_size (float):
+			Maximum cell radius as a number of `ref_distance`. Radius (or size) is
+			estimated as the maximum distance between any pair of locations in the cell.
+			Cells of excess size are ignored so as the associated locations.
+
 		input_label (str):
 			Label for the input tessellation for nesting tessellations.
 
@@ -134,7 +159,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			Description message for the resulting analysis.
 
 	Returns:
-		tramway.tessellation.base.CellStats: A partition of the data with 
+		tramway.tessellation.base.CellStats: A partition of the data with its
 			:attr:`~tramway.tessellation.base.CellStats.tessellation` attribute set.
 
 
@@ -143,6 +168,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	methods for more information.
 
 	"""
+	compress = True
 	if inplace:
 		labels_exclusive = ValueError("multiple different values in exclusive arguments 'label', 'input_label' and 'output_label'")
 		if label:
@@ -273,6 +299,25 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		colnames.append('t')
 		scaler.factor = [('t', time_scale)]
 
+	# distinguish between tessellation and partition arguments
+	tessellation_kwargs = dict(kwargs)
+	partition_kwargs = {}
+	for _kw in kwargs:
+		if _kw.startswith('strict_'):
+			partition_kwargs[_kw[7:]] = tessellation_kwargs.pop(_kw)
+	for _kw in ('filter', 'filter_descriptors_only', 'metric'):
+		try:
+			_arg = tessellation_kwargs.pop(_kw)
+		except KeyError:
+			pass
+		else:
+			partition_kwargs[_kw] = _arg
+	for _kw in ('rel_max_size', 'rel_max_volume'):
+		try:
+			del tessellation_kwargs[_kw]
+		except KeyError:
+			pass
+
 	# initialize a Tessellation object
 	params = dict( \
 		min_distance=min_distance, \
@@ -285,8 +330,8 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	if plugin:
 		for ignored in ['max_level']:
 			try:
-				if kwargs[ignored] is None:
-					del kwargs[ignored]
+				if tessellation_kwargs[ignored] is None:
+					del tessellation_kwargs[ignored]
 			except KeyError:
 				pass
 		params.update(dict( \
@@ -294,36 +339,82 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			avg_location_count=avg_location_count, \
 			max_location_count=max_location_count, \
 			))
-		params.update(kwargs)
+		params.update(tessellation_kwargs)
 		for key in setup.get('make_arguments', {}):
 			try:
 				param = params[key]
 			except KeyError:
 				pass
 			else:
-				kwargs[key] = param
+				tessellation_kwargs[key] = param
 	else:
-		params.update(kwargs)
-		kwargs = params
+		params.update(tessellation_kwargs)
+		tessellation_kwargs = params
 	if input_label:
-		tess = NestedTessellations(scaler, input_partition, factory=constructor, **kwargs)
+		tess = NestedTessellations(scaler, input_partition, factory=constructor,
+			**tessellation_kwargs)
 		xyt_data = data = input_partition.points
 	else:
-		tess = constructor(scaler, **kwargs)
+		tess = constructor(scaler, **tessellation_kwargs)
 		data = xyt_data[colnames]
 
 	# grow the tessellation
-	tess.tessellate(data, verbose=verbose, **kwargs)
+	tessellate_kwargs = tessellation_kwargs
+	tess.tessellate(data, verbose=verbose, **tessellate_kwargs)
 
 	# partition the dataset into the cells of the tessellation
-	if knn is None:
-		cell_index = tess.cell_index(xyt_data, min_location_count=strict_min_location_count)
+	_filter_f = partition_kwargs.get('filter', None)
+	try:
+		max_size = kwargs['rel_max_size']
+	except KeyError:
+		_filter_fg = _filter_f
 	else:
-		if strict_min_location_count is None:
-			strict_min_location_count = min_location_count
-		cell_index = tess.cell_index(xyt_data, knn=knn, \
-			min_location_count=strict_min_location_count, \
-			metric='euclidean')
+		max_size *= ref_distance
+		def _filter_g(voronoi, cell, points):
+			return voronoi.scaler.unscale_distance(np.sqrt(np.min(np.sum(( \
+					voronoi._center[cell] - \
+					voronoi._vertices[voronoi.cell_vertices[cell]] \
+				)*2, axis=1)))) <= max_size
+		_filter_fg = _filter_g if _filter_f is None \
+			else lambda *a: _filter_g(*a) and _filter_f(*a)
+	try:
+		max_volume = kwargs['rel_max_volume']
+	except KeyError:
+		_filter_fgh = _filter_fg
+	else:
+		max_volume *= ref_distance
+		def _filter_h(voronoi, cell, points):
+			return voronoi.cell_volume[cell] <= max_volume
+		_filter_fgh = _filter_h if _filter_fg is None \
+			else lambda *a: _filter_h(*a) and _filter_fg(*a)
+	try:
+		max_actual_size = partition_kwargs.pop('rel_max_size')
+	except KeyError:
+		_filter_fghi = _filter_fgh
+	else:
+		max_actual_size *= ref_distance
+		_descr = not partition_kwargs.get('filter_descriptors_only', True)
+		def _filter_i(voronoi, cell, x):
+			if _descr:
+				x = voronoi.descriptors(x, asarray=True)
+			x2 = np.sum(x * x, axis=1, keepdims=True)
+			d2 = x2 + x2.T - 2. * np.dot(x, x.T)
+			d = np.sqrt(np.max(d2.ravel()))
+			return d <= max_actual_size
+		_filter_fghi = _filter_i if _filter_fgh is None \
+			else lambda *a: _filter_i(*a) and _filter_fgh(*a)
+	if _filter_fghi is not None:
+		partition_kwargs['filter'] = _filter_fghi
+		if 'filter_descriptors_only' not in partition_kwargs:
+			partition_kwargs['filter_descriptors_only'] = True
+	if knn is None:
+		cell_index = tess.cell_index(xyt_data, **partition_kwargs)
+	else:
+		if 'min_location_count' not in partition_kwargs:
+			partition_kwargs['min_location_count'] = min_location_count
+		if 'metric' not in partition_kwargs:
+			partition_kwargs['metric'] = 'euclidean'
+		cell_index = tess.cell_index(xyt_data, knn=knn, **partition_kwargs)
 
 	stats = CellStats(cell_index, points=xyt_data, tessellation=tess)
 
@@ -375,10 +466,6 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	if output_file or xyt_path:
 		if output_file is None:
 			output_file = os.path.splitext(xyt_path[0])[0] + hdf_extensions[0]
-		if compress:
-			analyses_ = lightcopy(analyses)
-		else:
-			analyses_ = analyses
 
 		save_rwa(output_file, analyses, verbose, \
 			force=len(input_files)==1 and input_files[0]==output_file)
@@ -389,7 +476,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 
 def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
-	show=False, verbose=False, figsize=(24.0, 18.0), dpi=None, \
+	show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, \
 	location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
 	aspect=None, delaunay=None, locations={}, voronoi=True, colors=None, title=None, \
 	label=None, input_label=None):
@@ -576,10 +663,11 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	if dim == 2:
 		fig = plt.figure(figsize=figsize)
 		figs.append(fig)
-		if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
-			plot_points(cells, **locations)
-		else:
-			plot_points(cells, min_count=min_location_count, **locations)
+		if locations is not None:
+			if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
+				plot_points(cells, **locations)
+			else:
+				plot_points(cells, min_count=min_location_count, **locations)
 		if aspect is not None:
 			fig.gca().set_aspect(aspect)
 		if xy_layer == 'voronoi' or voronoi:
@@ -689,7 +777,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			fig.savefig(hpd_file)
 
 	if show or not print_figs:
-		plt.show()
+		if show is not False:
+			plt.show()
 	else:
 		for fig in figs:
 			plt.close(fig)

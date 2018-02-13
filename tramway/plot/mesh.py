@@ -14,6 +14,7 @@
 
 import numpy as np
 import pandas as pd
+from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
 import itertools
 from copy import deepcopy
@@ -24,7 +25,7 @@ from ..tessellation import dict_to_sparse
 import traceback
 
 
-def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None):
+def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None, **kwargs):
 	if isinstance(cells, np.ndarray):
 		points = cells
 		label = None
@@ -92,13 +93,19 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None)
 	if label is None:
 		if color is None:
 			color = 'k'
-		plt.plot(x, y, style, color=color, markersize=size)
+		elif isinstance(color, (pd.Series, pd.DataFrame)):
+			color = np.asarray(color)
+		if isinstance(color, np.ndarray):
+			cmin, cmax = np.min(color), np.max(color)
+			color = (color - cmin) / (cmax - cmin)
+			cmap = plt.get_cmap()
+			color = [ cmap(c) for c in color ]
+		plt.scatter(x, y, color=color, marker=style, s=size, **kwargs)
 	else:
 		L = np.unique(label)
-		kwargs = {}
 		if color in [None, 'light']:
-			if color == 'light':
-				kwargs = {'alpha': .2}
+			if color == 'light' and 'alpha' not in kwargs:
+				kwargs['alpha'] = .2
 			if 2 < len(L):
 				color = ['darkgreen', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen', 'darkslateblue', 'darkslategray', 'darkviolet', 'deeppink', 'deepskyblue', 'dodgerblue', 'firebrick', 'forestgreen', 'gold', 'goldenrod', 'hotpink', 'indianred', 'indigo', 'lightblue', 'lightcoral', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightsteelblue', 'limegreen', 'maroon', 'mediumaquamarine', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'navajowhite', 'navy', 'olive', 'olivedrab', 'orange', 'orangered', 'orchid', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', '#663399', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'sienna', 'skyblue', 'slateblue', 'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'yellowgreen']
 				color = ['gray'] + \

@@ -13,7 +13,6 @@
 
 
 import sys
-from copy import copy, deepcopy
 from warnings import warn
 
 
@@ -122,6 +121,7 @@ class Lazy(object):
 		Beware: only direct Lazy object attributes are unloaded, 
 			not Lazy objects stored in non-lazy attributes!
 		"""
+		warn('`unload` will be removed soon', DeprecationWarning)
 		if visited is None:
 			visited = set()
 		elif id(self) in visited:
@@ -132,7 +132,6 @@ class Lazy(object):
 			names = self.__slots__
 		except:
 			names = self.__dict__
-		names = self.__lazyattrs__()
 		standard_attrs = []
 		# set lazy attributes to None (unset them so that memory is freed)
 		for name in names:
@@ -166,11 +165,6 @@ def lightcopy(x):
 
 		any: copy of `x`.
 	"""
-	if isinstance(x, Lazy):
-		y = deepcopy(x)
-		y.unload()
-		return y
-	else:
-		return copy(x)
-		#raise TypeError('type {} does not implement Lazy'.format(type(x)))
+	warn('`lightcopy` will be removed soon', DeprecationWarning)
+	return x
 

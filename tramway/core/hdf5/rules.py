@@ -49,7 +49,7 @@ except ImportError:
 	pass
 else:
 	kdtree_mesh_exposes = voronoi_exposes + ['_min_distance', '_avg_distance', \
-		'min_probability', 'max_probability', 'max_level', 'dichotomy']
+		'min_probability', 'max_probability', 'max_level', 'dichotomy', 'reference_length']
 	hdf5_storable(default_storable(KDTreeMesh, exposes=kdtree_mesh_exposes), agnostic=True)
 
 # KMeansMesh

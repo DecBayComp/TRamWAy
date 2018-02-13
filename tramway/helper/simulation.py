@@ -25,10 +25,10 @@ def random_walk(diffusivity=None, force=None, \
 	Arguments:
 
 		diffusivity (callable): takes a coordinate vector (array-like) and time (float)
-			and returns the local diffusivity (float)
+			and returns the local diffusivity (float) in um2.s-1
 
 		force (callable): takes a coordinate vector (array-like) and time (float) and
-			returns the local force (:class:`~numpy.ndarray`)
+			returns the local force (:class:`~numpy.ndarray`) in um-1.s(?)
 
 		trajectory_mean_count (int or float): average number of active trajectories at any time
 
@@ -99,7 +99,8 @@ def random_walk(diffusivity=None, force=None, \
 			X = X[:kupdate]
 			D, F = zip(*[ (diffusivity(x, t), force(x, t)) for x in X ])
 			D, F = np.array(D), np.array(F)
-			dX = F + np.sqrt(2. * D.reshape(D.size, 1)) * np.random.randn(*X.shape)
+			dX = time_step * (D[:,np.newaxis] * F + \
+				np.sqrt(2. * D.reshape(D.size, 1)) * np.random.randn(*X.shape))
 			X = np.concatenate((Xnew, X + dX))
 			n = np.concatenate((nnew, n[:kupdate]))
 		else:

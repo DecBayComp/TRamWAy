@@ -237,6 +237,9 @@ class GasMesh(Voronoi):
 		#         1=congruent, 2=congruent after post-processing (initially voronoi only)
 		self._adjacency_label = new_labels[self._adjacency_label]
 
+	def freeze(self):
+		self.gas = None
+
 
 setup = {
 	'name': ('gas', 'gwr'),
