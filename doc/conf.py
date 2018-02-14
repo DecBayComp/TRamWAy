@@ -21,6 +21,27 @@ import os
 sys.path.insert(0, os.path.abspath('..'))
 
 
+# mocking out h5py for readthedocs to successfully compile the project and generate the doc
+mock_ok = True
+try:
+	from unittest.mock import MagicMock
+except ImportError as e: # Py2
+	try:
+		from mock import Mock as MagicMock
+	except ImportError:
+		print(e)
+		mock_ok = False
+
+if mock_ok:
+	class Mock(MagicMock):
+		@classmethod
+		def __getattr__(cls, name):
+			return MagicMock()
+
+	MOCK_MODULES = ['rwa-python']
+	sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
