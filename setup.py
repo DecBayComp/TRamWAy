@@ -6,7 +6,8 @@ from setuptools import setup
 from codecs import open
 from os import path
 
-install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.4']
+# requirements moved to requirements.txt
+install_requires = []
 extras_require = {}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']
