@@ -719,6 +719,13 @@ class Delaunay(Tessellation):
 						x = points[cell]
 					if not filter(self, c, x):
 						K[cell] = -1
+			# min_location_count:
+			# set K[i] = -1 for all point i in cells that are too small
+			if min_location_count:
+				excluded_cells = positive_count < min_location_count
+				if np.any(excluded_cells):
+					for c in nonempty[excluded_cells]:
+						K[K == c] = -1
 			# max_nn:
 			# set K[i] = -1 for all point i in cells that are too large
 			if max_nn:
@@ -751,18 +758,10 @@ class Delaunay(Tessellation):
 					Ic = np.logical_not(point_in_small_cells)
 					Jc = K[Ic]
 					Ic, = Ic.nonzero()
-					if max_nn:
-						Ic = Ic[0 <= Jc]
-						Jc = Jc[0 <= Jc]
+					Ic = Ic[0 <= Jc]
+					Jc = Jc[0 <= Jc]
 					#
 					K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
-			# min_location_count:
-			# set K[i] = -1 for all point i in cells that are too small
-			elif min_location_count:
-				excluded_cells = positive_count < min_location_count
-				if np.any(excluded_cells):
-					for c in nonempty[excluded_cells]:
-						K[K == c] = -1
 		else:
 			K = np.argmin(D, axis=1) # cell indices
 		point_count = points.shape[0]

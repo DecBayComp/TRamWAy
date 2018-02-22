@@ -572,6 +572,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			labels = ()
 		elif not isinstance(labels, (tuple, list)):
 			labels = (labels, )
+		if isinstance(input_file, (tuple, list)):
+			if input_file[1:]:
+				warn('can only process a single file', RuntimeWarning)
+			input_file = input_file[0]
 		try:
 			analyses = load_rwa(input_file)
 			if labels:
@@ -580,8 +584,6 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			if e.args and 'analyses' not in e.args[0]:
 				raise
 			# legacy code
-			if isinstance(input_file, list):
-				input_file = input_file[0]
 			imt_path = input_file
 			if imt_path is None:
 				raise ValueError('undefined input file')
@@ -685,7 +687,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 				plot_points(cells, min_count=min_location_count, **locations)
 		if aspect is not None:
 			fig.gca().set_aspect(aspect)
-		if xy_layer == 'voronoi' or voronoi:
+		if xy_layer != 'delaunay' and voronoi:
 			if not isinstance(voronoi, dict):
 				voronoi = {}
 			plot_voronoi(cells, **voronoi)
