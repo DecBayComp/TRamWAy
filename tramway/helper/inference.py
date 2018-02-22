@@ -16,7 +16,6 @@ from tramway.core import *
 from tramway.inference import *
 import tramway.inference as inference # inference.plugins
 from tramway.plot.map import *
-from tramway.helper.analysis import *
 from tramway.helper.tessellation import *
 import matplotlib.pyplot as plt
 from warnings import warn
@@ -101,10 +100,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	if isinstance(cells, str):
 		try:
 			input_file = cells
+			all_analyses = load_rwa(input_file)
 			if output_file and output_file == input_file:
-				all_analyses = find_analysis(input_file)
-			else:
-				all_analyses = find_analysis(input_file, input_label)
+				all_analyses = extract_analysis(all_analyses, input_label)
 			cells = None
 		except KeyError:
 			# legacy format
@@ -256,7 +254,8 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 		fig_format (str): for example *'.png'*
 
-		show (bool): call ``matplotlib.pyplot.show()``
+		show (bool or str): call :func:`~matplotlib.pyplot.show`; if ``show='draw'``, call
+			:func:`~matplotlib.pyplot.draw` instead
 
 		verbose (bool): verbosity level
 
@@ -292,7 +291,9 @@ def map_plot(maps, output_file=None, fig_format=None, \
 		if label is None:
 			label = input_label
 		try:
-			analyses = find_analysis(input_file, label)
+			analyses = load_rwa(input_file)
+			if label:
+				analyses = extract_analysis(analyses, label)
 		except KeyError:
 			print(traceback.format_exc())
 			try:
@@ -314,6 +315,8 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			store.lazy = False
 			try:
 				cells = store.peek('cells')
+				if cells.tessellation is None:
+					cells._tessellation = store.peek('_tesselation', store.store['cells'])
 			finally:
 				store.close()
 		except ImportError:
@@ -478,7 +481,9 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			fig.savefig(figfile, dpi=dpi)
 
 	if show or not print_figs:
-		if show is not False:
+		if show == 'draw':
+			plt.draw()
+		elif show is not False:
 			plt.show()
 	else:
 		for fig in figs:

@@ -29,7 +29,8 @@ from warnings import warn
 
 
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
-		delaunay=False, colorbar=True, alpha=None, **kwargs):
+		delaunay=False, colorbar=True, alpha=None, colormap=None, **kwargs):
+	#	colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
 	if isinstance(values, pd.DataFrame):
 		if values.shape[1] != 1:
 			warn('multiple parameters available; mapping first one only', UserWarning)
@@ -39,6 +40,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 	if delaunay:
 		delaunay_linewidth = linewidth
 		linewidth = 0
+		if isinstance(delaunay, dict):
+			delaunay_linewidth = delaunay.pop('linewidth', delaunay_linewidth)
+			kwargs.update(delaunay)
 
 	polygons = []
 	if isinstance(cells, Distributed):
@@ -58,6 +62,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		ok = 0 < cells.location_count
 		if cells.tessellation.cell_label is not None:
 			ok = np.logical_and(ok, 0 < cells.tessellation.cell_label)
+		map_defined = np.zeros_like(ok)
+		map_defined[values.index] = True
+		ok[np.logical_not(map_defined)] = False
 		ok[ok] = np.logical_not(np.isnan(values.loc[ix[ok]].values))
 		for i in ix[ok]:
 			vs = cells.tessellation.cell_vertices[i]
@@ -114,7 +121,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		axes = figure.gca()
 	if alpha is None:
 		alpha = .9
-	patches = PatchCollection(polygons, alpha=alpha, linewidth=linewidth)
+	patches = PatchCollection(polygons, alpha=alpha, linewidth=linewidth, cmap=colormap)
 	patches.set_array(scalar_map)
 	if clim is not None:
 		patches.set_clim(clim)
@@ -129,7 +136,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		except:
 			import traceback
 			print(traceback.format_exc())
-			pass
+			obj = None
 
 	axes.set_xlim(xy_min[0], xy_max[0])
 	axes.set_ylim(xy_min[1], xy_max[1])

@@ -150,8 +150,14 @@ class CellStats(Lazy):
 		if self._location_count is None:
 			ncells = self.tessellation.cell_adjacency.shape[0]
 			if isinstance(self.cell_index, tuple):
+				_point, _cell = self.cell_index
+				if np.any(_cell < 0):
+					import warnings
+					warnings.warn('point-cell association pair contains invalid assignments')
+					ok = 0 <= _cell
+					_point, _cell = _point[ok], _cell[ok]
 				ci = sparse.csc_matrix(
-					(np.ones_like(self.cell_index[0]), self.cell_index),
+					(np.ones_like(_point), (_point, _cell)),
 					shape=(self.points.shape[0], ncells))
 				self._location_count = np.diff(ci.indptr)
 			elif sparse.issparse(self.cell_index):
@@ -227,7 +233,8 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 	See also :meth:`Tessellation.cell_index` and :func:`nearest_cell`.
 	"""
 	if isinstance(K, np.ndarray) and format not in [None, 'array']:
-		K = (np.arange(K.size), K)
+		I, = np.nonzero(0 <= K)
+		K = (I, K[I])
 		copy = False # already done
 	if format in ['matrix', 'coo', 'csr', 'csc']:
 		if issparse(K):

@@ -15,20 +15,17 @@
 import os
 import itertools
 import traceback
-from tramway.core.lazy import lightcopy
+import warnings
+import tramway.core.analyses as base
 from tramway.core.analyses import *
-from tramway.core.hdf5 import HDF5Store, lazytype, lazyvalue
+from tramway.core.hdf5 import lazytype, lazyvalue
+import tramway.core.hdf5.store as store
 from tramway.tessellation.base import Tessellation, CellStats
 from rwa.lazy import LazyPeek, PermissivePeek
 
 
-try:
-	input = raw_input # Py2
-except NameError:
-	pass
-
-
 def list_rwa(path):
+	warnings.warn('`list_rwa` may be removed together with module `helper.analysis`', FutureWarning)
 	if not isinstance(path, (tuple, list)):
 		path = (path,)
 	ext = '.rwa'
@@ -45,6 +42,7 @@ def list_rwa(path):
 
 
 def find_analysis(path, labels=None):
+	warnings.warn('`find_analysis` may be removed together with module `helper.analysis`', FutureWarning)
 	if isinstance(path, (tuple, list, set, frozenset)):
 		paths = path
 		matches = {}
@@ -61,40 +59,21 @@ def find_analysis(path, labels=None):
 		return analyses
 
 
-def load_rwa(path):
-	try:
-		hdf = HDF5Store(path, 'r')
-		#hdf._default_lazy = PermissivePeek
-		hdf.lazy = True
-		try:
-			analyses = lazyvalue(hdf.peek('analyses'))
-		finally:
-			hdf.close()
-	except EnvironmentError as e:
-		if e.args[1:]:
-			print(traceback.format_exc())
-			raise OSError('HDF5 libraries may not be installed')
-		else:
-			raise
-	return coerce_labels(analyses)
-
+def format_analyses(analyses, prefix='\t', node=None, global_prefix=''):
+	if not isinstance(analyses, Analyses) and os.path.isfile(analyses):
+		analyses = find_analysis(analyses)
+	if node is None:
+		try:	node = lazytype
+		except:	node = type
+	return base.format_analyses(analyses, prefix, node, global_prefix)
 
 
 known_lossy = [Tessellation, CellStats]
 
 
 def save_rwa(path, analyses, verbose=False, force=False, compress=True, lossy=None):
-	if compress or lossy:
-		import warnings
-		warnings.warn('the `compression` and `lossy` are currently ignored', DeprecationWarning)
-		try:
-			pass#analyses = lightcopy(analyses)
-		except (KeyboardInterrupt, SystemExit):
-			raise
-		except:
-			if verbose:
-				print('loss-less compression failed with the following error:')
-				print(traceback.format_exc())
+	if lossy:
+		warnings.warn('`lossy` is currently ignored', DeprecationWarning)
 		if False:#lossy:
 			if isinstance(lossy, (type, tuple, list, frozenset, set)):
 				lossy = set(lossy) + known_lossy
@@ -114,66 +93,5 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True, lossy=No
 				if verbose:
 					print('lossy compression failed with the following error:')
 					print(traceback.format_exc())
-	if not force and os.path.isfile(path):
-		answer = input("overwrite file '{}': [N/y] ".format(path))
-		if not (answer and answer[0].lower() == 'y'):
-			return
-	try:
-		store = HDF5Store(path, 'w', int(verbose) - 1 if verbose else False)
-		if verbose:
-			print('writing file: {}'.format(path))
-		store.poke('analyses', analyses)
-		store.close()
-	except EnvironmentError:
-		print(traceback.format_exc())
-		raise ImportError('HDF5 libraries may not be installed')
-	if verbose:
-		print('written analysis tree:')
-		print(format_analyses(analyses, global_prefix='\t'))
-
-
-def format_analyses(analyses, prefix='\t', node=None, global_prefix=''):
-	if not isinstance(analyses, Analyses) and os.path.isfile(analyses):
-		analyses = find_analysis(analyses)
-	if node is None:
-		try:	node = lazytype
-		except:	node = type
-	def _format(data, label=None, comment=None, depth=0):
-		s = [global_prefix + prefix * depth]
-		t = []
-		if label is None:
-			assert comment is None
-			if node:
-				s.append(str(node(data)))
-			else:
-				return None
-		else:
-			try:
-				label + 0 # check numeric types
-			except TypeError:
-				s.append("'{}'")
-			else:
-				s.append('[{}]')
-			t.append(label)
-			if node:
-				s.append(' {}')
-				t.append(node(data))
-			if comment:
-				assert isinstance(comment, str)
-				s.append(':\t"{}"')
-				t.append(comment)
-		return ''.join(s).format(*t)
-	def _flatten(_node):
-		if _node is None:
-			return []
-		elif isinstance(_node, str):
-			return [ _node ]
-		try:
-			_node, _children = _node
-		except TypeError:
-			return []
-		else:
-			assert isinstance(_node, str)
-			return itertools.chain([_node], *[_flatten(c) for c in _children])
-	return '\n'.join(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
+	store.save_rwa(path, analyses, verbose, force, compress)
 

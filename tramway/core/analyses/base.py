@@ -12,10 +12,8 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from ..lazy import Lazy
 import itertools
 import copy
-import traceback
 import warnings
 
 
@@ -90,7 +88,7 @@ class CommentsView(AnalysesView):
 		return self.__analyses__._comments.items()
 
 
-class Analyses(Lazy):
+class Analyses(object):
 	"""
 	Generic container with labels and comments for analyses on some data.
 
@@ -114,7 +112,6 @@ class Analyses(Lazy):
 	__slots__ = ('_data', '_instances', '_comments')
 
 	def __init__(self, data=None):
-		Lazy.__init__(self)
 		self._data = data
 		self._instances = {}
 		self._comments = {}
@@ -205,23 +202,6 @@ class Analyses(Lazy):
 				del self.comments[label]
 			except KeyError:
 				pass
-
-	def unload(self, visited=None):
-		"""
-		Overloads :meth:`Lazy.unload`.
-		"""
-		warnings.warn(DeprecationWarning)
-		if visited is None:
-			visited = set()
-		elif self in visited:
-			# already unloaded
-			return
-		visited.add(self)
-		if isinstance(self.data, Lazy):
-			self.data.unload(visited)
-		for label in self.instances:
-			if isinstance(self.instances[label], Lazy):
-				self.instances[label].unload(visited)
 
 	def __nonzero__(self):
 		return self.instances.__nonzero__()
@@ -496,3 +476,45 @@ def coerce_labels(analyses):
 		if comment:
 			analyses.comments[coerced] = comment
 	return analyses
+
+
+def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
+	def _format(data, label=None, comment=None, depth=0):
+		s = [global_prefix + prefix * depth]
+		t = []
+		if label is None:
+			assert comment is None
+			if node:
+				s.append(str(node(data)))
+			else:
+				return None
+		else:
+			try:
+				label + 0 # check numeric types
+			except TypeError:
+				s.append("'{}'")
+			else:
+				s.append('[{}]')
+			t.append(label)
+			if node:
+				s.append(' {}')
+				t.append(node(data))
+			if comment:
+				assert isinstance(comment, str)
+				s.append(':\t"{}"')
+				t.append(comment)
+		return ''.join(s).format(*t)
+	def _flatten(_node):
+		if _node is None:
+			return []
+		elif isinstance(_node, str):
+			return [ _node ]
+		try:
+			_node, _children = _node
+		except TypeError:
+			return []
+		else:
+			assert isinstance(_node, str)
+			return itertools.chain([_node], *[_flatten(c) for c in _children])
+	return '\n'.join(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
+

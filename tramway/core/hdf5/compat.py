@@ -1,5 +1,5 @@
 
-from rwa.hdf5 import hdf5_service
+import rwa
 from . import *
 import importlib
 import copy
@@ -62,15 +62,15 @@ def translate_types(translation_table):
 		_module = importlib.import_module(_module_name)
 		_type = getattr(_module, _type_name)
 		try:
-			_storable = hdf5_service.byStorableType(_current_type)
+			_storable = rwa.hdf5_service.byStorableType(_current_type)
 		except:
-			_storable = default_storable(_type, storable_type=_current_type)
+			_storable = rwa.default_storable(_type, storable_type=_current_type)
 			_storable_handler = _storable.handlers[0]
 		else:
 			_storable_handler = copy.copy(_storable.asVersion())
 		_storable_handler.poke = None # peek only
-		_storable = Storable(_type, key=_former_type, handlers=_storable_handler)
-		hdf5_storable(_storable, agnostic=True)
+		_storable = rwa.Storable(_type, key=_former_type, handlers=_storable_handler)
+		rwa.hdf5_storable(_storable, agnostic=True)
 
 translate_types(translation_table)
 

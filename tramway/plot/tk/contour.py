@@ -20,10 +20,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import numpy as np
 import pandas as pd
-from tramway.core.hdf5 import HDF5Store, peek_maps
+from tramway.core.hdf5 import load_rwa, HDF5Store, peek_maps
 import tramway.core.hdf5.compat
 from tramway.core.analyses import *
-from tramway.helper.analysis import find_analysis
 from tramway.tessellation import CellStats
 from tramway.inference import Maps
 from ..contour import ContourEditor
@@ -179,9 +178,9 @@ class ContourEditingApp(tk.Frame):
 	def create_widgets(self):
 		self.input_file = StringVar()
 
-		#self.rowconfigure(0, weight=1)
-		self.columnconfigure(0, weight=1)
-		self.rowconfigure(1, weight=1)
+		self.rowconfigure(0, weight=1)
+		self.columnconfigure(0, weight=1000)
+		self.rowconfigure(1, weight=1000)
 		self.columnconfigure(1, weight=1)
 		self.input_file = FileChooser(self, (('RWA files', '*.rwa'), ('All files', '*.*')),
 			relief=tk.RIDGE, borderwidth=2) # test border
@@ -239,7 +238,7 @@ class ContourEditingApp(tk.Frame):
 		self.disable_widgets()
 		map_file = self.input_file.filepath.get()
 		try:
-			self.analyses = find_analysis(map_file)
+			self.analyses = load_rwa(map_file)
 		except KeyError:
 			try:
 				# old format
@@ -262,7 +261,13 @@ class ContourEditingApp(tk.Frame):
 				store = HDF5Store(tess_file, 'r')
 				store.lazy = False
 				try:
-					self.editor.cells = store.peek('cells')
+					cells = store.peek('cells')
+				except:
+					raise
+				else:
+					if cells.tessellation is None:
+						cells._tessellation = store.peek('_tesselation', store.store['cells'])
+					self.editor.cells = cells
 				finally:
 					store.close()
 			except:

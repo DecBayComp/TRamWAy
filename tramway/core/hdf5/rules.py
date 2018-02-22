@@ -14,12 +14,10 @@
 from rwa import *
 
 # Core datatypes
-from tramway.core import Lazy, Matrix, ArrayChain, Analyses, Scaler
+from tramway.core import Lazy, Matrix, ArrayChain, Scaler
 lazy_exposes = list(Lazy.__slots__)
-analyses_expose = lazy_exposes + list(Analyses.__slots__)
 hdf5_storable(namedtuple_storable(Matrix))
 hdf5_storable(default_storable(ArrayChain))
-#hdf5_storable(default_storable(Analyses, exposes=analyses_expose), agnostic=True)
 hdf5_storable(default_storable(Scaler), agnostic=True)
 
 from tramway.tessellation.base import Tessellation, Delaunay, Voronoi
@@ -71,8 +69,11 @@ else:
 	from tramway.tessellation.gwr.gas import Gas
 	hdf5_storable(default_storable(Gas), agnostic=True)
 	# ArrayGraph
+	from tramway.tessellation.gwr.graph.base import Graph
+	graph_exposes = list(Graph.__slots__)
 	from tramway.tessellation.gwr.graph.array import ArrayGraph
-	hdf5_storable(default_storable(ArrayGraph), agnostic=True)
+	array_graph_exposes = graph_exposes + list(ArrayGraph.__slots__)
+	hdf5_storable(default_storable(ArrayGraph, exposes=array_graph_exposes), agnostic=True)
 	gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_avg_distance', '_max_distance', \
 		'min_probability']
 	hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)

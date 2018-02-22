@@ -13,9 +13,8 @@ or::
 
 	git clone https://github.com/DecBayComp/TRamWAy
 	cd tramway
-	pip install --user -e .
+	pip install --user -r requirements.txt
 
-The ``-e`` option is necessary if you intend to update or modify the code and have the modifications reflected in your installed |tramway|.
 
 ``pip install`` will install some Python dependencies if missing, but you may still need to install the `HDF5 reference library <https://support.hdfgroup.org/downloads/index.html>`_.
 

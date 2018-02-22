@@ -13,11 +13,12 @@
 
 """This module implements the :class:`~rwa.storable.Storable` class for TRamWAy datatypes."""
 
-from rwa import *
-from rwa.generic import kwarg_storable
+import rwa
+from rwa import HDF5Store, hdf5_storable, hdf5_not_storable
 import sys
+from .store import *
 
-hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
+rwa.hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
 	'tramway.tessellation', 'tramway.inference', 'tramway.feature']
 
 if sys.version_info[0] < 3:
@@ -30,9 +31,9 @@ try:
 except:
 	pass
 else:
-	hdf5_storable(default_storable(CellStats, \
-		exposes=CellStats.__slots__ + ('_tesselation',)), \
-		agnostic=True)
+	from ..lazy import Lazy
+	cell_stats_expose = Lazy.__slots__ + CellStats.__slots__ + ('_tesselation',)
+	rwa.hdf5_storable(rwa.default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
 
 try:
 	from tramway.tessellation.kdtree.dichotomy import Dichotomy, ConnectedDichotomy
@@ -42,9 +43,9 @@ else:
 	dichotomy_exposes = ['base_edge', 'min_depth', 'max_depth', \
 		'origin', 'lower_bound', 'upper_bound', \
 		'min_count', 'max_count', 'subset', 'cell']
-	hdf5_storable(kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
+	rwa.hdf5_storable(rwa.generic.kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
 	connected_dichotomy_exposes = dichotomy_exposes + ['adjacency']
-	hdf5_storable(kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
+	rwa.hdf5_storable(rwa.generic.kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
 
 
 try:
@@ -107,11 +108,11 @@ else:
 				setattr(maps, r, store.peek(r, container))
 		return maps
 
-	hdf5_storable(Storable(Maps, \
-		handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
+	rwa.hdf5_storable(rwa.Storable(Maps, \
+		handlers=rwa.StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
 
-from tramway.core.analyses import Analyses
-_analyses_storable = default_storable(Analyses, exposes=('_data', '_instances', '_comments'))
+from ..analyses import Analyses, base
+_analyses_storable = rwa.default_storable(Analyses, exposes=base.Analyses.__slots__)
 _analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
-hdf5_storable(_analyses_storable)
+rwa.hdf5_storable(_analyses_storable)
 

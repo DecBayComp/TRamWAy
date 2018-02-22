@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from .analysis import *
+#from .analysis import *
 from .tessellation import *
 from .inference import *
 

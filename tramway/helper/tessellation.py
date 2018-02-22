@@ -21,7 +21,6 @@ import matplotlib.pyplot as plt
 from ..core import *
 from ..tessellation import *
 from ..plot.mesh import *
-from .analysis import *
 from warnings import warn
 import six
 import traceback
@@ -188,16 +187,26 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		raise ValueError("'label' and 'output_label' are both defined and are different")
 
 	no_nesting_error = ValueError('nesting tessellations does not apply to translocation data')
-	if isinstance(xyt_data, six.string_types) or isinstance(xyt_data, (tuple, list, frozenset, set)):
-		xyt_path = list_rwa(xyt_data)
-		if xyt_path:
-			if xyt_path[1:]:
-				raise ValueError('too many files match')
-			analyses = find_analysis(xyt_path[0])
-			if input_label:
-				input_partition, = find_artefacts(analyses, CellStats, input_label)
-			xyt_data = analyses.data
+	multiple_files = lambda a: isinstance(a, (tuple, list, frozenset, set))
+	if isinstance(xyt_data, six.string_types) or multiple_files(xyt_data):
+		# file path(s)
+		if multiple_files(xyt_data) and not xyt_data[1:]:
+			xyt_data = xyt_data[0]
+		if multiple_files(xyt_data):
+			xyt_file = xyt_data
 		else:
+			try:
+				analyses = load_rwa(xyt_data)
+			except (KeyboardInterrupt, SystemExit):
+				raise
+			except:
+				xyt_file = xyt_data
+			else:
+				xyt_file = False
+				if input_label:
+					input_partition, = find_artefacts(analyses, CellStats, input_label)
+				xyt_data = analyses.data
+		if xyt_file:
 			xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
 			analyses = Analyses(xyt_data)
 			if input_label is not None:
@@ -502,9 +511,11 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		fig_format (str):
 			Any image format supported by :func:`matplotlib.pyplot.savefig`.
 
-		show (bool):
+		show (bool or str):
 			Makes `cell_plot` show the figure(s) which is the default behavior if and only 
-			if the figures are not saved.
+			if the figures are not saved. If ``show='draw'``, 
+			:func:`~matplotlib.pyplot.draw` is called instead of 
+			:func:`~matplotlib.pyplot.show`. 
 
 		verbose (bool): Verbose output.
 
@@ -562,7 +573,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		elif not isinstance(labels, (tuple, list)):
 			labels = (labels, )
 		try:
-			analyses = find_analysis(input_file, labels=labels)
+			analyses = load_rwa(input_file)
+			if labels:
+				analyses = extract_analysis(analyses, labels)
 		except KeyError as e:
 			if e.args and 'analyses' not in e.args[0]:
 				raise
@@ -602,6 +615,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 				hdf = HDF5Store(input_file, 'r')
 				hdf.lazy = False
 				cells = hdf.peek('cells')
+				if cells.tessellation is None:
+					cells._tessellation = hdf.peek('_tesselation', hdf.store['cells'])
 			except:
 				print(traceback.format_exc())
 				warn('HDF5 libraries may not be installed', ImportWarning)
@@ -777,7 +792,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			fig.savefig(hpd_file)
 
 	if show or not print_figs:
-		if show is not False:
+		if show == 'draw':
+			plt.draw()
+		elif show is not False:
 			plt.show()
 	else:
 		for fig in figs:
@@ -820,6 +837,8 @@ def find_mesh(path, method=None, full_list=False):
 				if isinstance(cells, CellStats) and \
 					(method is None or cells.param['method'] == method):
 					found = True
+					if cells.tessellation is None:
+						cells._tessellation = hdf.peek('_tesselation', hdf.store['cells'])
 			except EnvironmentError:
 				print(traceback.format_exc())
 				warn('HDF5 libraries may not be installed', ImportWarning)

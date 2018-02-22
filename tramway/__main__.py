@@ -29,12 +29,16 @@ def _parse_args(args):
 	kwargs = dict(args.__dict__)
 	del kwargs['func']
 	try:
-		input_file = kwargs.pop('input')
-		input_file[0]
+		input_files = kwargs.pop('input')
+		input_files[0]
 	except (KeyError, IndexError):
 		print('please specify input file(s) with -i')
 		sys.exit(1)
-	return input_file, kwargs
+	for input_file in input_files:
+		if not os.path.isfile(input_file):
+			print("cannot find file: {}".format(input_file))
+			sys.exit(1)
+	return input_files, kwargs
 
 
 def _render_cells(args):
@@ -112,6 +116,38 @@ def _render_map(args):
 	input_file, kwargs = _parse_args(args)
 	output_file = kwargs.pop('output', None)
 	fig_format = kwargs.pop('print', None)
+	points = kwargs.pop('points')
+	if points is not False:
+		point_style = dict(alpha=.01)
+		if points is not None:
+			for prm in points.split(','):
+				key, val = prm.split('=')
+				if key in ('a', 'alpha'):
+					point_style['alpha'] = float(val)
+				elif key in ('c', 'color'):
+					if val[0] == "'" and val[-1] == "'":
+						val = val[1:-1]
+					point_style['color'] = val
+		kwargs['point_style'] = point_style
+	if kwargs['delaunay'] is None:
+		kwargs['delaunay'] = True
+	elif kwargs['delaunay'] is False:
+		del kwargs['delaunay']
+	else:
+		delaunay = {}
+		for prm in kwargs['delaunay'].split(','):
+			key, val = prm.split('=')
+			if key in ('a', 'alpha'):
+				delaunay['alpha'] = float(val)
+			elif key in ('c', 'color'):
+				if val[0] == "'" and val[-1] == "'":
+					val = val[1:-1]
+				delaunay['color'] = val
+		kwargs['delaunay'] = delaunay
+	if kwargs['clip'] is None:
+		kwargs['clip'] = 4.
+	elif kwargs['clip'] == 0.:
+		del kwargs['clip']
 	map_plot(input_file[0], output_file, fig_format, **kwargs)
 	sys.exit(0)
 
@@ -121,7 +157,7 @@ def _dump_rwa(args):
 	for input_file in input_files:
 		print('in {}:'.format(input_file))
 		analyses = load_rwa(input_file)
-		print(format_analyses(analyses, global_prefix='\t'))
+		print(format_analyses(analyses, global_prefix='\t', node=lazytype))
 
 def _curl(args):
 	input_file, kwargs = _parse_args(args)
@@ -274,6 +310,10 @@ def main():
 	for arg1, arg2, kwargs in global_arguments:
 		map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+	map_parser.add_argument('-P', '--points', nargs='?', default=False, help='plot the points; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
+	map_parser.add_argument('-D', '--delaunay', nargs='?', default=False, help='plot the Delaunay graph; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
+	map_parser.add_argument('-cm', '--colormap', help='colormap name (see https://matplotlib.org/users/colormaps.html)')
+	map_parser.add_argument('-c', '--clip', type=float, nargs='?', default=0., help='clip map by absolute values; clipping threshold can be specified as a number of interquartile distances above the median')
 	map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
 

@@ -23,6 +23,7 @@ from scipy.spatial.distance import cdist
 from ..core import *
 from ..tessellation import dict_to_sparse
 import traceback
+from collections import defaultdict
 
 
 def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None, **kwargs):
@@ -198,7 +199,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 
 
 def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
-		axes=None, linewidth=1):
+		axes=None, linewidth=1, individual=False):
 	if axes is None:
 		axes = plt
 	try:
@@ -220,6 +221,8 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 		I, J, K = A.row, A.col, A.data
 
 	# plot delaunay
+	if not individual:
+		by_color = defaultdict(list)
 	obj = []
 	for i, j, k in zip(I, J, K):
 		x, y = zip(vertices[i], vertices[j])
@@ -238,7 +241,25 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 						x, y = voronoi[vert_ids].T
 					except ValueError:
 						continue
-		obj.append(axes.plot(x, y, style, color=color[c], linewidth=linewidth))
+		if individual:
+			obj.append(axes.plot(x, y, style, color=color[c], linewidth=linewidth))
+		else:
+			by_color[c].append((x, y))
+
+	if not individual:
+		for c in by_color:
+			xy = by_color[c]
+			X = np.zeros((len(xy) * 3,))
+			Y = np.empty((len(xy) * 3,))
+			Y[:] = np.nan
+			i = 0
+			for x, y in xy:
+				I = slice(i*3, i*3+2)
+				X[I], Y[I] = x, y
+				i += 1
+			obj.append(axes.plot(X, Y, style,
+				color=color[c if color[1:] else 0],
+				linewidth=linewidth))
 
 	# plot cell centers
 	if centroid_style:
