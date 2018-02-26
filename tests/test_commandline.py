@@ -16,13 +16,17 @@ import tarfile
 import traceback
 
 
-data_server = 'http://dl.pasteur.fr/fop/W0YrVCSc/'
-data_archive = 'glycine_receptor_180120.tar.bz2'
+#data_server = 'http://dl.pasteur.fr/fop/W0YrVCSc/'
+data_server = 'http://dl.pasteur.fr/fop/xOHv3509/'
+data_update = '180223'
 data_file = 'glycine_receptor.trxyt'
 data_dir = 'data'
 
-ref_py_ver = (2,7,12)
-py_ver = tuple(sys.version_info[:3])
+data_archive = '{}_{}_py{}_{}.tar.bz2'.format(
+		os.path.splitext(data_file)[0],
+		'commandline',
+		sys.version_info[0],
+		data_update)
 
 seed = 4294947105
 
@@ -97,7 +101,7 @@ class TestTesselation(object):
 
 	def rwafile(self, reference):
 		basename, _ = os.path.splitext(data_file)
-		rwa = 'test_{}_{}.rwa'.format(reference, basename)
+		rwa = 'tessellation_output_{}.rwa'.format(reference)
 		return prepare_file(rwa, self.datadir, self.tmpdir)
 
 	def common(self, tmpdir, datadir, cmd, reference=None):
@@ -123,36 +127,60 @@ class TestTesselation(object):
 				if not isinstance(err, str):
 					err = err.decode('utf-8')
 				self.print(err)
-			if out and py_ver != ref_py_ver:
-				# differences can come from e.g. string types or hash functions for dictionnaries
-				#_expected = load_rwa(reference)
-				#_generated = load_rwa(output_file)
-				# TODO: compare `_expected` and `_generated`
-				pass
 			assert not out
 
 	def test_grid(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'grid -c 50', 'grid0')
+		self.common(tmpdir, datadir, 'grid -s 50', 'grid0')
 	def test_kdtree(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'kdtree', 'kdtree0')
 	def test_kmeans(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'kmeans -w -c 40', 'kmeans0')
+		self.common(tmpdir, datadir, 'kmeans -w -s 40', 'kmeans0')
 	def test_gwr(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'gwr', 'gwr0')
 	def test_overlapping_knn(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'grid -c 20 --knn 80', 'knn0')
+		self.common(tmpdir, datadir, 'gwr -w -d 0.1 -s 10 --knn 20', 'knn0')
 #	def test_plot_mesh(self, tmpdir, datadir):
 #		pass
 
-#class InferenceTest(object):
-#	def test_d(self, tmpdir):
-#		pass
-#	def test_df(self, tmpdir):
-#		pass
-#	def test_dd(self, tmpdir):
-#		pass
-#	def test_dv(self, tmpdir):
-#		pass
+class TestInference(object):
+
+	def print(self, *args, **kwargs):
+		_print(self.tmpdir, *args, **kwargs)
+
+	def common(self, tmpdir, datadir, cmd, reference):
+		self.tmpdir, self.datadir = tmpdir, datadir
+		numpy.random.seed(seed)
+		input_file = 'test_inference_{}.rwa'.format(reference)
+		ref_file = 'inference_output_{}.rwa'.format(reference)
+		i, o = open('inference_input.rwa', 'r'), open(input_file, 'w')
+		o.write(i.read())
+		o.close(), i.close()
+		status = execute('{} -m tramway infer {} -i {}', sys.executable, cmd, input_file)
+		assert status == 0
+		generated, expected = input_file, ref_file
+		p = subprocess.Popen(('h5diff', expected, generated),
+			stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		out, err = p.communicate()
+		if out:
+			if not isinstance(out, str): # Py3
+				out = out.decode('utf-8')
+			self.print(out)
+			out = '\n'.join([ line for line in out.splitlines()
+				if not line.startswith('Failed reading attribute') ])
+		if err:
+			if not isinstance(err, str): # Py3
+				err = err.decode('utf-8')
+			self.print(err)
+		assert not out
+
+	def test_d(self, tmpdir):
+		self.common(tmpdir, datadir, 'd', 'd0')
+	def test_df(self, tmpdir):
+		self.common(tmpdir, datadir, 'df', 'df0')
+	def test_dd(self, tmpdir):
+		self.common(tmpdir, datadir, 'dd -C 10 --dilation 1', 'dd0')
+	def test_dv(self, tmpdir):
+		self.common(tmpdir, datadir, 'dv --dilation 1 --max-cell-count 10', 'dv0')
 #	def test_plot_map(self, tmpdir):
 #		pass
 

@@ -64,31 +64,72 @@ class DV(ChainArray):
 
 
 def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
+	"""
+	Adapted from InferenceMAP's *dvPosterior* procedure::
+
+		for (int a = 0; a < NUMBER_OF_ZONES; a++) {
+			ZONES[a].gradVx = dvGradVx(DV,a);
+			ZONES[a].gradVy = dvGradVy(DV,a);
+			ZONES[a].gradDx = dvGradDx(DV,a);
+			ZONES[a].gradDy = dvGradDy(DV,a);
+			ZONES[a].priorActive = true;
+		}
+
+
+		for (int z = 0; z < NUMBER_OF_ZONES; z++) {
+			const double gradVx = ZONES[z].gradVx;
+			const double gradVy = ZONES[z].gradVy;
+			const double gradDx = ZONES[z].gradDx;
+			const double gradDy = ZONES[z].gradDy;
+
+			const double D = DV[2*z];
+
+			for (int j = 0; j < ZONES[z].translocations; j++) {
+				const double dt = ZONES[z].dt[j];
+				const double dx = ZONES[z].dx[j];
+				const double dy = ZONES[z].dy[j];
+				const double  Dnoise = LOCALIZATION_ERROR*LOCALIZATION_ERROR/dt;
+
+				result += - log(4.0*PI*(D + Dnoise)*dt) - ((dx-D*gradVx*dt)*(dx-D*gradVx*dt) + (dy-D*gradVy*dt)*(dy-D*gradVy*dt))/(4.0*(D+Dnoise)*dt);
+			}
+
+			if (ZONES[z].priorActive == true) {
+				result -= V_PRIOR*(gradVx*gradVx*ZONES[z].areaX + gradVy*gradVy*ZONES[z].areaY);
+				result -= D_PRIOR*(gradDx*gradDx*ZONES[z].areaX + gradDy*gradDy*ZONES[z].areaY);
+				if (JEFFREYS_PRIOR == 1) {
+					result += 2.0*log(D*1.00) - 2.0*log(D*ZONES[z].dtMean + LOCALIZATION_ERROR*LOCALIZATION_ERROR);
+			}
+		}
+
+	"""
+	# extract `D` and `V`
 	dv.update(x)
 	D = dv.D
 	V = dv.V
+	# for all cell
 	result = 0.0
-	for i in cells.cells:
-		cell = cells.cells[i]
-		n = cell.tcount
-		assert 0 < n
-		#if n == 0:
-		#	continue
-		# gradient of potential
+	for i in cells:
+		cell = cells[i]
+		n = len(cell) # number of translocations
+		# spatial gradient of the local potential energy
 		gradV = cells.grad(i, V)
 		if gradV is None:
 			continue
-		# posterior
+		# various posterior terms
 		Ddt = D[i] * cell.dt
 		Dtot = 4.0 * (Ddt + sq_loc_err)
-		residual = cell.dxy - np.outer(Ddt, gradV)
-		result += n * log(pi) + np.sum(np.log(Dtot) + np.sum(residual * residual, axis=1) / Dtot)
+		dxdy_minus_D_gradV_dt = cell.dxy - np.outer(Ddt, gradV)
+		result += n * log(pi) + np.sum( \
+				np.log(Dtot) + \
+				np.sum(dxdy_minus_D_gradV_dt * dxdy_minus_D_gradV_dt, axis=1) / \
+				Dtot)
+		# priors
 		if dv.potential_prior:
 			area = cells.grad_sum(i)
 			result += dv.potential_prior * np.dot(gradV * gradV, area)
 		if dv.diffusivity_prior:
-			area = cells.grad_sum(i) # area is cached, therefore grad_sum can be called several times at no extra cost
-			# gradient of diffusivity
+			area = cells.grad_sum(i) # `area` is cached, therefore `grad_sum` can be called several times at no extra cost
+			# spatial gradient of the local diffusivity
 			gradD = cells.grad(i, D)
 			assert gradD is not None
 			result += dv.diffusivity_prior * np.dot(gradD * gradD, area)
@@ -97,33 +138,23 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 	return result
 
 
-def inferDV(cell, localization_error=0.0, diffusivity_prior=None, potential_prior=None, jeffreys_prior=False, \
-	min_diffusivity=0, **kwargs):
-	sq_loc_err = localization_error * localization_error
+def inferDV(cells, localization_error=0.0, diffusivity_prior=None, potential_prior=None, \
+		jeffreys_prior=False, min_diffusivity=0, **kwargs):
+	# ensure that cells are non-empty and translocations are properly oriented in time
+	for c in cells.values():
+		if not bool(c):
+			raise ValueError('empty cells')
+		if not np.all(0 < c.dt):
+			warn('translocation dts are not all positive', RuntimeWarning)
+			c.dxy[c.dt < 0] *= -1.
+			c.dt[ c.dt < 0] *= -1.
 	# initial values
-	initial = []
-	for i in cell.cells:
-		c = cell.cells[i]
-		if 0 < c.tcount:
-			if not np.all(0 < c.dt):
-				warn('translocation dts are non-positive', RuntimeWarning)
-				c.dt = abs(c.dt)
-			initial.append((i, \
-				np.mean(c.dxy * c.dxy) / (2.0 * np.mean(c.dt)), \
-				-log(float(c.tcount) / float(cell.tcount)), \
-				False))
-		else:
-			initial.append((i, 0, 0, True))
-	index, initial_diffusivity, initial_potential, mask = zip(*initial)
-	mask = list(mask)
-	index = ma.array(index, mask=mask)
-	initial_diffusivity = ma.array(initial_diffusivity, mask=mask)
-	initial_potential = ma.array(initial_potential, mask=mask)
-	dv = DV(initial_diffusivity, initial_potential, diffusivity_prior, potential_prior, \
+	initialD = np.array([ np.mean(c.dxy * c.dxy) / 2. * np.mean(c.dt) for c in cells.values() ])
+	n = np.array([ float(len(c)) for c in cells.values() ])
+	initialV = -np.log(n / np.sum(n))
+	dv = DV(initialD, initialV, diffusivity_prior, potential_prior, \
 		minimum_diffusivity=min_diffusivity)
-	# initialize the caches
-	for c in cell.cells:
-		cell.cells[c].cache = dict(vanders=None, area=None)
+	# parametrize the optimization algorithm
 	if min_diffusivity is None:
 		#kwargs['method'] = 'BFGS'
 		pass
@@ -131,17 +162,15 @@ def inferDV(cell, localization_error=0.0, diffusivity_prior=None, potential_prio
 		kwargs['bounds'] = [(min_diffusivity, None)] * dv.combined.size
 		#kwargs['method'] = 'L-BFGS-B'
 	# run the optimization routine
+	sq_loc_err = localization_error * localization_error
 	result = minimize(dv_neg_posterior, dv.combined, \
-		args=(dv, cell, sq_loc_err, jeffreys_prior), \
+		args=(dv, cells, sq_loc_err, jeffreys_prior), \
 		**kwargs)
-	dv.update(result.x)
 	# collect the result
-	#inferred['D'] = dv.D
-	#inferred['V'] = dv.V
+	dv.update(result.x)
 	D, V = dv.D, dv.V
-	if isinstance(D, ma.MaskedArray): D = D.compressed()
-	if isinstance(V, ma.MaskedArray): V = V.compressed()
-	if isinstance(index, ma.MaskedArray): index = index.compressed()
+	# format the output
+	index = np.array(list(cells.keys()))
 	if index.size:
 		inferred = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
 			columns=['diffusivity', 'potential'])

@@ -107,6 +107,8 @@ def _infer(mode):
 		input_file, kwargs = _parse_args(args)
 		output_file = kwargs.pop('output', None)
 		kwargs['mode'] = mode
+		if kwargs.get('profile', False) is None:
+			kwargs['profile'] = True
 		infer(input_file[0], output_file=output_file, **kwargs)
 		# kwargs: mode, localization_error, diffusivity_prior, potential_prior, jeffreys_prior
 		sys.exit(0)
@@ -256,6 +258,7 @@ def main():
 			add_arguments(mode_parser, setup['arguments'], name=mode)
 		except KeyError:
 			pass
+		mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
 		mode_parser.set_defaults(func=_infer(mode))
 
 

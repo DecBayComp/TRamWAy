@@ -24,6 +24,7 @@ from multiprocessing import Pool, Lock
 import six
 from functools import partial
 from warnings import warn
+import traceback
 
 
 
@@ -511,23 +512,45 @@ class Distributed(Local):
 			worker_count (int):
 				number of simultaneously working processing units.
 
+			profile (bool or str or tuple):
+				profile each child job if any;
+				if `str`, dump the output stats into *.prof* files;
+				if `tuple`, print a report with :func:`~pstats.Stats.print_stats` and
+				tuple elements as input arguments.
+
 		Returns:
 
 			pandas.DataFrame:
 				single merged array.
 
 		"""
-		if all([ isinstance(cell, Distributed) for cell in self.cells.values() ]):
+		# clear the caches
+		self.clear_caches()
+		if all(isinstance(cell, Distributed) for cell in self.cells.values()):
+			# parallel for-loop over the subsets of cells
+			# if `worker_count` is `None`, `Pool` will use `multiprocessing.cpu_count()`
 			worker_count = kwargs.pop('worker_count', None)
-			# if worker_count is None, Pool will use multiprocessing.cpu_count()
-			cells = [ cell for cell in self.cells.values() if 0 < cell.tcount ]
+			profile = kwargs.pop('profile', False)
 			pool = Pool(worker_count)
 			fargs = (function, args, kwargs)
+			if profile:
+				fargs = (profile, fargs)
+				cells = [ (i, self.cells[i]) for i in self.cells if bool(self.cells[i]) ]
+			else:
+				cells = [ self.cells[i] for i in self.cells if bool(self.cells[i]) ]
 			if six.PY3:
-				ys = pool.map(partial(__run__, fargs), cells)
+				if profile:
+					_run = __profile_run__
+				else:
+					_run = __run__
+				ys = pool.map(partial(_run, fargs), cells)
 			elif six.PY2:
 				import itertools
-				ys = pool.map(__run_star__, \
+				if profile:
+					_run = __profile_run_star__
+				else:
+					_run = __run_star__
+				ys = pool.map(_run,
 					itertools.izip(itertools.repeat(fargs), cells))
 			ys = [ y for y in ys if y is not None ]
 			if ys:
@@ -535,6 +558,7 @@ class Distributed(Local):
 			else:
 				result = None
 		else:
+			# direct function application
 			result = function(self, *args, **kwargs)
 		return result
 
@@ -543,7 +567,10 @@ class Distributed(Local):
 		return self.adjacency.shape[0]
 
 	def __nonzero__(self):
-		return nonzero(self.cells)
+		return bool(self.cells)
+
+	def __iter__(self):
+		return iter(self.cells)
 
 	def __getitem__(self, i):
 		return self.cells[i]
@@ -572,10 +599,36 @@ class Distributed(Local):
 		except AttributeError:
 			return enumerate(self.cells)
 
+	def clear_caches(self):
+		try:
+			first = True
+			for c in self.values():
+				c.clear_cache()
+				first = False
+		except AttributeError as e:
+			if first:
+				try:
+					first = True
+					for c in self.values():
+						c.clear_caches()
+						first = False
+					return
+				except:
+					if first:
+						raise e
+			if not first:
+				raise
+
 
 def __run__(func, cell):
 	function, args, kwargs = func
-	x = cell.run(function, *args, **kwargs)
+	try:
+		x = cell.run(function, *args, **kwargs)
+	except (KeyboardInterrupt, SystemExit):
+		raise
+	except:
+		print(traceback.format_exc())
+		raise
 	if x is None:
 		return None
 	else:
@@ -599,6 +652,32 @@ def __run__(func, cell):
 
 def __run_star__(args):
 	return __run__(*args)
+
+
+def __profile_run__(func, args):
+	import cProfile, pstats
+	proptions, func = func
+	try:
+		process, cells = args
+	except TypeError:
+		process = None
+	profile = cProfile.Profile()
+	profile.enable()
+	result = __run__(func, cells)
+	profile.disable()
+	if process is not None and isinstance(proptions, str):
+		profile.dump_stats('{}{}.prof'.format(filename, process))
+	else:
+		if proptions in (True, False):
+			proptions = (.1, )
+		elif not isinstance(proptions, (tuple, list)):
+			proptions = (proptions, )
+		stats = pstats.Stats(profile).sort_stats('cumulative')
+		stats.print_stats(*proptions)
+	return result
+
+def __profile_run_star__(args):
+	return __profile_run__(*args)
 
 
 
@@ -734,11 +813,17 @@ class Cell(Local):
 		else:
 			return np.asarray(self.data[:,self.space_cols])
 
+	def __len__(self):
+		return self.tcount
+
 	def __nonzero__(self):
 		if isinstance(self.data, tuple):
-			return 0 < self.data[0].size
+			return 0 < int(self.data[0].size)
 		else:
-			return 0 < self.data.size
+			return 0 < int(self.data.size)
+
+	def clear_cache(self):
+		self.cache = None
 
 
 class Locations(Cell):
@@ -1099,7 +1184,7 @@ class Maps(object):
 		self.runtime = None
 
 	def __nonzero__(self):
-		return self.maps.__nonzero__()
+		return bool(self.maps)
 
 
 class DiffusivityWarning(RuntimeWarning):

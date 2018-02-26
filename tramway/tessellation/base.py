@@ -776,8 +776,8 @@ class Delaunay(Tessellation):
 	def cell_centers(self):
 		"""Unscaled coordinates of the cell centers (numpy.ndarray)."""
 		if isinstance(self.scaler.factor, pd.Series):
-			return self.scaler.unscale_point(pd.DataFrame(self._cell_centers, \
-				columns=self.scaler.factor.index))
+			return np.asarray(self.scaler.unscale_point(pd.DataFrame(self._cell_centers, \
+				columns=self.scaler.factor.index)))
 		else:
 			return self.scaler.unscale_point(self._cell_centers)
 
@@ -834,8 +834,8 @@ class Voronoi(Delaunay):
 		if self._cell_centers is not None and self._vertices is None:
 			self._postprocess()
 		if isinstance(self.scaler.factor, pd.Series):
-			return self.scaler.unscale_point(pd.DataFrame(self._vertices, \
-				columns=self.scaler.factor.index))
+			return np.asarray(self.scaler.unscale_point(pd.DataFrame(self._vertices, \
+				columns=self.scaler.factor.index)))
 		else:
 			return self.scaler.unscale_point(self._vertices)
 

@@ -62,7 +62,7 @@ def translate_types(translation_table):
 		_module = importlib.import_module(_module_name)
 		_type = getattr(_module, _type_name)
 		try:
-			_storable = rwa.hdf5_service.byStorableType(_current_type)
+			_storable = rwa.hdf5.hdf5_service.byStorableType(_current_type)
 		except:
 			_storable = rwa.default_storable(_type, storable_type=_current_type)
 			_storable_handler = _storable.handlers[0]

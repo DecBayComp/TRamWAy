@@ -33,7 +33,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=0, \
 	store_distributed=False, constructor=None, cell_sampling=None, \
 	priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
-	**kwargs):
+	profile=None, **kwargs):
 	"""
 	Inference helper.
 
@@ -85,6 +85,11 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		output_label (str): label for the resulting analysis instance
 
 		comment (str): description message for the resulting analysis
+
+		profile (bool or str): profile each child job if any;
+			if `str`, dump the output stats into *.prof* files;
+			if `tuple`, print a report with :func:`~pstats.Stats.print_stats` and
+			tuple elements as input arguments.
 
 	Returns:
 
@@ -180,7 +185,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 				if cell_sampling == 'individual':
 					dilation = 0
 				else:
-					dilation = 1
+					dilation = 2
 			multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
 				adjacency_margin=dilation)
 			_map = multiscale_map
@@ -207,6 +212,8 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 				pass
 			else:
 				kwargs[arg] = eval(arg)
+		if profile:
+			kwargs['profile'] = profile
 		x = _map.run(getattr(module, setup['infer']), **kwargs)
 
 	else:
