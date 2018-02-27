@@ -301,7 +301,11 @@ class Scaler(object):
 				dim = _dim
 			if _dim < min(1, dim):
 				raise ValueError('not enough euclidean dimensions')
-			factor = self.factor[self.euclidean[0]]
+			try:
+				factor = self.factor[self.euclidean[0]]
+			except KeyError: # Py3 bugfix on loading Py2-generated rwa files
+				self.euclidean = [ name.decode('utf-8') for name in self.euclidean ]
+				factor = self.factor[self.euclidean[0]]
 			if self.euclidean[1:] and not np.all(self.factor[self.euclidean[1:]] == factor):
 				raise ValueError('the scaling factors for the euclidean variables are not all equal')
 			if not inplace:

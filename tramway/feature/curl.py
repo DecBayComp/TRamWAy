@@ -24,6 +24,7 @@ class Curl(object):
 		self._variables = None
 		self._cells = None
 		self._map = None
+		self._map_index = None
 		self._cell_centers = None
 		self._cell_adjacency = None
 		self._dilation_adjacency = None
@@ -46,6 +47,7 @@ class Curl(object):
 		self._map = m
 		if self._map is not None:
 			self._variables = None
+			self._map_index = None
 
 	@property
 	def variables(self):
@@ -117,10 +119,19 @@ class Curl(object):
 		return self.curl_integral(v, cs, ws)
 
 	def curl_integral(self, variable, contour, inner):
-		field = self.field(variable, contour)
-		tangent = self.tangent(contour)
 		area = self.surface_area(contour, inner)
+		if np.isclose(area, 0.):
+			return 0.
+		ok = np.array([ c in self.map_index for c in contour ])
+		field = self.field(variable, np.asarray(contour)[ok])
+		tangent = np.asarray(self.tangent(contour))[ok]
 		return np.sum(field * tangent) / area
+
+	@property
+	def map_index(self):
+		if self._map_index is None:
+			self._map_index = set(self.map.index)
+		return self._map_index
 
 	def field(self, v, cs):
 		return self.map.loc[cs, self.variables[v]].values
