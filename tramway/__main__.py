@@ -38,6 +38,11 @@ def _parse_args(args):
 		if not os.path.isfile(input_file):
 			print("cannot find file: {}".format(input_file))
 			sys.exit(1)
+	seed = kwargs.pop('seed', None)
+	if seed is not None:
+		import random, numpy
+		random.seed(seed)
+		numpy.random.seed(seed)
 	return input_files, kwargs
 
 
@@ -162,6 +167,7 @@ def _dump_rwa(args):
 		print(format_analyses(analyses, global_prefix='\t', node=lazytype))
 
 def _curl(args):
+	import tramway.feature.curl
 	input_file, kwargs = _parse_args(args)
 	input_label = kwargs.get('input_label', kwargs.get('label', None))
 	if input_file[1:]:
@@ -169,7 +175,7 @@ def _curl(args):
 	input_file = input_file[0]
 	analyses = load_rwa(input_file)
 	cells, maps = find_artefacts(analyses, (CellStats, Maps), input_label)
-	curl = Curl(cells, maps)
+	curl = tramway.feature.curl.Curl(cells, maps)
 	vector_fields = { f: vs for f, vs in curl.variables.items() if len(vs) == 2 }
 	curl_name = kwargs.get('output_label', None)
 	if not curl_name:
@@ -180,7 +186,7 @@ def _curl(args):
 	for f in vector_fields:
 		_name = '{} {} {}'.format(curl_name, f, distance)
 		curl.extract(_name, f, distance)
-	output_file = kwargs.get('output_file', input_file)
+	output_file = kwargs.get('output', input_file)
 	save_rwa(output_file, analyses, force=output_file == input_file)
 
 
@@ -234,6 +240,7 @@ def main():
 		method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
 			help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn for a partition-related parameter')
 		translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
+		method_parser.add_argument('--seed', type=int, help='random generator seed (for testing purposes)')
 		method_parser.set_defaults(func=_sample(method, translations))
 
 
@@ -258,6 +265,7 @@ def main():
 			add_arguments(mode_parser, setup['arguments'], name=mode)
 		except KeyError:
 			pass
+		mode_parser.add_argument('--seed', type=int, help='random generator seed (for testing purposes)')
 		mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
 		mode_parser.set_defaults(func=_infer(mode))
 

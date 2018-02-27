@@ -14,19 +14,15 @@ import numpy
 import shutil
 import tarfile
 import traceback
+import random
 
 
-#data_server = 'http://dl.pasteur.fr/fop/W0YrVCSc/'
-data_server = 'http://dl.pasteur.fr/fop/xOHv3509/'
-data_update = '180223'
+data_server = 'http://dl.pasteur.fr/fop/{}/'.format('xOHv3509' if sys.version_info[0] == 2 else '')
+data_update = '180227'
 data_file = 'glycine_receptor.trxyt'
-data_dir = 'data'
 
-data_archive = '{}_{}_py{}_{}.tar.bz2'.format(
-		os.path.splitext(data_file)[0],
-		'commandline',
-		sys.version_info[0],
-		data_update)
+data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
+data_archive = '{}.tar.bz2'.format(data_dir)
 
 seed = 4294947105
 
@@ -71,13 +67,13 @@ def datadir(tmpdir, request):
 		raise OSError('test data not found')
 	return _dir
 
-def prepare_file(filename, datadir, tmpdir):
+def prepare_file(filename, datadir, tmpdir, copy=True):
 	try:
 		tmpdir = tmpdir.strpath
 	except AttributeError:
 		pass
 	destfile = os.path.join(tmpdir, filename)
-	if not os.path.isfile(destfile):
+	if not os.path.isfile(destfile) and copy:
 		srcfile = os.path.join(datadir, filename)
 		if os.path.isfile(srcfile):
 			shutil.copyfile(srcfile, destfile)
@@ -106,9 +102,10 @@ class TestTesselation(object):
 
 	def common(self, tmpdir, datadir, cmd, reference=None):
 		self.tmpdir, self.datadir = tmpdir, datadir
-		numpy.random.seed(seed)
 		input_file = self.xytfile()
-		status = execute('{} -m tramway tessellate {} -i {}', sys.executable, cmd, input_file)
+		random.seed(seed)
+		numpy.random.seed(seed)
+		status = execute('{} -m tramway tessellate {} -i {} --seed {}', sys.executable, cmd, input_file, seed)
 		assert status == 0
 		output_file = '{}.rwa'.format(os.path.splitext(input_file)[0])
 		assert os.path.isfile(output_file)
@@ -138,7 +135,7 @@ class TestTesselation(object):
 	def test_gwr(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'gwr', 'gwr0')
 	def test_overlapping_knn(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'gwr -w -d 0.1 -s 10 --knn 20', 'knn0')
+		self.common(tmpdir, datadir, 'gwr -w -d 0.3 -s 30 --knn 50', 'knn0')
 #	def test_plot_mesh(self, tmpdir, datadir):
 #		pass
 
@@ -148,15 +145,17 @@ class TestInference(object):
 		_print(self.tmpdir, *args, **kwargs)
 
 	def common(self, tmpdir, datadir, cmd, reference):
-		self.tmpdir, self.datadir = tmpdir, datadir
-		numpy.random.seed(seed)
-		input_file = 'test_inference_{}.rwa'.format(reference)
+		self.tmpdir = tmpdir
+		initial_file = prepare_file('inference_input.rwa', datadir, tmpdir)
+		input_file = prepare_file('test_inference_{}.rwa'.format(reference),
+			datadir, tmpdir, False)
 		ref_file = 'inference_output_{}.rwa'.format(reference)
-		i, o = open('inference_input.rwa', 'r'), open(input_file, 'w')
+		i, o = open(initial_file, 'rb'), open(input_file, 'wb')
 		o.write(i.read())
 		o.close(), i.close()
-		status = execute('{} -m tramway infer {} -i {}', sys.executable, cmd, input_file)
+		status = execute('{} -m tramway infer {} -i {} --seed {}', sys.executable, cmd, input_file, seed)
 		assert status == 0
+		ref_file = prepare_file(ref_file, datadir, tmpdir)
 		generated, expected = input_file, ref_file
 		p = subprocess.Popen(('h5diff', expected, generated),
 			stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -165,22 +164,27 @@ class TestInference(object):
 			if not isinstance(out, str): # Py3
 				out = out.decode('utf-8')
 			self.print(out)
-			out = '\n'.join([ line for line in out.splitlines()
-				if not line.startswith('Failed reading attribute') ])
+			out = out.splitlines()
+			out = '\n'.join([ '\n'.join((line1, line2)) \
+				for (line1, line2) in zip(out[:-1:2], out[1::2])
+				if not (line1.startswith('Failed reading attribute') or \
+					line1.startswith('attribute: <TITLE of ') or \
+					line1.endswith('/runtime>')) ])
+			self.print(out)
 		if err:
 			if not isinstance(err, str): # Py3
 				err = err.decode('utf-8')
 			self.print(err)
 		assert not out
 
-	def test_d(self, tmpdir):
+	def test_d(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'd', 'd0')
-	def test_df(self, tmpdir):
+	def test_df(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'df', 'df0')
-	def test_dd(self, tmpdir):
+	def test_dd(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'dd -C 10 --dilation 1', 'dd0')
-	def test_dv(self, tmpdir):
+	def test_dv(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'dv --dilation 1 --max-cell-count 10', 'dv0')
-#	def test_plot_map(self, tmpdir):
+#	def test_plot_map(self, tmpdir, datadir):
 #		pass
 
