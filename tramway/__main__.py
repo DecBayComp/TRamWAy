@@ -20,7 +20,7 @@ except ImportError:
 import sys
 import tramway.tessellation as tessellation
 import tramway.inference as inference
-from .feature import *
+import tramway.feature as feature
 from .helper import *
 import tramway.core.hdf5.compat
 
@@ -167,6 +167,7 @@ def _dump_rwa(args):
 		print(format_analyses(analyses, global_prefix='\t', node=lazytype))
 
 def _curl(args):
+	import copy
 	import tramway.feature.curl
 	input_file, kwargs = _parse_args(args)
 	input_label = kwargs.get('input_label', kwargs.get('label', None))
@@ -174,7 +175,7 @@ def _curl(args):
 		raise NotImplementedError('cannot handle multiple input files')
 	input_file = input_file[0]
 	analyses = load_rwa(input_file)
-	cells, maps = find_artefacts(analyses, (CellStats, Maps), input_label)
+	cells, maps, leaf = find_artefacts(analyses, (CellStats, Maps), input_label, return_subtree=True)
 	curl = tramway.feature.curl.Curl(cells, maps)
 	vector_fields = { f: vs for f, vs in curl.variables.items() if len(vs) == 2 }
 	curl_name = kwargs.get('output_label', None)
@@ -182,11 +183,26 @@ def _curl(args):
 		curl_name = 'curl'
 	if 1 < len(vector_fields):
 		raise NotImplementedError('multiple vector fields')
-	distance = kwargs.get('distance', 1)
+	distance = kwargs.get('radius', 1)
+	curl_maps = copy.copy(maps)
+	curl_maps.maps = None
 	for f in vector_fields:
-		_name = '{} {} {}'.format(curl_name, f, distance)
-		curl.extract(_name, f, distance)
-	output_file = kwargs.get('output', input_file)
+		_name = '{}<{}>_{}'.format(curl_name, f, distance)
+		curl_map = curl.extract(_name, f, distance)
+		if curl_maps.maps is None:
+			curl_maps.maps = curl_map
+		else:
+			curl_maps.maps.join(curl_map)
+	if curl_maps.extra_args is None:
+		curl_maps.extra_args = {}
+	else:
+		curl_maps.extra_args = dict(curl_maps.extra_args) # copy
+	curl_maps.extra_args['radius'] = distance
+	# insert `curl_maps` into `analyses`
+	leaf.add(Analyses(curl_maps))
+	output_file = kwargs.get('output', None)
+	if output_file is None:
+		output_file = input_file
 	save_rwa(output_file, analyses, force=output_file == input_file)
 
 
@@ -292,7 +308,7 @@ def main():
 			curl_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
 	curl_parser.add_argument('-L', '--label', '--input-label', help='comma-separated list of input labels')
 	curl_parser.add_argument('-l', '--output-label', help='output label')
-	curl_parser.add_argument('-d', '--distance', type=int, default=1, help='radius in number of cells')
+	curl_parser.add_argument('-r', '--radius', '-d', '--distance', type=int, default=1, help='radius in number of cells')
 
 
 	# plot artefacts

@@ -62,7 +62,7 @@ class Curl(object):
 	@property
 	def cell_centers(self):
 		if self._cell_centers is None:
-			self._cell_centers = self.cells.tesselation.cell_centers
+			self._cell_centers = self.cells.tessellation.cell_centers
 		return self._cell_centers
 
 	@cell_centers.setter
@@ -72,7 +72,7 @@ class Curl(object):
 	@property
 	def cell_adjacency(self):
 		if self._cell_adjacency is None:
-			self._cell_adjacency = self.cells.tesselation.simplified_adjacency().tocsr()
+			self._cell_adjacency = self.cells.tessellation.simplified_adjacency().tocsr()
 		return self._cell_adjacency
 
 	@cell_adjacency.setter
@@ -81,7 +81,7 @@ class Curl(object):
 
 	@property
 	def cell_count(self):
-		return self.cells.tesselation.cell_adjacency.shape[0]
+		return self.cells.tessellation.cell_adjacency.shape[0]
 
 	@cell_count.setter
 	def cell_count(self, cc):
@@ -91,7 +91,7 @@ class Curl(object):
 	def dilation_adjacency(self):
 		if self._dilation_adjacency is None:
 			try:
-				self._dilation_adjacency = self.cells.tesselation.diagonal_adjacency
+				self._dilation_adjacency = self.cells.tessellation.diagonal_adjacency
 			except AttributeError:
 				self._dilation_adjacency = False
 		if self._dilation_adjacency is False:
@@ -106,7 +106,7 @@ class Curl(object):
 	def local_curl(self, variable, cell, distance):
 		v, c, s = variable, cell, distance
 		try:
-			cs = self.cells.tesselation.contour(c, s,
+			cs = self.cells.tessellation.contour(c, s,
 				adjacency=self.cell_adjacency,
 				debug=self.debug, cells=self.cells)
 		except:
@@ -126,17 +126,17 @@ class Curl(object):
 		return self.map.loc[cs, self.variables[v]].values
 
 	def tangent(self, cs):
-		X = self.cells.tesselation.cell_centers
+		X = self.cells.tessellation.cell_centers
 		uvw = zip([cs[-1]]+cs[:-1], cs, cs[1:]+[cs[0]])
 		return np.vstack([ (X[w]-X[u])*.5 for u, v, w in uvw ])
 
 	def surface_area(self, contour, inner):
 		if False:#self._areas is None:
-			ncells = self.cells.tesselation.cell_adjacency.shape[0]
-			centers = self.cells.tesselation.cell_centers
-			vertices = self.cells.tesselation.cell_vertices
-			adjacency = self.cells.tesselation.vertex_adjacency.tocsr()
-			vert_coords = self.cells.tesselation.vertices
+			ncells = self.cells.tessellation.cell_adjacency.shape[0]
+			centers = self.cells.tessellation.cell_centers
+			vertices = self.cells.tessellation.cell_vertices
+			adjacency = self.cells.tessellation.vertex_adjacency.tocsr()
+			vert_coords = self.cells.tessellation.vertices
 			self._areas = np.zeros(ncells)
 			for c in range(ncells):
 				u = centers[c]
@@ -157,7 +157,7 @@ class Curl(object):
 					v, w = vert_coords[a], vert_coords[b]
 					self._areas[c] += abs((v[0]-u[0])*(w[1]-u[1])-(w[0]-u[0])*(v[1]-u[1]))
 			self._areas *= .5
-		return np.sum(self.cell_volume[list(inner)])
+		return np.sum(self.cells.tessellation.cell_volume[list(inner)])
 
 	def extract(self, label, variable=None, distance=1):
 		if variable is None:
@@ -173,6 +173,6 @@ class Curl(object):
 				cells.append(cell)
 				curls.append(curl)
 		curls = pd.Series(index=np.array(cells), data=np.array(curls))
-		self.map[label] = curls
-		return self.map
+		#self.map[label] = curls
+		return pd.DataFrame({label: curls})
 

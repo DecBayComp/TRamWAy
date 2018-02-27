@@ -347,7 +347,8 @@ def label_paths(analyses, filter):
 	return list(_append([], labels))
 
 
-def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=False):
+def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=False,
+		return_subtree=False):
 	"""
 	Find related artefacts.
 
@@ -363,16 +364,21 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
 		labels (list): label path.
 
 		quantifiers (str or tuple or list): list of quantifers, a quantifier for now being
-			either *'first'*, *'last'* or *'all'*; a quantifier should be defined for each 
-			filter;	default is *'last'* (admits value ``None``).
+			either '*first*', '*last*' or '*all*'; a quantifier should be defined for each 
+			filter;	default is '*last*' (admits value ``None``).
+
+		return_subtree (bool): return as extra output argument the analysis subtree corresponding
+			to the deepest matching artefact.
 
 	Returns:
 
-		tuple: matching data elements/artefacts.
+		tuple: matching data elements/artefacts, and optionally analysis subtree.
 
-	Example::
+	Examples::
 
 		cells, maps = find_artefacts(analyses, (CellStats, Maps))
+
+		maps, maps_subtree = find_artefacts(analyses, Maps, return_subtree=True)
 
 	"""
 	# filters
@@ -396,10 +402,11 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
 		labels = list(labels) # copy
 	else:
 		labels = [labels]
-	matches, lookup = [], True
+	labels_defined = bool(labels)
+	subtree, matches, lookup = None, [], True
 	for i, _filter in enumerate(filters):
 		if quantifiers:
-			quantifier, _fitler = _filter
+			quantifier, _filter = _filter
 		if isinstance(_filter, type):
 			_type = _filter
 			_filter = lambda a: isinstance(a.data, _type)
@@ -409,25 +416,28 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
 				_fitler = lambda a: f(a.data)
 		else:
 			raise TypeError('invalid filter type: {}'.format(type(_filter)))
+		labels = labels[::-1]
 		match = []
 		while True:
 			if lookup:
-				try:
-					label = labels.pop(0)
-				except IndexError:
+				if labels:
+					label = labels.pop()
+				elif labels_defined:
+					if match and i + 1 == len(filters):
+						break
+					raise ValueError('no match for {}{} filter'.format(i+1,
+						{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
+				else:
 					_labels = list(analyses.labels)
-					if not _labels:
-						if match:
-							break
-						else:
-							raise ValueError('no match for {}{} filter'.format(i+1,
-								{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
-					elif _labels[1:]:
-						if match and i + 1 == len(filters):
-							break
-						raise ValueError('multiple labels; argument `labels` required')
-					else:
+					if _labels and not _labels[1:]:
 						label = _labels[0]
+					elif match and i + 1 == len(filters):
+						break
+					elif not _labels:
+						raise ValueError('no match for {}{} filter'.format(i+1,
+							{1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
+					else:#if _labels[1:]:
+						raise ValueError('multiple labels; argument `labels` required')
 				try:
 					analyses = analyses.instances[label]
 				except KeyError:
@@ -438,17 +448,24 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
 						raise KeyError("missing label '{}'; no labels available".format(label))
 			lookup = True
 			if _filter(analyses):
-				match.append(analyses._data)
+				match.append(analyses)
 			elif match:
 				lookup = False
 				break
 		if quantifier in ('first', ):
-			match = match[0]
+			subtree = match[0]
+			match = subtree._data
 		elif quantifier in ('last', None):
-			match = match[-1]
-		elif quantifier not in ('all', '+'):
+			subtree = match[-1]
+			match = subtree._data
+		elif quantifier in ('all', '+'):
+			subtree = match
+			match = [ a._data for a in match ]
+		else:
 			raise ValueError('invalid quantifier: {}'.format(quantifier))
 		matches.append(match)
+	if return_subtree:
+		matches.append(subtree)
 	return tuple(matches)
 
 

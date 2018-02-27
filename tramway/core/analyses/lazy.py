@@ -103,7 +103,7 @@ def label_paths(analyses, filter, lazy=False):
 	return base.label_paths(analyses, filter)
 
 
-def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False):
+def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False, return_subtree=False):
 	"""
 	Find related artefacts.
 
@@ -119,20 +119,25 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False)
 		labels (list): label path.
 
 		quantifiers (str or tuple or list): list of quantifers, a quantifier for now being
-			either *'first'*, *'last'* or *'all'*; a quantifier should be defined for each 
-			filter;	default is *'last'* (admits value ``None``).
+			either '*first*', '*last*' or '*all*'; a quantifier should be defined for each 
+			filter;	default is '*last*' (admits value ``None``).
 
 		lazy (bool):
 			if applying a filter function to a :class:`rwa.lazy.LazyPeek`,
 			whether to pass the lazy or the evaluated form.
 
+		return_subtree (bool): return as extra output argument the analysis subtree corresponding
+			to the deepest matching artefact.
+
 	Returns:
 
-		tuple: matching data elements/artefacts.
+		tuple: matching data elements/artefacts, and optionally analysis subtree.
 
-	Example::
+	Examples::
 
 		cells, maps = find_artefacts(analyses, (CellStats, Maps))
+
+		maps, maps_subtree = find_artefacts(analyses, Maps, return_subtree=True)
 
 	"""
 	if not isinstance(filters, (tuple, list)):
@@ -153,9 +158,16 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False)
 				_filter = directfilter(_filter)
 			_filters.append(_filter)
 		filters = _filters
-	artefacts = base.find_artefacts(analyses, _filters, labels, quantifiers, fullnode)
+	artefacts = base.find_artefacts(analyses, _filters, labels, quantifiers, fullnode,
+		return_subtree)
 	if lazy:
 		return artefacts
 	else:
-		return tuple([ rwa.lazyvalue(a, deep=True) for a in artefacts ])
+		if return_subtree:
+			artefacts = list(artefacts)
+			subtree = artefacts.pop()
+		artefacts = [ rwa.lazyvalue(a, deep=True) for a in artefacts ]
+		if return_subtree:
+			artefacts.append(subtree)
+		return tuple(artefacts)
 
