@@ -50,7 +50,7 @@ class Scaler(object):
 		function (callable):
 			A function that takes a data matrix as input and returns `center` and `factor`.
 			`function` is called once during the first call to :meth:`scale_point`.
-		euclidian (list):
+		euclidean (list):
 			Sequence of names or indices of the columns to be scaled by a common factor.
 	"""
 	__slots__ = ['init', 'center', 'factor', 'columns', 'function', 'euclidean']
@@ -61,7 +61,7 @@ class Scaler(object):
 			scale (callable):
 				A function that takes a data matrix as input and returns `center` and 
 				`factor`. `scale` becomes the :attr:`function` attribute.
-			euclidian (list):
+			euclidean (list):
 				Sequence of names or indices of the columns to be scaled by a common 
 				factor.
 		"""
@@ -89,10 +89,10 @@ class Scaler(object):
 				points = points[self.columns]
 			else:
 				if self.center is not None and isstructured(self.center):
-					raise TypeError("input data are not structured whereas scaler' is")
+					raise TypeError("input data are not structured whereas scaler's internal data are")
 				points = points[:, self.columns] 
 		elif isstructured(points):
-			raise ValueError("input data are structured whereas scaler' is not")
+			raise ValueError("input data are structured whereas scaler's internal data are not")
 		else:
 			scaler_data = self.center
 			if scaler_data is None:
@@ -153,12 +153,12 @@ class Scaler(object):
 			if self.function:
 				# calculate centers and factors
 				self.center, self.factor = self.function(points)
-				# equalize factor for euclidian variables
+				# equalize factor for euclidean variables
 				if self.euclidean:
 					if isinstance(points, pd.DataFrame):
 						xyz = points[self.euclidean].values
 					elif points.dtype.names:
-						xyz = np.asarray(points[self.euclidian])
+						xyz = np.asarray(points[self.euclidean])
 					else:
 						xyz = points[:,self.euclidean]
 					_, self.factor[self.euclidean] = self.function(xyz.flatten())
@@ -177,10 +177,16 @@ class Scaler(object):
 		if not (self.center is None and self.factor is None):
 			if not inplace:
 				points = points.copy()
-			if self.center is not None:
-				points -= self.center
-			if self.factor is not None:
-				points /= self.factor
+			if isinstance(points, np.ndarray):
+				if self.center is not None:
+					points -= np.asarray(self.center)
+				if self.factor is not None:
+					points /= np.asarray(self.factor)
+			else:
+				if self.center is not None:
+					points -= self.center
+				if self.factor is not None:
+					points /= self.factor
 		if scaledonly:
 			points = self.scaled(points, asarray)
 		elif asarray:
@@ -207,11 +213,17 @@ class Scaler(object):
 			raise AttributeError('scaler has not been initialized')
 		if not (self.center is None and self.factor is None):
 			if not inplace:
-				points = points.copy(deep=False)
-			if self.factor is not None:
-				points *= self.factor
-			if self.center is not None:
-				points += self.center
+				points = points.copy(False)
+			if isinstance(points, np.ndarray):
+				if self.factor is not None:
+					points *= np.asarray(self.factor)
+				if self.center is not None:
+					points += np.asarray(self.center)
+			else:
+				if self.factor is not None:
+					points *= self.factor
+				if self.center is not None:
+					points += self.center
 		return points
 
 

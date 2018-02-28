@@ -289,6 +289,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 
 	input_file = None
 	if isinstance(maps, tuple):
+		warn('`maps` as (CellStats, str, DataFrame) tuple are deprecated', FutureWarning)
 		cells, mode, maps = maps
 	elif isinstance(maps, (pd.DataFrame, Maps)):
 		if cells is None:

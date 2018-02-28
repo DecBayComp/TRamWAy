@@ -188,10 +188,16 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 	no_nesting_error = ValueError('nesting tessellations does not apply to translocation data')
 	multiple_files = lambda a: isinstance(a, (tuple, list, frozenset, set))
-	if isinstance(xyt_data, six.string_types) or multiple_files(xyt_data):
+	xyt_files = []
+	if isinstance(xyt_data, six.string_types):
+		# file path
+		xyt_files = [xyt_data]
+	elif multiple_files(xyt_data):
 		# file path(s)
-		if multiple_files(xyt_data) and not xyt_data[1:]:
+		xyt_files = list(xyt_data)
+		if not xyt_data[1:]:
 			xyt_data = xyt_data[0]
+	if xyt_files:
 		if multiple_files(xyt_data):
 			xyt_file = xyt_data
 		else:
@@ -207,12 +213,11 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 					input_partition, = find_artefacts(analyses, CellStats, input_label)
 				xyt_data = analyses.data
 		if xyt_file:
-			xyt_data, xyt_path = load_xyt(xyt_data, return_paths=True, verbose=verbose)
+			xyt_data, xyt_files = load_xyt(xyt_files, return_paths=True, verbose=verbose)
 			analyses = Analyses(xyt_data)
 			if input_label is not None:
 				raise no_nesting_error
 	else:
-		xyt_path = []
 		if isinstance(xyt_data, Analyses):
 			analyses = xyt_data
 			xyt_data = analyses.data
@@ -221,7 +226,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		#warn('TODO: test direct data input', UseCaseWarning)
 		if input_label is not None:
 			raise no_nesting_error
-	input_files = xyt_path
+	input_files = xyt_files
 
 	try:
 		setup, module = plugins[method]
@@ -439,13 +444,6 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		stats.param['avg_distance'] = avg_distance
 	if max_distance:
 		stats.param['max_distance'] = max_distance
-	#if not plugin:
-	#	if min_location_count:
-	#		stats.param['min_location_count'] = min_location_count
-	#	if avg_location_count:
-	#		stats.param['avg_location_count'] = avg_location_count
-	#	if max_location_count:
-	#		stats.param['max_location_count'] = min_location_count
 	if knn:
 		stats.param['knn'] = knn
 	stats.param.update(kwargs)
@@ -472,9 +470,9 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		analyses.add(Analyses(stats), label=label, comment=comment)
 
 	# save the analysis tree (`analyses`)
-	if output_file or xyt_path:
+	if output_file or xyt_files:
 		if output_file is None:
-			output_file = os.path.splitext(xyt_path[0])[0] + hdf_extensions[0]
+			output_file = os.path.splitext(xyt_files[0])[0] + hdf_extensions[0]
 
 		save_rwa(output_file, analyses, verbose, \
 			force=len(input_files)==1 and input_files[0]==output_file)

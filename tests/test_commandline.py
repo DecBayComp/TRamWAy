@@ -17,9 +17,9 @@ import traceback
 import random
 
 
-py2_hash, py3_hash = 'y7DkJVGe', 'PypAyFiw'
+py2_hash, py3_hash = 'PGiGV4YY', 'wmkqLTc4'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '180227'
+data_update = '180228'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)

@@ -46,7 +46,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 	polygons = []
 	if isinstance(cells, Distributed):
-		ix, xy, ok = zip(*[ (i, c.center, 0 < c.tcount) for i, c in cells.cells.items() ])
+		ix, xy, ok = zip(*[ (i, c.center, bool(c)) for i, c in cells.items() ])
 		ix, xy, ok = np.array(ix), np.array(xy), np.array(ok)
 		voronoi = scipy.spatial.Voronoi(xy)
 		for c, r in enumerate(voronoi.point_region):
@@ -95,7 +95,13 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		except AttributeError:
 			raise TypeError('wrong type for `cells`: {}'.format(_type))
 
-	xy_min, xy_max = xy.min(axis=0), xy.max(axis=0)
+	try:
+		bounding_box = cells.descriptors(cells.bounding_box, asarray=True)
+		xy_min, xy_max = bounding_box
+	except (KeyboardInterrupt, SystemExit):
+		raise
+	except:
+		xy_min, xy_max = xy.min(axis=0), xy.max(axis=0)
 
 	scalar_map = values.loc[ix[ok]].values
 
@@ -127,6 +133,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		patches.set_clim(clim)
 	axes.add_collection(patches)
 
+	obj = None
 	if delaunay:
 		try:
 			import tramway.plot.mesh as mesh
@@ -136,7 +143,6 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		except:
 			import traceback
 			print(traceback.format_exc())
-			obj = None
 
 	axes.set_xlim(xy_min[0], xy_max[0])
 	axes.set_ylim(xy_min[1], xy_max[1])
@@ -149,8 +155,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		except AttributeError as e:
 			warn(e.args[0], RuntimeWarning)
 
-	if delaunay:
-		return obj
+	return obj
 
 
 

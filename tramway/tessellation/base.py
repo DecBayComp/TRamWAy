@@ -833,11 +833,7 @@ class Voronoi(Delaunay):
 		"""Unscaled coordinates of the Voronoi vertices (numpy.ndarray)."""
 		if self._cell_centers is not None and self._vertices is None:
 			self._postprocess()
-		if isinstance(self.scaler.factor, pd.Series):
-			return np.asarray(self.scaler.unscale_point(pd.DataFrame(self._vertices, \
-				columns=self.scaler.factor.index)))
-		else:
-			return self.scaler.unscale_point(self._vertices)
+		return self.scaler.unscale_point(self._vertices, inplace=False)
 
 	@vertices.setter
 	def vertices(self, vertices):

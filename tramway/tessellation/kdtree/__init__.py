@@ -127,7 +127,7 @@ class KDTreeMesh(Voronoi):
 		self.dichotomy.split()
 		self.dichotomy.subset = {} # clear memory
 		self.dichotomy.subset_counter = 0
-		
+
 		origin, level = zip(*[ self.dichotomy.cell[c][:2] for c in range(self.dichotomy.cell_counter) ])
 		origin = np.vstack(origin)
 		level = np.array(level)
@@ -164,7 +164,8 @@ class KDTreeMesh(Voronoi):
 							np.arange(j * n, (j+1) * n)[:,np.newaxis]))))
 		vertices, I = unique_rows(np.concatenate(vertices, axis=0), \
 			return_inverse=True)
-		self.vertices = vertices
+		self._vertices = vertices
+		self._lazy['vertices'] = False
 		ridge_vertices = I[np.concatenate(ridge_vertices, axis=0)]
 		u, v = ridge_vertices.T
 		nverts = vertices.shape[0]
