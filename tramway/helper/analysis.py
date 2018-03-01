@@ -18,8 +18,8 @@ import traceback
 import warnings
 import tramway.core.analyses as base
 from tramway.core.analyses import *
-from tramway.core.hdf5 import lazytype, lazyvalue
-import tramway.core.hdf5.store as store
+from tramway.core.hdf5 import lazytype, lazyvalue, store
+#import tramway.core.hdf5.store
 from tramway.tessellation.base import Tessellation, CellStats
 from rwa.lazy import LazyPeek, PermissivePeek
 
