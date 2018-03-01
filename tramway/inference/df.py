@@ -57,8 +57,8 @@ def df_neg_posterior(x, df, cell, square_localization_error=0.0, jeffreys_prior=
 	n = cell.dt.size # number of translocations
 	D_dt = D * cell.dt
 	D_term = 4.0 * (D_dt + noise_dt) # 4*(D+Dnoise)*dt
-	dxdy_plus_D_F_dt = cell.dxy + np.outer(D_dt, F) # `F` is ``-FxFyD[0,1]``
-	F_term = np.sum(dxdy_plus_D_F_dt * dxdy_plus_D_F_dt, axis=1)
+	dxdy_minus_D_F_dt = cell.dxy - np.outer(D_dt, F)
+	F_term = np.sum(dxdy_minus_D_F_dt * dxdy_minus_D_F_dt, axis=1)
 	neg_posterior_d = n * log(pi) + np.sum(np.log(D_term)) # sum(log(4*pi*Dtot*dt))
 	neg_posterior_f = np.sum(F_term / D_term)
 	if jeffreys_prior:

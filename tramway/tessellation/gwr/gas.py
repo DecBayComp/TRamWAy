@@ -489,6 +489,7 @@ class Gas(Graph):
 				if not (p < k + 1 and m < max_n_units):
 					break
 			scale[i] = m
+			j = cell_indices[i]
 			if p < k + 1:
 				# `m` has reached `max_n_units`
 				radius[j] = rmax
@@ -512,7 +513,6 @@ class Gas(Graph):
 			#r[np.isnan(r)] = 0.0 # numeric precision errors => negative square distances => NaN distances
 			#
 			del D
-			j = cell_indices[i]
 			radius[j] = r
 		if verbose:
 			print('estimating density: elapsed time {:d} ms'.format(int(round((t0 + time.time() - t) * 1000)))) # int for PY2

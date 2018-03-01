@@ -127,24 +127,25 @@ def main(**kwargs):
 	map_plot_args = dict(show=True, point_style=dict(alpha=.05), clip=4.,
 			colorbar=not kwargs.get('nc', False))
 	if _d:
-		D = infer(rwa_file, mode='d', input_label=method, output_label='D',
-			localization_error=localization_error)
-		map_plot(D, output_file=img('d'), **map_plot_args)
+		D, cells = infer(rwa_file, mode='d', input_label=method, output_label='D',
+			localization_error=localization_error, return_cells=True)
+		map_plot(D, output_file=img('d'), cells=cells, **map_plot_args)
 
 	if _df:
-		DF = infer(rwa_file, mode='df', input_label=method, output_label='DF',
-			localization_error=localization_error)
-		map_plot(DF, output_file=img('df'), **map_plot_args)
+		DF, cells = infer(rwa_file, mode='df', input_label=method, output_label='DF',
+			localization_error=localization_error, return_cells=True)
+		map_plot(DF, output_file=img('df'), cells=cells, **map_plot_args)
 
 	if _dd:
-		DD = infer(rwa_file, mode='dd', input_label=method, output_label='DD',
-			localization_error=localization_error, priorD=priorD)
-		map_plot(DD, output_file=img('dd'), **map_plot_args)
+		DD, cells = infer(rwa_file, mode='dd', input_label=method, output_label='DD',
+			localization_error=localization_error, priorD=priorD, return_cells=True)
+		map_plot(DD, output_file=img('dd'), cells=cells, **map_plot_args)
 
 	if _dv:
-		DV = infer(rwa_file, mode='dv', input_label=method, output_label='DV',
-			localization_error=localization_error, priorD=priorD, priorV=priorV)
-		map_plot(DV, output_file=img('dv'), **map_plot_args)
+		DV, cells = infer(rwa_file, mode='dv', input_label=method, output_label='DV',
+			localization_error=localization_error, priorD=priorD, priorV=priorV,
+			return_cells=True)
+		map_plot(DV, output_file=img('dv'), cells=cells, **map_plot_args)
 
 	sys.exit(0)
 

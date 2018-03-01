@@ -33,7 +33,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=0, \
 	store_distributed=False, constructor=None, cell_sampling=None, \
 	priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
-	profile=None, **kwargs):
+	return_cells=None, profile=None, force=False, **kwargs):
 	"""
 	Inference helper.
 
@@ -86,6 +86,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 		comment (str): description message for the resulting analysis
 
+		return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.CellStats` 
+			object as extra element
+
 		profile (bool or str): profile each child job if any;
 			if `str`, dump the output stats into *.prof* files;
 			if `tuple`, print a report with :func:`~pstats.Stats.print_stats` and
@@ -93,7 +96,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 	Returns:
 
-		pandas.DataFrame or tuple:
+		Maps or pandas.DataFrame or tuple:
 
 	`priorD` and `priorV` are legacy arguments. 
 	They are deprecated and `diffusivity_prior` and `potential_prior` should be used instead
@@ -235,73 +238,87 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 	if output_file:
 		# store the result
-		save_rwa(output_file, all_analyses, verbose, force=input_file == output_file)
+		save_rwa(output_file, all_analyses, verbose, force=input_file == output_file or force)
 
-	if input_file:
+	if return_cells == True: # NOT `is`
+		return (maps, cells)
+	elif return_cells == False:
+		return maps
+	elif input_file:
+		if return_cells is not None:
+			warn("3-element return value will no longer be the default; pass return_cells='first' to maintain this behavior", FutureWarning)
 		return (cells, mode, x)
 	else:
 		return x
 
 
-def map_plot(maps, output_file=None, fig_format=None, \
-	show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, aspect=None, \
-	cells=None, mode=None, clip=None, alpha=None, point_style=None, \
-	label=None, input_label=None, \
+def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
+	figsize=(24.0, 18.0), dpi=None, aspect=None, show=None, verbose=False, \
+	alpha=None, point_style=None, \
+	label=None, input_label=None, mode=None, \
 	**kwargs):
 	"""
 	Plot scalar/vector 2D maps.
 
 	Arguments:
 
-		maps (str or pandas.DataFrame or tuple): maps as a path to a rwa map file, a dataframe 
-			(`cells` must be defined) or a (:class:`CellStats`, :class:`str`, :class:`pandas.DataFrame`)
-			tuple
+		maps (str or Analyses or pandas.DataFrame or Maps): maps as a path to a rwa map file, 
+			an analysis tree, a dataframe or a :class:`Maps`;
+			filepaths and analysis trees may require `label` (or equivalently `input_label`)
+			to be defined; dataframes and encapsulated maps require `cells` to be defined
+
+		cells (CellStats or Tessellation): mesh with optional partition
+
+		clip (float): clips map values by absolute values;
+			if ``clip < 1``, it is the quantile at which to clip absolute values of the map;
+			otherwise it defines: ``threshold = median + clip * (third_quartile - first_quartile)``
 
 		output_file (str): path to output file
 
-		fig_format (str): for example *'.png'*
+		fig_format (str): for example '*.png*'
+
+		figsize ((float, float)): figure size
+
+		dpi (int): dot per inch
+
+		aspect (float or str): aspect ratio or '*equal*'
 
 		show (bool or str): call :func:`~matplotlib.pyplot.show`; if ``show='draw'``, call
 			:func:`~matplotlib.pyplot.draw` instead
 
 		verbose (bool): verbosity level
 
-		figsize ((float, float)): figure size
-
-		dpi (int): dot per inch
-
-		aspect (float or str): aspect ratio or *'equal'*
-
-		cells (CellStats or Tessellation): mesh with optional partition
-
-		mode (str): inference mode
-
-		clip (float): clips map values by absolute values;
-			if ``clip < 1``, it is the quantile at which to clip absolute values of the map;
-			otherwise it defines: ``threshold = median + clip * (third_quartile - first_quartile)``
-
 		alpha (float): alpha value for scalar maps; useful in combination with `point_style`
 
 		point_style (dict): if defined, points are overlaid
 
 		label/input_label (int or str): analysis instance label
+
+		mode (bool or str): inference mode; can be ``False`` so that mode information from
+			files, analysis trees and encapsulated maps are not displayed
 	"""
 
+	# get cells and maps objects from the first input argument
 	input_file = None
 	if isinstance(maps, tuple):
-		warn('`maps` as (CellStats, str, DataFrame) tuple are deprecated', FutureWarning)
+		warn('`maps` as (CellStats, str, DataFrame) tuple are deprecated', DeprecationWarning)
 		cells, mode, maps = maps
 	elif isinstance(maps, (pd.DataFrame, Maps)):
 		if cells is None:
 			raise ValueError('`cells` is not defined')
-	else:
+	elif isinstance(maps, Analyses):
+		analyses = maps
+		if label is None:
+			label = input_label
+		cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
+	else: # `maps` is a file path
 		input_file = maps
 		if label is None:
 			label = input_label
 		try:
 			analyses = load_rwa(input_file)
-			if label:
-				analyses = extract_analysis(analyses, label)
+			#if label:
+			#	analyses = extract_analysis(analyses, label)
 		except KeyError:
 			print(traceback.format_exc())
 			try:
@@ -332,15 +349,18 @@ def map_plot(maps, output_file=None, fig_format=None, \
 		else:
 			cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
 	if isinstance(maps, Maps):
-		mode = maps.mode
+		if mode != False:
+			mode = maps.mode
 		maps = maps.maps
 
+	# `mode` type may be inadequate because of loading a Py2-generated rwa file in Py3 or conversely
 	if mode and not isinstance(mode, str):
 		try: # Py2
 			mode = mode.encode('utf-8')
 		except AttributeError: # Py3
 			mode = mode.decode('utf-8')
 
+	# output filenames
 	print_figs = output_file or (input_file and fig_format)
 
 	if print_figs:
@@ -356,6 +376,7 @@ def map_plot(maps, output_file=None, fig_format=None, \
 			figext = fig_format
 			filename, _ = os.path.splitext(input_file)
 
+	# identify and plot the possibly various maps
 	figs = []
 
 	all_vars = splitcoord(maps.columns)

@@ -44,7 +44,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	min_location_count=20, avg_location_count=None, max_location_count=None, \
 	rel_max_size=None, rel_max_volume=None, \
 	label=None, output_label=None, comment=None, input_label=None, inplace=False, \
-	**kwargs):
+	force=False, **kwargs):
 	"""
 	Tessellation from points series and partitioning.
 
@@ -475,7 +475,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			output_file = os.path.splitext(xyt_files[0])[0] + hdf_extensions[0]
 
 		save_rwa(output_file, analyses, verbose, \
-			force=len(input_files)==1 and input_files[0]==output_file)
+			force=force or (len(input_files)==1 and input_files[0]==output_file))
 
 	return stats
 
@@ -494,9 +494,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	histograms.
 
 	Arguments:
-		cells (str or CellStats):
+		cells (str or CellStats or Analyses):
 			Path to a *.imt.rwa* file or :class:`~tramway.tessellation.CellStats` 
-			instance.
+			instance or analysis tree; files and analysis trees may require 
+			`label`/`input_label` to be defined.
 
 		xy_layer ({None, 'delaunay', 'voronoi'}):
 			Overlay Delaunay or Voronoi graph over the data points. For 2D data only.
@@ -538,7 +539,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			is saved, the corresponding file will have sub-extension *.hpd*.
 
 		aspect (str):
-			Aspect ratio. Can be ``'equal'``.
+			Aspect ratio. Can be '*equal*'.
 
 		locations (dict):
 			Keyword arguments to :func:`~tramway.plot.mesh.plot_points`.
@@ -552,16 +553,14 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			:func:`~tramway.plot.mesh.plot_voronoi`.
 
 		label/input_label (int or str or list):
-			If `cells` is a filepath, label of the analysis instance in the file.
+			If `cells` is a filepath or an analysis tree, label of the analysis instance.
 
 	Notes:
 		See also :mod:`tramway.plot.mesh`.
 
 	"""
-	if isinstance(cells, CellStats):
-		input_file = ''
-	else:
-		input_file = cells
+	input_file = ''
+	if not isinstance(cells, CellStats):
 		if label is None:
 			labels = input_label
 		else:
@@ -570,59 +569,63 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			labels = ()
 		elif not isinstance(labels, (tuple, list)):
 			labels = (labels, )
-		if isinstance(input_file, (tuple, list)):
-			if input_file[1:]:
-				warn('can only process a single file', RuntimeWarning)
-			input_file = input_file[0]
-		try:
-			analyses = load_rwa(input_file)
-			if labels:
-				analyses = extract_analysis(analyses, labels)
-		except KeyError as e:
-			if e.args and 'analyses' not in e.args[0]:
-				raise
-			# legacy code
-			imt_path = input_file
-			if imt_path is None:
-				raise ValueError('undefined input file')
-			# copy-paste
-			if os.path.isdir(imt_path):
-				imt_path = os.listdir(imt_path)
-				files, exts = zip(*os.path.splitext(imt_path))
-				for ext in imt_extensions:
-					if ext in exts:
-						imt_path = imt_path[exts.index(ext)]
-						break
-				if isinstance(imt_path, list):
-					imt_path = imt_path[0]
-				auto_select = True
-			elif os.path.isfile(imt_path):
-				auto_select = False
-			else:
-				candidates = [ imt_path + ext for ext in imt_extensions ]
-				candidates = [ f for f in candidates if os.path.isfile(f) ]
-				if candidates:
-					imt_path = candidates[0]
-				else:
-					raise IOError('no tessellation file found in {}'.format(imt_path))
-				auto_select = True
-			if auto_select and verbose:
-				print('selecting {} as a tessellation file'.format(imt_path))
-
-			# load the data
-			input_file = imt_path
-			try:
-				hdf = HDF5Store(input_file, 'r')
-				hdf.lazy = False
-				cells = hdf.peek('cells')
-				if cells.tessellation is None:
-					cells._tessellation = hdf.peek('_tesselation', hdf.store['cells'])
-			except:
-				print(traceback.format_exc())
-				warn('HDF5 libraries may not be installed', ImportWarning)
-			finally:
-				hdf.close()
+		if isinstance(cells, Analyses):
+			analyses, cells = cells, None
 		else:
+			input_file, cells = cells, None
+			if isinstance(input_file, (tuple, list)):
+				if input_file[1:]:
+					warn('can only process a single file', RuntimeWarning)
+				input_file = input_file[0]
+			try:
+				analyses = load_rwa(input_file)
+				#if labels:
+				#	analyses = extract_analysis(analyses, labels)
+			except KeyError as e:
+				if e.args and 'analyses' not in e.args[0]:
+					raise
+				# legacy code
+				imt_path = input_file
+				if imt_path is None:
+					raise ValueError('undefined input file')
+				# copy-paste
+				if os.path.isdir(imt_path):
+					imt_path = os.listdir(imt_path)
+					files, exts = zip(*os.path.splitext(imt_path))
+					for ext in imt_extensions:
+						if ext in exts:
+							imt_path = imt_path[exts.index(ext)]
+							break
+					if isinstance(imt_path, list):
+						imt_path = imt_path[0]
+					auto_select = True
+				elif os.path.isfile(imt_path):
+					auto_select = False
+				else:
+					candidates = [ imt_path + ext for ext in imt_extensions ]
+					candidates = [ f for f in candidates if os.path.isfile(f) ]
+					if candidates:
+						imt_path = candidates[0]
+					else:
+						raise IOError('no tessellation file found in {}'.format(imt_path))
+					auto_select = True
+				if auto_select and verbose:
+					print('selecting {} as a tessellation file'.format(imt_path))
+
+				# load the data
+				input_file = imt_path
+				try:
+					hdf = HDF5Store(input_file, 'r')
+					hdf.lazy = False
+					cells = hdf.peek('cells')
+					if cells.tessellation is None:
+						cells._tessellation = hdf.peek('_tesselation', hdf.store['cells'])
+				except:
+					print(traceback.format_exc())
+					warn('HDF5 libraries may not be installed', ImportWarning)
+				finally:
+					hdf.close()
+		if cells is None:
 			if isinstance(analyses, dict):
 				if not analyses:
 					raise ValueError('not any file matches')
@@ -637,7 +640,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			label = labels[-1]
 			cells = analyses[label].data
 
-	# guess back some input parameters
+	# guess back some input parameters (with backward "compatibility")
 	method_name = {}
 	try:
 		method_name[RegularMesh] = ('grid', 'grid', 'regular grid')
@@ -806,7 +809,7 @@ def find_mesh(path, method=None, full_list=False):
 	"""
 	*from version 0.3:* deprecated.
 	"""
-	warn('`find_mesh`, `find_imt` and `find_partition` are deprecated in favor of `find_analysis`', DeprecationWarning)
+	warn('`find_mesh`, `find_imt` and `find_partition` are deprecated in favor of `load_rwa`/`find_artefacts`', DeprecationWarning)
 	if not isinstance(path, (tuple, list)):
 		path = (path,)
 	paths = []

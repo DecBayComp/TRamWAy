@@ -261,6 +261,8 @@ class Distributed(Local):
 			if not np.any(ok):
 				return None
 			adjacent = adjacent[ok]
+		if adjacent.size == 0:
+			return
 		if not isinstance(cell.cache, dict):
 			cell.cache = dict(vanders=None)
 		if cell.cache.get('vanders', None) is None:
@@ -1084,7 +1086,7 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 				#i = final_cell == cell # criterion i could be more sophisticated
 				#j[j] = i
 				#return j
-				return final_cell == cell
+				return initial_cell == cell
 		else:
 			def f(tesselation, cell, locations, location_cell, get_point):
 				return location_cell == cell

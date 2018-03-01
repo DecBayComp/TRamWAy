@@ -118,10 +118,10 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 		# various posterior terms
 		Ddt = D[i] * cell.dt
 		Dtot = 4.0 * (Ddt + sq_loc_err)
-		dxdy_minus_D_gradV_dt = cell.dxy - np.outer(Ddt, gradV)
+		dxdy_plus_D_gradV_dt = cell.dxy + np.outer(Ddt, gradV)
 		result += n * log(pi) + np.sum( \
 				np.log(Dtot) + \
-				np.sum(dxdy_minus_D_gradV_dt * dxdy_minus_D_gradV_dt, axis=1) / \
+				np.sum(dxdy_plus_D_gradV_dt * dxdy_plus_D_gradV_dt, axis=1) / \
 				Dtot)
 		# priors
 		if dv.potential_prior:
@@ -131,8 +131,8 @@ def dv_neg_posterior(x, dv, cells, sq_loc_err, jeffreys_prior=False):
 			area = cells.grad_sum(i) # `area` is cached, therefore `grad_sum` can be called several times at no extra cost
 			# spatial gradient of the local diffusivity
 			gradD = cells.grad(i, D)
-			assert gradD is not None
-			result += dv.diffusivity_prior * np.dot(gradD * gradD, area)
+			if gradD is not None:
+				result += dv.diffusivity_prior * np.dot(gradD * gradD, area)
 		if jeffreys_prior:
 			result += 2.0 * (log(D[i] * np.mean(cell.dt) + sq_loc_err) - log(D[i]))
 	return result

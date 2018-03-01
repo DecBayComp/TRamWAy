@@ -18,7 +18,7 @@ import pandas as pd
 def random_walk(diffusivity=None, force=None, \
 		trajectory_mean_count=100, trajectory_count_sd=3, turnover=.1, \
 		box=(0., 0., 1., 1.), duration=10., time_step=.05, \
-		full=False):
+		full=False, count_outside_trajectories=False):
 	"""
 	Generate random walks.
 
@@ -43,6 +43,10 @@ def random_walk(diffusivity=None, force=None, \
 		time_step (float): duration between consecutive time steps
 
 		full (bool): include locations that are outside the bounding box
+
+		count_outside_trajectories (bool): include trajectories that have left the bounding box
+			in `trajectory_mean_count` and `trajectory_count_sd` counts; setting this
+			argument to ``False`` artificially increases the turnover rate (default)
 	
 	Returns:
 
@@ -53,6 +57,7 @@ def random_walk(diffusivity=None, force=None, \
 	dim = int(_box.size / 2)
 	support_lower_bound = _box[:dim]
 	support_size = _box[dim:]
+	support_upper_bound = support_lower_bound + support_size
 	# default maps
 	def null_scalar_map(xy, t):
 		return 0.
@@ -86,9 +91,25 @@ def random_walk(diffusivity=None, force=None, \
 		else:
 			kupdate = 0
 		knew = k - kupdate
+		if X.size:
+			X, n = X[:kupdate], n[:kupdate]
+			D = np.array([ diffusivity(x, t) for x in X ])
+			if not np.all(0 < D):
+				raise ValueError('non-positive diffusivity value')
+			F = np.array([ force(x, t) for x in X ])
+			dX = time_step * (D[:,np.newaxis] * F + \
+				np.sqrt(2. * D.reshape(D.size, 1)) * np.random.randn(*X.shape))
+			X += dX
+			if not count_outside_trajectories:
+				inside = np.all(np.logical_and(
+						support_lower_bound <= X, X <= support_upper_bound
+					), axis=1)
+				X = X[inside]
+				n = n[inside]
+				kdiscarded = np.count_nonzero(~inside)
+				knew += kdiscarded
 		if knew == 0:
-			if not X.size:
-				raise RuntimeError
+			assert 0 < X.size
 			Xnew = np.zeros((knew, dim), dtype=X.dtype)
 			nnew = np.zeros((knew, ), dtype=n.dtype)
 		else:
@@ -96,13 +117,8 @@ def random_walk(diffusivity=None, force=None, \
 			nnew = np.arange(n0, n0 + knew)
 			n0 += knew
 		if X.size:
-			X = X[:kupdate]
-			D, F = zip(*[ (diffusivity(x, t), force(x, t)) for x in X ])
-			D, F = np.array(D), np.array(F)
-			dX = time_step * (D[:,np.newaxis] * F + \
-				np.sqrt(2. * D.reshape(D.size, 1)) * np.random.randn(*X.shape))
-			X = np.concatenate((Xnew, X + dX))
-			n = np.concatenate((nnew, n[:kupdate]))
+			X = np.concatenate((Xnew, X))
+			n = np.concatenate((nnew, n))
 		else:
 			X = Xnew
 			n = nnew

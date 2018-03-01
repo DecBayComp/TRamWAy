@@ -160,7 +160,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 
 def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
-		**kwargs):
+		cell_arrow_ratio=0.4, markeralpha=0.8, **kwargs):
 	force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
 	if figure is None:
 		figure = plt.gcf()
@@ -190,12 +190,14 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
 		assert isinstance(cells.tessellation, Tessellation)
 		pts_i = cells.tessellation.cell_centers[I]
 		pts_j = cells.tessellation.cell_centers[J]
-	dist = la.norm(pts_i - pts_j, axis=1)
+	inter_cell_distance = la.norm(pts_i - pts_j, axis=1)
 	# scale force amplitude
-	scale = np.nanmedian(force_amplitude)
-	if np.isclose(scale, 0):
-		scale = np.median(force_amplitude[0 < force_amplitude])
-	scale = np.nanmedian(dist) / 2.0 / scale
+	#scale = np.nanmedian(force_amplitude)
+	#if np.isclose(scale, 0):
+	#	scale = np.median(force_amplitude[0 < force_amplitude])
+	#scale = np.nanmedian(inter_cell_distance) / 2.0 / scale
+	large_arrow_length = np.max(force_amplitude) # consider clipping
+	scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
 	# 
 	dw = float(angular_width) / 2.0
 	t = tan(radians(dw))
@@ -205,22 +207,19 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
 		try:
 			center = cells.tessellation.cell_centers[i]
 		except AttributeError:
-			center = cells.cells[i].center
+			center = cells[i].center
 		radius = force_amplitude[i]
 		f = np.asarray(values.loc[i]) * scale
 		#fx, fy = f
 		#angle = degrees(atan2(fy, fx))
 		#markers.append(Wedge(center, radius, angle - dw, angle + dw))
-		base, vertex = center + np.outer([-0.5, 0.5], f)
+		base, vertex = center + np.outer([-1./3, 2./3], f)
 		ortho = np.dot(t, f)
 		vertices = np.stack((vertex, base + ortho, base - ortho), axis=0)
 		#vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
 		markers.append(Polygon(vertices, True))
-		#if 12<center[0] and center[0]<13 and 13<center[1] and center[1]<14:
-		#	print((i, center, radius, f, ortho, vertices))
-		#	plt.plot(center[0], center[1], 'r+')
 
-	patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=0.9)
+	patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=markeralpha)
 	axes.add_collection(patches)
 
 	#axes.set_xlim(xmin, xmax)
