@@ -21,7 +21,7 @@ from copy import deepcopy
 import scipy.sparse as sparse
 from scipy.spatial.distance import cdist
 from ..core import *
-from ..tessellation import dict_to_sparse
+from ..tessellation.base import dict_to_sparse, format_cell_index, nearest_cell
 import traceback
 from collections import defaultdict
 
@@ -36,48 +36,10 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None,
 		npts = points.shape[0]
 		ncells = cells.location_count.size
 		# if label is not a single index vector, convert it following 
-		# tessellation.base.Delaunay.cellIndex with `prefered`='force index'.
-		if isinstance(label, tuple):
-			label = sparse.csr_matrix((np.ones_like(label[0], dtype=bool), \
-				label), shape=(npts, ncells))
-		if sparse.issparse(label):
-			cell_count_per_point = np.diff(label.tocsr().indptr)
-			if all(cell_count_per_point < 2): # no overlap
-				I, J = label.nonzero()
-				label = -np.ones(npts, dtype=int)
-				label[I] = J
-			else: # in the following, "affected" refers to overlap
-				affected_points = 1 < cell_count_per_point
-				affected_cells = label[affected_points].indices
-				#_, affected_cells = label[affected_points,:].nonzero()
-				affected_cells = np.unique(affected_cells) # unique indices
-				map_affected_cells = np.zeros(ncells, dtype=affected_cells.dtype)
-				map_affected_cells[affected_cells] = affected_cells
-				affected_points, = affected_points.nonzero() # indices
-				allright_points = 1 == cell_count_per_point # bool
-				allright_cells = label[allright_points].indices # indices
-				#_, allright_cells = label[allright_points,:].nonzero()
-				if cells.tessellation is None:
-					# to compute again the point-center distance matrix first estimate
-					# cell centers as the centers of gravity of the associated points
-					cell_centers = np.zeros((ncells, points.shape[1]),
-						dtype=points.dtype)
-					label = label.tocsc()
-					for i in affected_cells:
-						j = label.indices[label.indptr[i]:label.indptr[i+1]]
-						if j.size:
-							jj = affected_points[j]
-							cell_centers[i] = np.mean(points[jj], axis=0)
-				else:
-					cell_centers = cells.tessellation.cell_centers
-				spmat = label
-				label = -np.ones(npts, dtype=int)
-				label[allright_points] = allright_cells
-				for p in affected_points:
-					cells = spmat[p].indices
-					D = cell_centers[cells] - points[p]#[np.newaxis,:] # broadcast seems to also work without newaxis
-					label[p] = cells[np.argmin(np.sum(D * D, axis=1))]
-		#
+		# tessellation.base.Delaunay.cell_index with `preferred`='force index'.
+		merge = nearest_cell(points, cells.tessellation.cell_centers) # too slow
+		label = format_cell_index(cells.cell_index, format='array', \
+			select=merge, shape=(npts, ncells))
 		if min_count and ('knn' not in cells.param or min_count < cells.param['knn']):
 			cell_mask = min_count <= cells.location_count
 			label[np.logical_not(cell_mask[cells.cell_index])] = -1

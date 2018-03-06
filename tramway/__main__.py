@@ -38,8 +38,13 @@ def _parse_args(args):
 		if not os.path.isfile(input_file):
 			print("cannot find file: {}".format(input_file))
 			sys.exit(1)
-	seed = kwargs.pop('seed', None)
-	if seed is not None:
+	seed = kwargs.pop('seed', False)
+	if seed is None:
+		import time
+		seed = int(time.time())
+		print('random generator seed: {}'.format(seed))
+	if seed is not False:
+		seed = int(seed)
 		import random, numpy
 		random.seed(seed)
 		numpy.random.seed(seed)
@@ -135,6 +140,8 @@ def _render_map(args):
 					if val[0] == "'" and val[-1] == "'":
 						val = val[1:-1]
 					point_style['color'] = val
+				elif key in ('s', 'size'):
+					point_style['size'] = int(val)
 		kwargs['point_style'] = point_style
 	if kwargs['delaunay'] is None:
 		kwargs['delaunay'] = True
@@ -155,7 +162,7 @@ def _render_map(args):
 		kwargs['clip'] = 4.
 	elif kwargs['clip'] == 0.:
 		del kwargs['clip']
-	map_plot(input_file[0], output_file, fig_format, **kwargs)
+	map_plot(input_file[0], output_file=output_file, fig_format=fig_format, **kwargs)
 	sys.exit(0)
 
 def _dump_rwa(args):
@@ -256,7 +263,7 @@ def main():
 		method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
 			help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn for a partition-related parameter')
 		translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
-		method_parser.add_argument('--seed', type=int, help='random generator seed (for testing purposes)')
+		method_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
 		method_parser.set_defaults(func=_sample(method, translations))
 
 
@@ -341,6 +348,7 @@ def main():
 	map_parser.add_argument('-D', '--delaunay', nargs='?', default=False, help='plot the Delaunay graph; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
 	map_parser.add_argument('-cm', '--colormap', help='colormap name (see https://matplotlib.org/users/colormaps.html)')
 	map_parser.add_argument('-c', '--clip', type=float, nargs='?', default=0., help='clip map by absolute values; clipping threshold can be specified as a number of interquartile distances above the median')
+	map_parser.add_argument('-cb', '--colorbar', action='store_false', help='do not plot colorbar')
 	map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
 
 

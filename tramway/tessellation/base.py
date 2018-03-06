@@ -31,11 +31,14 @@ class CellStats(Lazy):
 	partition of the data (:attr:`cell_index`) together with the data itself (:attr:`points`) and 
 	a few more intermediate results frequently derivated from a data partition.
 
+	:attr:`locations` and :attr:`translocations` are aliases of :attr:`points`.
+	No control is performed on whether :attr:`translocations` are actual translocations for example.
+
 	The partition :attr:`cell_index` may be in any of the following formats:
 
 	array
 		Cell index of size the number of data points. The element at index ``i`` is the cell 
-		index of the ``i``th point or ``-1`` if the ``i`` th point is not assigned to any cell.
+		index of the ``i`` th point or ``-1`` if the ``i`` th point is not assigned to any cell.
 
 	pair of arrays
 		Point-cell association in the shape of a sparse representation  
@@ -47,7 +50,7 @@ class CellStats(Lazy):
 		the corresponding point is in the corresponding cell.
 
 
-	..note::
+	.. note::
 
 		If the point coordinates are defined as a :class:`~pandas.DataFrame`, 
 		point indices are row indices and NOT row labels (see also :attr:`~pandas.DataFrame.iloc`).
@@ -59,13 +62,13 @@ class CellStats(Lazy):
 	Attributes:
 
 		points (array-like):
-			the original point coordinates, unchanged.
-
-		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
-			Point-cell association (or data partition).
+			the original (trans-)location coordinates, unchanged.
 
 		tessellation (Tessellation):
 			The tessellation that defined the partition.
+
+		cell_index (numpy.ndarray or pair of arrays or sparse matrix):
+			Point-cell association (or data partition).
 
 		location_count (numpy.ndarray, lazy):
 			point count per cell; ``location_count[i]`` is the number of 
@@ -91,9 +94,24 @@ class CellStats(Lazy):
 	__slots__ = ('_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tessellation')
 	__lazy__ = ('location_count', 'bounding_box')
 
-	def __init__(self, cell_index=None, location_count=None, bounding_box=None, points=None, \
-		tessellation=None, param={}):
+	def __init__(self, points=None, tessellation=None, cell_index=None, location_count=None, \
+		bounding_box=None, param={}, locations=None, translocations=None):
 		Lazy.__init__(self)
+		exclusivity_violation = ValueError('arguments `points`, `locations` and `translocations` are mutually exclusive')
+		if points is None:
+			if locations is None:
+				if translocations is None:
+					pass
+				else:
+					points = translocations
+			elif translocations is None:
+				points = locations
+			else:
+				raise exclusivity_violation
+		elif locations is None and translocations is None:
+			pass
+		else:
+			raise exclusivity_violation
 		self._points = points
 		self.cell_index = cell_index
 		self._location_count = location_count
@@ -123,6 +141,22 @@ class CellStats(Lazy):
 		self.bounding_box = None
 
 	@property
+	def locations(self):
+		return self.points
+
+	@locations.setter
+	def locations(self, pts):
+		self.points = pts
+
+	@property
+	def translocations(self):
+		return self.points
+
+	@translocations.setter
+	def translocations(self, pts):
+		self.points = pts
+
+	@property
 	def tessellation(self):
 		return self._tessellation
 
@@ -148,7 +182,10 @@ class CellStats(Lazy):
 	@property
 	def location_count(self):
 		if self._location_count is None:
-			ncells = self.tessellation.cell_adjacency.shape[0]
+			try:
+				ncells = self.tessellation.cell_adjacency.shape[0]
+			except AttributeError: # Delaunay?
+				ncells = self.tessellation._cell_centers.shape[0]
 			if isinstance(self.cell_index, tuple):
 				_point, _cell = self.cell_index
 				if np.any(_cell < 0):
@@ -221,7 +258,7 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 			as second argument and the extra keyword arguments given to
 			:func:`format_cell_index`.
 
-		shape ((int, int)): number of points, number of cells. 
+		shape (int, int): number of points, number of cells. 
 
 		copy (bool): if ``True``, ensures that a copy of `K` is returned if `K`
 			is already in the requested format.
@@ -257,7 +294,9 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 	if format == 'array' and isinstance(K, tuple):
 		points, cells = K
 		K = np.full(shape[0], -1, dtype=int)
-		P = np.unique(points)
+		P, I, N = np.unique(points, return_index=True, return_counts=True)
+		K[P[N==1]] = cells[I[N==1]] # unambiguous assignments
+		P = P[1<N] # ambiguous assignments
 		for p in P:
 			cs = cells[points == p]
 			if 1 < cs.size:
@@ -289,10 +328,10 @@ def nearest_cell(locations, cell_centers):
 		callable: `select` function.
 	"""
 	def f(point, cells):
-		x = locations[point,:]
-		y = cell_centers[cells,:]
+		x = locations[point]
+		y = cell_centers[cells]
 		z = y - x
-		square_dist = sum(z * z, axis=1)
+		square_dist = np.sum(z * z, axis=1)
 		winner = np.argmin(square_dist)
 		return cells[winner]
 	return f
@@ -651,7 +690,7 @@ class Delaunay(Tessellation):
 		self._cell_centers = None
 
 	def tessellate(self, points):
-		self._cell_centers = self._preprocess(points)
+		self._cell_centers = np.asarray(self._preprocess(points))
 
 	def cell_index(self, points, format=None, select=None, knn=None,
 		min_location_count=None, metric='euclidean', filter=None, 
@@ -769,7 +808,7 @@ class Delaunay(Tessellation):
 		#	point_count = max(point_count, points.index.max()+1) # NO!
 		# point indices are row indices and NOT row labels
 		return format_cell_index(K, format=format, select=select,
-			shape=(point_count, self.cell_adjacency.shape[0]))
+			shape=(point_count, ncells))
 
 	# cell_centers property
 	@property

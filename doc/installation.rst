@@ -12,7 +12,7 @@ You will need Python >= 2.7 or >= 3.5.
 or::
 
 	git clone https://github.com/DecBayComp/TRamWAy
-	cd tramway
+	cd TRamWAy
 	pip install --user -r requirements.txt
 
 

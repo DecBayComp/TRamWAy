@@ -68,6 +68,9 @@ class Analyses(base.Analyses):
 				self._comments = self._comments.deep()
 		return InstancesView(self)
 
+	def __str__(self):
+		return base.format_analyses(self, node=rwa.lazytype)
+
 
 
 
@@ -133,11 +136,13 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False,
 
 		tuple: matching data elements/artefacts, and optionally analysis subtree.
 
-	Examples::
+	Examples:
 
-		cells, maps = find_artefacts(analyses, (CellStats, Maps))
+		.. code-block:: python
 
-		maps, maps_subtree = find_artefacts(analyses, Maps, return_subtree=True)
+			cells, maps = find_artefacts(analyses, (CellStats, Maps))
+
+			maps, maps_subtree = find_artefacts(analyses, Maps, return_subtree=True)
 
 	"""
 	if not isinstance(filters, (tuple, list)):

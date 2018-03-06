@@ -214,7 +214,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			except KeyError:
 				pass
 			else:
-				kwargs[arg] = eval(arg)
+				val = eval(arg)
+				if val is not None:
+					kwargs[arg] = val
 		if profile:
 			kwargs['profile'] = profile
 		x = _map.run(getattr(module, setup['infer']), **kwargs)
@@ -412,11 +414,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
 		if point_style is not None:
 			points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
-			#_pt_map = np.zeros(points.shape[0])
-			#ok = 0 <= cells.cell_index
-			#_pt_map[ok] = _map[cells.cell_index[ok]]
-			_pt_map = None
-			plot_points(points, color=_pt_map, **point_style)
+			if 'color' not in point_style:
+				point_style['color'] = None
+			plot_points(points, **point_style)
 
 		if mode:
 			if short_name:
@@ -472,11 +472,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			_scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
 			scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
 			points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
-			#_pt_scalars = np.zeros(points.shape[0])
-			#ok = 0 <= cells.cell_index
-			#_pt_scalars[ok] = _scalar_map[cells.cell_index[ok]]
-			_pt_scalars = None
-			plot_points(points, color=_pt_scalars, **point_style)
+			if 'color' not in point_style:
+				point_style['color'] = None
+			plot_points(points, **point_style)
 			field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
 
 		extra = None

@@ -27,22 +27,22 @@ from .dichotomy import Dichotomy
 
 
 class Gas(Graph):
-	"""Implementation of the Growing When Required clustering algorithm, first inspired from
+	"""Implementation of the *Grow(ing) When Required* clustering algorithm, first inspired from
 	[Marsland02]_ and then extensively modified.
 
 	.. [Marsland02] Marsland, S., Shapiro, J. and Nehmzow, U. (2002). A self-organising network that grows when required. Neural Networks 15, 1041-1058. doi:10.1026/S0893-6080(02)00078-3
 
 	Of note, :class:`Gas` features a :attr:`trust` attribute that enables faster learning when 
-	inserting new nodes. Instead of inserting a node at `(w + eta) / 2` (with `trust == 0`) like in
-	the standard algorithm, you can	insert sample point `eta` (with `trust == 1`) or any point in 
-	between.
+	inserting new nodes. Instead of inserting a node at ``(w + eta) / 2`` (with ``trust == 0``) like
+	in the standard algorithm, you can insert sample point `eta` (with ``trust == 1``) or any point 
+	in between.
 	:class:`Gas` also features a 'collapse' step at the end of each batch. This step consists of 
 	merging nodes that are closer from each other than threshold :attr:`collapse_below`.
 	Last but not least, the insertion threshold and collapse threshold can be functions of the 
 	current training sample and nearest node.
 
 	Implementation note: :class:`Gas` implements :class:`Graph` as a proxy, instanciating or taking
-	another `Graph` object with optional input argument `graph` and delegates all :class:`Graph`'s 
+	another `Graph` object with optional input argument `graph` and delegates all :class:`Graph` 's 
 	method to that object attribute.
 	"""
 	__slots__ = ['graph', 'insertion_threshold', 'trust', 'learning_rate', \
@@ -162,8 +162,8 @@ class Gas(Graph):
 			(self.habituation_alpha[i])
 
 	def habituation(self, node, i=0):
-		"""Returns the habituation of a node. Set `i=0` for the nearest node, 
-		`i=1` for a neighbor of the nearest node."""
+		"""Returns the habituation of a node. Set ``i=0`` for the nearest node, 
+		``i=1`` for a neighbor of the nearest node."""
 		return self.habituation_function(float(self.get_node_attr(node, 'habituation_counter')), i)
 
 	def plot_habituation(self):
@@ -276,23 +276,23 @@ class Gas(Graph):
 
 		Arguments:
 
-			pass_count (pair of floats or None, optional):
+			pass_count (pair of floats or None):
 				(min, max) numbers of passes of the sample the algorithm should/can run.
 				Any bound can be set to ``None``.
-			residual_max (float, optional): 
+			residual_max (float): 
 				a residual is calculated for each sample point, before fitting the gas 
 				towards it, and `residual_max` is a threshold above which a residual is 
 				regarded as an 'error'. This parameter works in combination with 
 				`error_count_tol`.
-			error_count_tol (float, optional): 
+			error_count_tol (float): 
 				maximum proportion of 'errors' (number of errors in a batch over the
 				size of the batch). If this maximum is exceeded, then the :meth:`train` 
 				samples another batch and keeps on training the gas. Otherwise, the next
 				criteria apply.
-			min_growth (float, optional): 
+			min_growth (float): 
 				minimum relative increase in the number of nodes from an iteration to 
 				the next.
-			collapse_tol (float, optional): 
+			collapse_tol (float): 
 				maximum allowed ratio of the number of collapsed nodes over the total
 		  		number of nodes.
 			stopping_criterion (int, deprecated):

@@ -54,7 +54,9 @@ class Lazy(object):
 
 	An unset lazy attribute/property always has value ``None``.
 
-	A getter will typically look like this::
+	A getter will typically look like this:
+
+	.. code-block:: python
 
 		@property
 		def name(self):
@@ -62,13 +64,17 @@ class Lazy(object):
 				self._name = # add some logics
 			return self._name
 
-	A fully functional setter will typically look like this::
+	A fully functional setter will typically look like this:
+
+	.. code-block:: python
 
 		@name.setter
 		def name(self, value):
 			self.__lazysetter__(value)
 
-	A read-only lazy property will usually look like this::
+	A read-only lazy property will usually look like this:
+
+	.. code-block:: python
 
 		@name.setter
 		def name(self, value):

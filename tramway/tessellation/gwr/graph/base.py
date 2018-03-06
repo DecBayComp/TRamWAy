@@ -55,7 +55,7 @@ class Graph(object):
 		view should be made if the structure of the graph had to be altered.'''
 		raise AbstractGraphError
 	def iter_edges_from(self, n):
-		'''Returns an iterator over the `(edge, neighbor_node)` index pairs from a given node. 
+		'''Returns an iterator over the ``(edge, neighbor_node)`` index pairs from a given node. 
 		A copy of the returned view should be made if the structure of the graph had to be altered.'''
 		raise AbstractGraphError
 	def has_node(self, n):
@@ -66,7 +66,7 @@ class Graph(object):
 	def del_node(self, n):
 		raise AbstractGraphError
 	def stands_alone(self, n):
-		'''Returns `True` if node `n` has no neighbor.'''
+		'''Returns ``True`` if node `n` has no neighbor.'''
 		return not self.iter_neighbors(n)
 
 	def find_edge(self, n1, n2):
@@ -81,16 +81,16 @@ class Graph(object):
 		return self.find_edge(n1, n2) is not None
 
 	def export(self, sparse='csr'):
-		"""Returns `(A, V, E)` where `A` is an adjacency matrix as a `scipy.sparse.*_matrix` of 
-		size `(n_vertices, n_vertices)` and with edge indices as defined values (including 
-		explicit zeros), where * is defined by the optional input argument `sparse` (any of 'csc',
-		'csr', 'bsr', 'lil', 'dok', 'coo', 'dia').
-		`V` is a `dict` with `n_vertex_attributes` entries and where each value is a 
-		`(n_vertices, *)` matrix (usually vector).
-		`E` is a `dict` with `n_edge_attributes` entries and where each value is a `(n_edges, *)` 
-		matrix (usually vector).
+		"""Returns ``(A, V, E)`` where ``A`` is an adjacency matrix as a `scipy.sparse.*_matrix` 
+		of size ``(n_vertices, n_vertices)`` and with edge indices as defined values (including 
+		explicit zeros), where * is defined by the optional input argument `sparse` (any of 
+		'*csc*', '*csr*', '*bsr*', '*lil*', '*dok*', '*coo*', '*dia*').
+		``V`` is a `dict` with ``n_vertex_attributes`` entries and where each value is a 
+		``(n_vertices, *)`` matrix (usually vector).
+		``E`` is a `dict` with ``n_edge_attributes`` entries and where each value is a 
+		``(n_edges, *)`` matrix (usually vector).
 		Note that vertices and edges may be differently ordered compared to the current `Graph`
-		implementation. Especially, `V` and `E` should be dense."""
+		implementation. Especially, ``V`` and ``E`` should be dense."""
 		raise AbstractGraphError
 
 	def squareDistance(self, attr, eta, **kwargs):

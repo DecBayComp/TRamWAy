@@ -124,7 +124,7 @@ def main(**kwargs):
 		return '{}.{}.{}.png'.format(output_basename, method, mode)
 
 	# infer and plot maps
-	map_plot_args = dict(show=True, point_style=dict(alpha=.05), clip=4.,
+	map_plot_args = dict(show=True, point_style=dict(alpha=.01), clip=4.,
 			colorbar=not kwargs.get('nc', False))
 	if _d:
 		D, cells = infer(rwa_file, mode='d', input_label=method, output_label='D',

@@ -34,7 +34,8 @@ class KMeansMesh(Voronoi):
 	
 	Other Attributes:
 
-		_min_distance (float): scaled minimum distance between adjacent cell centers.
+		_min_distance (float): scaled minimum distance between adjacent cell centers;
+			*not used*.
 	"""
 	def __init__(self, scaler=None, min_probability=None, avg_probability=None, \
 		min_distance=None, **kwargs):
@@ -59,20 +60,24 @@ class KMeansMesh(Voronoi):
 		self.roi_subset_count = 10
 		return points
 
-	def tessellate(self, points, tol=1e-3, prune=True, plot=False, **kwargs):
+	def tessellate(self, points, tol=1e-3, prune=2.5, plot=False, **kwargs):
 		points = self._preprocess(points)
 		"""Grow the tessellation.
 
 		Attributes:
 			points: see :meth:`~tramway.tessellation.base.Tessellation.tessellate`.
-			tol (float, optional): error tolerance. 
+			tol (float): error tolerance. 
 				Passed as `thresh` to :func:`scipy.cluster.vq.kmeans`.
-			prune (bool, optional): prunes the Voronoi and removes the longest edges.
+			prune (bool or float): prunes the Voronoi and removes the edges which length
+				is greater than `prune` times the median edge length;
+				``True`` is translated to the default value.
 		"""
 		self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
 			thresh=tol)
 
 		if prune: # inter-center-distance-based pruning
+			if prune is True: # backward compatibility
+				prune = 2.5 # 2.5 is empirical
 			A = sparse.tril(self.cell_adjacency, format='coo')
 			i, j, k = A.row, A.col, A.data
 			if self._adjacency_label is None:
@@ -84,7 +89,7 @@ class KMeansMesh(Voronoi):
 			d = x[i] - x[j]
 			d = np.sum(d * d, axis=1) # square distance
 			d0 = np.median(d)
-			edge = k[d0 * 2.5 < d] # edges to be discarded; 2.5 is empirical
+			edge = k[d0 * prune < d] # edges to be discarded
 			if edge.size:
 				self._adjacency_label[edge] = False
 
@@ -96,7 +101,7 @@ def _metric(knn=None, **kwargs):
 	if knn is None:
 		return None
 	else:
-		return 'euclidian'
+		return 'euclidean'
 
 setup = {
 	'make': KMeansMesh,

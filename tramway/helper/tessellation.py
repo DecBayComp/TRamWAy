@@ -44,7 +44,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	min_location_count=20, avg_location_count=None, max_location_count=None, \
 	rel_max_size=None, rel_max_volume=None, \
 	label=None, output_label=None, comment=None, input_label=None, inplace=False, \
-	force=False, **kwargs):
+	force=False, return_analyses=False, **kwargs):
 	"""
 	Tessellation from points series and partitioning.
 
@@ -67,10 +67,10 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		method (str):
 			Tessellation method or plugin name.
 			See for example 
-			:class:`~tramway.tessellation.grid.RegularMesh` (``'grid'``), 
-			:class:`~tramway.tessellation.kdtree.KDTreeMesh` (``'kdtree'``), 
-			:class:`~tramway.tessellation.kmeans.KMeansMesh` (``'kmeans'``) and 
-			:class:`~tramway.tessellation.gwr.GasMesh` (``'gas'`` or ``'gwr'``).
+			:class:`~tramway.tessellation.grid.RegularMesh` ('*grid*'), 
+			:class:`~tramway.tessellation.kdtree.KDTreeMesh` ('*kdtree*'), 
+			:class:`~tramway.tessellation.kmeans.KMeansMesh` ('*kmeans*') and 
+			:class:`~tramway.tessellation.gwr.GasMesh` ('*gas*' or '*gwr*').
 
 		output_file (str):
 			Path to a *.rwa* file. The resulting tessellation and data partition will be 
@@ -82,7 +82,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 		scaling (bool or str):
 			Normalization of the data.
-			Any of 'unitrange', 'whiten' or other methods defined in 
+			Any of '*unitrange*', '*whiten*' or other methods defined in 
 			:mod:`tramway.spatial.scaler`.
 
 		time_scale (bool or float): 
@@ -156,6 +156,10 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 		comment (str):
 			Description message for the resulting analysis.
+
+		return_analyses (bool):
+			Return a :class:`~tramway.core.analyses.base.Analyses` object instead of 
+			the default :class:`~tramway.tessellation.base.CellStats` output.
 
 	Returns:
 		tramway.tessellation.base.CellStats: A partition of the data with its
@@ -430,7 +434,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			partition_kwargs['metric'] = 'euclidean'
 		cell_index = tess.cell_index(xyt_data, knn=knn, **partition_kwargs)
 
-	stats = CellStats(cell_index, points=xyt_data, tessellation=tess)
+	stats = CellStats(xyt_data, tess, cell_index)
 
 	# store some parameters together with the partition
 	stats.param['method'] = method
@@ -477,7 +481,10 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		save_rwa(output_file, analyses, verbose, \
 			force=force or (len(input_files)==1 and input_files[0]==output_file))
 
-	return stats
+	if return_analyses:
+		return analyses
+	else:
+		return stats
 
 
 
@@ -485,7 +492,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, \
 	location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
-	aspect=None, delaunay=None, locations={}, voronoi=True, colors=None, title=None, \
+	aspect=None, delaunay=None, locations={}, voronoi=None, colors=None, title=None, \
 	label=None, input_label=None):
 	"""
 	Partition plots.
@@ -549,8 +556,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			:func:`~tramway.plot.mesh.plot_delaunay`.
 
 		voronoi (bool or dict):
-			Overlay Voronoi graph. If :class:`dict`, keyword arguments to 
-			:func:`~tramway.plot.mesh.plot_voronoi`.
+			Overlay Voronoi graph (default: ``True``). If :class:`dict`, keyword arguments
+			to :func:`~tramway.plot.mesh.plot_voronoi`.
 
 		label/input_label (int or str or list):
 			If `cells` is a filepath or an analysis tree, label of the analysis instance.
@@ -688,6 +695,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 				plot_points(cells, min_count=min_location_count, **locations)
 		if aspect is not None:
 			fig.gca().set_aspect(aspect)
+		if voronoi is None:
+			voronoi = issubclass(type(cells.tessellation), Voronoi)
 		if xy_layer != 'delaunay' and voronoi:
 			if not isinstance(voronoi, dict):
 				voronoi = {}
@@ -727,7 +736,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		if subext and subext[1:] in sub_extensions.values():
 			filename = subname
 		if dim == 2:
-			vor_file = '{}.{}.{}'.format(filename, sub_extensions['vor'], figext)
+			vor_file = '{}.{}'.format(filename, figext)
 			if verbose:
 				print('writing file: {}'.format(vor_file))
 			fig.savefig(vor_file, dpi=dpi)

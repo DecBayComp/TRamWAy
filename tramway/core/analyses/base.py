@@ -374,7 +374,9 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
 
 		tuple: matching data elements/artefacts, and optionally analysis subtree.
 
-	Examples::
+	Examples:
+
+	.. code-block:: python
 
 		cells, maps = find_artefacts(analyses, (CellStats, Maps))
 

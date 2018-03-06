@@ -1,4 +1,4 @@
-.. _quickstart.demos:
+.. _examples:
 
 Demos
 =====

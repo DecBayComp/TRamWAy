@@ -13,7 +13,7 @@ The term *analysis* here refers to a process that takes a single data input and 
 
 Artefacts are thus organized in a tree structure such that artefacts are nodes and analyses are edges.
 
-A typical *.rwa* file or :class:`~tramway.core.analyses.Analyses` object will contain an array of molecule locations or trajectories as topmost data element.
+A typical *.rwa* file or :class:`~tramway.core.analyses.base.Analyses` object will contain an array of molecule locations or trajectories as topmost data element.
 A first level of analyses will consist of spatial tessellations (or data partitions) with resulting :class:`~tramway.tessellation.base.CellStats` partition objects (one per analysis).
 A second level of analyses will consist of inferences with resulting :class:`~tramway.inference.base.Maps` map objects (again, one per analysis).
 
@@ -33,32 +33,63 @@ A single dataset can be split in several files.
 Analyses *.rwa* files
 ---------------------
 
-In Python, an |rwa| file can be loaded as follows::
+In Python, an |rwa| file can be loaded as follows:
 
-	from tramway.io import HDF5Store
+.. code-block:: python
 
-	hdf = HDF5Store(path_to_rwa_file)
-	analyses = hdf.peek('analyses')
-	hdf.close()
+	from tramway.core import *
 
-or in a slightly shorter way::
+	analyses = load_rwa(path_to_rwa_file)
 
-	from tramway.helper.analysis import *
 
-	analyses = find_analysis(path_to_rwa_file)
+The :class:`~tramway.core.analyses.base.Analyses` object features a dict-like interface.
 
-and if one needs a particular analysis chain, providing analysis labels::
+In the REPL, the *analyses* object can be quickly inspected as follows:
 
-	analyses = find_analysis(path_to_rwa_file, labels=('my-mesh', 'my-df-maps'))
+.. code-block:: python
 
-A convenient way to browse the labels, comments and artefact types in a file is::
+	>>> print(analyses)
+	<class 'pandas.core.frame.DataFrame'>
+		'kmeans' <class 'tramway.tessellation.base.CellStats'>
+			'df-map0' <class 'tramway.inference.base.Maps'>
+				'curl_2' <class 'tramway.inference.base.Maps'>
+		'gwr0' <class 'tramway.tessellation.base.CellStats'>
+		'gwr1' <class 'tramway.tessellation.base.CellStats'>
+			'dv-map0' <class 'tramway.inference.base.Maps'>
+	>>> analyses['kmeans']['df-map0']
+	<tramway.core.analyses.lazy.Analyses object at 0x7fc41e5b5f08>
+	>>> analyses['kmeans']['df-map0'].data
+	<tramway.inference.base.Maps object at 0x7fc468359e10>
 
-	> tramway dump -i path_to_rwa_file
 
-or in Python::
+The above example shows that every analysis artefact is encapsulated in an :class:`~tramway.core.analyses.lazy.Analyses` object and can be accessed with the `data` (or `artefact`) attribute.
 
-	print(format_analyses(analyses))
+To extract analysis artefacts of a particular type from an analysis tree with a single pathway:
 
+.. code-block:: python
+
+	>>> print(analyses)
+	<class 'pandas.core.frame.DataFrame'>
+		'kmeans' <class 'tramway.tessellation.base.CellStats'>
+			'df-map0' <class 'tramway.inference.base.Maps'>
+				'curl_2' <class 'tramway.inference.base.Maps'>
+
+	>>> from tramway.tessellation import CellStats
+	>>> from tramway.inference import Maps
+
+	>>> cells, maps = find_artefacts(analyses, (CellStats, Maps))
+
+Here `maps` will correspond to the *curl_2* label.
+To select *df-map0* instead:
+
+.. code-block:: python
+
+	>>> cells, maps = find_artefacts(analyses, (CellStats, Maps), quantifiers=('last', 'first'))
+
+
+Quantifier '*last*' is the default one.
+
+See also :func:`~tramway.core.analyses.lazy.find_artefacts` for more options.
 
 
 .. |txt| replace:: *.txt*

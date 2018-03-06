@@ -1,64 +1,115 @@
-.. TRamWAy documentation master file, created by
-   sphinx-quickstart on Tue Jan 24 11:46:04 2017.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 
-TRamWAy documentation
-=====================
+=======
+TRamWAy
+=======
 
-|tramway| helps analyzing single molecule dynamics. It infers the diffusivity, drift, force and potential across space and time.
+|tramway| is a tool to analyse single molecule dynamics from their locations or trajectories.
 
-|tramway| as for its stable version by now is based on Bayesian analysis of Random Walks. In addition to estimating spatial maps of physical parameters, it can generate large amounts of trajectories in the inferred maps using the master equation approximation of the Fokker-Planck describing the motion.
+Parameters of single molecule dynamics such as diffusivity, drift, force and potential energy can be estimated across space and time.
+Maps of these parameters are thus generated and additional tools such as curl calculation for force maps may extract further information about the dynamics.
 
-Finally, |tramway| provides multiple representations of both raw data and inferred fields.
+|tramway| has been designed as a modular Python library that may accomodate additional plugins for the main processing steps, namely the tessellation and inference steps.
 
 
+-------------
+Quick example
+-------------
+
+Maps of diffusivity and potential energy estimates can be generated from molecule trajectories with as few as three commands:
+
+.. code-block:: shell
+	:linenos:
+
+	tramway tessellate gwr -i trajectories.txt -o my-analyses.rwa
+	tramway infer dv -i my-analyses.rwa
+	tramway draw map -i my-analyses.rwa
+
+* Single molecule locations and/or trajectories are usually stored in text files.
+  In the above example, such an input file is named *trajectories.txt*.
+* The first step (``1``) consists of importing these location data and tessellating the space into cells of adequate size. 
+  The *GWR* method grows a graph that fits closely the molecule density.
+* All the analyses derivating from a same dataset are stored in a single *.rwa* file.
+* The second step (``2``) consists of infering parameters of the molecule dynamics,
+  for example local diffusivities and potential energies (*DV* mode).
+  This may take a while and recruit most of the processing units of the host.
+* The estimated values can now be visualized as 2D maps (``3``).
+
+.. tabularcolumns:: |p{0.25\linewidth}|p{0.25\linewidth}|p{0.25\linewidth}|p{0.25\linewidth}|
+
++-------------------------+-------------------------+---------------------------------------------------+
+|   molecule locations    |    tessellation (1)     |                     maps (2,3)                    |
+|                         |                         +-------------------------+-------------------------+
+|                         |                         |      diffusivity        |    potential energy     |
++=========================+=========================+=========================+=========================+
+| .. image:: t0-0.*       | .. image:: t0-1.*       | .. image:: t0-2.*       | .. image:: t0-3.*       |
++-------------------------+-------------------------+-------------------------+-------------------------+
+
+The equivalent Python code is:
+
+.. code-block:: python
+
+	from tramway.helper import *
+
+	tessellate('trajectories.txt', 'gwr', output_file='my-analyses.rwa')
+	infer('my-analyses.rwa', 'dv')
+	map_plot('my-analyses.rwa')
+
+
+
+--------------
 Where to start
 --------------
 
-.. * :ref:`Installation <installation>`
-.. * :ref:`Quick-start guide <quickstart>`
-.. * :ref:`Reference library <api>`
+|tramway| is distributed under the :ref:`terms of the CeCILL license <license>` and you should first get to know these terms.
+
+* :ref:`Installation <installation>`
+* :ref:`Concepts <concepts>`
+* :ref:`Command-line <commandline>`
+* :ref:`Reference library <api>`
+
 
 .. toctree::
-   :maxdepth: 2
+	:caption: Getting started
+	:name: getting_started
+	:maxdepth: 1
+	:hidden:
 
-   installation
-   quickstart
-   api
+	installation
+	concepts
+	examples
+	commandline
+	license
 
-.. More (older) content
- --------------------
+.. toctree::
+	:caption: User manual
+	:name: usage
+	:maxdepth: 1
+	:hidden:
 
-.. .. toctree::
-    :maxdepth: 1
+	datamodel
+	tessellation
+	inference
 
-..    introduction
-   installation
-   commandline
-   fileformat
-   api
+.. toctree::
+	:caption: Developping
+	:name: advanced
+	:maxdepth: 1
+	:hidden:
+
+	plugins
+	api
 
 
-.. Indices and tables
-.. ------------------
-
-.. * :ref:`genindex`
-.. * :ref:`modindex`
-.. * :ref:`search`
-
-.. in quickstart.fileformats, 
+.. in commandline, datamodel, 
 .. |txt| replace:: *.txt*
-.. in quickstart.commandline, quickstart.fileformats, 
+.. in commandline, datamodel, 
 .. |xyt| replace:: *.xyt*
 .. |trxyt| replace:: *.trxyt*
-.. in quickstart, quickstart.helpers, 
-.. |h5| replace:: *.h5*
 .. in datamodel, 
 .. |rwa| replace:: *.rwa*
-.. in quickstart.fileformats, 
+.. in datamodel, 
 .. |seconds| replace:: **seconds**
 .. |um| replace:: **µm**
-.. in index, installation, quickstart, quickstart.concepts, quickstart.fileformats, api, 
+.. in index, installation, concepts, datamodel, api, license
 .. |tramway| replace:: **TRamWAy**
 
