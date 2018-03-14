@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-## see https://packaging.python.org/distributing/#setup-py
-
 from setuptools import setup
 from codecs import open
 from os import path
@@ -21,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
 	name = 'tramway',
-	version = '0.3-rc4',
+	version = '0.3-rc5',
 	description = 'TRamWAy',
 	long_description = long_description,
 	url = 'https://github.com/DecBayComp/TRamWAy',
@@ -40,11 +38,20 @@ setup(
 	package_dir = {'tramway': 'tramway', 'tramway.demo': 'examples'},
 	packages = ['tramway', 'tramway.demo',
 		'tramway.core',
+		'tramway.core.analyses',
+		'tramway.core.hdf5',
 		'tramway.tessellation',
+		'tramway.tessellation.grid',
+		'tramway.tessellation.gwr',
+		'tramway.tessellation.gwr.graph',
+		'tramway.tessellation.kdtree',
+		'tramway.tessellation.kmeans',
 		'tramway.inference',
 		'tramway.feature',
 		'tramway.plot',
+		'tramway.plot.tk',
 		'tramway.helper',
+		'tramway.helper.simulation',
 		'tramway.utils'],
 	scripts = ['scripts/tramway', 'scripts/tramway-demo'],
 	install_requires = install_requires,
