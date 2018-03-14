@@ -512,7 +512,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			plt.draw()
 		elif show is not False:
 			plt.show()
-	else:
+	elif print_figs:
 		for fig in figs:
 			plt.close(fig)
 
@@ -521,18 +521,23 @@ def _clip(m, q):
 	if q <= 0:
 		return m
 	amplitude = m.pow(2)
-	if 1 < len(m.shape):
+	if m.shape[1:]:
 		amplitude = amplitude.sum(1)
+		columns = m.columns
 	amplitude = amplitude.apply(np.sqrt)
 	if q < 1:
 		amax = amplitude.quantile(q)
 	else:
 		amax = amplitude.quantile(.5) + q * (amplitude.quantile(.75) - amplitude.quantile(.25))
-	m = m.copy()
-	factor = amplitude[amplitude > amax].rdiv(amax)
-	if 1 < len(m.shape):
-		m.loc[amplitude > amax, :] *= factor
+	amplitude = amplitude.values
+	exceed = amplitude > amax
+	factor = amax / amplitude[exceed]
+	M, index, m = type(m), m.index, m.values
+	if m.shape[1:]:
+		m[exceed, :] = m[exceed, :] * factor[:, np.newaxis]
+		m = M(m, columns=columns, index=index)
 	else:
-		m.loc[amplitude > amax] *= factor
+		m[exceed] = m[exceed] * factor
+		m = M(m, index=index)
 	return m
 

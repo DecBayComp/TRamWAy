@@ -1,12 +1,10 @@
 .. _tessellation:
 
-============
 Tessellation
 ============
 
 This step consists of defining time segments or space cells and assigning the individual molecule locations to one or more of these segments or cells.
 
------------
 Basic usage
 -----------
 
@@ -31,7 +29,7 @@ The equivalent Python code is:
 
 The above calls to the :func:`~tramway.helper.tessellation.tessellate` helper read and write into the *example.rwa* file.
 
-Alternatively, reading and writing files can limited by directly manipulating the analysis tree:
+Alternatively, reads and writes to files can be limited by directly manipulating the analysis tree:
 
 .. code-block:: python
 
@@ -57,7 +55,6 @@ or with the :func:`~tramway.helper.tessellation.cell_plot` helper function:
 	cell_plot('example.rwa', label='kmeans')
 
 
---------
 Concepts
 --------
 
@@ -79,8 +76,6 @@ As a consequence, :func:`~tramway.helper.tessellation.tessellate` takes argument
 These arguments apply to the partition while arguments of similar names without this prefix apply to the tessellation.
 
 
-
-----------------
 Standard methods
 ----------------
 
@@ -99,7 +94,7 @@ It can be called upon as the *window* method.
 
 
 The *grid* method
------------------
+^^^^^^^^^^^^^^^^^
 
 *grid* is a regular grid. Every cells are equal-size hypercubes.
 
@@ -112,7 +107,7 @@ Distance-based parameters are not used by this plugin.
 
 
 The *kdtree* method
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 *kdtree* is the *quad-tree* algorithm from **InferenceMAP** extended to any dimensionality greater than or equal to 2.
 
@@ -126,7 +121,7 @@ The maximum cell size can be controlled with the `max_level` input argument that
 
 
 The *kmeans* method
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 *kmeans* is a fast tessellation approach that usually displays non-"square" cells and offers better resolutions along density borders.
 
@@ -137,7 +132,7 @@ As a consequence cells scale wrt the `avg_probability` argument (or command-line
 
 
 The *gwr* method
-----------------
+^^^^^^^^^^^^^^^^
 
 *gwr* stands for *Grow(ing) When Required* and is actually a largely modified version of the algorithm described by Marsland, Shapiro and Nehmzow in 2002.
 
@@ -152,7 +147,7 @@ The `knn` argument to `cell_index` may be very useful in combination to such hig
 
 
 The *window* method
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 The *window* plugin implements a sliding time window.
 
@@ -162,12 +157,11 @@ The step (`shift`) and window width (`duration`) can be defined either as timest
 frames (with ``frames=True`` or command-line option ``--frames``).
 
 
-----------------
 Advanced methods
 ----------------
 
 Tessellation nesting
---------------------
+^^^^^^^^^^^^^^^^^^^^
 
 Each cell of a tessellation can be tessellated again.
 
@@ -181,7 +175,7 @@ This can be useful for example to independently tessellate the space in each tim
 
 
 Custom cell centers
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 To define specific centroids and partition using `knn`, no explicit cells are needed.
 
@@ -232,7 +226,7 @@ Both can be used to implemented such a use case:
 
 
 Custom time segments
---------------------
+^^^^^^^^^^^^^^^^^^^^
 
 The :class:`~tramway.tessellation.time.TimeLattice` class is far more flexible than the :class:`~tramway.tessellation.window.SlidingWindow` class in that it admits arbitrary time segments.
 

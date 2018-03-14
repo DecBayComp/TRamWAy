@@ -484,10 +484,7 @@ def coerce_labels(analyses):
 				except AttributeError: # numpy.int64?
 					coerced = int(label)
 			assert isinstance(coerced, (int, str))
-		try:
-			comment = analyses.comments[label]
-		except KeyError:
-			pass
+		comment = analyses.comments[label]
 		analysis = analyses.instances.pop(label)
 		if isinstance(analysis, Analyses):
 			analysis = coerce_labels(analysis)

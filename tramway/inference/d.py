@@ -27,8 +27,7 @@ setup = {'arguments': OrderedDict((
 		('min_diffusivity',	dict(type=float, default=0, help='minimum diffusivity value allowed'))))}
 
 
-def d_neg_posterior(diffusivity, cell, square_localization_error=0.0, jeffreys_prior=False, \
-		min_diffusivity=0):
+def d_neg_posterior(diffusivity, cell, squared_localization_error, jeffreys_prior, min_diffusivity):
 	"""
 	Adapted from InferenceMAP's *dPosterior* procedure::
 
@@ -50,24 +49,24 @@ def d_neg_posterior(diffusivity, cell, square_localization_error=0.0, jeffreys_p
 	"""
 	if diffusivity < min_diffusivity and not np.isclose(diffusivity, min_diffusivity):
 		warn(DiffusivityWarning(diffusivity, min_diffusivity))
-	noise_dt = square_localization_error
+	noise_dt = squared_localization_error
 	if cell.cache is None:
 		cell.cache = np.sum(cell.dxy * cell.dxy, axis=1) # dx**2 + dy**2 + ..
 	n = cell.cache.size # number of translocations
 	D_dt = 4.0 * (diffusivity * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
 	if np.any(np.isclose(D_dt, 0)):
 		raise RuntimeError('near-0 diffusivity; increase `localization_error`')
-	d_neg_posterior_dt = n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
-	d_neg_posterior_dxy = np.sum(cell.cache / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
+	d_neg_posterior = n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
+	d_neg_posterior += np.sum(cell.cache / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
 	if jeffreys_prior:
-		d_neg_posterior_dt += diffusivity * np.mean(cell.dt) + noise_dt
-	return d_neg_posterior_dt + d_neg_posterior_dxy
+		d_neg_posterior += diffusivity * np.mean(cell.dt) + noise_dt
+	return d_neg_posterior
 
 
-def inferD(cell, localization_error=0.0, jeffreys_prior=False, min_diffusivity=0, **kwargs):
+def inferD(cell, localization_error=0.03, jeffreys_prior=False, min_diffusivity=0, **kwargs):
 	if isinstance(cell, Distributed):
-		inferred = {i: inferD(c, localization_error, jeffreys_prior, \
-				min_diffusivity, **kwargs) \
+		args = (localization_error, jeffreys_prior, min_diffusivity)
+		inferred = {i: inferD(c, *args, **kwargs) \
 			for i, c in cell.items() if bool(c)}
 		inferred = pd.DataFrame(data={'diffusivity': pd.Series(data=inferred)})
 		return inferred

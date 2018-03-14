@@ -181,9 +181,6 @@ class KDTreeMesh(Voronoi):
 	def _postprocess(self):
 		pass
 
-	def contour(self, *args, **kwargs):
-		raise NotImplementedError
-
 	def freeze(self):
 		self.dichotomy = None
 

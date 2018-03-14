@@ -110,6 +110,6 @@ Where to start
 .. in datamodel, 
 .. |seconds| replace:: **seconds**
 .. |um| replace:: **µm**
-.. in index, installation, concepts, datamodel, api, license
+.. in index, installation, concepts, datamodel, api, license, inference
 .. |tramway| replace:: **TRamWAy**
 

@@ -17,9 +17,9 @@ import traceback
 import random
 
 
-py2_hash, py3_hash = 'tlxfBtcw', 'vZvOBvDZ'
+py2_hash, py3_hash = 'kmBWBrW9', '5LT3575u'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '180301'
+data_update = '180313'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
@@ -119,8 +119,11 @@ class TestTessellation(object):
 				if not isinstance(out, str):
 					out = out.decode('utf-8')
 				self.print(out)
-				out = '\n'.join([ line for line in out.splitlines()
-					if not line.startswith('Failed reading attribute') ])
+				out = out.splitlines()
+				out = '\n'.join([ '\n'.join((line1, line2)) \
+					for (line1, line2) in zip(out[:-1:2], out[1::2])
+					if not (line1.startswith('Failed reading attribute') or \
+						line1.startswith('attribute: <TITLE of ')) ])
 			if err:
 				if not isinstance(err, str):
 					err = err.decode('utf-8')

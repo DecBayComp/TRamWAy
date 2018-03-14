@@ -23,13 +23,12 @@ from collections import OrderedDict
 
 
 setup = {'arguments': OrderedDict((
-		('localization_error',	('-e', dict(type=float, default=0.01, help='localization error'))),
+		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
-		('min_diffusivity',	dict(type=float, default=0, help='minimum diffusivity value allowed'))))}
+		('min_diffusivity',	dict(type=float, default=0., help='minimum diffusivity value allowed'))))}
 
 
-def df_neg_posterior(x, df, cell, square_localization_error=0.0, jeffreys_prior=False, \
-		min_diffusivity=0):
+def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, min_diffusivity):
 	"""
 	Adapted from InferenceMAP's *dfPosterior* procedure::
 
@@ -53,29 +52,29 @@ def df_neg_posterior(x, df, cell, square_localization_error=0.0, jeffreys_prior=
 	D, F = df['D'], df['F']
 	if D < min_diffusivity:
 		warn(DiffusivityWarning(D, min_diffusivity))
-	noise_dt = square_localization_error
+	noise_dt = squared_localization_error
 	n = cell.dt.size # number of translocations
 	D_dt = D * cell.dt
-	D_term = 4.0 * (D_dt + noise_dt) # 4*(D+Dnoise)*dt
-	dxdy_minus_D_F_dt = cell.dxy - np.outer(D_dt, F)
-	F_term = np.sum(dxdy_minus_D_F_dt * dxdy_minus_D_F_dt, axis=1)
-	neg_posterior_d = n * log(pi) + np.sum(np.log(D_term)) # sum(log(4*pi*Dtot*dt))
-	neg_posterior_f = np.sum(F_term / D_term)
+	denominator = 4.0 * (D_dt + noise_dt) # 4*(D+Dnoise)*dt
+	dxy_minus_drift_dt = cell.dxy - np.outer(D_dt, F)
+	# non-directional squared displacement
+	ndsd = np.sum(dxy_minus_drift_dt * dxy_minus_drift_dt, axis=1)
+	neg_posterior = n * log(pi) + np.sum(np.log(denominator)) # sum(log(4*pi*Dtot*dt))
+	neg_posterior += np.sum(ndsd / denominator)
 	if jeffreys_prior:
-		neg_posterior_d += 2.0 * (log(D * np.mean(cell.dt) + noise_dt) - log(D))
-	return neg_posterior_d + neg_posterior_f
+		neg_posterior += 2.0 * (log(D * np.mean(cell.dt) + noise_dt) - log(D))
+	return neg_posterior
 
 
-def inferDF(cell, localization_error=0.0, jeffreys_prior=False, min_diffusivity=0, **kwargs):
+def inferDF(cell, localization_error=0.03, jeffreys_prior=False, min_diffusivity=0, **kwargs):
 	if isinstance(cell, Distributed):
-		index, inferred = zip(*[ (i,
-				inferDF(c, localization_error, jeffreys_prior, min_diffusivity,
-					**kwargs))
-			for i, c in cell.items() if bool(c) ])
+		args = (localization_error, jeffreys_prior, min_diffusivity)
+		index, cells = zip(*[ (i, c) for i, c in cell.items() if bool(c) ])
+		inferred = [ inferDF(c, *args, **kwargs) for c in cells ]
 		inferred = pd.DataFrame(data=np.stack(inferred, axis=0), \
-			index=np.array(index), \
+			index=np.array(list(index)), \
 			columns=[ 'diffusivity' ] + \
-				[ 'force '+col for col in next(iter(cell.values())).space_cols ])
+				[ 'force ' + col for col in cells[0].space_cols ])
 		return inferred
 	else:
 		if not np.all(0 < cell.dt):

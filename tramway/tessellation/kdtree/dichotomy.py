@@ -178,57 +178,53 @@ class ConnectedDichotomy(Dichotomy):
 			self.edge_counter = max(adjacency.keys()) + 1
 
 	def merge_Faces(self, face1, face2, axis):
+		#adjacency_old = dict(self.adjacency) # for debugging at the end of the method's body
 		dim = self.unit_hypercube.shape[1]
 		dims = np.logical_not(axis)
 		cell1 = [ (c,) + self.cell[c] for c in face1 ]
 		cell2 = [ (c,) + self.cell[c] for c in face2 ]
-		ok1 = np.ones(len(cell1), dtype=bool)
-		ok2 = np.ones(len(cell2), dtype=bool)
-		for i in range(len(cell1)):
-			if ok1[i]:
-				c1, o1, l1, _ = cell1[i]
-				o1 = o1[dims]
-				j = 0
-				while j < ok2.size and ok2[j] and not np.all(np.abs(o1 - cell2[j][1][dims]) < np.spacing(1)):
-					j += 1
-				c2, o2, l2, _ = cell2[j]
-				o2 = o2[dims]
-				dk = 2 ** ((dim - 1) * abs(l1 - l2))
-				self.adjacency_lock.acquire()
-				k = self.edge_counter
-				self.edge_counter += dk
-				self.adjacency_lock.release()
-				self.adjacency[k] = (c1, c2)
-				ok1[i] = False
-				ok2[j] = False
+		#print((cell1, cell2))
+		for c1, a1, l1, _ in cell1:
+			a1 = a1[dims]
+			for c2, a2, l2, _ in cell2:
+				a2 = a2[dims]
 				if l1 < l2:
-					e1 = o1 + self.reference_length[l1]
-					jj = 0
-					while 1 < dk and jj < ok2.size and ok2[jj]:
-						c2, o2, ll2, _ = cell2[jj]
-						o2 = o2[dims]
-						if l2 == ll2 and \
-							np.all(np.logical_and(o1 <= o2, \
-								o2 < e1)):
-							k += 1
-							self.adjacency[k] = (c1, c2)
-							ok2[jj] = False
-							dk -= 1
-						jj += 1
-				elif l2 < l1:
-					e2 = o2 + self.reference_length[l2]
-					ii = 0
-					while 1 < dk and ii < ok1.size and ok1[ii]:
-						c1, o1, ll1, _ = cell1[ii]
-						o1 = o1[dims]
-						if l1 == ll1 and \
-							np.all(np.logical_and(o2 <= o1, \
-								o1 < e2)):
-							k += 1
-							self.adjacency[k] = (c1, c2)
-							ok1[ii] = False
-							dk -= 1
-						ii += 1
+					origin, diagonal = a1, self.reference_length[l1]
+					center = a2 + .5 * self.reference_length[l2]
+				else:
+					origin, diagonal = a2, self.reference_length[l2]
+					center = a1 + .5 * self.reference_length[l1]
+				# is `center` inside the (origin, diagonal) hypercube?
+				rel = center - origin
+				if np.all(0 < rel) and np.sqrt(np.dot(rel, rel)) <= diagonal:
+					# connect cell1 with cell2
+					dk = 2 ** ((dim - 1) * abs(l1 - l2))
+					self.adjacency_lock.acquire()
+					k = self.edge_counter
+					self.edge_counter += dk
+					self.adjacency_lock.release()
+					self.adjacency[k] = (c1, c2)
+		## debug
+		#self.plot_delaunay()
+
+	def plot_delaunay(self):
+		import matplotlib.pyplot
+		plt  = matplotlib.pyplot
+		x, x0 = [], np.full(2, np.nan, dtype=float)
+		for k in self.adjacency:
+			c1, c2 = self.adjacency[k]
+			x1, l1, _ = self.cell[c1]
+			x2, l2, _ = self.cell[c2]
+			x1 = x1 + self.reference_length[l1 + 1]
+			x2 = x2 + self.reference_length[l2 + 1]
+			x.append(x0)
+			x.append(x1)
+			x.append(x2)
+		x = np.stack(x, axis=0)
+		plt.figure()
+		plt.plot(x[:,0], x[:,1], 'r-')
+		plt.axis('equal')
+		plt.show()
 		
 	def do_split(self, ss_ref, origin, depth):
 		interior_cells = dict()

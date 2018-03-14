@@ -16,10 +16,13 @@ from . import base
 
 
 class InstancesView(base.InstancesView):
+
 	__slots__ = ('peek', )
+
 	def __init__(self, analyses, peek=False):
 		base.InstancesView.__init__(self, analyses)
 		self.peek = peek
+
 	def __getitem__(self, label):
 		instance = base.InstancesView.__getitem__(self, label)
 		if rwa.islazy(instance):
@@ -30,6 +33,22 @@ class InstancesView(base.InstancesView):
 				instance = instance.deep()
 				self.__setitem__(label, instance)
 		return instance
+
+	def get(self, label, default=None):
+		instance = base.InstancesView.get(self, label, None)
+		if instance is None:
+			instance = default
+		elif rwa.islazy(instance):
+			if issubclass(instance.type, base.Analyses):
+				instance = instance.shallow()
+				self.__setitem__(label, instance)
+			elif self.peek:
+				instance = instance.deep()
+				self.__setitem__(label, instance)
+		return instance
+
+	def pop(self, label, default=None):
+		return rwa.lazyvalue(base.InstancesView.pop(self, label, default), deep=self.peek)
 
 
 class Analyses(base.Analyses):
@@ -70,7 +89,6 @@ class Analyses(base.Analyses):
 
 	def __str__(self):
 		return base.format_analyses(self, node=rwa.lazytype)
-
 
 
 

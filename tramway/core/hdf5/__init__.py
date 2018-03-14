@@ -58,6 +58,7 @@ else:
 		#print('poke_maps')
 		sub_container = store.newContainer(objname, self, container)
 		attrs = dict(self.__dict__) # dict
+		attrs['maps'] = attrs.pop('_maps')
 		#print(list(attrs.keys()))
 		if legacy:
 			# legacy format
@@ -75,7 +76,7 @@ else:
 		for a in ('distributed_translocations','partition_file','tessellation_param','version'):
 			deprecated[a] = attrs.pop(a, None)
 		for a in attrs:
-			if attrs[a] is not None:
+			if not (a[0] == '_' or attrs[a] is None):
 				if attrs[a] or attrs[a] == 0:
 					#print("poke '{}'".format(a))
 					store.poke(a, attrs[a], sub_container, visited=visited)
@@ -87,7 +88,8 @@ else:
 
 	def peek_maps(store, container):
 		#print('peek_maps')
-		read = []
+		read = list(Maps.__lazy__) # do not read any lazy attribute;
+		# in principle no lazy attribute should be found in `container`
 		mode = store.peek('mode', container)
 		read.append('mode')
 		try:

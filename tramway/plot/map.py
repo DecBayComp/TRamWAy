@@ -96,8 +96,8 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 			raise TypeError('wrong type for `cells`: {}'.format(_type))
 
 	try:
-		bounding_box = cells.descriptors(cells.bounding_box, asarray=True)
-		xy_min, xy_max = bounding_box
+		bounding_box = cells.bounding_box[['x', 'y']]
+		xy_min, xy_max = bounding_box.values
 	except (KeyboardInterrupt, SystemExit):
 		raise
 	except:

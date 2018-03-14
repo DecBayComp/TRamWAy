@@ -235,6 +235,10 @@ class Distributed(Local):
 		"""
 		Local gradient.
 
+		Sub-classes are free to return multi-component gradients as matrices provided that
+		they exhibit as many columns as there are dimensions in the (trans-)location data.
+		:meth:`grad_sum` is then responsible for summing all the elements of such matrices.
+
 		Arguments:
 
 			i (int):
@@ -243,14 +247,14 @@ class Distributed(Local):
 			X (array):
 				vector of a scalar measurement at every cell.
 
-			index_map (array, optional):
+			index_map (array):
 				index map that converts cell indices to indices in X.
 
-		Results:
+		Returns:
 
 			array:
-				gradient as a matrix with as many rows as adjacent mesh points and 
-				columns as dimensions.
+				gradient as a vector with as many elements as there are dimensions
+				in the (trans-)location data.
 		"""
 		cell = self.cells[i]
 		adjacent = self.adjacency[i].indices
@@ -258,9 +262,10 @@ class Distributed(Local):
 			i = index_map[i]
 			adjacent = index_map[adjacent]
 			ok = 0 <= adjacent
-			if not np.any(ok):
-				return None
+			assert np.all(ok)
 			adjacent = adjacent[ok]
+			if adjacent.size == 0:
+				return Nonte
 		if adjacent.size == 0:
 			return
 		if not isinstance(cell.cache, dict):
@@ -283,22 +288,26 @@ class Distributed(Local):
 			for vander in cell.cache['vanders'] ])
 		return gradX
 
-	def grad_sum(self, i, index_map=None):
+	def grad_sum(self, i, grad, index_map=None):
 		"""
-		Mixing matrix for the gradients at a given cell.
+		Mixing operator for the gradient at a given cell.
 
 		Arguments:
 
 			i (int):
 				cell index.
 
+			grad (numpy.ndarray):
+				local gradient.
+
 			index_map (array):
 				index mapping, useful to convert cell indices to positional indices in 
 				an optimization array for example.
 
-		Output:
-			array:
-				matrix that sums by dot product the adjacent components (e.g. gradient).
+		Returns:
+
+			float:
+				weighted sum of the elements of `grad`.
 
 		"""
 		cell = self.cells[i]
@@ -319,11 +328,15 @@ class Distributed(Local):
 			# just a random approximation:
 			area = np.sqrt(np.mean(area * area, axis=0))
 			cell.cache['area'] = area
-		return area
+		return np.dot(area, grad)
 
 	def dx_dt(self, t, X):
 		"""
 		Time derivative.
+
+		.. warning::
+
+			not used; may not even work.
 
 		Arguments:
 
@@ -419,7 +432,8 @@ class Distributed(Local):
 		"""
 		new = copy(self)
 		if ngroups or max_cell_count or cell_centers is not None:
-			points = np.full((self.adjacency.shape[0], self.dim), np.inf)
+			any_cell = next(iter(self.cells.values()))
+			points = np.zeros((self.adjacency.shape[0], self.dim), dtype=any_cell.center.dtype)
 			ok = np.zeros(points.shape[0], dtype=bool)
 			for i in self.cells:
 				points[i] = self.cells[i].center
@@ -451,6 +465,7 @@ class Distributed(Local):
 			new.adjacency = grid.simplified_adjacency(format='csr') # macro-cell adjacency matrix
 			J = np.unique(I)
 			J = J[0 <= J]
+			assert 0 < J.size
 			new.data = type(self.cells)()
 			for j in J: # for each macro-cell
 				K = I == j # find corresponding cells
@@ -479,7 +494,7 @@ class Distributed(Local):
 				new.cells[j] = type(self)(D, A, index=j, center=C, span=R)
 				if 0 < adjacency_margin:
 					new.cells[j].central = L
-				#assert 0 < new.cells[j].tcount # unfortunately will have to deal with
+				assert bool(new.cells[j])
 			new.ccount = self.ccount
 			# _tcount is not supposed to change
 		else:
@@ -1036,16 +1051,6 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 		new_mesh = new
 	if not isinstance(cells, tessellation.CellStats):
 		raise TypeError('`cells` is not a `CellStats`')
-	# simplify the adjacency matrix
-	if cells.tessellation.cell_label is None:
-		J = cells.location_count
-	else:
-		J = np.logical_and(0 < cells.location_count, 0 < cells.tessellation.cell_label)
-	_adjacency = cells.tessellation.simplified_adjacency(label=J, format='csr')
-	# reweight each row i as 1/n_i where n_i is the degree of cell i
-	n = np.diff(_adjacency.indptr)
-	_adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
-	ncells = _adjacency.shape[0]
 
 	# format (trans-)locations
 	precomputed = ()
@@ -1113,26 +1118,50 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 			space_cols[time_col] = False
 			space_cols, = space_cols.nonzero()
 
-	# build every cells
-	J, = np.nonzero(J)
-	_cells = OrderedDict()
-	for j in J: # for each cell
-		if cells.location_count[j] == 0:
+	# pre-select cells
+	if cells.tessellation.cell_label is None:
+		J = 0 < cells.location_count
+	else:
+		J = np.logical_and(0 < cells.location_count, 0 < cells.tessellation.cell_label)
+
+	# select (with the fuzzy filter) and pre-build cells
+	_fuzzy, data = {}, {}
+	if are_translocations:
+		extra = {}
+	for j, ok in enumerate(J): # for each cell
+		if not ok:
 			continue
 		i = fuzzy(cells.tessellation, j, *fuzzy_args, **fuzzy_kwargs)
 		if i.dtype in (bool, np.bool, np.bool8, np.bool_):
-			_fuzzy = None
+			_fuzzy[j] = None
 		else:
-			_fuzzy = i[i != 0]
+			_fuzzy[j] = i[i != 0]
 			i = i != 0
 		if are_translocations:
 			_origin = get_point(initial_point, i)
 			_destination = get_point(final_point, i)
 			__origin = _origin.copy() # make copy
 			__origin.index += 1
-			data = translocations = _destination - __origin
+			points = _destination - __origin # translocations
 		else:
-			data = locations
+			points = get_point(locations, i) # locations
+		if points.size == 0:
+			J[j] = False
+		else:
+			if are_translocations:
+				extra[j] = (_origin, _destination)
+			data[j] = points
+
+	# simplify the adjacency matrix
+	_adjacency = cells.tessellation.simplified_adjacency(label=J, format='csr')
+	# reweight each row i as 1/n_i where n_i is the degree of cell i
+	n = np.diff(_adjacency.indptr)
+	_adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
+
+	# build every cells
+	J, = np.nonzero(J)
+	_cells = OrderedDict()
+	for j in J: # for each cell
 		try:
 			center = cells.tessellation.cell_centers[j]
 		except AttributeError:
@@ -1142,21 +1171,21 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 			span = cells.tessellation.cell_centers[adj] - center
 		#if translocations.size:
 		# make cell object
-		_cells[j] = new_cell(j, data, center, span, **new_cell_kwargs)
+		_cells[j] = new_cell(j, data[j], center, span, **new_cell_kwargs)
 		_cells[j].time_col = time_col
 		_cells[j].space_cols = space_cols
 		if are_translocations:
 			try:
-				_cells[j].origins = _origin
-			except AttributeError:
+				_cells[j].origins = extra[j][0]
+			except AttributeError: # `_cells` does not have the `origins` attribute
 				pass
 			try:
-				_cells[j].destinations = _destination
-			except AttributeError:
+				_cells[j].destinations = extra[j][1]
+			except AttributeError: # `_cells` does not have the `destinations` attribute
 				pass
 		try:
-			_cells[j].fuzzy = _fuzzy
-		except AttributeError:
+			_cells[j].fuzzy = _fuzzy[j]
+		except AttributeError: # `_cells` does not have the `fuzzy` attribute
 			pass
 	#print(sum([ c.tcount == 0 for c in _cells.values() ]))
 	self = new_mesh(_cells, _adjacency, **new_mesh_kwargs)
@@ -1166,11 +1195,14 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 	return self
 
 
-class Maps(object):
+class Maps(Lazy):
 	"""
 	Basic container for maps and the associated parameters used to get the maps.
 	"""
+	__lazy__ = Lazy.__lazy__ + ('_variables',)
+
 	def __init__(self, maps, mode=None):
+		Lazy.__init__(self)
 		self.maps = maps
 		self.mode = mode
 		self.min_diffusivity = None
@@ -1187,6 +1219,39 @@ class Maps(object):
 
 	def __nonzero__(self):
 		return bool(self.maps)
+
+	@property
+	def maps(self):
+		return self._maps
+
+	@maps.setter
+	def maps(self, m):
+		if m is None:
+			self._variables = None
+		else:
+			if not isinstance(m, pd.DataFrame):
+				raise TypeError('DataFrame expected')
+			self._variables = splitcoord(m.columns)
+		self._maps = m
+
+	@property
+	def variables(self):
+		if self._variables is None:
+			return None
+		else:
+			return list(self._variables.keys())
+
+	def __nonzero__(self):
+		return self.maps is not None
+
+	def __len__(self):
+		return 0 if self._variables is None else len(self._variables)
+
+	def __getitem__(self, variable_name):
+		try:
+			return self.maps[self._variables[variable_name]]
+		except (TypeError, KeyError):
+			raise KeyError("no such map: '{}'".format(variable_name))
 
 
 class DiffusivityWarning(RuntimeWarning):

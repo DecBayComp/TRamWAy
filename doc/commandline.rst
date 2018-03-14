@@ -132,8 +132,6 @@ One can overlay the locations as white dots with high transparency over maps col
 	> tramway draw map -i example.rwa -L kmeans,df-map0 -cm jet -P size=1,color='w',alpha=.05
 
 
-.. _commandline_feature:
-
 Extracting features
 -------------------
 

@@ -82,7 +82,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None,
 
 	# resize window
 	try:
-		plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+		plt.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
 	except AttributeError:
 		pass
 	except ValueError:
@@ -153,7 +153,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 
 	# resize window
 	try:
-		plt.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+		plt.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
 	except AttributeError:
 		pass
 	except ValueError:
@@ -229,7 +229,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 
 	# resize window
 	try:
-		axes.axis(cells.descriptors(cells.bounding_box, asarray=True).flatten('F'))
+		axes.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
 	except AttributeError:
 		pass
 	except ValueError:

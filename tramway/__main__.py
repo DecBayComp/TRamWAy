@@ -186,10 +186,10 @@ def _curl(args):
 	curl = tramway.feature.curl.Curl(cells, maps)
 	vector_fields = { f: vs for f, vs in curl.variables.items() if len(vs) == 2 }
 	curl_name = kwargs.get('output_label', None)
-	if not curl_name:
+	if curl_name:
+		curl_name = curl_name.replace('*', '')
+	else:
 		curl_name = 'curl'
-	if 1 < len(vector_fields):
-		raise NotImplementedError('multiple vector fields')
 	distance = kwargs.get('radius', 1)
 	curl_maps = copy.copy(maps)
 	curl_maps.maps = None
@@ -199,14 +199,14 @@ def _curl(args):
 		if curl_maps.maps is None:
 			curl_maps.maps = curl_map
 		else:
-			curl_maps.maps.join(curl_map)
+			curl_maps.maps = curl_maps.maps.join(curl_map)
 	if curl_maps.extra_args is None:
 		curl_maps.extra_args = {}
 	else:
 		curl_maps.extra_args = dict(curl_maps.extra_args) # copy
 	curl_maps.extra_args['radius'] = distance
 	# insert `curl_maps` into `analyses`
-	leaf.add(Analyses(curl_maps))
+	leaf.add(Analyses(curl_maps), label=kwargs.get('output_label', None))
 	output_file = kwargs.get('output', None)
 	if output_file is None:
 		output_file = input_file
@@ -262,8 +262,9 @@ def main():
 		method_group.add_argument('--scaling', choices=['whiten', 'unit'])
 		method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
 			help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn for a partition-related parameter')
+		method_parser.add_argument('--seed', nargs='?', default=False, \
+			help='random generator seed (for testing purposes)')
 		translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
-		method_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
 		method_parser.set_defaults(func=_sample(method, translations))
 
 
@@ -288,7 +289,7 @@ def main():
 			add_arguments(mode_parser, setup['arguments'], name=mode)
 		except KeyError:
 			pass
-		mode_parser.add_argument('--seed', type=int, help='random generator seed (for testing purposes)')
+		mode_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
 		mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
 		mode_parser.set_defaults(func=_infer(mode))
 

@@ -10,11 +10,11 @@ These parameters may include diffusivity, forces (directional biases), interacti
 
 .. image:: concepts.*
 
-A preliminary processing step before generating maps consists of segmentating the space and time into cells that accomodate enough molecule locations so that the inference can generate reliable estimates and, on the other hand, are small enough so that relevant spatial(-temporal) variations in the dynamic parameters can be observed.
+A preliminary processing step before generating maps consists of segmentating the space and time into cells that accomodate enough molecule locations so that the inference can generate reliable estimates and, on the other hand, are small enough so that relevant spatial(-temporal) variations in the dynamic parameters can be resolved.
 
-This step is referred to as "`tessellation <commandline.html#tessellation>`_" but may consist of temporal windowing for example.
+This step is referred to as ":ref:`tessellation <commandline_tessellation>`" but may consist of temporal windowing for example.
 
-The central and often most time-consuming step consists of `inferring <commandline.html#inference>`_ the value of the parameters in each cell.
+The central and often most time-consuming step consists of :ref:`inferring <commandline_inference>` the value of the parameters in each cell.
 
 As such, maps of these parameters can readily exhibit descriptive information.
 A further step consists of extracting features from these maps.

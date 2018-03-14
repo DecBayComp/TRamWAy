@@ -14,6 +14,8 @@
 
 import numpy as np
 import pandas as pd
+import re
+import collections
 
 def isstructured(x):
 	"""
@@ -62,8 +64,6 @@ def columns(x):
 		raise ValueError('not structured')
 
 def splitcoord(varnames):
-	import re
-	import collections
 	coord = re.compile('[a-z][0-9]*$')
 	vs = collections.defaultdict(list)
 	for v in varnames:

@@ -315,7 +315,11 @@ class Scaler(object):
 				raise ValueError('not enough euclidean dimensions')
 			try:
 				factor = self.factor[self.euclidean[0]]
-			except KeyError: # Py3 bugfix on loading Py2-generated rwa files
+			except KeyError:
+				# on loading Py2-generated Series or DataFrame from an rwa file,
+				# PyTables may convert Py2 str in index/columns into Py3 str;
+				# as a consequence `columns` and `euclidean` should also be converted
+				self.columns = [ name.decode('utf-8') for name in self.columns ]
 				self.euclidean = [ name.decode('utf-8') for name in self.euclidean ]
 				factor = self.factor[self.euclidean[0]]
 			if self.euclidean[1:] and not np.all(self.factor[self.euclidean[1:]] == factor):
