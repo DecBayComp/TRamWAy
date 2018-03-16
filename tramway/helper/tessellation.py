@@ -17,13 +17,13 @@ import numpy as np
 import pandas as pd
 import scipy.linalg as la
 import scipy.sparse as sparse
-import matplotlib.pyplot as plt
 from ..core import *
 from ..tessellation import *
-from ..plot.mesh import *
 from warnings import warn
 import six
 import traceback
+# no module-wide matplotlib import for head-less usage of `tessellate`
+# in the case matplotlib's backend is interactive
 
 
 hdf_extensions = ['.rwa', '.h5', '.hdf', '.hdf5']
@@ -566,6 +566,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		See also :mod:`tramway.plot.mesh`.
 
 	"""
+	import matplotlib.pyplot as mplt
+	import tramway.plot.mesh as tplt
 	input_file = ''
 	if not isinstance(cells, CellStats):
 		if label is None:
@@ -686,13 +688,13 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	figs = []
 	dim = cells.tessellation.cell_centers.shape[1]
 	if dim == 2:
-		fig = plt.figure(figsize=figsize)
+		fig = mplt.figure(figsize=figsize)
 		figs.append(fig)
 		if locations is not None:
 			if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
-				plot_points(cells, **locations)
+				tplt.plot_points(cells, **locations)
 			else:
-				plot_points(cells, min_count=min_location_count, **locations)
+				tplt.plot_points(cells, min_count=min_location_count, **locations)
 		if aspect is not None:
 			fig.gca().set_aspect(aspect)
 		if voronoi is None:
@@ -700,22 +702,22 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		if xy_layer != 'delaunay' and voronoi:
 			if not isinstance(voronoi, dict):
 				voronoi = {}
-			plot_voronoi(cells, **voronoi)
+			tplt.plot_voronoi(cells, **voronoi)
 			voronoi = True
 		if xy_layer == 'delaunay' or delaunay: # Delaunay above Voronoi
 			if not isinstance(delaunay, dict):
 				delaunay = {}
-			plot_delaunay(cells, **delaunay)
+			tplt.plot_delaunay(cells, **delaunay)
 			delaunay = True
 		if title:
 			if isinstance(title, str):
-				plt.title(title)
+				mplt.title(title)
 			elif delaunay == voronoi:
-				plt.title(pp_method_name)
+				mplt.title(pp_method_name)
 			elif delaunay:
-				plt.title(pp_method_name + ' based Delaunay')
+				mplt.title(pp_method_name + ' based Delaunay')
 			elif voronoi:
-				plt.title(pp_method_name + ' based Voronoi')
+				mplt.title(pp_method_name + ' based Voronoi')
 
 
 	print_figs = output_file or (input_file and fig_format)
@@ -746,12 +748,12 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
 	if location_count_hist:
 		# plot a histogram of the number of points per cell
-		fig = plt.figure()
+		fig = mplt.figure()
 		figs.append(fig)
-		plt.hist(cells.location_count, bins=np.arange(0, min_location_count*20, min_location_count))
-		plt.plot((min_location_count, min_location_count), plt.ylim(), 'r-')
-		plt.title(method_title)
-		plt.xlabel('point count (per cell)')
+		mplt.hist(cells.location_count, bins=np.arange(0, min_location_count*20, min_location_count))
+		mplt.plot((min_location_count, min_location_count), mplt.ylim(), 'r-')
+		mplt.title(method_title)
+		mplt.xlabel('point count (per cell)')
 		if print_figs:
 			hpc_file = '{}.{}.{}'.format(filename, 'hpc', figext)
 			if verbose:
@@ -768,16 +770,16 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			j = j[0 < label[k]]
 		pts = cells.tessellation.cell_centers
 		dist = la.norm(pts[i,:] - pts[j,:], axis=1)
-		fig = plt.figure()
+		fig = mplt.figure()
 		figs.append(fig)
-		plt.hist(np.log(dist), bins=50)
+		mplt.hist(np.log(dist), bins=50)
 		if avg_distance:
 			dmin = np.log(min_distance)
 			dmax = np.log(avg_distance)
-			plt.plot((dmin, dmin), plt.ylim(), 'r-')
-			plt.plot((dmax, dmax), plt.ylim(), 'r-')
-		plt.title(method_title)
-		plt.xlabel('inter-centroid distance (log)')
+			mplt.plot((dmin, dmin), mplt.ylim(), 'r-')
+			mplt.plot((dmax, dmax), mplt.ylim(), 'r-')
+		mplt.title(method_title)
+		mplt.xlabel('inter-centroid distance (log)')
 		if print_figs:
 			hcd_file = '{}.{}.{}'.format(filename, sub_extensions['hcd'], figext)
 			if verbose:
@@ -787,16 +789,16 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 	if location_dist_hist:
 		adj = point_adjacency_matrix(cells, symetric=False)
 		dist = adj.data
-		fig = plt.figure()
+		fig = mplt.figure()
 		figs.append(fig)
-		plt.hist(np.log(dist), bins=100)
+		mplt.hist(np.log(dist), bins=100)
 		if avg_distance:
 			dmin = np.log(min_distance)
 			dmax = np.log(avg_distance)
-			plt.plot((dmin, dmin), plt.ylim(), 'r-')
-			plt.plot((dmax, dmax), plt.ylim(), 'r-')
-		plt.title(method_title)
-		plt.xlabel('inter-point distance (log)')
+			mplt.plot((dmin, dmin), mplt.ylim(), 'r-')
+			mplt.plot((dmax, dmax), mplt.ylim(), 'r-')
+		mplt.title(method_title)
+		mplt.xlabel('inter-point distance (log)')
 		if print_figs:
 			hpd_file = '{}.{}.{}'.format(filename, sub_extensions['hpd'], figext)
 			if verbose:
@@ -805,12 +807,12 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
 	if show or not print_figs:
 		if show == 'draw':
-			plt.draw()
+			mplt.draw()
 		elif show is not False:
-			plt.show()
+			mplt.show()
 	else:
 		for fig in figs:
-			plt.close(fig)
+			mplt.close(fig)
 
 
 

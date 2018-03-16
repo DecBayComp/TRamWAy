@@ -10,4 +10,3 @@ License
 	:language: text
 	:encoding: latin1
 
-.. |tramway| replace:: **TRamWAy**

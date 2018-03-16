@@ -100,16 +100,3 @@ Where to start
 	api
 
 
-.. in commandline, datamodel, 
-.. |txt| replace:: *.txt*
-.. in commandline, datamodel, 
-.. |xyt| replace:: *.xyt*
-.. |trxyt| replace:: *.trxyt*
-.. in datamodel, 
-.. |rwa| replace:: *.rwa*
-.. in datamodel, 
-.. |seconds| replace:: **seconds**
-.. |um| replace:: **µm**
-.. in index, installation, concepts, datamodel, api, license, inference
-.. |tramway| replace:: **TRamWAy**
-

@@ -16,5 +16,4 @@ The recommended starting point is :mod:`tramway.helper`.
     tramway.feature
     tramway.utils
 
-.. |tramway| replace:: **TRamWAy**
 

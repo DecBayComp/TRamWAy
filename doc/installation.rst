@@ -25,5 +25,4 @@ To compile the documentation and get a local copy, after installing |tramway| do
 
 The generated documentation will be available at ``_build/html/index.html`` from the ``doc`` repository.
 
-.. |tramway| replace:: **TRamWAy**
 

@@ -24,11 +24,10 @@ from collections import OrderedDict
 
 setup = {'arguments': OrderedDict((
 		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
-		('diffusivity_prior',	('-d', dict(type=float, default=0., help='prior on the diffusivity'))),
-		('potential_prior',	('-v', dict(type=float, default=2., help='prior on the potential'))),
+		('diffusivity_prior',	('-d', dict(type=float, default=0.05, help='prior on the diffusivity'))),
+		('potential_prior',	('-v', dict(type=float, default=0.05, help='prior on the potential'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
-		('min_diffusivity',	dict(type=float, default=0., help='minimum diffusivity value allowed')),
-		('diffusive_drift',	dict(action='store_true', help='make the diffusive drift available')))),
+		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed')))),
 		'cell_sampling': 'group'}
 
 
@@ -125,9 +124,9 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 		# various posterior terms
 		D_dt = D[j] * cell.dt
 		denominator = 4. * (D_dt + noise_dt)
-		dxy_minus_drift = cell.dxy + np.outer(D_dt, gradV)
+		dr_minus_drift = cell.dr + np.outer(D_dt, gradV)
 		# non-directional squared displacement
-		ndsd = np.sum(dxy_minus_drift * dxy_minus_drift, axis=1)
+		ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
 		result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
 		# priors
 		if dv.potential_prior:
@@ -139,14 +138,21 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 				# `grad_sum` memoizes and can be called several times at no extra cost
 				result += dv.diffusivity_prior * cells.grad_sum(i, gradD * gradD)
 	if jeffreys_prior:
-		result += 2. * np.sum(np.log(D * dt_mean + noise_dt) - np.log(D))
+		result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
 	return result
 
 
-def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_prior=2., \
-		jeffreys_prior=False, min_diffusivity=0, diffusive_drift=False, **kwargs):
+def inferDV(cells, localization_error=0.03, diffusivity_prior=0.05, potential_prior=0.05, \
+	jeffreys_prior=False, min_diffusivity=None, **kwargs):
+	if min_diffusivity is None:
+		if jeffreys_prior:
+			min_diffusivity = 0.01
+		else:
+			min_diffusivity = 0
+	elif min_diffusivity is False:
+		min_diffusivity = None
 	# initial values and sanity checks
-	index, n, dt_mean, initial = [], [], [], []
+	index, n, dt_mean, D_initial = [], [], [], []
 	for i in cells:
 		cell = cells[i]
 		if not bool(cell):
@@ -154,24 +160,24 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
 		# ensure that translocations are properly oriented in time
 		if not np.all(0 < cell.dt):
 			warn('translocation dts are not all positive', RuntimeWarning)
-			cell.dxy[cell.dt < 0] *= -1.
-			cell.dt[ cell.dt < 0] *= -1.
+			cell.dr[cell.dt < 0] *= -1.
+			cell.dt[cell.dt < 0] *= -1.
 		# initialize the local diffusivity parameter
 		dt_mean_i = np.mean(cell.dt)
-		initial_i = np.mean(cell.dxy * cell.dxy) / (2.0 * dt_mean_i)
+		D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
 		#
 		index.append(i)
 		n.append(float(len(cell)))
 		dt_mean.append(dt_mean_i)
-		initial.append(initial_i)
+		D_initial.append(D_initial_i)
 	any_cell = cell
-	index, n, dt_mean, initialD = np.array(index), np.array(n), np.array(dt_mean), np.array(initial)
-	initialV = -np.log(n / np.sum(n))
-	dv = DV(initialD, initialV, diffusivity_prior, potential_prior, min_diffusivity)
+	n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
+	V_initial = -np.log(n / np.sum(n))
+	dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity)
 	# parametrize the optimization algorithm
 	if min_diffusivity is not None:
-		kwargs['bounds'] = [(min_diffusivity, None)] * initialD.size + \
-			[(None, None)] * initialV.size
+		kwargs['bounds'] = [(min_diffusivity, None)] * D_initial.size + \
+			[(None, None)] * V_initial.size
 		#kwargs['method'] = 'L-BFGS-B'
 	# run the optimization routine
 	squared_localization_error = localization_error * localization_error
@@ -181,7 +187,6 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
 	# collect the result
 	dv.update(result.x)
 	D, V = dv.D, dv.V
-	index = np.array(list(cells.keys()))
 	DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
 		columns=[ 'diffusivity', 'potential'])
 	# derivate the forces
@@ -194,16 +199,5 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
 	F = pd.DataFrame(np.stack(F, axis=0), index=index_, \
 		columns=[ 'force ' + col for col in any_cell.space_cols ])
 	DVF = DVF.join(F)
-	# derivate the diffusive drifts
-	if diffusive_drift:
-		index_, drift = [], []
-		for i, D_i in zip(index, D):
-			gradD_i = cells.grad(i, D)
-			if gradD_i is not None:
-				index_.append(i)
-				drift.append( D_i * gradD_i )
-		drift = pd.DataFrame(np.stack(drift, axis=0), index=index_, \
-			columns=[ 'drift ' + col for col in any_cell.space_cols ])
-		DVF = DVF.join(drift)
 	return DVF
 

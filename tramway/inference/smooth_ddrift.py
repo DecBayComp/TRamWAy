@@ -22,8 +22,8 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name': 'smooth.df',
-	'provides': 'df',
+setup = {'name': ('smooth.dd', 'smooth.ddrift'),
+	'provides': ('dd', 'ddrift'),
 	'arguments': OrderedDict((
 		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
 		('diffusivity_prior',	('-d', dict(type=float, default=0.05, help='prior on the diffusivity'))),
@@ -32,11 +32,11 @@ setup = {'name': 'smooth.df',
 		'cell_sampling': 'group'}
 
 
-def smooth_df_neg_posterior(x, df, cells, squared_localization_error, diffusivity_prior, jeffreys_prior,
-	dt_mean, min_diffusivity):
-	# extract `D` and `F`
-	df.update(x)
-	D, F = df['D'], df['F']
+def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivity_prior, jeffreys_prior,
+		dt_mean, min_diffusivity):
+	# extract `D` and `drift`
+	dd.update(x)
+	D, drift = dd['D'], dd['drift']
 	#
 	if min_diffusivity is not None:
 		observed_min = np.min(D)
@@ -49,9 +49,8 @@ def smooth_df_neg_posterior(x, df, cells, squared_localization_error, diffusivit
 		cell = cells[i]
 		n = len(cell) # number of translocations
 		# various posterior terms
-		D_dt = D[j] * cell.dt
-		denominator = 4. * (D_dt + noise_dt) # 4*(D+Dnoise)*dt
-		dr_minus_drift_dt = cell.dr - np.outer(D_dt, F[j])
+		denominator = 4. * (D[j] * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
+		dr_minus_drift_dt = cell.dr - np.outer(cell.dt, drift[j])
 		# non-directional squared displacement
 		ndsd = np.sum(dr_minus_drift_dt * dr_minus_drift_dt, axis=1)
 		result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
@@ -61,11 +60,11 @@ def smooth_df_neg_posterior(x, df, cells, squared_localization_error, diffusivit
 			# `grad_sum` memoizes and can be called several times at no extra cost
 			result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
 	if jeffreys_prior:
-		result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
+		result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error))
 	return result
 
 
-def infer_smooth_DF(cells, localization_error=0.03, diffusivity_prior=0.05, jeffreys_prior=False,
+def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=0.05, jeffreys_prior=False,
 	min_diffusivity=None, **kwargs):
 	if min_diffusivity is None:
 		if jeffreys_prior:
@@ -93,22 +92,22 @@ def infer_smooth_DF(cells, localization_error=0.03, diffusivity_prior=0.05, jeff
 		dt_mean.append(dt_mean_i)
 		D_initial.append(D_initial_i)
 	any_cell = cell
-	index, dt_mean, D_initial = np.array(index), np.array(dt_mean), np.array(D_initial)
-	F_initial = np.zeros((len(cells), any_cell.dim), dtype=D_initial.dtype)
-	df = ChainArray('D', D_initial, 'F', F_initial)
+	dt_mean, D_initial = np.array(dt_mean), np.array(D_initial)
+	initial_drift = np.zeros((len(cells), any_cell.dim), dtype=D_initial.dtype)
+	dd = ChainArray('D', D_initial, 'drift', initial_drift)
 	# parametrize the optimization algorithm
 	if min_diffusivity is not None:
 		kwargs['bounds'] = [(min_diffusivity, None)] * D_initial.size + \
-			[(None, None)] * F_initial.size
+			[(None, None)] * initial_drift.size
 	#cell.cache = None # no cache needed
 	sle = localization_error * localization_error # sle = squared localization error
-	args = (df, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity)
-	result = minimize(smooth_df_neg_posterior, df.combined, args=args, **kwargs)
+	args = (dd, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity)
+	result = minimize(smooth_dd_neg_posterior, dd.combined, args=args, **kwargs)
 	# collect the result
-	df.update(result.x)
-	D, F = df['D'], df['F']
-	DF = pd.DataFrame(np.c_[D[:,np.newaxis], F], index=index, \
+	dd.update(result.x)
+	D, drift = dd['D'], dd['drift']
+	DD = pd.DataFrame(np.c_[D[:,np.newaxis], drift], index=index, \
 		columns=[ 'diffusivity' ] + \
-			[ 'force ' + col for col in any_cell.space_cols ])
-	return DF
+			[ 'drift ' + col for col in any_cell.space_cols ])
+	return DD
 

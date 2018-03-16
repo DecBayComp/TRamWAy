@@ -171,8 +171,3 @@ To sum up this primer, the content of the *example.rwa* file that results from a
 
 
 
-.. |txt| replace:: *.txt*
-.. |xyt| replace:: *.xyt*
-.. |trxyt| replace:: *.trxyt*
-.. |rwa| replace:: *.rwa*
-

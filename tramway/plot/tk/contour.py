@@ -14,6 +14,11 @@
 
 import matplotlib
 matplotlib.use('TkAgg')
+try:
+	import matplotlib.pyplot
+except: # TclError; head-less tramway
+	matplotlib.use('Agg')
+	# the present application will fail if run
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg

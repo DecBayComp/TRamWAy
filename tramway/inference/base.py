@@ -851,11 +851,11 @@ class Locations(Cell):
 			locations as a matrix of coordinates and times with as many 
 			columns as dimensions; this is an alias for :attr:`~Local.data`.
 
+		r (array-like, ro property):
+			location coordinates; `xy` is an alias
+
 		t (array-like, ro property):
 			location timestamps.
-
-		xy (array-like, ro property):
-			location coordinates.
 
 	"""
 	__slots__ = ()
@@ -877,6 +877,14 @@ class Locations(Cell):
 		self.time_data = t
 
 	@property
+	def r(self):
+		return self.space_data
+
+	@r.setter
+	def r(self, r):
+		self.space_data = r
+
+	@property
 	def xy(self):
 		return self.space_data
 
@@ -893,11 +901,11 @@ class Translocations(Cell):
 			translocations as a matrix of variations of coordinate and time with as many 
 			columns as dimensions; this is an alias for :attr:`~Local.data`.
 
+		dr (array-like, ro property):
+			translocation displacements in space; `dxy` is an alias.
+
 		dt (array-like, ro property):
 			translocation durations.
-
-		dxy (array-like, ro property):
-			translocation changes in coordinate.
 
 		origins (array-like, ro property):
 			initial locations (both spatial coordinates and times).
@@ -928,6 +936,14 @@ class Translocations(Cell):
 	@dt.setter
 	def dt(self, dt):
 		self.time_data = dt
+
+	@property
+	def dr(self):
+		return self.space_data
+
+	@dr.setter
+	def dr(self, dr):
+		self.space_data = dr
 
 	@property
 	def dxy(self):
@@ -1255,15 +1271,21 @@ class Maps(Lazy):
 
 
 class DiffusivityWarning(RuntimeWarning):
-	def __init__(self, diffusivity, lower_bound):
+	def __init__(self, diffusivity, lower_bound=None):
 		self.diffusivity = diffusivity
 		self.lower_bound = lower_bound
 
 	def __repr__(self):
-		return 'DiffusivityWarning({}, {})'.format(self.diffusivity, self.lower_bound)
+		if self.lower_bound is None:
+			return 'DiffusivityWarning({})'.format(self.diffusivity)
+		else:
+			return 'DiffusivityWarning({}, {})'.format(self.diffusivity, self.lower_bound)
 
 	def __str__(self):
-		return 'diffusivity too low: {} < {}'.format(self.diffusivity, self.lower_bound)
+		if self.lower_bound is None:
+			return 'wrong diffusivity value: {}'.format(self.diffusivity)
+		else:
+			return 'diffusivity too low: {} < {}'.format(self.diffusivity, self.lower_bound)
 
 
 

@@ -15,14 +15,14 @@
 from tramway.core import *
 from tramway.inference import *
 import tramway.inference as inference # inference.plugins
-from tramway.plot.map import *
 from tramway.helper.tessellation import *
-import matplotlib.pyplot as plt
 from warnings import warn
 import os
 from time import time
 import collections
 import traceback
+# no module-wide matplotlib import for head-less usage of `infer`
+# in the case matplotlib's backend is interactive
 
 
 #sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx']])
@@ -57,9 +57,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 		localization_error (float): localization error
 
-		prior_diffusivity (float): prior diffusivity
+		diffusivity_prior (float): prior diffusivity
 
-		prior_potential (float): prior potential
+		potential_prior (float): prior potential
 
 		jeffreys_prior (float): Jeffreys' prior
 
@@ -299,6 +299,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 		mode (bool or str): inference mode; can be ``False`` so that mode information from
 			files, analysis trees and encapsulated maps are not displayed
 	"""
+	import matplotlib.pyplot as mplt
+	import tramway.plot.mesh as xplt
+	import tramway.plot.map  as yplt
 
 	# get cells and maps objects from the first input argument
 	input_file = None
@@ -395,9 +398,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 				col_kwargs[a] = kwargs[a]
 
 		if figsize:
-			fig = plt.figure(figsize=figsize)
+			fig = mplt.figure(figsize=figsize)
 		else:
-			fig = plt.gcf()
+			fig = mplt.gcf()
 		figs.append(fig)
 
 		_map = maps[col]
@@ -410,13 +413,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			__clip = clip
 		if __clip:
 			_map = _clip(_map, __clip)
-		scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
+		yplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
 		if point_style is not None:
 			points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
 			if 'color' not in point_style:
 				point_style['color'] = None
-			plot_points(points, **point_style)
+			xplt.plot_points(points, **point_style)
 
 		if mode:
 			if short_name:
@@ -427,7 +430,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			title = '{} ({})'.format(short_name, col)
 		else:
 			title = '{}'.format(col)
-		plt.title(title)
+		mplt.title(title)
 
 		if print_figs:
 			if maps.shape[1] == 1:
@@ -451,9 +454,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 				var_kwargs[a] = kwargs[a]
 		
 		if figsize:
-			fig = plt.figure(figsize=figsize)
+			fig = mplt.figure(figsize=figsize)
 		else:
-			fig = plt.gcf()
+			fig = mplt.gcf()
 		figs.append(fig)
 
 		_vector_map = maps[cols]
@@ -467,15 +470,15 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 		if __clip:
 			_vector_map = _clip(_vector_map, __clip)
 		if point_style is None:
-			field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
+			yplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
 		else:
 			_scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
-			scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
+			yplt.scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
 			points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
 			if 'color' not in point_style:
 				point_style['color'] = None
-			plot_points(points, **point_style)
-			field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
+			xplt.plot_points(points, **point_style)
+			yplt.field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
 
 		extra = None
 		if short_name:
@@ -492,7 +495,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			title = '{} ({})'.format(main, extra)
 		else:
 			title = main
-		plt.title(title)
+		mplt.title(title)
 
 		if print_figs:
 			if maps.shape[1] == 1:
@@ -509,12 +512,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
 	if show or not print_figs:
 		if show == 'draw':
-			plt.draw()
+			mplt.draw()
 		elif show is not False:
-			plt.show()
+			mplt.show()
 	elif print_figs:
 		for fig in figs:
-			plt.close(fig)
+			mplt.close(fig)
 
 
 def _clip(m, q):

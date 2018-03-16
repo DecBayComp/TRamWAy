@@ -101,11 +101,3 @@ Quantifier '*last*' is the default one.
 See also :func:`~tramway.core.analyses.lazy.find_artefacts` for more options.
 
 
-.. |txt| replace:: *.txt*
-.. |xyt| replace:: *.xyt*
-.. |trxyt| replace:: *.trxyt*
-.. |rwa| replace:: *.rwa*
-.. |seconds| replace:: **seconds**
-.. |um| replace:: **µm**
-.. |tramway| replace:: **TRamWAy**
-

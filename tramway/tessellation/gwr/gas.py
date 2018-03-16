@@ -17,9 +17,6 @@ import numpy as np
 import numpy.linalg as la
 from .graph import *
 #from .graph.array import ArrayGraph
-import matplotlib.pyplot as plt
-import matplotlib.colors as clr
-import matplotlib.patches as patches
 import time
 from scipy.spatial.distance import cdist
 from scipy.special import gamma
@@ -169,6 +166,9 @@ class Gas(Graph):
 	def plot_habituation(self):
 		##TODO: find a more general implementation for reading the habituations, and underlay
 		# a histogram of the habituation counter in the graph
+		import matplotlib.pyplot as plt
+		import matplotlib.colors as clr
+		import matplotlib.patches as patches
 		if isinstance(self.graph, DictGraph):
 			tmax = max(self.graph.nodes['habituation_counter'].values())
 			tmax = round(float(tmax) / 100) * 100
@@ -410,6 +410,8 @@ class Gas(Graph):
 
 	def boxed_radius(self, sample, knn, rmin, rmax, verbose=False, plot=False):
 		#plot = True
+		if plot:
+			import matplotlib.pyplot as plt
 		d = sample.shape[1]
 		d = int(d) # PY2
 		#if d == 2:
@@ -560,6 +562,8 @@ class Gas(Graph):
 
 	def boxed_radius2d(self, sample, knn, rmin, rmax, plot=False):
 		# deprecated: too many approximations here
+		if plot:
+			import matplotlib.pyplot as plt
 		t = time.time()
 		n = sample.shape[0]
 		radius = rmin * np.ones(n, dtype=sample.dtype)

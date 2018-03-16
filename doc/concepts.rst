@@ -20,5 +20,3 @@ As such, maps of these parameters can readily exhibit descriptive information.
 A further step consists of extracting features from these maps.
 
 
-.. |tramway| replace:: **TRamWAy**
-

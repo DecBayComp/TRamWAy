@@ -1,0 +1,18 @@
+
+.. |tramway| replace:: **TRamWAy**
+.. _InferenceMAP: https://research.pasteur.fr/en/software/inferencemap/
+
+.. |txt| replace:: *.txt*
+.. |xyt| replace:: *.xyt*
+.. |trxyt| replace:: *.trxyt*
+.. |rwa| replace:: *.rwa*
+
+.. |seconds| replace:: **seconds**
+.. |um| replace:: **µm**
+
+.. html only
+.. _(D): inference#inference_d
+.. _(D,F): inference#inference_df
+.. _(D,Drift): inference#inference_dd
+.. _(D,V): inference#inference_dv
+

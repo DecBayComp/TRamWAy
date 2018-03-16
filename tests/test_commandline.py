@@ -17,9 +17,9 @@ import traceback
 import random
 
 
-py2_hash, py3_hash = 'kmBWBrW9', '5LT3575u'
+py2_hash, py3_hash = '9SoX67ul', 'Y8eL4ZvC'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '180313'
+data_update = '180316'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
@@ -140,8 +140,6 @@ class TestTessellation(object):
 		self.common(tmpdir, datadir, 'gwr', 'gwr0')
 	def test_overlapping_knn(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'gwr -w -d 0.3 -s 30 --knn 50', 'knn0')
-#	def test_plot_mesh(self, tmpdir, datadir):
-#		pass
 
 class TestInference(object):
 
@@ -182,13 +180,17 @@ class TestInference(object):
 		assert not out
 
 	def test_d(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'd', 'd0')
+		self.common(tmpdir, datadir, 'd -j', 'd0')
 	def test_df(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'df', 'df0')
+		self.common(tmpdir, datadir, 'df -j', 'df0')
 	def test_dd(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'dd -C 10 --dilation 1', 'dd0')
+		self.common(tmpdir, datadir, 'dd -j', 'dd0')
 	def test_dv(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'dv --dilation 1 --max-cell-count 10', 'dv0')
-#	def test_plot_map(self, tmpdir, datadir):
-#		pass
+		self.common(tmpdir, datadir, 'dv --dilation 1 --max-cell-count 10 -j', 'dv0')
+	def test_smooth_d(self, tmpdir, datadir):
+		self.common(tmpdir, datadir, 'smooth.d -C 10 --dilation 1 -j', 'd1')
+	def test_smooth_df(self, tmpdir, datadir):
+		self.common(tmpdir, datadir, 'smooth.df -C 10 --dilation 1 -j', 'df1')
+	def test_smooth_dd(self, tmpdir, datadir):
+		self.common(tmpdir, datadir, 'smooth.dd -C 10 --dilation 1 -j', 'dd1')
 

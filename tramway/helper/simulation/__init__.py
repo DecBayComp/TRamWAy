@@ -25,10 +25,10 @@ def random_walk(diffusivity=None, force=None, \
 	Arguments:
 
 		diffusivity (callable): takes a coordinate vector (array-like) and time (float)
-			and returns the local diffusivity (float) in um2.s-1
+			and returns the local diffusivity (float) in :math:`\mu m^2.s^{-1}`
 
 		force (callable): takes a coordinate vector (array-like) and time (float) and
-			returns the local force (:class:`~numpy.ndarray`) in um-1.s(?)
+			returns the local force (:class:`~numpy.ndarray`) in numbers of :math:`k_BT`
 
 		trajectory_mean_count (int or float): average number of active trajectories at any time
 

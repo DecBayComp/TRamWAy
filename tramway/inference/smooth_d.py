@@ -21,17 +21,18 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name': ('dd', 'ddrift'),
+setup = {'name': 'smooth.d',
+	'provides': 'd',
 	'arguments': OrderedDict((
 		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
-		('diffusivity_prior',	('-d', dict(type=float, default=0.01, help='prior on the diffusivity'))),
+		('diffusivity_prior',	('-d', dict(type=float, default=0.05, help='prior on the diffusivity'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
-		('min_diffusivity',	dict(type=float, default=0., help='minimum diffusivity value allowed')))),
+		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed')))),
 	'cell_sampling': 'group'}
 
 
-def dd_neg_posterior(diffusivity, cells, squared_localization_error, diffusivity_prior, jeffreys_prior, \
-		dt_mean, min_diffusivity):
+def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffusivity_prior, \
+		jeffreys_prior, dt_mean, min_diffusivity):
 	"""
 	Adapted from InferenceMAP's *dDDPosterior* procedure::
 
@@ -77,7 +78,7 @@ def dd_neg_posterior(diffusivity, cells, squared_localization_error, diffusivity
 		n = len(cell)
 		# posterior calculations
 		if cell.cache['dr2'] is None:
-			cell.cache['dr2'] = np.sum(cell.dxy * cell.dxy, axis=1) # dx**2 + dy**2 + ..
+			cell.cache['dr2'] = np.sum(cell.dr * cell.dr, axis=1) # dx**2 + dy**2 + ..
 		D_dt = 4. * (diffusivity[j] * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
 		result += n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
 		result += np.sum(cell.cache['dr2'] / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
@@ -88,53 +89,51 @@ def dd_neg_posterior(diffusivity, cells, squared_localization_error, diffusivity
 			if gradD is not None:
 				result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
 	if jeffreys_prior:
-		result += 2. * np.sum( log(diffusivity * dt_mean + squared_localization_error) - \
-					log(diffusivity) )
+		result += 2. * np.sum(np.log(diffusivity * dt_mean + squared_localization_error))
 	return result
 
-def inferDD(cells, localization_error=0.03, diffusivity_prior=None, jeffreys_prior=None, \
-		min_diffusivity=0, **kwargs):
+def infer_smooth_D(cells, localization_error=0.03, diffusivity_prior=0.05, jeffreys_prior=None, \
+	min_diffusivity=None, **kwargs):
+	if min_diffusivity is None:
+		if jeffreys_prior:
+			min_diffusivity = 0.01
+		else:
+			min_diffusivity = 0
+	elif min_diffusivity is False:
+		min_diffusivity = None
 	# initialize the diffusivity array and the caches
-	index, dt_mean, initial = [], [], []
+	index, dt_mean, D_initial = [], [], []
 	for i in cells:
 		cell = cells[i]
+		# sanity checks
 		if not bool(cell):
 			raise ValueError('empty cells')
-		# sanity checks
+		# ensure that translocations are properly oriented in time
 		if not np.all(0 < cell.dt):
 			warn('translocation dts are not all positive', RuntimeWarning)
-			cell.dxy[cell.dt < 0] *= -1.
-			cell.dt[ cell.dt < 0] *= -1.
+			cell.dr[cell.dt < 0] *= -1.
+			cell.dt[cell.dt < 0] *= -1.
 		# initialize the cache
 		cell.cache = dict(dr2=None)
 		# initialize the local diffusivity parameter
 		dt_mean_i = np.mean(cell.dt)
-		initial_i = np.mean(cell.dxy * cell.dxy) / (2. * dt_mean_i)
+		D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
 		#
 		index.append(i)
 		dt_mean.append(dt_mean_i)
-		initial.append(initial_i)
+		D_initial.append(D_initial_i)
 	any_cell = cell
-	index, dt_mean, initialD = np.array(index), np.array(dt_mean), np.array(initial)
+	index, dt_mean, D_initial = np.array(index), np.array(dt_mean), np.array(D_initial)
 	# parametrize the optimization procedure
 	if min_diffusivity is not None:
-		kwargs['bounds'] = [(min_diffusivity,None)] * initialD.size
+		kwargs['bounds'] = [(min_diffusivity,None)] * D_initial.size
 	# run the optimization
-	sle = localization_error * localization_error
-	result = minimize(dd_neg_posterior, initialD,
-		args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity),
+	sle = localization_error * localization_error # sle = squared localization error
+	result = minimize(smooth_d_neg_posterior, D_initial, \
+		args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity), \
 		**kwargs)
 	# format the result
 	D = result.x
-	DD = pd.DataFrame(data=D, index=index, columns=['diffusivity'])
-	# derivate the diffusive drifts
-	index_, drift = [], []
-	for i, D_i in zip(index, D):
-		gradD_i = cells.grad(i, D)
-		if gradD_i is not None:
-			index_.append(i)
-			drift.append( D_i * gradD_i )
-	drift = pd.DataFrame(data=np.stack(drift, axis=0), index=index_,
-		columns=[ 'drift ' + col for col in any_cell.space_cols ])
-	return DD.join(drift)
+	DD = pd.DataFrame(D, index=index, columns=['diffusivity'])
+	return DD
 
