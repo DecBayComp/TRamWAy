@@ -13,9 +13,9 @@ short_description = 'generate trajectories and infer diffusivity and potential m
 
 
 method = 'gwr'
-localization_error = 0.001
-priorD = 0.01
-priorV = 0.01
+localization_error = 0.03
+priorD = 0.05
+priorV = 0.05
 minD = -localization_error
 
 

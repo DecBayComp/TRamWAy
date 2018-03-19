@@ -16,9 +16,9 @@ verbose = True
 
 
 methods = ['grid', 'kdtree', 'kmeans', 'gwr']
-default_localization_error = 0.001
-default_prior_diffusivity = 0.01
-default_prior_potential = 0.1
+default_localization_error = 0.03
+default_prior_diffusivity = 0.05
+default_prior_potential = 0.05
 
 
 arguments = [

@@ -20,9 +20,9 @@ short_description = 'temporal regularization with predefined temporal mesh'
 name = 'regular_temporal_mesh'
 
 method = 'grid'
-localization_error = 0.001
-priorD = 0.01
-#priorV = 0.1
+localization_error = 0.03
+priorD = 0.05
+#priorV = 0.05
 minD = -localization_error
 
 

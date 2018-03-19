@@ -34,9 +34,15 @@ def _parse_args(args):
 	except KeyError:
 		pass
 	try:
-		input_files += kwargs.pop('input_file')
+		more_input_files = kwargs.pop('input_file')
 	except KeyError:
 		pass
+	else:
+		if more_input_files:
+			if isinstance(more_input_files, list):
+				input_files += more_input_files
+			else:
+				input_files.append(more_input_files)
 	if not input_files:
 		print('please specify input file(s)')
 		sys.exit(1)
