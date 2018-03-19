@@ -73,7 +73,12 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
 			sample_dt = sample['t'].diff()[1:]
 			if not all(0 < sample_dt):
 				if any(0 == sample_dt):
-					print(sample)
+					try:
+						conflicting = sample_dt.values == 0
+						conflicting = np.logical_or(np.r_[False, conflicting], np.r_[conflicting, False])
+						print(sample.loc[conflicting])
+					except:
+						pass
 					raise ValueError("some indices refer to multiple simultaneous trajectories in table: '{}'".format(f))
 				else:
 					warnings.warn(EfficiencyWarning("table '{}' is not properly ordered".format(f)))

@@ -25,8 +25,6 @@ import traceback
 # in the case matplotlib's backend is interactive
 
 
-#sub_extensions = dict([(ext.upper(), ext) for ext in ['d', 'df', 'dd', 'dv', 'dx']])
-
 
 def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
@@ -135,12 +133,12 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		if isinstance(input_label, (tuple, list)):
 			if input_label[1:]:
 				analysis = all_analyses
-				for label in input_label[:-1]:
+				for label in input_label:#[:-1]
 					analysis = analysis[label]
 				cells = analysis.data
-				analysis = analysis[input_label[-1]]
-				if not isinstance(cells, CellStats):
-					cells = analysis.data
+				#analysis = analysis[input_label[-1]]
+				#if not isinstance(cells, CellStats):
+				#	cells = analysis.data
 			else:
 				input_label = input_label[0]
 		if cells is None:

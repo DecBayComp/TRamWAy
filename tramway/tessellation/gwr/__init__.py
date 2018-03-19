@@ -33,11 +33,11 @@ class GasMesh(Voronoi):
 			internal graph representation of the gas.
 		min_probability (float):
 			minimum probability of a point to be in any given cell.
-		_min_distance (float, private):
+		_min_distance (float):
 			scaled minimum distance between adjacent cell centers.
-		_avg_distance (float, private):
+		_avg_distance (float):
 			upper bound on the average scaled distance between adjacent cell centers.
-		_max_distance (float, private):
+		_max_distance (float):
 			scaled maximum distance between adjacent cell centers."""
 	def __init__(self, scaler=None, min_distance=None, avg_distance=None, max_distance=None, \
 		min_probability=None, avg_probability=None, **kwargs):

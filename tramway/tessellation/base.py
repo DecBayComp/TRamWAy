@@ -741,13 +741,46 @@ class Delaunay(Tessellation):
 			min_nn, max_nn = knn, None
 		points = self.scaler.scale_point(points, inplace=False)
 		X = self.descriptors(points, asarray=True)
-		D = cdist(X, self._cell_centers, metric, **kwargs)
+		Y = self._cell_centers
+		try:
+			D = cdist(X, Y, metric, **kwargs)
+		except MemoryError as memory_error:
+			# slice X to process less rows at a time
+			if metric != 'euclidean':
+				raise #NotImplementedError
+			K = np.zeros(X.shape[0], dtype=int)
+			X2 = np.sum(X * X, axis=1, keepdims=True).astype(np.float32)
+			Y2 = np.sum(Y * Y, axis=1, keepdims=True).astype(np.float32)
+			X, Y = X.astype(np.float32), Y.astype(np.float32)
+			n = 0
+			while True:
+				n += 1
+				block = int(ceil(X.shape[0] * 2**(-n)))
+				try:
+					np.empty((block, Y.shape[0]), dtype=X.dtype)
+				except MemoryError:
+					pass # continue
+				else:
+					break
+			n += 2 # safer
+			block = int(ceil(X.shape[0] * 2**(-n)))
+			for i in range(0, X.shape[0], block):
+				j = min(i+block, X2.size)
+				Di = np.dot(np.float32(-2.)* X[i:j], Y.T)
+				Di += X2[i:j]
+				Di += Y2.T
+				K[i:j] = np.argmin(Di, axis=1)
+			D = None
+		else:
+			K = None
+		#
 		ncells = self._cell_centers.shape[0]
 		if format == 'force array':
 			min_nn = None
 			format = 'array' # for later call to :func:`format_cell_index`
 		if max_nn or min_nn or min_location_count or filter is not None:
-			K = np.argmin(D, axis=1) # cell indices
+			if K is None:
+				K = np.argmin(D, axis=1) # cell indices
 			nonempty, positive_count = np.unique(K, return_counts=True)
 			if filter is not None:
 				for c in nonempty:
@@ -770,6 +803,8 @@ class Delaunay(Tessellation):
 			if max_nn:
 				large, = (max_nn < positive_count).nonzero()
 				if large.size:
+					if D is None:
+						raise memory_error
 					for c in nonempty[large]:
 						cell = K == c
 						I = np.argsort(D[cell, c])
@@ -785,6 +820,8 @@ class Delaunay(Tessellation):
 				if min_location_count:
 					small = np.logical_and(small, min_location_count <= count)
 				if np.any(small):
+					if D is None:
+						raise memory_error
 					# small and missing cells
 					I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
 					small, = small.nonzero()
@@ -801,7 +838,7 @@ class Delaunay(Tessellation):
 					Jc = Jc[0 <= Jc]
 					#
 					K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
-		else:
+		elif K is None:
 			K = np.argmin(D, axis=1) # cell indices
 		point_count = points.shape[0]
 		#if isinstance(points, pd.DataFrame):

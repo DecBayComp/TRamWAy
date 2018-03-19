@@ -49,9 +49,10 @@ class KMeansMesh(Voronoi):
 	def _preprocess(self, points):
 		init = self.scaler.init
 		points = Voronoi._preprocess(self, points)
-		if init:
+		if init and self._min_distance is not None:
 			self._min_distance = self.scaler.scale_distance(self._min_distance)
-		grid = RegularMesh(avg_probability=self.avg_probability)
+		grid = RegularMesh(avg_probability=self.avg_probability,
+			min_distance=self._min_distance)
 		grid.tessellate(points)
 		self._cell_centers = grid._cell_centers
 		self.lower_bound = grid.lower_bound

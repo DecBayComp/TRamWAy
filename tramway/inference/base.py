@@ -18,6 +18,7 @@ import tramway.tessellation as tessellation
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
+import scipy.spatial.qhull
 from copy import copy
 from collections import OrderedDict
 from multiprocessing import Pool, Lock
@@ -430,10 +431,11 @@ class Distributed(Local):
 				objects as cells.
 
 		"""
+		ncells = self.adjacency.shape[0]
 		new = copy(self)
-		if ngroups or max_cell_count or cell_centers is not None:
+		if ngroups or (max_cell_count and max_cell_count < ncells) or cell_centers is not None:
 			any_cell = next(iter(self.cells.values()))
-			points = np.zeros((self.adjacency.shape[0], self.dim), dtype=any_cell.center.dtype)
+			points = np.zeros((ncells, self.dim), dtype=any_cell.center.dtype)
 			ok = np.zeros(points.shape[0], dtype=bool)
 			for i in self.cells:
 				points[i] = self.cells[i].center
@@ -452,6 +454,8 @@ class Distributed(Local):
 					grid = kmeans.KMeansMesh(avg_probability=avg_probability)
 					try:
 						grid.tessellate(points[ok])
+					except scipy.spatial.qhull.QhullError:
+						return new
 					except ValueError:
 						print(points)
 						raise
@@ -498,7 +502,8 @@ class Distributed(Local):
 			new.ccount = self.ccount
 			# _tcount is not supposed to change
 		else:
-			raise KeyError('`group` expects more input arguments')
+			pass
+			#raise KeyError('`group` expects more input arguments')
 		return new
 
 	def run(self, function, *args, **kwargs):

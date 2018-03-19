@@ -28,11 +28,17 @@ import tramway.core.hdf5.compat
 def _parse_args(args):
 	kwargs = dict(args.__dict__)
 	del kwargs['func']
+	input_files = []
 	try:
 		input_files = kwargs.pop('input')
-		input_files[0]
-	except (KeyError, IndexError):
-		print('please specify input file(s) with -i')
+	except KeyError:
+		pass
+	try:
+		input_files += kwargs.pop('input_file')
+	except KeyError:
+		pass
+	if not input_files:
+		print('please specify input file(s)')
 		sys.exit(1)
 	for input_file in input_files:
 		if not os.path.isfile(input_file):
@@ -265,6 +271,10 @@ def main():
 		method_parser.add_argument('--seed', nargs='?', default=False, \
 			help='random generator seed (for testing purposes)')
 		translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
+		try:
+			method_parser.add_argument('input_file', nargs='*', help='path to input file(s)')
+		except:
+			pass
 		method_parser.set_defaults(func=_sample(method, translations))
 
 
@@ -291,6 +301,10 @@ def main():
 			pass
 		mode_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
 		mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
+		try:
+			mode_parser.add_argument('input_file', nargs='?', help='path to input file')
+		except:
+			pass
 		mode_parser.set_defaults(func=_infer(mode))
 
 
@@ -299,6 +313,10 @@ def main():
 	dump_parser.set_defaults(func=_dump_rwa)
 	for arg1, arg2, kwargs in global_arguments:
 		dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+	try:
+		dump_parser.add_argument('input_file', nargs='?', help='path to input file')
+	except:
+		pass
 
 
 	# extract features
@@ -317,6 +335,10 @@ def main():
 	curl_parser.add_argument('-L', '--label', '--input-label', help='comma-separated list of input labels')
 	curl_parser.add_argument('-l', '--output-label', help='output label')
 	curl_parser.add_argument('-r', '--radius', '-d', '--distance', type=int, default=1, help='radius in number of cells')
+	try:
+		curl_parser.add_argument('input_file', nargs='?', help='path to input file')
+	except:
+		pass
 
 
 	# plot artefacts
@@ -338,6 +360,10 @@ def main():
 	cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
 	cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers)")
 	cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
+	try:
+		cells_parser.add_argument('input_file', nargs='?', help='path to input file')
+	except:
+		pass
 
 	# plot map(s)
 	map_parser = psub.add_parser('map')
@@ -351,6 +377,10 @@ def main():
 	map_parser.add_argument('-c', '--clip', type=float, nargs='?', default=0., help='clip map by absolute values; clipping threshold can be specified as a number of interquartile distances above the median')
 	map_parser.add_argument('-cb', '--colorbar', action='store_false', help='do not plot colorbar')
 	map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
+	try:
+		map_parser.add_argument('input_file', nargs='?', help='path to input file')
+	except:
+		pass
 
 
 

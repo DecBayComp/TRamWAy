@@ -177,7 +177,7 @@ class Analyses(object):
 				i += 1
 		return f(i)
 
-	def add(self, analysis, label=None, comment=None):
+	def add(self, analysis, label=None, comment=None, raw=False):
 		"""
 		Add an analysis.
 
@@ -192,8 +192,13 @@ class Analyses(object):
 
 			comment (str): associated comment.
 
+			raw (bool): if `analysis` is not an :class:`Analyses`, it is wrapped into
+				such a container object; set `raw` to ``True`` to prevent wrapping.
+
 		"""
 		label = self.autoindex(label)
+		if not (raw or isinstance(analysis, Analyses)):
+			analysis = type(self)(analysis)
 		self.instances[label] = analysis
 		if comment:
 			self.comments[label] = comment

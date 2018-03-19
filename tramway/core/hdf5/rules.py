@@ -37,7 +37,8 @@ except ImportError:
 else:
 	regular_mesh_exposes = voronoi_exposes + \
 		['_diagonal_adjacency', 'lower_bound', 'upper_bound', 'count_per_dim', \
-			'min_probability', 'max_probability', 'avg_probability', 'grid']
+			'min_probability', 'max_probability', 'avg_probability', \
+			'min_distance', 'avg_distance', 'grid']
 	hdf5_storable(default_storable(RegularMesh, exposes=regular_mesh_exposes), agnostic=True)
 
 # KDTreeMesh

@@ -425,14 +425,20 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		partition_kwargs['filter'] = _filter_fghi
 		if 'filter_descriptors_only' not in partition_kwargs:
 			partition_kwargs['filter_descriptors_only'] = True
-	if knn is None:
-		cell_index = tess.cell_index(xyt_data, **partition_kwargs)
-	else:
-		if 'min_location_count' not in partition_kwargs:
-			partition_kwargs['min_location_count'] = min_location_count
-		if 'metric' not in partition_kwargs:
-			partition_kwargs['metric'] = 'euclidean'
-		cell_index = tess.cell_index(xyt_data, knn=knn, **partition_kwargs)
+	try:
+		if knn is None:
+			cell_index = tess.cell_index(xyt_data, **partition_kwargs)
+		else:
+			if 'min_location_count' not in partition_kwargs:
+				partition_kwargs['min_location_count'] = min_location_count
+			if 'metric' not in partition_kwargs:
+				partition_kwargs['metric'] = 'euclidean'
+			cell_index = tess.cell_index(xyt_data, knn=knn, **partition_kwargs)
+	except MemoryError:
+		if verbose:
+			print(traceback.format_exc())
+		warn('memory error: cannot assign points to cells', RuntimeWarning)
+		cell_index = None
 
 	stats = CellStats(xyt_data, tess, cell_index)
 

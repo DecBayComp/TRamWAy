@@ -108,9 +108,9 @@ class KDTreeMesh(Voronoi):
 		init = self.scaler.init
 		points = self._preprocess(points)
 		if init:
-			if self._min_distance:
+			if self._min_distance is not None:
 				self._min_distance = self.scaler.scale_distance(self._min_distance)
-			if self._avg_distance:
+			if self._avg_distance is not None:
 				self._avg_distance = self.scaler.scale_distance(self._avg_distance)
 		min_distance = None
 		avg_distance = None

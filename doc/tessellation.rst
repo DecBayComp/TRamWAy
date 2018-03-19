@@ -100,8 +100,13 @@ The *grid* method
 
 The corresponding tessellation class is :class:`~tramway.tessellation.grid.RegularMesh`.
 
-From the command-line, a key argument is ``--location-count``.
-The :func:`~tramway.helper.tessellation.tessellate` helper function converts the desired average location count per cell into a probability (:attr:`~tramway.tessellation.grid.RegularMesh.avg_probability`) that :class:`~tramway.tessellation.grid.RegularMesh` in turn considers to fit the size of the cells.
+From the command-line, key arguments are ``--location-count`` and ``--distance``.
+
+Per default, ``--distance`` is set to the average translocation distance.
+If ``--location-count`` is not defined, neighbour cells are spaced by twice the value given by ``--distance``.
+
+If ``--location-count`` is defined, the :func:`~tramway.helper.tessellation.tessellate` helper function converts the desired average location count per cell into a probability (:attr:`~tramway.tessellation.grid.RegularMesh.avg_probability`) that :class:`~tramway.tessellation.grid.RegularMesh` in turn considers to fit the size of the cells.
+The cell size (or inter-cell distance) is bounded by :math:`0.8` times the value given by ``--distance``.
 
 Distance-based parameters are not used by this plugin.
 
@@ -128,7 +133,7 @@ The *kmeans* method
 The corresponding tessellation class is :class:`~tramway.tessellation.kmeans.KMeansMesh`.
 
 The algorithm is initialized with a *grid* tessellation.
-As a consequence cells scale wrt the `avg_probability` argument (or command-line option ``--location-count``).
+As a consequence cells scale wrt the `avg_probability` argument (or command-line option ``--location-count``) or `ref_distance` argument (or command-line option ``--distance``).
 
 
 The *gwr* method

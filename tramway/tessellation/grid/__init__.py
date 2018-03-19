@@ -32,13 +32,20 @@ class RegularMesh(Voronoi):
 		min_probability (float):
 		avg_probability (float):
 		max_probability (float):
+		min_distance (float):
+			minimum distance between adjacent cell centers;
+			ignored if `avg_distance` is defined.
+		avg_distance (float):
+			average distance between adjacent cell centers;
+			ignored if `avg_probability` is defined.
 
 	"""
 
 	__lazy__ = Voronoi.__lazy__ + ('diagonal_adjacency',)
 
 	def __init__(self, scaler=None, lower_bound=None, upper_bound=None, count_per_dim=None, \
-		min_probability=None, max_probability=None, avg_probability=None, **kwargs):
+		min_probability=None, max_probability=None, avg_probability=None, \
+		min_distance=None, avg_distance=None, **kwargs):
 		Voronoi.__init__(self, scaler)
 		self.lower_bound = lower_bound
 		self.upper_bound = upper_bound
@@ -46,6 +53,8 @@ class RegularMesh(Voronoi):
 		self.min_probability = min_probability
 		self.max_probability = max_probability
 		self.avg_probability = avg_probability
+		self.min_distance = min_distance
+		self.avg_distance = avg_distance
 		self._diagonal_adjacency = None
 
 	def tessellate(self, points, **kwargs):
@@ -62,9 +71,14 @@ class RegularMesh(Voronoi):
 			size = self.upper_bound - self.lower_bound
 			if self.avg_probability:
 				n_cells = 1.0 / self.avg_probability
-			else:
-				raise NotImplementedError
-			increment = exp(log(np.asarray(size).prod() / n_cells) / points.shape[1])
+				increment = exp(log(np.asarray(size).prod() / n_cells) / points.shape[1])
+				if self.min_distance is not None:
+					increment = max(increment, self.min_distance)
+			elif self.avg_distance:
+				increment = self.avg_distance
+				if self.min_probability is not None:
+					# TODO
+					pass
 			if isinstance(size, pd.Series):
 				self.count_per_dim = pd.Series.round(size / increment)
 			else:
@@ -201,6 +215,8 @@ setup = {
 		('min_probability', ()),
 		('avg_probability', ()),
 		('max_probability', ()),
+		('min_distance', ()),
+		('avg_distance', ()),
 		('avg_location_count', dict(args=('-c', '--location-count'), kwargs=dict(type=int, default=80, help='average number of locations per cell'), translate=True)),
 		)),
 	}
