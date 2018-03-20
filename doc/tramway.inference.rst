@@ -72,7 +72,7 @@ tramway.inference.smooth_ddrift plugin
 
 
 tramway.inference.smooth_df plugin
----------------------------------
+----------------------------------
 
 .. automodule:: tramway.inference.smooth_df
     :members:
