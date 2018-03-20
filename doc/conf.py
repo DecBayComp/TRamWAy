@@ -35,6 +35,7 @@ except ImportError as e: # Py2
 
 if mock_ok:
 	class Mock(MagicMock):
+		__all__ = []
 		@classmethod
 		def __getattr__(cls, name):
 			return MagicMock()
