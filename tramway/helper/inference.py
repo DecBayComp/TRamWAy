@@ -502,7 +502,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 				if short_name:
 					ext = short_name.lower()
 				else:
-					ext = keyword
+					ext = name
 				figfile = '{}_{}.{}'.format(filename, ext, figext)
 			if verbose:
 				print('writing file: {}'.format(figfile))

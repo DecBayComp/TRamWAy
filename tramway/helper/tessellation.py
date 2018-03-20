@@ -26,9 +26,7 @@ import traceback
 # in the case matplotlib's backend is interactive
 
 
-hdf_extensions = ['.rwa', '.h5', '.hdf', '.hdf5']
 fig_formats = ['png', 'pdf', 'ps', 'eps', 'svg']
-sub_extensions = dict([ (a, a) for a in ['imt', 'vor', 'hpc', 'hcd', 'hpd'] ])
 
 
 class UseCaseWarning(UserWarning):
@@ -482,7 +480,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	# save the analysis tree (`analyses`)
 	if output_file or xyt_files:
 		if output_file is None:
-			output_file = os.path.splitext(xyt_files[0])[0] + hdf_extensions[0]
+			output_file = os.path.splitext(xyt_files[0])[0] + '.rwa'
 
 		save_rwa(output_file, analyses, verbose, \
 			force=force or (len(input_files)==1 and input_files[0]==output_file))
@@ -741,7 +739,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			figext = fig_format
 			filename, _ = os.path.splitext(input_file)
 		subname, subext = os.path.splitext(filename)
-		if subext and subext[1:] in sub_extensions.values():
+		if subext and subext[1:] in ['imt']: # very old file format
 			filename = subname
 		if dim == 2:
 			vor_file = '{}.{}'.format(filename, figext)
@@ -787,7 +785,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		mplt.title(method_title)
 		mplt.xlabel('inter-centroid distance (log)')
 		if print_figs:
-			hcd_file = '{}.{}.{}'.format(filename, sub_extensions['hcd'], figext)
+			hcd_file = '{}.{}.{}'.format(filename, 'hcd', figext)
 			if verbose:
 				print('writing file: {}'.format(hcd_file))
 			fig.savefig(hcd_file)
@@ -806,7 +804,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		mplt.title(method_title)
 		mplt.xlabel('inter-point distance (log)')
 		if print_figs:
-			hpd_file = '{}.{}.{}'.format(filename, sub_extensions['hpd'], figext)
+			hpd_file = '{}.{}.{}'.format(filename, 'hpd', figext)
 			if verbose:
 				print('writing file: {}'.format(hpd_file))
 			fig.savefig(hpd_file)

@@ -96,7 +96,7 @@ Where to start
 	:maxdepth: 1
 	:hidden:
 
+	plugins
 	api
-..	plugins
 
 

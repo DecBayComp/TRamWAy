@@ -26,10 +26,10 @@ tramway.inference.d plugin
     :show-inheritance:
 
 
-tramway.inference.dd plugin
----------------------------
+tramway.inference.ddrift plugin
+-------------------------------
 
-.. automodule:: tramway.inference.dd
+.. automodule:: tramway.inference.ddrift
     :members:
     :undoc-members:
     :show-inheritance:
@@ -48,6 +48,33 @@ tramway.inference.dv plugin
 ---------------------------
 
 .. automodule:: tramway.inference.dv
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.smooth_d plugin
+---------------------------------
+
+.. automodule:: tramway.inference.smooth_d
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.smooth_ddrift plugin
+--------------------------------------
+
+.. automodule:: tramway.inference.smooth_ddrift
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.smooth_df plugin
+---------------------------------
+
+.. automodule:: tramway.inference.smooth_df
     :members:
     :undoc-members:
     :show-inheritance:
