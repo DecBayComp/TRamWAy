@@ -18,8 +18,11 @@ from rwa import HDF5Store, hdf5_storable, hdf5_not_storable
 import sys
 from .store import *
 
-rwa.hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
-	'tramway.tessellation', 'tramway.inference', 'tramway.feature']
+try:
+	rwa.hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
+		'tramway.tessellation', 'tramway.inference', 'tramway.feature']
+except TypeError: # rwa is Mock in rtd
+	pass
 
 if sys.version_info[0] < 3:
 	from .rules import *
