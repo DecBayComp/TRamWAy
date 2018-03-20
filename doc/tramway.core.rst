@@ -73,14 +73,14 @@ tramway.core.hdf5.compat module
     :show-inheritance:
 
 
-tramway.core.hdf5.rules module
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. tramway.core.hdf5.rules module
+.. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-.. automodule:: tramway.core.hdf5.rules
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. .. automodule:: tramway.core.hdf5.rules
+..     :members:
+..     :undoc-members:
+..     :show-inheritance:
 
 
 tramway.core.hdf5.store module
