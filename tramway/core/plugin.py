@@ -160,12 +160,9 @@ def add_arguments(parser, arguments, name=None):
 				_arg = args[1]
 			except IndexError:
 				_arg = args[0]
-			_arg = _arg.replace('-', '_')
+			_arg = _arg.lstrip('-').replace('-', '_')
 			def _translate(**_kwargs):
-				try:
-					return _kwargs[_arg]
-				except KeyError:
-					return None
+				return _kwargs.get(_arg, None)
 			translations.append((arg, _translate))
 		elif long_arg not in args:
 			if args:

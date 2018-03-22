@@ -44,11 +44,11 @@ class GasMesh(Voronoi):
 		Voronoi.__init__(self, scaler)
 		self.gas = None
 		self._min_distance = min_distance
-		if avg_distance or not max_distance:
+		if avg_distance or max_distance is None:
 			self._avg_distance = avg_distance
 		else:
 			self._avg_distance = max_distance * 0.25
-		if max_distance or not avg_distance:
+		if max_distance or avg_distance is None:
 			self._max_distance = max_distance
 		else:
 			self._max_distance = avg_distance * 4
@@ -59,9 +59,12 @@ class GasMesh(Voronoi):
 		init = self.scaler.init
 		points = Voronoi._preprocess(self, points)
 		if init:
-			self._min_distance = self.scaler.scale_distance(self._min_distance)
-			self._avg_distance = self.scaler.scale_distance(self._avg_distance)
-			self._max_distance = self.scaler.scale_distance(self._max_distance)
+			if self._min_distance is not None:
+				self._min_distance = self.scaler.scale_distance(self._min_distance)
+			if self._avg_distance is not None:
+				self._avg_distance = self.scaler.scale_distance(self._avg_distance)
+			if self._max_distance is not None:
+				self._max_distance = self.scaler.scale_distance(self._max_distance)
 		if self.gas is None:
 			self.gas = Gas(np.asarray(points))
 			if self._max_distance:
@@ -249,7 +252,7 @@ setup = {
 		('avg_distance', ()),
 		('max_distance', ()),
 		('min_probability', ()),
-		('avg_probability', ()),
+		('pass_count', dict(type=float, help='fraction of the data to be sampled; can be greater than 1 (recommended)')),
 		)),
 	}
 

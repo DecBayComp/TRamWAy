@@ -259,7 +259,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	if rel_avg_distance is None and avg_distance is None:
 		rel_avg_distance = 2.
 		
-	if not ref_distance:
+	if ref_distance is None:
 		transloc_xy = np.asarray(translocations(xyt_data))
 		if transloc_xy.shape[0] == 0:
 			raise ValueError('no translocation found')

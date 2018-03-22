@@ -397,7 +397,7 @@ class Distributed(Local):
 		return new
 
 	def group(self, ngroups=None, max_cell_count=None, cell_centers=None, \
-		adjacency_margin=1):
+		adjacency_margin=2):
 		"""
 		Make groups of cells.
 
@@ -422,7 +422,7 @@ class Distributed(Local):
 
 			adjacency_margin (int):
 				groups are dilated to the adjacent cells `adjacency_margin` times. 
-				Defaults to 1.
+				Defaults to 2.
 
 		Returns:
 

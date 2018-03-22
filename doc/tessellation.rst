@@ -108,8 +108,6 @@ If ``--location-count`` is not defined, neighbour cells are spaced by twice the 
 If ``--location-count`` is defined, the :func:`~tramway.helper.tessellation.tessellate` helper function converts the desired average location count per cell into a probability (:attr:`~tramway.tessellation.grid.RegularMesh.avg_probability`) that :class:`~tramway.tessellation.grid.RegularMesh` in turn considers to fit the size of the cells.
 The cell size (or inter-cell distance) is bounded by :math:`0.8` times the value given by ``--distance``.
 
-Distance-based parameters are not used by this plugin.
-
 
 The *kdtree* method
 ^^^^^^^^^^^^^^^^^^^
@@ -143,12 +141,20 @@ The *gwr* method
 
 The corresponding tessellation class is :class:`~tramway.tessellation.gwr.GasMesh`.
 
-The main arguments are `min_probability` and `avg_distance`.
+The main arguments are `min_probability` (or command-line option ``-s``/``--min-location-count``) and `avg_distance`.
 
 *gwr* exhibits many more arguments. Some of them must be passed directly to the :meth:`~tramway.tessellation.gwr.GasMesh.tessellate` method.
 
 This method may be useful to build high resolution maps with the desired minimum number of locations per cell reasonably well approached in the low-density areas. 
 The `knn` argument to `cell_index` may be very useful in combination to such high resolution tessellations.
+
+*gwr* is more computer-intensive than the other methods.
+To prototype with this method, reasonnable under-trained solutions can be obtained passing a value less than ``1`` for argument `pass_count` or command-line option ``--pass-count``.
+
+For example, *gwr* is not suitable for controlling the average number of locations per cell.
+Argument `avg_probability` or command-line option ``-c``/``--location-count`` are taken as constraints that may not be satisfied.
+A trial-and-error approach may be necessary to generate a mesh with a suitable average location count per cell.
+Under-trained solutions tend to exhibit the same average location count as in more refined solutions.
 
 
 The *window* method

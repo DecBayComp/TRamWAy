@@ -268,12 +268,15 @@ def main():
 			help='minimum number of nearest neighbors; cells can overlap')
 		method_parser.add_argument('-N', '--max-nn', '--knn-max', type=int, \
 			help='maximum number of nearest neighbors')
-		method_parser.add_argument('-d', '--distance', type=float, help='average jump distance')
+		method_parser.add_argument('-d', '--distance', type=float, help='reference distance (default is the average translocation distance)')
 		method_group = method_parser.add_mutually_exclusive_group()
 		method_group.add_argument('-w', action='store_true', help='whiten the input data')
 		method_group.add_argument('--scaling', choices=['whiten', 'unit'])
 		method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
-			help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn for a partition-related parameter')
+			help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn and -S for partition-related parameters')
+		method_parser.add_argument('-ss', '--strict-min-location-count', type=int, \
+			metavar='MIN_LOCATION_COUNT', \
+			help='minimum number of locations per cell; this is enforced at partition time; cells with insufficient locations are discarded and not compensated for')
 		method_parser.add_argument('--seed', nargs='?', default=False, \
 			help='random generator seed (for testing purposes)')
 		translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
