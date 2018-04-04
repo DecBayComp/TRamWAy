@@ -29,7 +29,7 @@ class GasMesh(Voronoi):
 	"""GWR based tessellation.
 
 	Attributes:
-		gas (:class:`~tramway.spatial.gas.Gas`):
+		gas (:class:`~tramway.tessellation.gwr.gas.Gas`):
 			internal graph representation of the gas.
 		min_probability (float):
 			minimum probability of a point to be in any given cell.
@@ -101,16 +101,16 @@ class GasMesh(Voronoi):
 				If `pass_count` is a single number, it is interpreted as the lower
 				bound, and the upper bound is set equal to ``2 * pass_count``.
 			residual_factor (float): multiplies with `_max_distance` to determine 
-				`residual_max` in :meth:`~tramway.spatial.gas.Gas.train`.
-			error_count_tol (float): (see :meth:`~tramway.spatial.gas.Gas.train`)
-			min_growth (float): (see :meth:`~tramway.spatial.gas.Gas.train`)
-			collapse_tol (float): (see :meth:`~tramway.spatial.gas.Gas.train`)
-			stopping_criterion (int): (see :meth:`~tramway.spatial.gas.Gas.train`)
+				`residual_max` in :meth:`~tramway.tessellation.gwr.gas.Gas.train`.
+			error_count_tol (float): (see :meth:`~tramway.tessellation.gwr.gas.Gas.train`)
+			min_growth (float): (see :meth:`~tramway.tessellation.gwr.gas.Gas.train`)
+			collapse_tol (float): (see :meth:`~tramway.tessellation.gwr.gas.Gas.train`)
+			stopping_criterion (int): (see :meth:`~tramway.tessellation.gwr.gas.Gas.train`)
 			verbose (bool): verbose output.
-			batch_size (int): (see :class:`~tramway.spatial.gas.Gas`)
-			tau (float): (see :class:`~tramway.spatial.gas.Gas`)
-			trust (float): (see :class:`~tramway.spatial.gas.Gas`)
-			lifetime (int): (see :class:`~tramway.spatial.gas.Gas`)
+			batch_size (int): (see :class:`~tramway.tessellation.gwr.gas.Gas`)
+			tau (float): (see :class:`~tramway.tessellation.gwr.gas.Gas`)
+			trust (float): (see :class:`~tramway.tessellation.gwr.gas.Gas`)
+			lifetime (int): (see :class:`~tramway.tessellation.gwr.gas.Gas`)
 			alpha_risk (float): location distributions of potential neighbor cells
 				are compared with a t-test
 
@@ -118,8 +118,8 @@ class GasMesh(Voronoi):
 			See :meth:`~tramway.tessellation.Tessellation.tessellate`.
 
 		See also:
-			:class:`tramway.spatial.gas.Gas` and 
-			:meth:`tramway.spatial.gas.Gas.train`.
+			:class:`tramway.tessellation.gwr.gas.Gas` and 
+			:meth:`tramway.tessellation.gwr.gas.Gas.train`.
 		"""
 		#np.random.seed(15894754) # to benchmark and compare between Graph implementations
 		points = self._preprocess(points, **kwargs)

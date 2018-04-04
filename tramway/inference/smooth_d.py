@@ -27,14 +27,17 @@ setup = {'name': 'smooth.d',
 		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
 		('diffusivity_prior',	('-d', dict(type=float, default=0.05, help='prior on the diffusivity'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
-		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed')))),
+		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed')),
+		('max_iter',		dict(type=int, help='maximum number of iterations')))),
 	'cell_sampling': 'group'}
 
 
 def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffusivity_prior, \
-		jeffreys_prior, dt_mean, min_diffusivity):
+	jeffreys_prior, dt_mean, min_diffusivity, reverse_index):
 	"""
-	Adapted from InferenceMAP's *dDDPosterior* procedure::
+	Adapted from InferenceMAP's *dDDPosterior* procedure:
+
+	.. code-block:: c++
 
 		for (int a = 0; a < NUMBER_OF_ZONES; a++) {
 			ZONES[a].gradDx = dvGradDx(DD,a);
@@ -85,7 +88,7 @@ def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffu
 		# prior
 		if diffusivity_prior:
 			# gradient of diffusivity
-			gradD = cells.grad(i, diffusivity)
+			gradD = cells.grad(i, diffusivity, reverse_index)
 			if gradD is not None:
 				result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
 	if jeffreys_prior:
@@ -93,44 +96,21 @@ def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffu
 	return result
 
 def infer_smooth_D(cells, localization_error=0.03, diffusivity_prior=0.05, jeffreys_prior=None, \
-	min_diffusivity=None, **kwargs):
-	if min_diffusivity is None:
-		if jeffreys_prior:
-			min_diffusivity = 0.01
-		else:
-			min_diffusivity = 0
-	elif min_diffusivity is False:
-		min_diffusivity = None
-	# initialize the diffusivity array and the caches
-	index, dt_mean, D_initial = [], [], []
-	for i in cells:
-		cell = cells[i]
-		# sanity checks
-		if not bool(cell):
-			raise ValueError('empty cells')
-		# ensure that translocations are properly oriented in time
-		if not np.all(0 < cell.dt):
-			warn('translocation dts are not all positive', RuntimeWarning)
-			cell.dr[cell.dt < 0] *= -1.
-			cell.dt[cell.dt < 0] *= -1.
-		# initialize the cache
-		cell.cache = dict(dr2=None)
-		# initialize the local diffusivity parameter
-		dt_mean_i = np.mean(cell.dt)
-		D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
-		#
-		index.append(i)
-		dt_mean.append(dt_mean_i)
-		D_initial.append(D_initial_i)
-	any_cell = cell
-	index, dt_mean, D_initial = np.array(index), np.array(dt_mean), np.array(D_initial)
+	min_diffusivity=None, max_iter=None, **kwargs):
+	# initial values
+	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds = \
+		smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
 	# parametrize the optimization procedure
 	if min_diffusivity is not None:
-		kwargs['bounds'] = [(min_diffusivity,None)] * D_initial.size
+		kwargs['bounds'] = D_bounds
+	if max_iter:
+		options = kwargs.get('options', {})
+		options['maxiter'] = max_iter
+		kwargs['options'] = options
 	# run the optimization
 	sle = localization_error * localization_error # sle = squared localization error
 	result = minimize(smooth_d_neg_posterior, D_initial, \
-		args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity), \
+		args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, reverse_index), \
 		**kwargs)
 	# format the result
 	D = result.x

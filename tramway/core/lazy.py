@@ -126,6 +126,8 @@ class Lazy(object):
 
 		Beware: only direct Lazy object attributes are unloaded, 
 			not Lazy objects stored in non-lazy attributes!
+
+		*Deprecated*
 		"""
 		warn('`unload` will be removed soon', DeprecationWarning)
 		if visited is None:
@@ -170,6 +172,8 @@ def lightcopy(x):
 	Returns:
 
 		any: copy of `x`.
+
+	*Deprecated*
 	"""
 	warn('`lightcopy` will be removed soon', DeprecationWarning)
 	return x

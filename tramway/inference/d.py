@@ -30,7 +30,9 @@ setup = {'arguments': OrderedDict((
 def d_neg_posterior(diffusivity, cell, squared_localization_error, jeffreys_prior, dt_mean, \
 	min_diffusivity):
 	"""
-	Adapted from InferenceMAP's *dPosterior* procedure::
+	Adapted from InferenceMAP's *dPosterior* procedure:
+
+	.. code-block:: c++
 
 		for (int i = 0; i < ZONES[CURRENT_ZONE].translocations; i++) {
 			const double dt = ZONES[CURRENT_ZONE].dt[i];

@@ -30,7 +30,9 @@ setup = {'arguments': OrderedDict((
 
 def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, dt_mean, min_diffusivity):
 	"""
-	Adapted from InferenceMAP's *dfPosterior* procedure::
+	Adapted from InferenceMAP's *dfPosterior* procedure:
+
+	.. code-block:: c++
 
 		for (int i = 0; i < ZONES[CURRENT_ZONE].translocations; i++) {
 			const double dt = ZONES[CURRENT_ZONE].dt[i];
@@ -61,7 +63,10 @@ def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, dt
 	ndsd = np.sum(dr_minus_drift_dt * dr_minus_drift_dt, axis=1)
 	neg_posterior = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
 	if jeffreys_prior:
-		neg_posterior += 2. * (log(D * dt_mean + squared_localization_error) - log(D))
+		try:
+			neg_posterior += 2. * (log(D * dt_mean + squared_localization_error) - log(D))
+		except ValueError as e: # math domain error
+			warn(DiffusivityWarning(e))
 	return neg_posterior
 
 

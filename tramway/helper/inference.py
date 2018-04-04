@@ -28,7 +28,7 @@ import traceback
 
 def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
-	max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=0, \
+	max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
 	store_distributed=False, constructor=None, cell_sampling=None, \
 	priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
 	return_cells=None, profile=None, force=False, **kwargs):
@@ -168,7 +168,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		# prepare the data for the inference
 		if constructor is None:
 			constructor = Distributed
-		detailled_map = distributed(cells, new=constructor)
+		detailled_map = distributed(cells, new_group=constructor)
 
 		if cell_sampling is None:
 			try:

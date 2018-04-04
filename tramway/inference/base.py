@@ -36,29 +36,18 @@ class Local(Lazy):
 	Attributes:
 
 		index (int):
-			this cell's index as referenced in :class:`Distributed`.
+			This cell's index as referenced in :class:`Distributed`.
 
 		data (collection of terminal elements or :class:`Local`):
-			elements, either terminal or not.
+			Dlements, either terminal or not.
 
 		center (array-like):
-			cell center coordinates.
+			Cell center coordinates.
 
 		span (array-like):
-			difference vectors from this cell's center to adjacent centers. Useful as 
+			Difference vectors from this cell's center to adjacent centers. Useful as 
 			mixing coefficients for summing the multiple local gradients of a scalar 
 			dynamic parameter.
-
-		dim (int, property):
-			dimension of the terminal elements.
-
-		tcount (int, property):
-			total number of terminal elements (e.g. translocations).
-
-	"""
-	"""
-		boundary (array or list of arrays):
-			polygons as vertex indices.
 
 	"""
 	__slots__ = ('index', 'data', 'center', 'span') #, 'boundary'
@@ -73,6 +62,11 @@ class Local(Lazy):
 
 	@property
 	def dim(self):
+		"""
+		`int`, property
+
+		Dimension of the terminal elements.
+		"""
 		raise NotImplementedError('abstract method')
 
 	@dim.setter
@@ -81,6 +75,11 @@ class Local(Lazy):
 
 	@property
 	def tcount(self):
+		"""
+		`int`, property
+
+		Total number of terminal elements (e.g. translocations).
+		"""
 		raise NotImplementedError('abstract method')
 
 	@tcount.setter
@@ -93,35 +92,12 @@ class Distributed(Local):
 	"""
 	Attributes:
 
-		dim (int, ro property):
-			dimension of the terminal points.
-
-		tcount (int, property):
-			total number of terminal points. Duplicates are ignored.
-
-		ccount (int, property):
-			total number of terminal cells. Duplicates are ignored.
-
-		cells (list or OrderedDict, rw property for :attr:`data`):
-			collection of :class:`Local`s. Indices may not match with the global 
-			:attr:`~Local.index` attribute of the elements, but match with attributes 
-			:attr:`central`, :attr:`adjacency` and :attr:`degree`.
-
-		reverse (dict of ints, ro lazy property):
-			get "local" indices from global ones.
-
 		central (array of bools):
 			margin cells are not central.
 
-		adjacency (:class:`~scipy.sparse.csr_matrix`):
-			cell adjacency matrix. Row and column indices are to be mapped with `indices`.
-
-		degree (array of ints, ro lazy property):
-			number of adjacent cells.
-
 	"""
-	__slots__ = ('_reverse', '_adjacency', 'central', '_degree', '_ccount', '_tcount', '_dim')
-	__lazy__  = Local.__lazy__ + ('reverse', 'degree', 'ccount', 'tcount', 'dim')
+	__slots__ = ('_reverse', '_adjacency', 'central', '_degree', '_ccount', '_tcount')
+	__lazy__  = Local.__lazy__ + ('reverse', 'degree', 'ccount', 'tcount')
 
 	def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
 		boundary=None):
@@ -132,6 +108,13 @@ class Distributed(Local):
 
 	@property
 	def cells(self):
+		"""
+		`list` or `OrderedDict`, rw property for :attr:`data`
+
+		Collection of :class:`Local`. Indices may not match with the global 
+		:attr:`~Local.index` attribute of the elements, but match with attributes 
+		:attr:`central`, :attr:`adjacency` and :attr:`degree`.
+		"""
 		return self.data
 
 	@cells.setter
@@ -163,6 +146,11 @@ class Distributed(Local):
 
 	@property
 	def reverse(self):
+		"""
+		`dict of ints`, ro lazy property
+
+		Get "local" indices from global ones.
+		"""
 		if self._reverse is None:
 			self._reverse = {cell.index: i for i, cell in self.cells.items()}
 		return self._reverse
@@ -172,20 +160,33 @@ class Distributed(Local):
 		self.__lazyassert__(r, 'cells')
 
 	@property
-	def dim(self):
-		if self._dim is None:
-			if self.center is None:
-				self._dim = list(self.cells.values())[0].dim
-			else:
-				self._dim = self.center.size
-		return self._dim
+	def space_cols(self):
+		"""
+		`list of ints` or `strings`, ro property
 
-	@dim.setter
-	def dim(self, d): # ro
-		self.__lazyassert__(d, 'cells')
+		Column indices for coordinates of the terminal points.
+		"""
+		return self.any_cell().space_cols
+
+	@property
+	def dim(self):
+		"""
+		`int`, ro property
+
+		Dimension of the terminal points.
+		"""
+		if self.center is None:
+			return self.any_cell().dim
+		else:
+			return self.center.size
 
 	@property
 	def tcount(self):
+		"""
+		`int`, ro property
+
+		Total number of terminal points. Duplicates are ignored.
+		"""
 		if self._tcount is None:
 			if self.central is None:
 				self._tcount = sum([ cell.tcount \
@@ -201,6 +202,11 @@ class Distributed(Local):
 
 	@property
 	def ccount(self):
+		"""
+		`int`, ro property
+
+		Total number of terminal cells. Duplicates are ignored.
+		"""
 		#return self.adjacency.shape[0] # or len(self.cells)
 		if self._ccount is None:
 			self._ccount = sum([ cell.ccount if isinstance(cell, Distributed) else 1 \
@@ -213,6 +219,11 @@ class Distributed(Local):
 
 	@property
 	def adjacency(self):
+		"""
+		`scipy.sparse.csr_matrix`, rw property
+
+		Cell adjacency matrix. Row and column indices are to be mapped with `indices`.
+		"""
 		return self._adjacency
 
 	@adjacency.setter
@@ -224,6 +235,11 @@ class Distributed(Local):
 
 	@property
 	def degree(self):
+		"""
+		`array of ints`, ro lazy property
+
+		Number of adjacent cells.
+		"""
 		if self._degree is None:
 			self._degree = np.diff(self._adjacency.indptr)
 		return self._degree
@@ -266,7 +282,7 @@ class Distributed(Local):
 			assert np.all(ok)
 			adjacent = adjacent[ok]
 			if adjacent.size == 0:
-				return Nonte
+				return None
 		if adjacent.size == 0:
 			return
 		if not isinstance(cell.cache, dict):
@@ -434,7 +450,7 @@ class Distributed(Local):
 		ncells = self.adjacency.shape[0]
 		new = copy(self)
 		if ngroups or (max_cell_count and max_cell_count < ncells) or cell_centers is not None:
-			any_cell = next(iter(self.cells.values()))
+			any_cell = self.any_cell()
 			points = np.zeros((ncells, self.dim), dtype=any_cell.center.dtype)
 			ok = np.zeros(points.shape[0], dtype=bool)
 			for i in self.cells:
@@ -621,6 +637,9 @@ class Distributed(Local):
 		except AttributeError:
 			return enumerate(self.cells)
 
+	def any_cell(self):
+		return self.cells[next(iter(self.cells))]
+
 	def clear_caches(self):
 		try:
 			first = True
@@ -709,28 +728,8 @@ class Cell(Local):
 
 	Attributes:
 
-		index (int):
-			this cell's index as granted in :class:`Distributed`'s `cells` dict.
-
-		center (array-like):
-			cell center coordinates.
-
-		span (array-like):
-			difference vectors from this cell's center to adjacent centers. Useful as 
-			mixing coefficients for summing the multiple local gradients of a scalar 
-			dynamic parameter.
-
-		time_col (int or string, lazy):
-			column index for time.
-
-		space_cols (list of ints or strings, lazy):
-			column indices for coordinates.
-
-		tcount (int):
-			number of (trans-)locations.
-
 		cache (any):
-			depending on the inference approach and objective, caching an intermediate
+			Depending on the inference approach and objective, caching an intermediate
 			result may avoid repeating many times a same computation. Usage of this cache
 			is totally free and comes without support for concurrency.
 
@@ -739,6 +738,21 @@ class Cell(Local):
 	__lazy__  = Local.__lazy__ + ('time_col', 'space_cols')
 
 	def __init__(self, index, data, center=None, span=None):
+		"""
+		Arguments:
+
+			index (int):
+				this cell's index as granted in :class:`Distributed`'s `cells` dict.
+
+			center (array-like):
+				cell center coordinates.
+
+			span (array-like):
+				difference vectors from this cell's center to adjacent centers. Useful 
+				as mixing coefficients for summing the multiple local gradients of a 
+				scalar dynamic parameter.
+
+		"""
 		if not (isinstance(data, np.ndarray) or isinstance(data, pd.DataFrame)):
 			raise TypeError('unsupported (trans-)location type `{}`'.format(type(data)))
 		Local.__init__(self, index, data, center, span)
@@ -751,6 +765,11 @@ class Cell(Local):
 
 	@property
 	def time_col(self):
+		"""
+		`int` or `string`, lazy
+
+		Column index for time.
+		"""
 		if self._time_col is None:
 			if isstructured(self.data):
 				self._time_col = 't'
@@ -765,6 +784,11 @@ class Cell(Local):
 
 	@property
 	def space_cols(self):
+		"""
+		`list of ints` or `strings`, lazy
+
+		Column indices for coordinates.
+		"""
 		if self._space_cols is None:
 			if isstructured(self.data):
 				self._space_cols = columns(self.data)
@@ -797,6 +821,11 @@ class Cell(Local):
 
 	@property
 	def tcount(self):
+		"""
+		`int`
+
+		Number of (trans-)locations.
+		"""
 		return self.space_data.shape[0]
 
 	@tcount.setter
@@ -850,23 +879,18 @@ class Cell(Local):
 
 class Locations(Cell):
 	"""
-	Attributes:
-
-		locations (array-like, property):
-			locations as a matrix of coordinates and times with as many 
-			columns as dimensions; this is an alias for :attr:`~Local.data`.
-
-		r (array-like, ro property):
-			location coordinates; `xy` is an alias
-
-		t (array-like, ro property):
-			location timestamps.
 
 	"""
 	__slots__ = ()
 
 	@property
 	def locations(self):
+		"""
+		`array-like`, property
+
+		Locations as a matrix of coordinates and times with as many 
+		columns as dimensions; this is an alias for :attr:`~Local.data`.
+		"""
 		return self.data
 
 	@locations.setter
@@ -875,6 +899,11 @@ class Locations(Cell):
 
 	@property
 	def t(self):
+		"""
+		`array-like`, ro property
+
+		Location timestamps.
+		"""
 		return self.time_data
 
 	@t.setter
@@ -883,6 +912,11 @@ class Locations(Cell):
 
 	@property
 	def r(self):
+		"""
+		`array-like`, ro property
+
+		Location coordinates; `xy` is an alias
+		"""
 		return self.space_data
 
 	@r.setter
@@ -902,21 +936,8 @@ class Translocations(Cell):
 	"""
 	Attributes:
 
-		translocations (array-like, property):
-			translocations as a matrix of variations of coordinate and time with as many 
-			columns as dimensions; this is an alias for :attr:`~Local.data`.
-
-		dr (array-like, ro property):
-			translocation displacements in space; `dxy` is an alias.
-
-		dt (array-like, ro property):
-			translocation durations.
-
 		origins (array-like, ro property):
-			initial locations (both spatial coordinates and times).
-
-		t (array-like, ro property):
-			initial timestamps.
+			Initial locations (both spatial coordinates and times).
 
 	"""
 	__slots__ = ('origins', 'destinations')
@@ -928,6 +949,12 @@ class Translocations(Cell):
 
 	@property
 	def translocations(self):
+		"""
+		`array-like`, property
+
+		Translocations as a matrix of variations of coordinate and time with as many 
+		columns as dimensions; this is an alias for :attr:`~Local.data`.
+		"""
 		return self.data
 
 	@translocations.setter
@@ -936,6 +963,11 @@ class Translocations(Cell):
 
 	@property
 	def dt(self):
+		"""
+		`array-like`, ro property
+
+		Translocation durations.
+		"""
 		return self.time_data
 
 	@dt.setter
@@ -944,6 +976,11 @@ class Translocations(Cell):
 
 	@property
 	def dr(self):
+		"""
+		`array-like`, ro property
+
+		Translocation displacements in space; `dxy` is an alias.
+		"""
 		return self.space_data
 
 	@dr.setter
@@ -960,6 +997,11 @@ class Translocations(Cell):
 
 	@property
 	def t(self):
+		"""
+		`array-like`, ro property
+
+		Initial timestamps.
+		"""
 		if isstructured(self.origins):
 			return np.asarray(self.origins[self.time_col])
 		else:
@@ -1063,13 +1105,36 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 	return initial_point, final_point, initial_cell, final_cell, get_point
 
 
-def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
-		new_cell_kwargs={}, new_mesh_kwargs={}, fuzzy_kwargs={},
+def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
+		new_cell_kwargs={}, new_group_kwargs={}, fuzzy_kwargs={},
 		new=None):
+	"""
+	Build a `Distributed`-like object from a :class:`~tramway.tessellation.base.CellStats` object.
+
+	Arguments:
+
+		cells (CellStats): tessellation and partition; must contain (trans-)location data.
+
+		new_cell (callable): cell constructor; default is :class:`Locations` or 
+			:class:`Translocations` depending on the data in `cells`.
+
+		new_group (callable): constructor for groups of cell; default is :class:`Distributed`.
+
+		fuzzy (callable): (trans-)location-cell weighting function.
+
+		new_cell_kwargs (dict): keyword arguments for `new_cell`.
+
+		new_group_kwargs (dict): keyword arguments for `new_group`.
+
+		fuzzy_kwargs (dict): keyword arguments for `fuzzy`.
+
+		new (callable): legacy argument; use `new_group` instead.
+
+	"""
 	if new is not None:
 		# `new` is for backward compatibility
-		warn('`new` is deprecated in favor of `new_cell`', DeprecationWarning)
-		new_mesh = new
+		warn('`new` is deprecated in favor of `new_group`', DeprecationWarning)
+		new_group = new
 	if not isinstance(cells, tessellation.CellStats):
 		raise TypeError('`cells` is not a `CellStats`')
 
@@ -1209,7 +1274,7 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 		except AttributeError: # `_cells` does not have the `fuzzy` attribute
 			pass
 	#print(sum([ c.tcount == 0 for c in _cells.values() ]))
-	self = new_mesh(_cells, _adjacency, **new_mesh_kwargs)
+	self = new_group(_cells, _adjacency, **new_group_kwargs)
 	self.tcount = cells.points.shape[0]
 	#self.dim = cells.points.shape[1]
 	self.ccount = self.adjacency.shape[0]
@@ -1219,6 +1284,14 @@ def distributed(cells, new_cell=None, new_mesh=Distributed, fuzzy=None,
 class Maps(Lazy):
 	"""
 	Basic container for maps and the associated parameters used to get the maps.
+
+	Attributes `distributed_translocations`, `partition_file`, `tessellation_program`, `version`
+	are deprecated and will be removed.
+
+	Functional dependencies:
+
+	* setting `maps` unsets `_variables`
+
 	"""
 	__lazy__ = Lazy.__lazy__ + ('_variables',)
 
@@ -1257,6 +1330,14 @@ class Maps(Lazy):
 
 	@property
 	def variables(self):
+		"""
+		`list` or ``None``
+
+		List of different variable names without the coordinate suffix.
+
+		For example, if `maps` has columns *diffusivity*, *force x* and *force y*, `variables`
+		will return *diffusivity* and *force*.
+		"""
 		if self._variables is None:
 			return None
 		else:
@@ -1293,8 +1374,67 @@ class DiffusivityWarning(RuntimeWarning):
 			return 'diffusivity too low: {} < {}'.format(self.diffusivity, self.lower_bound)
 
 
+def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs):
+	"""
+	Initialize the diffusivity array for translocations.
+
+	This function is a collection of checks and initial computations suitable for *infer* functions
+	in inference plugins.
+
+	Arguments:
+
+		cells (Distributed): first input argument of the *infer* function.
+
+		min_diffusivity (float): minimum allowed diffusivity value.
+
+		jeffreys_prior (bool): activate Jeffreys' prior.
+
+	Returns:
+
+	* *index* (:class:`numpy.ndarray`) -- cell indices corresponding to arrays *n*, *dt_mean* and *D_initial*.
+	* *reverse_index* (:class:`numpy.ndarray`) -- element indices in arrays *index*, *n*, *dt_mean*, *D_initial* for each cell index.
+	* *n* (:class:`numpy.ndarray`) -- translocation count for each cell.
+	* *dt_mean* (:class:`numpy.ndarray`) -- mean translocation duration for each cell.
+	* *D_initial* (:class:`numpy.ndarray`) -- initial diffusivity array.
+	* *min_diffusivity* (:class:`float` or ``None``) -- minimum diffusivity value; the returned value depends on `jeffreys_prior`.
+	* *D_bounds* (:class:`list`) -- list of (lower bound, upper bound) couples; suitable as *bounds* input argument for the :func:`scipy.optimize.minimize` function.
+
+	"""
+	if min_diffusivity is None:
+		if jeffreys_prior:
+			min_diffusivity = 0.01
+		else:
+			min_diffusivity = 0
+	elif min_diffusivity is False:
+		min_diffusivity = None
+	# initial values and sanity checks
+	index, n, dt_mean, D_initial = [], [], [], []
+	reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
+	for j, i in enumerate(cells):
+		cell = cells[i]
+		if not bool(cell):
+			raise ValueError('empty cells')
+		# ensure that translocations are properly oriented in time
+		if not np.all(0 < cell.dt):
+			warn('translocation dts are not all positive', RuntimeWarning)
+			cell.dr[cell.dt < 0] *= -1.
+			cell.dt[cell.dt < 0] *= -1.
+		# initialize the local diffusivity parameter
+		dt_mean_i = np.mean(cell.dt)
+		D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
+		#
+		index.append(i)
+		reverse_index[i] = j
+		n.append(float(len(cell)))
+		dt_mean.append(dt_mean_i)
+		D_initial.append(D_initial_i)
+	n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
+	D_bounds = [(min_diffusivity, None)] * D_initial.size
+	return index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds
+
+
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
 	'identify_columns', 'get_locations', 'get_translocations', 'distributed',
-	'DiffusivityWarning']
+	'DiffusivityWarning', 'smooth_infer_init']
 

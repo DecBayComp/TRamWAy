@@ -34,7 +34,7 @@ class KDTreeMesh(Voronoi):
 	"""k-dimensional tree (quad tree in 2D) based tessellation.
 
 	Attributes:
-		scaler: see :class:`Tessellation`.
+		scaler: see :class:`~tramway.tessellation.base.Tessellation`.
 		min_probability (float): minimum probability of a point to be in a given cell.
 		max_probability (float): maximum probability of a point to be in a given cell.
 		max_level (float): maximum level, considering that the smallest cells are at level 0
