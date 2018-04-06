@@ -34,7 +34,7 @@ def isstructured(x):
 		return True
 	else:
 		try:
-			return False or x.dtype.names
+			return bool(x.dtype.names)
 		except AttributeError:
 			return False
 
@@ -48,7 +48,7 @@ def columns(x):
 
 	Returns:
 		iterable:
-			``c`` satisfying ``x = x[c]``.
+			column iterator.
 
 	Raises:
 		ValueError: if no named columns are found in `x`.

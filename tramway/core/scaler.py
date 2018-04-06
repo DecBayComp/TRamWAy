@@ -86,6 +86,20 @@ class Scaler(object):
 		Applies to points and vectors, not distances, surface areas or volumes."""
 		if (isinstance(self.columns, list) and self.columns) or self.columns.size:
 			if isstructured(points):
+				cols = columns(points)
+				coltype = type(cols[0])
+				if type(self.columns[0]) is not coltype:
+					if coltype is str:
+						if coltype is bytes:
+							coerce = lambda s: s.encode('utf-8')
+						else:
+							coerce = lambda s: s.decode('utf-8')
+					elif coltype is bytes:
+						coerce = lambda s: s.decode('utf-8')
+					else:
+						coerce = lambda s: s.encode('utf-8')
+				self.columns = [ coerce(c) for c in self.columns ]
+				self.euclidean = [ coerce(c) for c in self.euclidean ]
 				points = points[self.columns]
 			else:
 				if self.center is not None and isstructured(self.center):
