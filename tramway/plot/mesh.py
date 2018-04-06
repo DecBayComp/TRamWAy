@@ -31,13 +31,14 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None,
 		points = cells
 		label = None
 	else:
-		points = cells.descriptors(cells.points, asarray=True)
+		points = cells.descriptors(cells.points)
 		label = cells.cell_index
 		npts = points.shape[0]
 		ncells = cells.location_count.size
 		# if label is not a single index vector, convert it following 
 		# tessellation.base.Delaunay.cell_index with `preferred`='force index'.
-		merge = nearest_cell(points, cells.tessellation.cell_centers) # too slow
+		merge = nearest_cell(np.asarray(points), cells.tessellation.cell_centers)
+		# `merge` may hit an error if `descriptors` failed at isolating the 'x' and 'y' columns
 		label = format_cell_index(cells.cell_index, format='array', \
 			select=merge, shape=(npts, ncells))
 		if min_count and ('knn' not in cells.param or min_count < cells.param['knn']):

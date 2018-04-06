@@ -69,7 +69,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		for i in ix[ok]:
 			vs = cells.tessellation.cell_vertices[i]
 			# order the vertices so that they draw a polygon
-			v = vs[0]
+			v0 = v = vs[0]
 			vs = set(list(vs))
 			vertices = []
 			while True:
@@ -77,7 +77,12 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 				vs.remove(v)
 				ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
 				if not ws:
-					break
+					if vs:
+						ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
+					if ws:
+						vertices = vertices[::-1]
+					else:
+						break
 				v = ws.pop()
 			#
 			if vertices:

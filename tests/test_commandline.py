@@ -137,7 +137,7 @@ class TestTessellation(object):
 	def test_kmeans(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'kmeans -w -s 40', 'kmeans0')
 	def test_gwr(self, tmpdir, datadir):
-		self.common(tmpdir, datadir, 'gwr', 'gwr0')
+		self.common(tmpdir, datadir, 'gwr -ss 6', 'gwr0')
 	def test_overlapping_knn(self, tmpdir, datadir):
 		self.common(tmpdir, datadir, 'gwr -w -d 0.3 -s 30 --knn 50', 'knn0')
 

@@ -24,8 +24,8 @@ from collections import OrderedDict
 
 setup = {'arguments': OrderedDict((
 		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
-		('diffusivity_prior',	('-d', dict(type=float, default=0.05, help='prior on the diffusivity'))),
-		('potential_prior',	('-v', dict(type=float, default=0.05, help='prior on the potential'))),
+		('diffusivity_prior',	('-d', dict(type=float, default=1., help='prior on the diffusivity'))),
+		('potential_prior',	('-v', dict(type=float, default=1., help='prior on the potential'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
 		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed')),
 		('max_iter',		dict(type=int, help='maximum number of iterations')))),
@@ -147,7 +147,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 	return result
 
 
-def inferDV(cells, localization_error=0.03, diffusivity_prior=0.05, potential_prior=0.05, \
+def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prior=1., \
 	jeffreys_prior=False, min_diffusivity=None, max_iter=None, **kwargs):
 	# initial values
 	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds = \

@@ -1311,9 +1311,6 @@ class Maps(Lazy):
 		self.version = None # legacy attribute
 		self.runtime = None
 
-	def __nonzero__(self):
-		return bool(self.maps)
-
 	@property
 	def maps(self):
 		return self._maps
@@ -1348,6 +1345,9 @@ class Maps(Lazy):
 
 	def __len__(self):
 		return 0 if self._variables is None else len(self._variables)
+
+	def __contains__(self, variable_name):
+		return variable_name in self._variables
 
 	def __getitem__(self, variable_name):
 		try:
