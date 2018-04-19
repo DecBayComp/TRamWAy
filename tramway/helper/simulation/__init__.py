@@ -98,7 +98,7 @@ def random_walk(diffusivity=None, force=None, \
 				raise ValueError('non-positive diffusivity value')
 			F = np.array([ force(x, t) for x in X ])
 			dX = time_step * (D[:,np.newaxis] * F + \
-				np.sqrt(2. * D.reshape(D.size, 1)) * np.random.randn(*X.shape))
+				np.sqrt(2. * time_step * D.reshape(D.size, 1)) * np.random.randn(*X.shape))
 			X += dX
 			if not count_outside_trajectories:
 				inside = np.all(np.logical_and(

@@ -55,13 +55,19 @@ class RWAStore(HDF5Store):
 
 
 
-def load_rwa(path, verbose=False):
+def load_rwa(path, verbose=None):
 	try:
 		hdf = RWAStore(path, 'r')
 		#hdf._default_lazy = PermissivePeek
 		hdf.lazy = True
 		try:
 			analyses = lazyvalue(hdf.peek('analyses'))
+		except (KeyboardInterrupt, SystemExit):
+			raise
+		except:
+			if verbose is not False:
+				print('cannot load file: {}'.format(path))
+			raise
 		finally:
 			hdf.close()
 	except EnvironmentError as e:

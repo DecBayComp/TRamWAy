@@ -87,7 +87,7 @@ def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffre
 	# collect the result
 	dd.update(result.x)
 	D, drift = dd['D'], dd['drift']
-	DD = pd.DataFrame(np.c_[D[:,np.newaxis], drift], index=index, \
+	DD = pd.DataFrame(np.concatenate((D[:,np.newaxis], drift), axis=1), index=index, \
 		columns=[ 'diffusivity' ] + \
 			[ 'drift ' + col for col in cells.space_cols ])
 	return DD

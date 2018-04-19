@@ -176,12 +176,12 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			except KeyError:
 				pass
 		multiscale = cell_sampling in ['individual', 'group']
-		if multiscale:
-			if max_cell_count is None:
-				if cell_sampling == 'individual':
-					max_cell_count = 1
-				else:
-					max_cell_count = 20
+		if multiscale and max_cell_count is None:
+			if cell_sampling == 'individual':
+				max_cell_count = 1
+			#else: # adaptive scaling is no longer default
+			#	max_cell_count = 20
+		if max_cell_count:
 			if dilation is None:
 				if cell_sampling == 'individual':
 					dilation = 0
@@ -530,6 +530,7 @@ def _clip(m, q):
 		amax = amplitude.quantile(q)
 	else:
 		amax = amplitude.quantile(.5) + q * (amplitude.quantile(.75) - amplitude.quantile(.25))
+		amax = amplitude[amplitude<=amax].max()
 	amplitude = amplitude.values
 	exceed = amplitude > amax
 	factor = amax / amplitude[exceed]

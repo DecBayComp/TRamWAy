@@ -454,8 +454,9 @@ class Distributed(Local):
 			points = np.zeros((ncells, self.dim), dtype=any_cell.center.dtype)
 			ok = np.zeros(points.shape[0], dtype=bool)
 			for i in self.cells:
-				points[i] = self.cells[i].center
-				ok[i] = True
+				if self.cells[i]: # non-empty
+					points[i] = self.cells[i].center
+					ok[i] = True
 			if cell_centers is None:
 				if max_cell_count == 1:
 					grid = copy(self)
@@ -471,6 +472,7 @@ class Distributed(Local):
 					try:
 						grid.tessellate(points[ok])
 					except scipy.spatial.qhull.QhullError:
+						print('Qhull errors are handled; full map optimization')
 						return new
 					except ValueError:
 						print(points)

@@ -88,7 +88,7 @@ def infer_smooth_DF(cells, localization_error=0.03, diffusivity_prior=1., jeffre
 	# collect the result
 	df.update(result.x)
 	D, F = df['D'], df['F']
-	DF = pd.DataFrame(np.c_[D[:,np.newaxis], F], index=index, \
+	DF = pd.DataFrame(np.concatenate((D[:,np.newaxis], F), axis=1), index=index, \
 		columns=[ 'diffusivity' ] + \
 			[ 'force ' + col for col in cells.space_cols ])
 	return DF

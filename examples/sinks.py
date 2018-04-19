@@ -13,44 +13,42 @@ short_description = 'generate trajectories and infer diffusivity and potential m
 
 
 method = 'gwr'
-localization_error = 0.03
-priorD = 0.05
-priorV = 0.05
-minD = -localization_error
-
 
 dim = 2
-D0 = .5
-D = .2
-normGradV = 5.
+D0 = 1.
+D = .5
+dV = -.1
+ref_distance = .05
 name = 'sinks'
 
+
+sigma = 1. / sqrt(-log(.05))
 
 def main():
 	output_basename = name
 	def out(label, extension):
 		return '{}.{}.{}.{}'.format(output_basename, method, label, extension)
 
-	xyt_file = output_basename + '.trxyt'
+	xyt_file = output_basename + '.txt'
 	rwa_file = output_basename + '.rwa'
 	new_xyt = not os.path.exists(xyt_file)
 	new_tessellation = not os.path.isfile(rwa_file)
 
 	## define the ground truth (xyt_file)
-	d_area_center = np.full((dim,), .8)
-	d_area_radius = .15
+	d_area_center = np.full((dim,), .5)
+	d_area_radius = .2
 	def diffusivity_map(x, *args):
-		d = x - d_area_center
-		d = np.dot(d, d)
-		return D if d <= d_area_radius * d_area_radius else D0
-	v_area_center= np.full((dim,), .4)
+		r = x - d_area_center
+		r = np.sqrt(np.dot(r, r))
+		return D0 + (D - D0) * exp(-(r / d_area_radius / sigma)**2)
+	v_area_center= np.full((dim,), .5)
 	v_area_radius = .2
-	v_ring_width = .06
 	def force_map(x, *args):
-		f = v_area_center - x
-		d = np.sqrt(np.dot(f, f))
-		f *= normGradV / d
-		return f if abs(d - v_area_radius) <= v_ring_width else np.zeros(dim)
+		f = x - v_area_center
+		r2 = np.dot(f, f)
+		s2 = (v_area_radius * sigma) ** 2
+		f *= 2. * dV / s2 * exp(-r2/s2)
+		return f
 	if new_xyt:
 		map_lower_bound = np.zeros(dim)
 		map_upper_bound = np.full((dim,), 1.)
@@ -69,37 +67,37 @@ def main():
 
 	## tessellate (tessellation_file)
 	if new_tessellation:
+		print("partitioning: {}".format(rwa_file))
 		cells = tessellate(xyt_file, method, output_file=rwa_file, \
-			verbose=True, strict_min_location_count=10, force=True)
-		cell_plot(rwa_file, output_file=out('mesh', 'png'), \
-			show=True, aspect='equal')
+			verbose=True, strict_min_location_count=10, force=True, \
+			ref_distance=ref_distance, label='gwr(d={})'.format(ref_distance))
 		# show ground truth
 		true_map = distributed(cells).run(truth, diffusivity=diffusivity_map, force=force_map)
-		print('ploting ground truth maps: {}'.format(out('truth', 'png')))
-		map_plot(true_map, cells=cells, output_file=out('truth', 'png'), show=True, aspect='equal')
 
-	## infer and plot
+	## infer
 	# capture negative diffusivity warnings and turn them into exceptions
 	warnings.filterwarnings('error', '', DiffusivityWarning)
 
-	#print("running D inference mode...")
-	#D_ = infer(rwa_file, mode='D', localization_error=localization_error, \
-	#	min_diffusivity=minD, output_label='D')
-	#map_plot(D_, output_file=out('d', 'png'), show=True, aspect='equal')
-
 	print("running DF inference mode...")
-	DF = infer(rwa_file, mode='DF', localization_error=localization_error, output_label='DF')
-	map_plot(DF, output_file=out('df', 'png'), show=True, aspect='equal')
-
-	#print("running DD inference mode...")
-	#DD = infer(rwa_file, mode='DD', localization_error=localization_error, \
-	#	priorD=priorD, min_diffusivity=minD, output_label='DD')
-	#map_plot(DD, output_file=out('dd', 'png'), show=True, aspect='equal')
+	DF = infer(rwa_file, mode='DF', output_label='DF')
 
 	print("running DV inference mode...")
-	DV = infer(rwa_file, mode='DV', localization_error=localization_error, \
-		priorD=priorD, priorV=priorV, output_label='DV')
-	map_plot(DV, output_file=out('dv', 'png'), show=True, aspect='equal')
+	DV = infer(rwa_file, mode='DV', output_label='DV', max_iter=50)
+
+	## plot
+	if new_tessellation:
+		output_file = out('mesh', 'png')
+		print('plotting the partition: {}'.format(output_file))
+		cell_plot(rwa_file, output_file=output_file, show=True, aspect='equal')
+		output_file = out('truth', 'png')
+		print('plotting ground truth maps: {}'.format(output_file))
+		map_plot(true_map, cells=cells, output_file=output_file, show=True, aspect='equal')
+	output_file = out('df', 'png')
+	print('plotting DF maps: {}'.format(output_file))
+	map_plot(DF, output_file=output_file, show=True, aspect='equal', clip=10.)
+	output_file = out('dv', 'png')
+	print('plotting DV maps: {}'.format(output_file))
+	map_plot(DV, output_file=output_file, show=True, aspect='equal')
 
 	sys.exit(0)
 

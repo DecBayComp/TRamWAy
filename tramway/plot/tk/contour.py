@@ -13,12 +13,12 @@
 
 
 import matplotlib
-matplotlib.use('TkAgg')
-try:
-	import matplotlib.pyplot
-except: # TclError; head-less tramway
-	matplotlib.use('Agg')
-	# the present application will fail if run
+#matplotlib.use('TkAgg')
+#try:
+#	import matplotlib.pyplot
+#except: # TclError; head-less tramway
+#	matplotlib.use('Agg')
+#	# the present application will fail if run
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -359,5 +359,6 @@ def contour_utility():
 	app.mainloop()
 
 if __name__ == '__main__':
+	matplotlib.use('TkAgg')
 	contour_utility()
 
