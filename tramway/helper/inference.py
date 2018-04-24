@@ -356,6 +356,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			mode = maps.mode
 		maps = maps.maps
 
+	if not cells._lazy['bounding_box']:
+		maps = box_crop(maps, cells.bounding_box, cells.tessellation)
+
 	# `mode` type may be inadequate because of loading a Py2-generated rwa file in Py3 or conversely
 	if mode and not isinstance(mode, str):
 		try: # Py2
@@ -542,4 +545,17 @@ def _clip(m, q):
 		m[exceed] = m[exceed] * factor
 		m = M(m, index=index)
 	return m
+
+
+def box_crop(maps, bounding_box, tessellation):
+	centers = tessellation.cell_centers
+	dims = columns(tessellation.descriptors(bounding_box))
+	for col, dim in enumerate(dims):
+		lower, upper = bounding_box[dim]
+		_in = (lower <= centers[:,col]) & (centers[:,col] <= upper)
+		if col == 0:
+			inside = _in
+		else:
+			inside &= _in
+	return maps[inside]
 

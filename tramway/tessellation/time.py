@@ -36,7 +36,7 @@ class TimeLattice(Tessellation):
 	__slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers')
 
 	__lazy__ = Tessellation.__lazy__ + \
-		('cell_adjacency', 'cell_label', 'adjacency_label')
+		('cell_centers', 'cell_adjacency', 'cell_label', 'adjacency_label')
 
 	def __init__(self, scaler=None, segments=None, label=None, mesh=None):
 		Tessellation.__init__(self, scaler) # scaler is ignored
@@ -244,7 +244,7 @@ class TimeLattice(Tessellation):
 				self._adjacency_label = np.r_[self._adjacency_label, \
 					np.full(active_cells.size, past_edge, dtype=dtype), \
 					np.full(active_cells.size, future_edge, dtype=dtype)]
-		return self._cell_adjacency
+		return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
 
 	@cell_adjacency.setter
 	def cell_adjacency(self, matrix):
@@ -269,7 +269,7 @@ class TimeLattice(Tessellation):
 				nsegments = self.time_lattice.shape[0]
 				return np.tile(self.spatial_mesh.cell_label, nsegments)
 		else:
-			return self._cell_label
+			return self.__returnlazy__('cell_label', self._cell_label)
 
 	@cell_label.setter
 	def cell_label(self, label):
@@ -280,7 +280,7 @@ class TimeLattice(Tessellation):
 	def adjacency_label(self):
 		if self._adjacency_label is None:
 			self.cell_adjacency
-		return self._adjacency_label
+		return self.__returnlazy__('adjacency_label', self._adjacency_label)
 
 	@adjacency_label.setter
 	def adjacency_label(self, label):
@@ -303,7 +303,7 @@ class TimeLattice(Tessellation):
 				self._cell_centers = np.hstack((self._cell_centers, \
 					np.repeat(np.mean(self.time_lattice, axis=1), \
 						ncells)[:,np.newaxis]))
-		return self._cell_centers
+		return self.__returnlazy__('cell_centers', self._cell_centers)
 
 	@cell_centers.setter
 	def cell_centers(self, pts):

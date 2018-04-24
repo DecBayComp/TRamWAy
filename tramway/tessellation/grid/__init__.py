@@ -116,7 +116,7 @@ class RegularMesh(Voronoi):
 		if self._vertices is None:
 			vs = np.meshgrid(*self.grid, indexing='ij')
 			self._vertices = np.column_stack([ v.flatten() for v in vs ])
-		return self._vertices
+		return self.__returnlazy__('vertices', self._vertices)
 
 	@vertices.setter
 	def vertices(self, vertices):
@@ -132,7 +132,7 @@ class RegularMesh(Voronoi):
 			c2  = np.atleast_2d(np.sum(cix * cix, axis=1))
 			self._cell_adjacency = sparse.csr_matrix(\
 				np.abs(c2 + c2.T - 2 * np.dot(cix, cix.T) - 1.0) < 1e-6)
-		return self._cell_adjacency
+		return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
 
 	@cell_adjacency.setter # copy/paste
 	def cell_adjacency(self, matrix):
@@ -148,7 +148,7 @@ class RegularMesh(Voronoi):
 			v2  = np.atleast_2d(np.sum(vix * vix, axis=1))
 			self._vertex_adjacency = sparse.csr_matrix(\
 				np.abs(v2 + v2.T - 2 * np.dot(vix, vix.T) - 1.0) < 1e-6)
-		return self._vertex_adjacency
+		return self.__returnlazy__('vertex_adjacency', self._vertex_adjacency)
 
 	@vertex_adjacency.setter # copy/paste
 	def vertex_adjacency(self, matrix):
@@ -166,7 +166,7 @@ class RegularMesh(Voronoi):
 				np.abs(c2.T + v2 - 2 * np.dot(cs, vs.T) - d2) < 1e-6)
 			#assert self._cell_vertices.tocsr() == dict_to_sparse(sparse_to_dict(self._cell_vertices), shape=self._cell_vertices.shape)
 			self._cell_vertices = sparse_to_dict(self._cell_vertices)
-		return self._cell_vertices
+		return self.__returnlazy__('cell_vertices', self._cell_vertices)
 
 	@cell_vertices.setter # copy/paste
 	def cell_vertices(self, matching):
@@ -191,7 +191,7 @@ class RegularMesh(Voronoi):
 			self._diagonal_adjacency = sparse.csr_matrix(
 				(np.ones(indices.shape, dtype=bool), indices, indptr),
 				shape=A.shape)
-		return self._diagonal_adjacency
+		return self.__returnlazy__('diagonal_adjacency', self._diagonal_adjacency)
 
 	@diagonal_adjacency.setter
 	def diagonal_adjacency(self, matrix):

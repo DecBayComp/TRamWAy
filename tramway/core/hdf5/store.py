@@ -42,6 +42,10 @@ class RWAStore(HDF5Store):
 			visited = {}
 		if container is None:
 			container = self.store
+		try:
+			obj = obj.lazy_unwrap()
+		except AttributeError:
+			pass
 		obj = lazyvalue(obj, deep=True) # in the case it was stored not unloaded
 		if self.unload and isinstance(obj, Lazy):
 			# set lazy attributes to None (unset them so that memory is freed)

@@ -39,7 +39,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	scaling=False, time_scale=None, \
 	knn=None, distance=None, ref_distance=None, \
 	rel_min_distance=None, rel_avg_distance=None, rel_max_distance=None, \
-	min_location_count=20, avg_location_count=None, max_location_count=None, \
+	min_location_count=None, avg_location_count=None, max_location_count=None, \
 	rel_max_size=None, rel_max_volume=None, \
 	label=None, output_label=None, comment=None, input_label=None, inplace=False, \
 	force=False, return_analyses=False, **kwargs):
@@ -122,7 +122,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 			set to four times `min_location_count`.
 
 		max_location_count (int):
-			Maximum number of points per cell. This is used only by *kdtree*.
+			Maximum number of points per cell. This is used by *kdtree* and *gwr*.
 
 		rel_max_size (float):
 			Maximum cell radius as a number of `ref_distance`. Radius (or size) is
@@ -274,7 +274,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	if rel_max_distance is not None:
 		# applies only to KDTreeMesh
 		max_distance = rel_max_distance * ref_distance
-		if method != 'kdtree':
+		if method not in ['kdtree', 'gwr']:
 			warn('`rel_max_distance` is relevant only with `kdtree`', IgnoredInputWarning)
 
 	if scaling:
@@ -284,6 +284,9 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 	else:
 		scaler = None
 
+	if min_location_count is None: # former default value: 20
+		if knn is None:
+			min_location_count = 20
 	n_pts = float(xyt_data.shape[0])
 	if min_location_count:
 		min_probability = float(min_location_count) / n_pts
@@ -292,7 +295,10 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 		if not plugin:
 			warn('undefined `min_location_count`; not tested', UseCaseWarning)
 	if not avg_location_count:
-		avg_location_count = 4 * min_location_count
+		if min_location_count is None:
+			avg_location_count = 80 # former default value
+		else:
+			avg_location_count = 4 * min_location_count
 	if avg_location_count:
 		avg_probability = float(avg_location_count) / n_pts
 	else:

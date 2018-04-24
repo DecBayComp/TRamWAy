@@ -62,7 +62,7 @@ class Lazy(object):
 		def name(self):
 			if self._name is None:
 				self._name = # add some logics
-			return self._name
+			return self.__lazyreturn__(self._name)
 
 	A fully functional setter will typically look like this:
 
@@ -94,6 +94,14 @@ class Lazy(object):
 		for name in self.__lazy__:
 			setattr(self, self.__fromlazy__(name), None)
 
+	def __returnlazy__(self, name, value):
+		return value
+
+	def __lazyreturn__(self, value, depth=0):
+		#caller = sys._getframe(depth + 1).f_code.co_name
+		#return self.__returnlazy__(caller, value)
+		return value
+
 	def __tolazy__(self, name):
 		"""Returns the property name that corresponds to an attribute name."""
 		return name[1:]
@@ -109,7 +117,8 @@ class Lazy(object):
 
 	def __lazysetter__(self, value, depth=0):
 		"""Sets the property which name is the name of the caller."""
-		self.__setlazy__(sys._getframe(depth + 1).f_code.co_name, value)
+		caller = sys._getframe(depth + 1).f_code.co_name
+		self.__setlazy__(caller, value)
 
 	def __lazyassert__(self, value, related_attribute=None, name=None, depth=0):
 		if value is None: # None has a special meaning for lazy attributes/properties

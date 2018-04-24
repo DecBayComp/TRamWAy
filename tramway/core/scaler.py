@@ -127,8 +127,9 @@ class Scaler(object):
 				Data matrix to be scaled. When :meth:`scale_point` is called for the
 				first time, `points` can be structured or not, without the unnecessary 
 				columns, if any.
-				At further calls of any (un-)scaling method, data should be in the same
-				format but may feature extra columns.
+				At further calls of any (un-)scaling method, the input data should be in
+				the same format with at least the same column names, and may feature 
+				extra columns.
 			inplace (bool):
 				Per default, scaling is performed in-place. With ``inplace=False``, 
 				`points` are first copied.

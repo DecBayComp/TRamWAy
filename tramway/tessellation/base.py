@@ -92,7 +92,7 @@ class CellStats(Lazy):
 	"""
 
 	__slots__ = ('_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tessellation')
-	__lazy__ = ('location_count', 'bounding_box')
+	__lazy__ = ('cell_index', 'location_count', 'bounding_box')
 
 	def __init__(self, points=None, tessellation=None, cell_index=None, location_count=None, \
 		bounding_box=None, param={}, locations=None, translocations=None):
@@ -123,7 +123,7 @@ class CellStats(Lazy):
 	def cell_index(self):
 		if self._cell_index is None:
 			self._cell_index = self.tessellation.cell_index(self.points)
-		return self._cell_index
+		return self.__returnlazy__('cell_index', self._cell_index)
 
 	@cell_index.setter
 	def cell_index(self, index):
@@ -207,7 +207,7 @@ class CellStats(Lazy):
 				self._location_count = np.zeros(ncells, dtype=_location_count.dtype)
 				self._location_count[valid_cells] = _location_count
 			assert self._location_count.size == ncells
-		return self._location_count
+		return self.__returnlazy__('location_count', self._location_count)
 
 	@location_count.setter
 	def location_count(self, cc):
@@ -223,7 +223,7 @@ class CellStats(Lazy):
 				self._bounding_box.index = ['min', 'max']
 			else:
 				self._bounding_box = np.vstack([xmin, xmax]).flatten('F')
-		return self._bounding_box
+		return self.__returnlazy__('bounding_box', self._bounding_box)
 
 	@bounding_box.setter
 	def bounding_box(self, bb):
@@ -922,7 +922,7 @@ class Voronoi(Delaunay):
 	def cell_adjacency(self):
 		if self._cell_centers is not None and self._cell_adjacency is None:
 			self._postprocess()
-		return self._cell_adjacency
+		return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
 
 	# whenever you redefine a getter you have to redefine the corresponding setter
 	@cell_adjacency.setter # copy/paste
@@ -934,7 +934,7 @@ class Voronoi(Delaunay):
 	def cell_vertices(self):
 		if self._cell_centers is not None and self._cell_vertices is None:
 			self._postprocess()
-		return self._cell_vertices
+		return self.__returnlazy__('cell_vertices', self._cell_vertices)
 
 	@cell_vertices.setter
 	def cell_vertices(self, vertex_indices):
@@ -945,7 +945,7 @@ class Voronoi(Delaunay):
 	def vertex_adjacency(self):
 		if self._cell_centers is not None and self._vertex_adjacency is None:
 			self._postprocess()
-		return self._vertex_adjacency
+		return self.__returnlazy__('vertex_adjacency', self._vertex_adjacency)
 
 	@vertex_adjacency.setter
 	def vertex_adjacency(self, matrix):
@@ -1012,7 +1012,7 @@ class Voronoi(Delaunay):
 							(w[0] - u[0]) * (v[1] - u[1]) \
 						)
 			self._cell_volume = self.scaler.unscale_surface_area(self._cell_volume * .5)
-		return self._cell_volume
+		return self.__returnlazy__('cell_volume', self._cell_volume)
 
 	@cell_volume.setter
 	def cell_volume(self, area):

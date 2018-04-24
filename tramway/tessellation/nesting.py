@@ -231,7 +231,7 @@ class NestedTessellations(Tessellation):
 			data = np.concatenate(data)
 			self._cell_adjacency = sparse.coo_matrix((data, (row, col)),
 				shape=(cell_count, cell_count))
-		return self._cell_adjacency
+		return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
 
 	@cell_adjacency.setter
 	def cell_adjacency(self, matrix):
@@ -261,7 +261,7 @@ class NestedTessellations(Tessellation):
 		if self._cell_label is False:
 			return None
 		else:
-			return self._cell_label
+			return self.__returnlazy__('cell_label', self._cell_label)
 
 	@cell_label.setter
 	def cell_label(self, label):
@@ -273,7 +273,7 @@ class NestedTessellations(Tessellation):
 		if self._adjacency_label is None:
 			# this doesn't cost anything if `_cell_adjacency` has already been built
 			self.cell_adjacency # makes `_adjacency_labels`
-		return self._adjacency_label
+		return self.__returnlazy__('adjacency_label', self._adjacency_label)
 
 	@adjacency_label.setter
 	def adjacency_label(self, label):
