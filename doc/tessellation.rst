@@ -288,7 +288,7 @@ The following example use case makes contiguous segments such that the total loc
 
 The same example with different spatial tessellations for each segment can be implemented with the help of tessellation nesting.
 
-If inference is underwent on such a tessellation, a map will be generated for each segment.
+If inference is performed on such a tessellation, a map will be generated for each segment.
 These maps can be individualized as follows:
 
 .. code-block:: python
