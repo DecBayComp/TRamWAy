@@ -135,13 +135,13 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 		result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
 		# priors
 		if dv.potential_prior:
-			result += dv.potential_prior * cells.grad_sum(i, gradV * gradV)
+			result += dv.potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
 		if dv.diffusivity_prior:
 			# spatial gradient of the local diffusivity
 			gradD = cells.grad(i, D, reverse_index)
 			if gradD is not None:
 				# `grad_sum` memoizes and can be called several times at no extra cost
-				result += dv.diffusivity_prior * cells.grad_sum(i, gradD * gradD)
+				result += dv.diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
 	if jeffreys_prior:
 		result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
 	return result

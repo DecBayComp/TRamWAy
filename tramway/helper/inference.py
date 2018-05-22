@@ -29,7 +29,7 @@ import traceback
 def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 	localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
 	max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
-	store_distributed=False, constructor=None, cell_sampling=None, \
+	store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
 	priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
 	return_cells=None, profile=None, force=False, **kwargs):
 	"""
@@ -72,7 +72,12 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		store_distributed (bool): store the :class:`~tramway.inference.base.Distributed` object 
 			in the map file
 
-		constructor (callable): see also :func:`~tramway.inference.base.distributed`
+		new_cell (callable): see also :func:`~tramway.inference.base.distributed`
+
+		new_group (callable): see also :func:`~tramway.inference.base.distributed`
+
+		constructor (callable): *deprecated*; see also :func:`~tramway.inference.base.distributed`; 
+			please use `new_group` instead
 
 		cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore 
 			`max_cell_count` and `dilation`
@@ -166,9 +171,12 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 			raise ValueError('no cells found')
 
 		# prepare the data for the inference
-		if constructor is None:
-			constructor = Distributed
-		detailled_map = distributed(cells, new_group=constructor)
+		if new_group is None:
+			if constructor is None:
+				new_group = Distributed
+			else:
+				new_group = constructor
+		detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group)
 
 		if cell_sampling is None:
 			try:
@@ -548,7 +556,7 @@ def _clip(m, q):
 
 
 def box_crop(maps, bounding_box, tessellation):
-	centers = tessellation.cell_centers
+	centers = tessellation.cell_centers[maps.index]
 	dims = columns(tessellation.descriptors(bounding_box))
 	for col, dim in enumerate(dims):
 		lower, upper = bounding_box[dim]

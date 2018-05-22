@@ -12,13 +12,13 @@ from math import *
 short_description = 'generate trajectories and infer diffusivity and potential maps'
 
 
-method = 'gwr'
+method = 'grid'
 
 dim = 2
-D0 = 1.
-D = .5
-dV = -.1
-ref_distance = .05
+D0 = .1
+D = .1
+dV = 2.
+ref_distance = .2
 name = 'sinks'
 
 
@@ -36,18 +36,18 @@ def main():
 
 	## define the ground truth (xyt_file)
 	d_area_center = np.full((dim,), .5)
-	d_area_radius = .2
+	d_area_radius = .3
 	def diffusivity_map(x, *args):
 		r = x - d_area_center
 		r = np.sqrt(np.dot(r, r))
 		return D0 + (D - D0) * exp(-(r / d_area_radius / sigma)**2)
 	v_area_center= np.full((dim,), .5)
-	v_area_radius = .2
+	v_area_radius = .3
 	def force_map(x, *args):
 		f = x - v_area_center
 		r2 = np.dot(f, f)
 		s2 = (v_area_radius * sigma) ** 2
-		f *= 2. * dV / s2 * exp(-r2/s2)
+		f *= -2. * dV / s2 * exp(-r2/s2)
 		return f
 	if new_xyt:
 		map_lower_bound = np.zeros(dim)
@@ -55,8 +55,9 @@ def main():
 		# simulate random walks
 		print('generating trajectories: {}'.format(xyt_file))
 		df = random_walk(diffusivity_map, force_map, \
-			trajectory_mean_count = 200, turnover = .3, duration = 10, \
-			box = np.r_[map_lower_bound, map_upper_bound - map_lower_bound])
+			trajectory_mean_count = 100, turnover = .2, duration = 10, \
+			box = np.r_[map_lower_bound, map_upper_bound - map_lower_bound], \
+			full = True, count_outside_trajectories = True)
 		#print(df)
 		df.to_csv(xyt_file, sep="\t", header=False)
 		## mesh regularly to sample ground truth for illustrative purposes
@@ -69,8 +70,12 @@ def main():
 	if new_tessellation:
 		print("partitioning: {}".format(rwa_file))
 		cells = tessellate(xyt_file, method, output_file=rwa_file, \
-			verbose=True, strict_min_location_count=10, force=True, \
-			ref_distance=ref_distance, label='gwr(d={})'.format(ref_distance))
+			verbose=True, strict_min_location_count=1, force=True, \
+			ref_distance=ref_distance, label='{}(d={})'.format(method, ref_distance))
+		cells.bounding_box[cells.tessellation.scaler.columns] = \
+			np.c_[map_lower_bound, map_upper_bound - map_lower_bound]
+		#cells = tessellate(xyt_file, method, output_file=rwa_file, \
+		#	verbose=True, strict_min_location_count=1, force=True, label=method)
 		# show ground truth
 		true_map = distributed(cells).run(truth, diffusivity=diffusivity_map, force=force_map)
 
@@ -94,7 +99,7 @@ def main():
 		map_plot(true_map, cells=cells, output_file=output_file, show=True, aspect='equal')
 	output_file = out('df', 'png')
 	print('plotting DF maps: {}'.format(output_file))
-	map_plot(DF, output_file=output_file, show=True, aspect='equal', clip=10.)
+	map_plot(DF, output_file=output_file, show=True, aspect='equal')
 	output_file = out('dv', 'png')
 	print('plotting DV maps: {}'.format(output_file))
 	map_plot(DV, output_file=output_file, show=True, aspect='equal')

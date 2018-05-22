@@ -93,11 +93,18 @@ def infer_DF(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivi
 				cell.dt[cell.dt < 0] *= -1.
 			index.append(i)
 			inferred.append(infer_DF(cell, *args, **kwargs))
-		any_cell = cell
-		inferred = pd.DataFrame(np.stack(inferred, axis=0), \
+		inferred = np.stack(inferred, axis=0)
+		#D = inferred[:,0]
+		#gradD = []
+		#for i in index:
+		#	gradD.append(cells.grad(i, D))
+		#gradD = np.stack(gradD, axis=0)
+		inferred = pd.DataFrame(inferred, \
 			index=index, \
 			columns=[ 'diffusivity' ] + \
-				[ 'force ' + col for col in any_cell.space_cols ])
+				[ 'force ' + col for col in cells.space_cols ])
+		#for j, col in enumerate(cells.space_cols):
+		#	inferred['gradD '+col] = gradD[:,j]
 		return inferred
 	else: # single cell
 		cell = cells

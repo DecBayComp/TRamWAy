@@ -97,8 +97,8 @@ def random_walk(diffusivity=None, force=None, \
 			if not np.all(0 < D):
 				raise ValueError('non-positive diffusivity value')
 			F = np.array([ force(x, t) for x in X ])
-			dX = time_step * (D[:,np.newaxis] * F + \
-				np.sqrt(2. * time_step * D.reshape(D.size, 1)) * np.random.randn(*X.shape))
+			dX = time_step * D[:,np.newaxis] * F + \
+				np.sqrt(2. * time_step * D.reshape(D.size, 1)) * np.random.randn(*X.shape)
 			X += dX
 			if not count_outside_trajectories:
 				inside = np.all(np.logical_and(
@@ -199,7 +199,7 @@ def truth(cells, t=None, diffusivity=None, force=None):
 
 		pandas.DataFrame: diffusivity/force maps
 	"""
-	dim = cells.cells[0].center.size
+	dim = cells.cells[iter(cells.cells).next()].center.size
 	I, DF = [], []
 	for i in cells.cells:
 		cell = cells.cells[i]

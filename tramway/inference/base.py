@@ -26,6 +26,7 @@ import six
 from functools import partial
 from warnings import warn
 import traceback
+from numpy.polynomial import polynomial as poly
 
 
 
@@ -274,36 +275,39 @@ class Distributed(Local):
 				in the (trans-)location data.
 		"""
 		cell = self.cells[i]
-		adjacent = self.adjacency[i].indices
+		adjacent = _adjacent = self.adjacency[i].indices
 		if index_map is not None:
 			i = index_map[i]
-			adjacent = index_map[adjacent]
+			adjacent = index_map[_adjacent]
 			ok = 0 <= adjacent
 			assert np.all(ok)
-			adjacent = adjacent[ok]
-			if adjacent.size == 0:
-				return None
+			#adjacent, _adjacent = adjacent[ok], _adjacent[ok]
 		if adjacent.size == 0:
-			return
-		if not isinstance(cell.cache, dict):
-			cell.cache = dict(vanders=None)
-		if cell.cache.get('vanders', None) is None:
-			if index_map is None:
-				span = cell.span
+			return None
+		#try:
+		#	ok = np.logical_not(X[adjacent].mask)
+		#	if np.any(ok):
+		#		ok = np.r_[True, ok]
+		#	else:
+		#		#warn('Distributed.grad: all the points are masked', RuntimeWarning)
+		#		return None
+		#except AttributeError:
+		#	ok = slice(adjacent.size + 1)
+		# below, the measurement is renamed y and the coordinates are X
+		y0, y = X[i], X[adjacent]
+		X = np.vstack([ self.cells[j].center for j in _adjacent ])
+		X0 = cell.center
+		grad = []
+		for j in range(self.dim):
+			x, x0 = X[:,j], X0[j]
+			u, v = x < x0, x0 < x
+			if np.any(u) and np.any(v):
+				grad_j = _vander(np.r_[x0, np.mean(x[u]), np.mean(x[v])],
+					np.r_[y0, np.mean(y[u]), np.mean(y[v])])
 			else:
-				span = cell.span[ok]
-			cell.cache['vanders'] = [ np.vander(col, 3)[...,:2] for col in span.T ]
-		dX = X[adjacent] - X[i]
-		try:
-			ok = np.logical_not(dX.mask)
-			if not np.any(ok):
-				#warn('Distributed.grad: all the points are masked', RuntimeWarning)
-				return None
-		except AttributeError:
-			ok = slice(dX.size)
-		gradX = np.array([ np.linalg.lstsq(vander[ok], dX[ok], rcond=None)[0][1] \
-			for vander in cell.cache['vanders'] ])
-		return gradX
+				grad_j = 0.#(y0 - np.mean(y)) / (x0 - np.mean(x))
+			grad.append(grad_j)
+		return np.asarray(grad)
 
 	def grad_sum(self, i, grad, index_map=None):
 		"""
@@ -327,6 +331,7 @@ class Distributed(Local):
 				weighted sum of the elements of `grad`.
 
 		"""
+		#return np.sum(grad)
 		cell = self.cells[i]
 		if not isinstance(cell.cache, dict):
 			cell.cache = dict(area=None)
@@ -341,9 +346,10 @@ class Distributed(Local):
 					cell.cache['area'] = area
 					return area
 				area = cell.span[ok]
-			# we want prod_i(area_i) = area_tot
-			# just a random approximation:
-			area = np.sqrt(np.mean(area * area, axis=0))
+			## we want prod_i(area_i) = area_tot
+			## just a random approximation:
+			#area = np.sqrt(np.mean(area * area, axis=0))
+			area = np.max(area, axis=0) - np.min(area, axis=0)
 			cell.cache['area'] = area
 		return np.dot(area, grad)
 
@@ -1434,6 +1440,76 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 	D_bounds = [(min_diffusivity, None)] * D_initial.size
 	return index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds
 
+
+def _poly2(X):
+	n, d = X.shape
+	x = X.T
+	return np.hstack((
+		np.vstack([ x[u] * x[v] for v in range(d) for u in range(d) ]).T,
+		X,
+		np.ones((n, 1), dtype=X.dtype),
+		))
+
+def _memoize1(f):
+	results = {}
+	def helper(x):
+		try:
+			y = results[x]
+		except KeyError:
+			y = results[x] = f(x)
+		return y
+	return helper
+
+@_memoize1
+def _poly2_meta_deriv(dim):
+	poly = []
+	for d in range(dim):
+		p = []
+		for v in range(dim):
+			for u in range(dim):
+				if u == d:
+					if v == d:
+						p.append((2., u))
+					else:
+						p.append((1., v))
+				else:
+					if v == d:
+						p.append((1., u))
+					else:
+						p.append((0., None))
+		for u in range(dim):
+			if u == d:
+				p.append((1., None))
+			else:
+				p.append((0., None))
+		p.append((0., None))
+		poly.append(p)
+	return poly
+
+def _poly2_deriv_eval(W, X):
+	if not X.shape[1:]:
+		X = X[np.newaxis, :]
+	dim = X.shape[1]
+	dP = _poly2_meta_deriv(dim)
+	Q = []
+	for Pd in dP:
+		Qd = 0.
+		i = 0
+		for q, u in Pd:
+			if q == 0:
+				continue
+			if u is None:
+				Qd += q * W[i]
+			else:
+				Qd += q * W[i] * X[:,u]
+			i += 1
+		Q.append(Qd)
+	return np.hstack(Q)
+
+def _vander(x, y):
+	P = poly.polyfit(x, y, 2)
+	dP = poly.polyder(P)
+	return poly.polyval(x[0], dP)
 
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
