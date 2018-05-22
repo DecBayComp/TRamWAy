@@ -199,10 +199,11 @@ def truth(cells, t=None, diffusivity=None, force=None):
 
 		pandas.DataFrame: diffusivity/force maps
 	"""
-	dim = cells.cells[iter(cells.cells).next()].center.size
 	I, DF = [], []
 	for i in cells.cells:
 		cell = cells.cells[i]
+		if not I:
+			dim = cell.center.size
 		I.append(i)
 		if diffusivity is None:
 			D = []

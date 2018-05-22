@@ -34,7 +34,7 @@ setup = {'name': 'smooth.df',
 
 
 def smooth_df_neg_posterior(x, df, cells, squared_localization_error, diffusivity_prior, jeffreys_prior,
-	dt_mean, min_diffusivity, reverse_index):
+	dt_mean, min_diffusivity, index, reverse_index):
 	# extract `D` and `F`
 	df.update(x)
 	D, F = df['D'], df['F']
@@ -46,7 +46,7 @@ def smooth_df_neg_posterior(x, df, cells, squared_localization_error, diffusivit
 	noise_dt = squared_localization_error
 	# for all cell
 	result = 0.
-	for j, i in enumerate(cells):
+	for j, i in enumerate(index):
 		cell = cells[i]
 		n = len(cell) # number of translocations
 		# various posterior terms
@@ -69,7 +69,7 @@ def smooth_df_neg_posterior(x, df, cells, squared_localization_error, diffusivit
 def infer_smooth_DF(cells, localization_error=0.03, diffusivity_prior=1., jeffreys_prior=False,
 	min_diffusivity=None, max_iter=None, **kwargs):
 	# initial values
-	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds = \
+	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
 		smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
 	F_initial = np.zeros((len(cells), cells.dim), dtype=D_initial.dtype)
 	F_bounds = [(None, None)] * F_initial.size # no bounds
@@ -83,7 +83,7 @@ def infer_smooth_DF(cells, localization_error=0.03, diffusivity_prior=1., jeffre
 		kwargs['options'] = options
 	#cell.cache = None # no cache needed
 	sle = localization_error * localization_error # sle = squared localization error
-	args = (df, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, reverse_index)
+	args = (df, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index)
 	result = minimize(smooth_df_neg_posterior, df.combined, args=args, **kwargs)
 	# collect the result
 	df.update(result.x)

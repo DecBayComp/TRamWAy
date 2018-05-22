@@ -34,7 +34,7 @@ setup = {'name': ('smooth.dd', 'smooth.ddrift'),
 
 
 def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivity_prior, jeffreys_prior,
-		dt_mean, min_diffusivity, reverse_index):
+		dt_mean, min_diffusivity, index, reverse_index):
 	# extract `D` and `drift`
 	dd.update(x)
 	D, drift = dd['D'], dd['drift']
@@ -46,7 +46,7 @@ def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivit
 	noise_dt = squared_localization_error
 	# for all cell
 	result = 0.
-	for j, i in enumerate(cells):
+	for j, i in enumerate(index):
 		cell = cells[i]
 		n = len(cell) # number of translocations
 		# various posterior terms
@@ -68,7 +68,7 @@ def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivit
 def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffreys_prior=False,
 	min_diffusivity=None, max_iter=None, **kwargs):
 	# initial values
-	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds = \
+	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
 		smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
 	initial_drift = np.zeros((len(cells), cells.dim), dtype=D_initial.dtype)
 	drift_bounds = [(None, None)] * initial_drift.size # no bounds
@@ -82,7 +82,7 @@ def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffre
 		kwargs['options'] = options
 	#cell.cache = None # no cache needed
 	sle = localization_error * localization_error # sle = squared localization error
-	args = (dd, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, reverse_index)
+	args = (dd, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index)
 	result = minimize(smooth_dd_neg_posterior, dd.combined, args=args, **kwargs)
 	# collect the result
 	dd.update(result.x)

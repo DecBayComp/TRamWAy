@@ -275,7 +275,7 @@ class Distributed(Local):
 				in the (trans-)location data.
 		"""
 		cell = self.cells[i]
-		adjacent = _adjacent = self.adjacency[i].indices
+		adjacent = _adjacent = self.adjacency.indices[self.adjacency.indptr[i]:self.adjacency.indptr[i+1]]
 		if index_map is not None:
 			i = index_map[i]
 			adjacent = index_map[_adjacent]
@@ -301,11 +301,16 @@ class Distributed(Local):
 		for j in range(self.dim):
 			x, x0 = X[:,j], X0[j]
 			u, v = x < x0, x0 < x
-			if np.any(u) and np.any(v):
-				grad_j = _vander(np.r_[x0, np.mean(x[u]), np.mean(x[v])],
-					np.r_[y0, np.mean(y[u]), np.mean(y[v])])
+			if np.any(u):
+				if np.any(v):
+					grad_j = _vander(np.r_[x0, np.mean(x[u]), np.mean(x[v])],
+						np.r_[y0, np.mean(y[u]), np.mean(y[v])])
+				else:
+					grad_j = (y0 - np.mean(y[u])) / (x0 - np.mean(x[u]))
+			elif np.any(v):
+				grad_j = (y0 - np.mean(y[v])) / (x0 - np.mean(x[v]))
 			else:
-				grad_j = 0.#(y0 - np.mean(y)) / (x0 - np.mean(x))
+				grad_j = 0.
 			grad.append(grad_j)
 		return np.asarray(grad)
 
@@ -1406,6 +1411,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 	* *D_initial* (:class:`numpy.ndarray`) -- initial diffusivity array.
 	* *min_diffusivity* (:class:`float` or ``None``) -- minimum diffusivity value; the returned value depends on `jeffreys_prior`.
 	* *D_bounds* (:class:`list`) -- list of (lower bound, upper bound) couples; suitable as *bounds* input argument for the :func:`scipy.optimize.minimize` function.
+	* *border* (:class:`numpy.ndarray`) -- MxD boolean matrix with M the number of cells and D the number of space dimensions
 
 	"""
 	if min_diffusivity is None:
@@ -1416,9 +1422,10 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 	elif min_diffusivity is False:
 		min_diffusivity = None
 	# initial values and sanity checks
-	index, n, dt_mean, D_initial = [], [], [], []
+	index, n, dt_mean, D_initial, border = [], [], [], [], []
 	reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
-	for j, i in enumerate(cells):
+	j = 0
+	for i in cells:
 		cell = cells[i]
 		if not bool(cell):
 			raise ValueError('empty cells')
@@ -1427,18 +1434,27 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 			warn('translocation dts are not all positive', RuntimeWarning)
 			cell.dr[cell.dt < 0] *= -1.
 			cell.dt[cell.dt < 0] *= -1.
+		# check cell i has neighbours
+		try:
+			adjacent = np.vstack([ cells[j].center for j in cells.adjacency.indices[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] if cells[j] ])
+		except ValueError:
+			continue
 		# initialize the local diffusivity parameter
 		dt_mean_i = np.mean(cell.dt)
 		D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
 		#
 		index.append(i)
 		reverse_index[i] = j
+		j += 1
 		n.append(float(len(cell)))
 		dt_mean.append(dt_mean_i)
 		D_initial.append(D_initial_i)
+		# border
+		border.append(np.logical_or( np.max(adjacent) <= cell.center, cell.center <= np.min(adjacent) ))
 	n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
 	D_bounds = [(min_diffusivity, None)] * D_initial.size
-	return index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds
+	border = np.vstack(border)
+	return index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border
 
 
 def _poly2(X):
@@ -1510,6 +1526,51 @@ def _vander(x, y):
 	P = poly.polyfit(x, y, 2)
 	dP = poly.polyder(P)
 	return poly.polyval(x[0], dP)
+
+def __vander(x, y):
+	"""
+	int k,j,i;
+	double phi,ff,b;
+
+	double* s = new double[nn+1];
+	for (i=0;i<=nn;i++) s[i]=cof[i]=0.0;
+	s[nn] = -xxx[0];
+	for (i=1;i<=nn;i++) {
+		for (j=nn-i;j<=nn-1;j++)
+			s[j] -= xxx[i]*s[j+1];
+		s[nn] -= xxx[i];
+	}
+	for (j=0;j<=nn;j++) {
+		phi=nn+1;
+		for (k=nn;k>=1;k--)
+			phi=k*s[k]+xxx[j]*phi;
+		ff=yyy[j]/phi;
+		b=1.0;
+		for (k=nn;k>=0;k--) {
+			cof[k] += b*ff;
+			b=s[k]+xxx[j]*b;
+		}
+	}
+	"""
+	x, y = x[[1,0,2]], y[[1,0,2]]
+	nn = 2
+	cof = np.zeros(nn+1, dtype=x.dtype)
+	s = np.zeros(nn+1, dtype=x.dtype)
+	s[nn] = -x[0]
+	for i in range(nn+1):
+		for j in range(nn-i, nn):
+			s[j] -= x[i] * s[j+1]
+		s[nn] -= x[i]
+	for j in range(nn+1):
+		phi = float(nn+1)
+		for k in range(nn, 0, -1):
+			phi = k * s[k] + phi * x[j]
+		ff = y[j] / phi
+		b = 1.
+		for k in range(nn, -1, -1):
+			cof[k] += b * ff
+			b = s[k] + x[j] * b
+	return cof[1] + 2. * cof[2] * x[1]
 
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',

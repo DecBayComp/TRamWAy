@@ -15,10 +15,10 @@ short_description = 'generate trajectories and infer diffusivity and potential m
 method = 'grid'
 
 dim = 2
-D0 = .1
-D = .1
+D0 = .05
+D = .05
 dV = 2.
-ref_distance = .2
+ref_distance = .25
 name = 'sinks'
 
 
@@ -49,9 +49,9 @@ def main():
 		s2 = (v_area_radius * sigma) ** 2
 		f *= -2. * dV / s2 * exp(-r2/s2)
 		return f
+	map_lower_bound = np.zeros(dim)
+	map_upper_bound = np.full((dim,), 1.)
 	if new_xyt:
-		map_lower_bound = np.zeros(dim)
-		map_upper_bound = np.full((dim,), 1.)
 		# simulate random walks
 		print('generating trajectories: {}'.format(xyt_file))
 		df = random_walk(diffusivity_map, force_map, \
@@ -72,8 +72,6 @@ def main():
 		cells = tessellate(xyt_file, method, output_file=rwa_file, \
 			verbose=True, strict_min_location_count=1, force=True, \
 			ref_distance=ref_distance, label='{}(d={})'.format(method, ref_distance))
-		cells.bounding_box[cells.tessellation.scaler.columns] = \
-			np.c_[map_lower_bound, map_upper_bound - map_lower_bound]
 		#cells = tessellate(xyt_file, method, output_file=rwa_file, \
 		#	verbose=True, strict_min_location_count=1, force=True, label=method)
 		# show ground truth
@@ -87,7 +85,14 @@ def main():
 	DF = infer(rwa_file, mode='DF', output_label='DF')
 
 	print("running DV inference mode...")
-	DV = infer(rwa_file, mode='DV', output_label='DV', max_iter=50)
+	DV = infer(rwa_file, mode='DV', output_label='DV', max_iter=20)
+
+	#
+	print(dict(DF))
+	#bb = cells.bounding_box
+	#bb[cells.tessellation.scaler.columns] = \
+	#	np.c_[map_lower_bound, map_upper_bound - map_lower_bound]
+	#cells.bounding_box = bb
 
 	## plot
 	if new_tessellation:

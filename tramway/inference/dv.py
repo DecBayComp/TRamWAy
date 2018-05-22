@@ -63,7 +63,7 @@ class DV(ChainArray):
 
 
 
-def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, reverse_index):
+def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, index, reverse_index):
 	"""
 	Adapted from InferenceMAP's *dvPosterior* procedure modified:
 
@@ -119,7 +119,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 	noise_dt = squared_localization_error
 	# for all cell
 	result = 0.
-	for j, i in enumerate(cells):
+	for j, i in enumerate(index):
 		cell = cells[i]
 		n = len(cell) # number of translocations
 		# spatial gradient of the local potential energy
@@ -150,7 +150,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prior=1., \
 	jeffreys_prior=False, min_diffusivity=None, max_iter=None, **kwargs):
 	# initial values
-	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds = \
+	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
 		smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
 	V_initial = -np.log(n / np.sum(n))
 	V_bounds = [(None, None)] * V_initial.size
@@ -165,7 +165,7 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prio
 	# run the optimization routine
 	squared_localization_error = localization_error * localization_error
 	result = minimize(dv_neg_posterior, dv.combined, \
-		args=(dv, cells, squared_localization_error, jeffreys_prior, dt_mean, reverse_index), \
+		args=(dv, cells, squared_localization_error, jeffreys_prior, dt_mean, index, reverse_index), \
 		**kwargs)
 	# collect the result
 	dv.update(result.x)

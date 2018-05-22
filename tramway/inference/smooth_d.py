@@ -33,7 +33,7 @@ setup = {'name': 'smooth.d',
 
 
 def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffusivity_prior, \
-	jeffreys_prior, dt_mean, min_diffusivity, reverse_index):
+	jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index):
 	"""
 	Adapted from InferenceMAP's *dDDPosterior* procedure:
 
@@ -76,7 +76,7 @@ def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffu
 			warn(DiffusivityWarning(observed_min, min_diffusivity))
 	noise_dt = squared_localization_error
 	result = 0.
-	for j, i in enumerate(cells):
+	for j, i in enumerate(index):
 		cell = cells[i]
 		n = len(cell)
 		# posterior calculations
@@ -100,7 +100,7 @@ def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffu
 def infer_smooth_D(cells, localization_error=0.03, diffusivity_prior=1., jeffreys_prior=None, \
 	min_diffusivity=None, max_iter=None, **kwargs):
 	# initial values
-	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds = \
+	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
 		smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
 	# parametrize the optimization procedure
 	if min_diffusivity is not None:
@@ -112,7 +112,7 @@ def infer_smooth_D(cells, localization_error=0.03, diffusivity_prior=1., jeffrey
 	# run the optimization
 	sle = localization_error * localization_error # sle = squared localization error
 	result = minimize(smooth_d_neg_posterior, D_initial, \
-		args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, reverse_index), \
+		args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index), \
 		**kwargs)
 	# format the result
 	D = result.x
