@@ -1522,12 +1522,12 @@ def _poly2_deriv_eval(W, X):
 		Q.append(Qd)
 	return np.hstack(Q)
 
-def _vander(x, y):
+def __vander(x, y):
 	P = poly.polyfit(x, y, 2)
 	dP = poly.polyder(P)
 	return poly.polyval(x[0], dP)
 
-def __vander(x, y):
+def _vander(x, y):
 	"""
 	int k,j,i;
 	double phi,ff,b;

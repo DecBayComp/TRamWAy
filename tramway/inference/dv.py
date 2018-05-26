@@ -33,17 +33,18 @@ setup = {'arguments': OrderedDict((
 
 
 class DV(ChainArray):
-	__slots__ = ('diffusivity_prior', 'potential_prior', 'minimum_diffusivity')
+	__slots__ = ('_diffusivity_prior', '_potential_prior', 'minimum_diffusivity', 'prior_include')
 
 	def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None, \
-		minimum_diffusivity=None, positive_diffusivity=None):
+		minimum_diffusivity=None, positive_diffusivity=None, prior_include=None):
 		# positive_diffusivity is for backward compatibility
 		ChainArray.__init__(self, 'D', diffusivity, 'V', potential)
-		self.diffusivity_prior = diffusivity_prior
-		self.potential_prior = potential_prior
+		self._diffusivity_prior = diffusivity_prior
+		self._potential_prior = potential_prior
 		self.minimum_diffusivity = minimum_diffusivity
 		if minimum_diffusivity is None and positive_diffusivity is True:
 			self.minimum_diffusivity = 0
+		self.prior_include = prior_include
 
 	@property
 	def D(self):
@@ -61,9 +62,22 @@ class DV(ChainArray):
 	def V(self, potential):
 		self['V'] = potential
 
+	def diffusivity_prior(self, j):
+		if self._diffusivity_prior and (self.prior_include is None or self.prior_include[j]):
+			return self._diffusivity_prior
+		else:
+			return None
+
+	def potential_prior(self, j):
+		if self._potential_prior and (self.prior_include is None or self.prior_include[j]):
+			return self._potential_prior
+		else:
+			return None
 
 
-def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, index, reverse_index):
+
+def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
+		index, reverse_index):
 	"""
 	Adapted from InferenceMAP's *dvPosterior* procedure modified:
 
@@ -134,14 +148,16 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 		ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
 		result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
 		# priors
-		if dv.potential_prior:
-			result += dv.potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
-		if dv.diffusivity_prior:
+		potential_prior = dv.potential_prior(j)
+		if potential_prior:
+			result += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
+		diffusivity_prior = dv.diffusivity_prior(j)
+		if diffusivity_prior:
 			# spatial gradient of the local diffusivity
 			gradD = cells.grad(i, D, reverse_index)
 			if gradD is not None:
 				# `grad_sum` memoizes and can be called several times at no extra cost
-				result += dv.diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
+				result += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
 	if jeffreys_prior:
 		result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
 	return result
@@ -152,9 +168,9 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prio
 	# initial values
 	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
 		smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
-	V_initial = -np.log(n / np.sum(n))
-	V_bounds = [(None, None)] * V_initial.size
-	dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity)
+	V_initial = -np.log(n / np.max(n))
+	V_bounds = [(0., None)] * V_initial.size
+	dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
 	# parametrize the optimization algorithm
 	if min_diffusivity is not None:
 		kwargs['bounds'] = D_bounds + V_bounds
