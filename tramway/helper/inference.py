@@ -149,7 +149,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 		if cells is None:
 			analysis = all_analyses[input_label]
 			cells = analysis.data
-		if not isinstance(cells, CellStats):
+		if not isinstance(cells, (CellStats, Distributed)):
 			raise ValueError('cannot find cells at the specified label')
 	elif all_analyses is None:
 		all_analyses = Analyses(cells.points)
@@ -275,7 +275,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			filepaths and analysis trees may require `label` (or equivalently `input_label`)
 			to be defined; dataframes and encapsulated maps require `cells` to be defined
 
-		cells (CellStats or Tessellation): mesh with optional partition
+		cells (CellStats or Tessellation or Distributed): mesh with optional partition
 
 		clip (float): clips map values by absolute values;
 			if ``clip < 1``, it is the quantile at which to clip absolute values of the map;
@@ -305,10 +305,6 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 		mode (bool or str): inference mode; can be ``False`` so that mode information from
 			files, analysis trees and encapsulated maps are not displayed
 	"""
-	import matplotlib.pyplot as mplt
-	import tramway.plot.mesh as xplt
-	import tramway.plot.map  as yplt
-
 	# get cells and maps objects from the first input argument
 	input_file = None
 	if isinstance(maps, tuple):
@@ -321,7 +317,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 		analyses = maps
 		if label is None:
 			label = input_label
-		cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
+		cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
 	else: # `maps` is a file path
 		input_file = maps
 		if label is None:
@@ -358,13 +354,29 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 		except ImportError:
 			warn('HDF5 libraries may not be installed', ImportWarning)
 		else:
-			cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
+			cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
 	if isinstance(maps, Maps):
 		if mode != False:
 			mode = maps.mode
 		maps = maps.maps
+	if isinstance(cells, Distributed):
+		# fix for rwa-0.5 OrderedDict
+		cells.cells = collections.OrderedDict((k, cells[k]) for k in range(max(cells.keys())+1) if k in cells )
+		#for i in cells:
+		#	print('{}\t{}\t{}'.format(i, *cells[i].center))
+	#if isinstance(cells, Distributed):
+	#	distr = cells
+	#	cells = Voronoi()
+	#	try:
+	#		cells.tessellate(pd.DataFrame(np.vstack([ distr[i].center for i in range(distr.adjacency.shape[0]) ]),
+	#			columns=distr.space_cols))
+	#		cells = CellStats(analyses.data, cells)
+	#	except (KeyboardInterrupt, SystemExit):
+	#		raise
+	#	except:
+	#		raise TypeError('cannot handle `Distributed` objects with missing cells or location data')
 
-	if not cells._lazy['bounding_box']:
+	if not cells._lazy.get('bounding_box', True):
 		maps = box_crop(maps, cells.bounding_box, cells.tessellation)
 
 	# `mode` type may be inadequate because of loading a Py2-generated rwa file in Py3 or conversely
@@ -390,8 +402,20 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			figext = fig_format
 			filename, _ = os.path.splitext(input_file)
 
+	# import graphics libraries with adequate backend
+	if print_figs:
+		import matplotlib
+		try:
+			matplotlib.use('Agg') # head-less rendering (no X server required)
+		except:
+			pass
+	import matplotlib.pyplot as mplt
+	import tramway.plot.mesh as xplt
+	import tramway.plot.map  as yplt
+
 	# identify and plot the possibly various maps
 	figs = []
+	nfig = 0
 
 	all_vars = splitcoord(maps.columns)
 	scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
@@ -422,6 +446,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 			__clip = clip
 		if __clip:
 			_map = _clip(_map, __clip)
+		# debug
+		if isinstance(maps, pd.DataFrame) and 'x' in maps.columns and col not in 'xyzt':
+			_map = maps[[ col for col in 'xyzt' if col in maps.columns ]].join(_map)
+		#
 		yplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
 		if point_style is not None:
@@ -444,8 +472,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 		if print_figs:
 			if maps.shape[1] == 1:
 				figfile = '{}.{}'.format(filename, figext)
-			else:
+			elif short_name:
 				figfile = '{}_{}.{}'.format(filename, short_name.lower(), figext)
+			else:
+				figfile = '{}_{}.{}'.format(filename, nfig, figext)
+				nfig += 1
 			if verbose:
 				print('writing file: {}'.format(figfile))
 			fig.savefig(figfile, dpi=dpi)

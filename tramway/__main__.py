@@ -428,7 +428,10 @@ def main():
 	if labels:
 		if labels[0] in "'\"" and labels[0] == labels[-1]:
 			labels = labels[1:-1]
-		labels = labels.split(',')
+		if ';' in labels:
+			labels = labels.split(';')
+		else:
+			labels = labels.split(',')
 		args.input_label = []
 		for label in labels:
 			try:

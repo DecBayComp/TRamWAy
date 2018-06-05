@@ -576,8 +576,6 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		See also :mod:`tramway.plot.mesh`.
 
 	"""
-	import matplotlib.pyplot as mplt
-	import tramway.plot.mesh as tplt
 	input_file = ''
 	if not isinstance(cells, CellStats):
 		if label is None:
@@ -687,16 +685,38 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 		method_name[tramway.tessellation.gwr.GasMesh] = ('gwr', 'GWR', 'GWR based tessellation')
 	try:
 		method_name, pp_method_name, method_title = method_name[type(cells.tessellation)]
-	except KeyError:
+	except (KeyError, AttributeError):
 		method_name = pp_method_name = method_title = ''
 
-	min_distance = cells.param.get('min_distance', 0)
-	avg_distance = cells.param.get('avg_distance', None)
-	min_location_count = cells.param.get('min_location_count', 0)
+	if location_count_hist or cell_dist_hist or location_dist_hist:
+		min_distance = cells.param.get('min_distance', 0)
+		avg_distance = cells.param.get('avg_distance', None)
+	try:
+		min_location_count = cells.param['min_location_count']
+	except (KeyError, AttributeError):
+		min_location_count = 0
+
+	print_figs = output_file or (input_file and fig_format)
+
+	# import graphics libraries with adequate backend
+	if print_figs:
+		import matplotlib
+		try:
+			matplotlib.use('Agg') # head-less rendering (no X server required)
+		except:
+			pass
+	import matplotlib.pyplot as mplt
+	import tramway.plot.mesh as tplt
 
 	# plot the data points together with the tessellation
 	figs = []
-	dim = cells.tessellation.cell_centers.shape[1]
+	try:
+		dim = cells.tessellation.cell_centers.shape[1]
+	except AttributeError as e:
+		try:
+			dim = cells.dim
+		except AttributeError:
+			raise e
 	if dim == 2:
 		fig = mplt.figure(figsize=figsize)
 		figs.append(fig)
@@ -729,8 +749,6 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 			elif voronoi:
 				mplt.title(pp_method_name + ' based Voronoi')
 
-
-	print_figs = output_file or (input_file and fig_format)
 
 	if print_figs:
 		if output_file:

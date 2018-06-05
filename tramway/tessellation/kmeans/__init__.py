@@ -38,31 +38,41 @@ class KMeansMesh(Voronoi):
 			*not used*.
 	"""
 	def __init__(self, scaler=None, min_probability=None, avg_probability=None, \
-		min_distance=None, **kwargs):
+		min_distance=None, initial='grid', **kwargs):
 		Voronoi.__init__(self, scaler)
 		#self.min_probability = min_probability
 		#self.max_probability = None
 		self.avg_probability = avg_probability
 		#self.local_probability = None
 		self._min_distance = min_distance
+		self.initial = initial
 
 	def _preprocess(self, points):
 		init = self.scaler.init
 		points = Voronoi._preprocess(self, points)
 		if init and self._min_distance is not None:
 			self._min_distance = self.scaler.scale_distance(self._min_distance)
-		grid = RegularMesh(avg_probability=self.avg_probability,
-			min_distance=self._min_distance)
-		grid.tessellate(points)
-		self._cell_centers = grid._cell_centers
-		self.lower_bound = grid.lower_bound
-		self.upper_bound = grid.upper_bound
+		if self.initial == 'grid':
+			grid = RegularMesh(avg_probability=self.avg_probability,
+				min_distance=self._min_distance)
+			grid.tessellate(points)
+			self._cell_centers = grid._cell_centers
+			#self.lower_bound = grid.lower_bound
+			#self.upper_bound = grid.upper_bound
+		elif self.initial == 'random':
+	 		lower_bound = np.asarray(points).min(axis=0, keepdims=True)
+	 		upper_bound = np.asarray(points).max(axis=0, keepdims=True)
+			if self.avg_probability:
+				n_cells = int(round(1. / self.avg_probability))
+			else:
+				raise ValueError('avg_probability (or avg_location_count) not defined')
+			self._cell_centers = np.random.rand(n_cells, points.shape[1])
+			self._cell_centers = self._cell_centers * (upper_bound - lower_bound) + lower_bound
 		self.roi_subset_size = 10000
 		self.roi_subset_count = 10
 		return points
 
-	def tessellate(self, points, tol=1e-3, prune=2.5, plot=False, **kwargs):
-		points = self._preprocess(points)
+	def tessellate(self, points, tol=1e-6, prune=2.5, plot=False, **kwargs):
 		"""Grow the tessellation.
 
 		Attributes:
@@ -73,6 +83,7 @@ class KMeansMesh(Voronoi):
 				is greater than `prune` times the median edge length;
 				``True`` is translated to the default value.
 		"""
+		points = self._preprocess(points)
 		self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
 			thresh=tol)
 

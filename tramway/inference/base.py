@@ -40,26 +40,54 @@ class Local(Lazy):
 			This cell's index as referenced in :class:`Distributed`.
 
 		data (collection of terminal elements or :class:`Local`):
-			Dlements, either terminal or not.
+			Elements, either terminal or not.
 
 		center (array-like):
 			Cell center coordinates.
 
 		span (array-like):
-			Difference vectors from this cell's center to adjacent centers. Useful as 
-			mixing coefficients for summing the multiple local gradients of a scalar 
-			dynamic parameter.
+			Difference vectors from this cell's center to adjacent centers.
+
+		boundary/convex_hull (scipy.spatial.qhull.ConvexHull):
+			Convex hull of the contained locations.
 
 	"""
-	__slots__ = ('index', 'data', 'center', 'span') #, 'boundary'
+	__slots__ = ('index', 'data', 'center', 'span', 'boundary')
 
-	def __init__(self, index, data, center=None, span=None): #, boundary=None
+	def __init__(self, index, data, center=None, span=None, boundary=None):
 		Lazy.__init__(self)
 		self.index = index
 		self.data = data
 		self.center = center
 		self.span = span
-		#self.boundary = boundary
+		self.boundary = boundary
+
+	@property
+	def convex_hull(self):
+		"""
+		`scipy.spatial.qhull.ConvexHull`, property
+
+		Alias for `boundary`.
+		"""
+		return self.boundary
+
+	@convex_hull.setter
+	def convex_hull(self, ch):
+		self.boundary = ch
+
+	@property
+	def volume(self):
+		"""
+		`float`, property
+
+		Area of the convex hull.
+		"""
+		if self.convex_hull is None:
+			return None
+		try:
+			return self.convex_hull.volume
+		except AttributeError:
+			return self.convex_hull[0]
 
 	@property
 	def dim(self):
@@ -102,7 +130,7 @@ class Distributed(Local):
 
 	def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
 		boundary=None):
-		Local.__init__(self, index, OrderedDict(), center, span)
+		Local.__init__(self, index, OrderedDict(), center, span, boundary)
 		self.cells = cells # let's `cells` setter perform the necessary checks 
 		self.adjacency = adjacency
 		self.central = central
@@ -130,7 +158,7 @@ class Distributed(Local):
 			else:
 				raise TypeError('`cells` argument is not a dictionnary (`dict` or `OrderedDict`)')
 		if not all([ isinstance(cell, Local) for cell in cells.values() ]):
-			raise TypeError('`cells` argument is not a dictionnary of `Local`s')
+			raise TypeError('`cells` argument is not a dictionnary of `Local`')
 		#try:
 		#	if self.ccount == len(cells): #.keys().reversed().next(): # max
 		#		self.adjacency = None
@@ -274,45 +302,7 @@ class Distributed(Local):
 				gradient as a vector with as many elements as there are dimensions
 				in the (trans-)location data.
 		"""
-		cell = self.cells[i]
-		adjacent = _adjacent = self.adjacency.indices[self.adjacency.indptr[i]:self.adjacency.indptr[i+1]]
-		if index_map is not None:
-			i = index_map[i]
-			adjacent = index_map[_adjacent]
-			ok = 0 <= adjacent
-			assert np.all(ok)
-			#adjacent, _adjacent = adjacent[ok], _adjacent[ok]
-		if adjacent.size == 0:
-			return None
-		#try:
-		#	ok = np.logical_not(X[adjacent].mask)
-		#	if np.any(ok):
-		#		ok = np.r_[True, ok]
-		#	else:
-		#		#warn('Distributed.grad: all the points are masked', RuntimeWarning)
-		#		return None
-		#except AttributeError:
-		#	ok = slice(adjacent.size + 1)
-		# below, the measurement is renamed y and the coordinates are X
-		y0, y = X[i], X[adjacent]
-		X = np.vstack([ self.cells[j].center for j in _adjacent ])
-		X0 = cell.center
-		grad = []
-		for j in range(self.dim):
-			x, x0 = X[:,j], X0[j]
-			u, v = x < x0, x0 < x
-			if np.any(u):
-				if np.any(v):
-					grad_j = _vander(np.r_[x0, np.mean(x[u]), np.mean(x[v])],
-						np.r_[y0, np.mean(y[u]), np.mean(y[v])])
-				else:
-					grad_j = (y0 - np.mean(y[u])) / (x0 - np.mean(x[u]))
-			elif np.any(v):
-				grad_j = (y0 - np.mean(y[v])) / (x0 - np.mean(x[v]))
-			else:
-				grad_j = 0.
-			grad.append(grad_j)
-		return np.asarray(grad)
+		return grad1(self, i, X, index_map)
 
 	def grad_sum(self, i, grad, index_map=None):
 		"""
@@ -336,77 +326,11 @@ class Distributed(Local):
 				weighted sum of the elements of `grad`.
 
 		"""
-		#return np.sum(grad)
 		cell = self.cells[i]
-		if not isinstance(cell.cache, dict):
-			cell.cache = dict(area=None)
-		area = cell.cache.get('area', None)
-		if area is None:
-			if index_map is None:
-				area = cell.span
-			else:
-				ok = 0 <= index_map[self.adjacency[i].indices]
-				if not np.any(ok):
-					area = False
-					cell.cache['area'] = area
-					return area
-				area = cell.span[ok]
-			## we want prod_i(area_i) = area_tot
-			## just a random approximation:
-			#area = np.sqrt(np.mean(area * area, axis=0))
-			area = np.max(area, axis=0) - np.min(area, axis=0)
-			cell.cache['area'] = area
-		return np.dot(area, grad)
-
-	def dx_dt(self, t, X):
-		"""
-		Time derivative.
-
-		.. warning::
-
-			not used; may not even work.
-
-		Arguments:
-
-			t (float):
-				time at which the gradient is evaluated.
-
-			X (pandas.Series):
-				time series with time `t` included.
-
-		Results:
-
-			float or array:
-				time derivative of X at t.
-		"""
-		cell = self.cells[i]
-		adjacent = self.adjacency[i].indices
-		if index_map is not None:
-			i = index_map[i]
-			adjacent = index_map[adjacent]
-			ok = 0 <= adjacent
-			if not np.any(ok):
-				return None
-			adjacent = adjacent[ok]
-		if not isinstance(cell.cache, dict):
-			cell.cache = dict(vanders=None)
-		if cell.cache.get('vanders', None) is None:
-			if index_map is None:
-				span = cell.span
-			else:
-				span = cell.span[ok]
-			cell.cache['vanders'] = [ np.vander(col, 3)[...,:2] for col in span.T ]
-		dX = X[adjacent] - X[i]
-		try:
-			ok = np.logical_not(dX.mask)
-			if not np.any(ok):
-				#warn('Distributed.grad: all the points are masked', RuntimeWarning)
-				return None
-		except AttributeError:
-			ok = slice(dX.size)
-		gradX = np.array([ np.linalg.lstsq(vander[ok], dX[ok])[0][1] \
-			for vander in cell.cache['vanders'] ])
-		return gradX
+		if cell.volume:
+			return cell.volume * np.sum(grad)
+		else:
+			return np.sum(grad)
 
 	def flatten(self):
 		def concat(arrays):
@@ -416,11 +340,13 @@ class Distributed(Local):
 				return pd.concat(arrays, axis=0)
 			else:
 				return np.stack(arrays, axis=0)
+
 		new = copy(self)
 		new.cells = {i: Cell(i, concat([cell.data for cell in dist.cells.values()]), \
-				dist.center, dist.span) \
+				dist.center, dist.span, convex_hull=dist.convex_hull) \
 			if isinstance(dist, Distributed) else dist \
 			for i, dist in self.cells.items() }
+
 		return new
 
 	def group(self, ngroups=None, max_cell_count=None, cell_centers=None, \
@@ -462,12 +388,14 @@ class Distributed(Local):
 		new = copy(self)
 		if ngroups or (max_cell_count and max_cell_count < ncells) or cell_centers is not None:
 			any_cell = self.any_cell()
+
 			points = np.zeros((ncells, self.dim), dtype=any_cell.center.dtype)
 			ok = np.zeros(points.shape[0], dtype=bool)
 			for i in self.cells:
 				if self.cells[i]: # non-empty
 					points[i] = self.cells[i].center
 					ok[i] = True
+
 			if cell_centers is None:
 				if max_cell_count == 1:
 					grid = copy(self)
@@ -488,9 +416,11 @@ class Distributed(Local):
 					except ValueError:
 						print(points)
 						raise
+
 			else:
 				grid = tessellation.Voronoi()
 				grid.cell_centers = cell_centers
+
 			I = np.full(ok.size, -1, dtype=int)
 			I[ok] = grid.cell_index(points[ok], min_location_count=1)
 			#if not np.all(ok):
@@ -500,19 +430,23 @@ class Distributed(Local):
 			J = J[0 <= J]
 			assert 0 < J.size
 			new.data = type(self.cells)()
+
 			for j in J: # for each macro-cell
 				K = I == j # find corresponding cells
 				assert np.any(K)
+
 				if 0 < adjacency_margin:
 					L = np.copy(K)
 					for k in range(adjacency_margin):
 						# add adjacent cells for future gradient calculations
 						K[self.adjacency[K,:].indices] = True
 					L = L[K]
+
 				A = self.adjacency[K,:].tocsc()[:,K].tocsr() # point adjacency matrix
 				C = grid.cell_centers[j]
 				D = OrderedDict([ (i, self.cells[k]) \
 					for i, k in enumerate(K.nonzero()[0]) if k in self.cells ])
+
 				for i in D:
 					adj = A[i].indices
 					if 0 < D[i].tcount and adj.size:
@@ -523,16 +457,22 @@ class Distributed(Local):
 					if span.shape[0] < D[i].span.shape[0]:
 						D[i] = copy(D[i])
 						D[i].span = span - D[i].center
+
 				R = grid.cell_centers[new.adjacency[j].indices] - C
+
 				new.cells[j] = type(self)(D, A, index=j, center=C, span=R)
+
 				if 0 < adjacency_margin:
 					new.cells[j].central = L
 				assert bool(new.cells[j])
+
 			new.ccount = self.ccount
 			# _tcount is not supposed to change
+
 		else:
 			pass
 			#raise KeyError('`group` expects more input arguments')
+
 		return new
 
 	def run(self, function, *args, **kwargs):
@@ -577,6 +517,7 @@ class Distributed(Local):
 		"""
 		# clear the caches
 		self.clear_caches()
+
 		if all(isinstance(cell, Distributed) for cell in self.cells.values()):
 			# parallel for-loop over the subsets of cells
 			# if `worker_count` is `None`, `Pool` will use `multiprocessing.cpu_count()`
@@ -605,12 +546,15 @@ class Distributed(Local):
 					itertools.izip(itertools.repeat(fargs), cells))
 			ys = [ y for y in ys if y is not None ]
 			if ys:
-				result = pd.concat(ys, axis=0).sort_index()
+				if ys[1:]:
+					result = pd.concat(ys, axis=0).sort_index()
 			else:
 				result = None
+
 		else:
 			# direct function application
 			result = function(self, *args, **kwargs)
+
 		return result
 
 	# `dict` interface
@@ -652,6 +596,21 @@ class Distributed(Local):
 
 	def any_cell(self):
 		return self.cells[next(iter(self.cells))]
+
+	def neighbours(self, i):
+		"""
+		Indices of neighbour cells.
+
+		Argument:
+
+			i (int): cell index.
+
+		Returns:
+
+			numpy.ndarray: indices of the neighbour cells of cell *i*.
+
+		"""
+		return self.adjacency.indices[self.adjacency.indptr[i]:self.adjacency.indptr[i+1]]
 
 	def clear_caches(self):
 		try:
@@ -750,25 +709,23 @@ class Cell(Local):
 	__slots__ = ('_time_col', '_space_cols', 'cache', 'fuzzy')
 	__lazy__  = Local.__lazy__ + ('time_col', 'space_cols')
 
-	def __init__(self, index, data, center=None, span=None):
+	def __init__(self, index, data, center=None, span=None, boundary=None):
 		"""
 		Arguments:
 
 			index (int):
-				this cell's index as granted in :class:`Distributed`'s `cells` dict.
+				this cell's index as granted in :class:`Distributed` 's `cells` dict.
 
 			center (array-like):
 				cell center coordinates.
 
 			span (array-like):
-				difference vectors from this cell's center to adjacent centers. Useful 
-				as mixing coefficients for summing the multiple local gradients of a 
-				scalar dynamic parameter.
+				difference vectors from this cell's center to adjacent centers.
 
 		"""
 		if not (isinstance(data, np.ndarray) or isinstance(data, pd.DataFrame)):
 			raise TypeError('unsupported (trans-)location type `{}`'.format(type(data)))
-		Local.__init__(self, index, data, center, span)
+		Local.__init__(self, index, data, center, span, boundary)
 		#self._tcount = data.shape[0]
 		self._time_col = None
 		self._space_cols = None
@@ -955,8 +912,8 @@ class Translocations(Cell):
 	"""
 	__slots__ = ('origins', 'destinations')
 
-	def __init__(self, index, translocations, center=None, span=None, origins=None):
-		Cell.__init__(self, index, translocations, center, span)
+	def __init__(self, index, translocations, center=None, span=None, boundary=None):
+		Cell.__init__(self, index, translocations, center, span, boundary)
 		self.origins = None
 		self.destinations = None
 
@@ -1025,6 +982,7 @@ class Translocations(Cell):
 def identify_columns(points, trajectory_col=True):
 	_has_trajectory = trajectory_col not in [False, None]
 	_traj_undefined = trajectory_col is True
+
 	if isstructured(points):
 		coord_cols = columns(points)
 		if _has_trajectory:
@@ -1053,6 +1011,7 @@ def identify_columns(points, trajectory_col=True):
 				np.arange(trajectory_col+1, points.shape[1])]
 	if not _has_trajectory:
 		trajectory_col = None
+
 	if isinstance(points, pd.DataFrame):
 		def get_point(a, i):
 			return a.iloc[i]
@@ -1069,6 +1028,7 @@ def identify_columns(points, trajectory_col=True):
 				return a[i]
 			def get_var(a, j):
 				return a[:,j]
+
 	return coord_cols, trajectory_col, get_var, get_point
 
 
@@ -1088,16 +1048,20 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 	n = np.asarray(get_var(points, trajectory_col))
 	final = np.r_[False, np.diff(n, axis=0) == 0]
 	initial = np.r_[final[1:], False]
+
 	# points
 	points = get_var(points, coord_cols)
 	initial_point = get_point(points, initial)
 	final_point = get_point(points, final)
+
 	# cell indices
 	if index is None:
 		initial_cell = final_cell = None
+
 	elif isinstance(index, np.ndarray):
 		initial_cell = index[initial]
 		final_cell = index[final]
+
 	elif isinstance(index, tuple):
 		ix = np.full(points.shape[0], -1, dtype=index[1].dtype)
 		if isinstance(points, pd.DataFrame):
@@ -1109,18 +1073,21 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 			ix[index[0]] = index[1]
 			initial_cell = ix[initial]
 			final_cell = ix[final]
+
 	elif sparse.issparse(index): # sparse matrix
 		index = index.tocsr(True)
 		initial_cell = index[initial].indices # and not cells.cell_index!
 		final_cell = index[final].indices
+
 	else:
 		raise ValueError('wrong index format')
+
 	return initial_point, final_point, initial_cell, final_cell, get_point
 
 
 def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 		new_cell_kwargs={}, new_group_kwargs={}, fuzzy_kwargs={},
-		new=None):
+		new=None, verbose=False):
 	"""
 	Build a `Distributed`-like object from a :class:`~tramway.tessellation.base.CellStats` object.
 
@@ -1177,6 +1144,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 		if new_cell is None:
 			new_cell = Locations
 
+	# assign/weight (trans-)locations to cells
 	if fuzzy is None:
 		if are_translocations:
 			def f(tessellation, cell, final_point, final_cell,
@@ -1224,18 +1192,21 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 		J = np.logical_and(0 < cells.location_count, 0 < cells.tessellation.cell_label)
 
 	# select (with the fuzzy filter) and pre-build cells
-	_fuzzy, data = {}, {}
+	_fuzzy, data, convex_hull = {}, {}, {}
 	if are_translocations:
 		extra = {}
 	for j, ok in enumerate(J): # for each cell
 		if not ok:
 			continue
+
+		# find (trans-)locations for cell j
 		i = fuzzy(cells.tessellation, j, *fuzzy_args, **fuzzy_kwargs)
 		if i.dtype in (bool, np.bool, np.bool8, np.bool_):
 			_fuzzy[j] = None
 		else:
 			_fuzzy[j] = i[i != 0]
 			i = i != 0
+
 		if are_translocations:
 			_origin = get_point(initial_point, i)
 			_destination = get_point(final_point, i)
@@ -1244,6 +1215,13 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 			points = _destination - __origin # translocations
 		else:
 			points = get_point(locations, i) # locations
+
+		# convex hull
+		_points = cells.descriptors(get_point(cells.points, i))
+		if _points.shape[1] < _points.shape[0]:
+			convex_hull[j] = scipy.spatial.qhull.ConvexHull(_points)
+		elif verbose:
+			print('cannot evaluate the convex hull for cell {}'.format(j))
 		if points.size == 0:
 			J[j] = False
 		else:
@@ -1252,7 +1230,11 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 			data[j] = points
 
 	# simplify the adjacency matrix
-	_adjacency = cells.tessellation.simplified_adjacency(label=J, format='csr')
+	try:
+		_adjacency = cells.tessellation.diagonal_adjacency
+	except AttributeError:
+		_adjacency = None
+	_adjacency = cells.tessellation.simplified_adjacency(adjacency=_adjacency, label=J, format='csr')
 	# reweight each row i as 1/n_i where n_i is the degree of cell i
 	n = np.diff(_adjacency.indptr)
 	_adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
@@ -1268,9 +1250,9 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 		else:
 			adj = _adjacency[j].indices
 			span = cells.tessellation.cell_centers[adj] - center
-		#if translocations.size:
+
 		# make cell object
-		_cells[j] = new_cell(j, data[j], center, span, **new_cell_kwargs)
+		_cells[j] = new_cell(j, data[j], center, span, convex_hull.get(j, None), **new_cell_kwargs)
 		_cells[j].time_col = time_col
 		_cells[j].space_cols = space_cols
 		if are_translocations:
@@ -1286,11 +1268,13 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 			_cells[j].fuzzy = _fuzzy[j]
 		except AttributeError: # `_cells` does not have the `fuzzy` attribute
 			pass
+
 	#print(sum([ c.tcount == 0 for c in _cells.values() ]))
 	self = new_group(_cells, _adjacency, **new_group_kwargs)
 	self.tcount = cells.points.shape[0]
 	#self.dim = cells.points.shape[1]
 	self.ccount = self.adjacency.shape[0]
+
 	return self
 
 
@@ -1421,40 +1405,115 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 			min_diffusivity = 0
 	elif min_diffusivity is False:
 		min_diffusivity = None
+
 	# initial values and sanity checks
 	index, n, dt_mean, D_initial, border = [], [], [], [], []
 	reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
+
 	j = 0
 	for i in cells:
 		cell = cells[i]
+
+		assert i == cell.index
 		if not bool(cell):
 			raise ValueError('empty cells')
+
 		# ensure that translocations are properly oriented in time
 		if not np.all(0 < cell.dt):
 			warn('translocation dts are not all positive', RuntimeWarning)
 			cell.dr[cell.dt < 0] *= -1.
 			cell.dt[cell.dt < 0] *= -1.
+
 		# check cell i has neighbours
 		try:
-			adjacent = np.vstack([ cells[j].center for j in cells.adjacency.indices[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] if cells[j] ])
+			adjacent = np.vstack([ cells[c].center for c in cells.adjacency.indices[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] if cells[c] ])
 		except ValueError:
 			continue
+
 		# initialize the local diffusivity parameter
 		dt_mean_i = np.mean(cell.dt)
 		D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
 		#
+
 		index.append(i)
 		reverse_index[i] = j
 		j += 1
 		n.append(float(len(cell)))
 		dt_mean.append(dt_mean_i)
 		D_initial.append(D_initial_i)
+
 		# border
 		border.append(np.logical_or( np.max(adjacent) <= cell.center, cell.center <= np.min(adjacent) ))
+
 	n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
 	D_bounds = [(min_diffusivity, None)] * D_initial.size
 	border = np.vstack(border)
+
 	return index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border
+
+
+def gradn(cells, i, X, index_map=None):
+	"""
+	Local gradient by multi-dimensional 2 degree polynomial interpolation.
+
+	Arguments:
+
+		cells (Distributed):
+			distributed cells.
+
+		i (int):
+			cell index at which the gradient is evaluated.
+
+		X (array):
+			vector of a scalar measurement at every cell.
+
+		index_map (array):
+			index map that converts cell indices to indices in X.
+
+	Returns:
+
+		array:
+			local gradient vector with as many elements as there are dimensions
+			in the (trans-)location data.
+	"""
+	cell = cells[i]
+	adjacent = _adjacent = cells.neighbours(i)
+	if index_map is not None:
+		i = index_map[i]
+		adjacent = index_map[_adjacent]
+		ok = 0 <= adjacent
+		assert np.all(ok)
+		adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+	if adjacent.size == 0:
+		return None
+	try:
+		ok = np.logical_not(X[adjacent].mask)
+		if np.any(ok):
+			ok = np.r_[True, ok]
+		else:
+			#warn('Distributed.grad: all the points are masked', RuntimeWarning)
+			return None
+	except AttributeError:
+		ok = slice(adjacent.size + 1)
+
+	# below, the measurement is renamed Y and the coordinates are X
+	local = np.r_[i, adjacent]
+	Y = X[local]
+	X0 = cell.center
+
+	# cache the components related to X
+	if not isinstance(cell.cache, dict):
+		cell.cache = dict(vander=None)
+	if cell.cache.get('vander', None) is None:
+		X = np.vstack([ X0 ] + [ cells[j].center for j in _adjacent ])
+		cell.cache['vander'] = _poly2(X)
+	V = cell.cache['vander']
+
+	# interpolate
+	W, _, _, _ = np.linalg.lstsq(V[ok], Y[ok], rcond=None)
+	gradX = _poly2_deriv_eval(W, X0)
+
+	return gradX
 
 
 def _poly2(X):
@@ -1522,58 +1581,115 @@ def _poly2_deriv_eval(W, X):
 		Q.append(Qd)
 	return np.hstack(Q)
 
-def __vander(x, y):
+
+def grad1(cells, i, X, index_map=None):
+	"""
+	Local gradient by 2 degree polynomial interpolation along each dimension independently.
+
+	Claims cache variable *neighbours*.
+
+	Arguments:
+
+		cells (Distributed):
+			distributed cells.
+
+		i (int):
+			cell index at which the gradient is evaluated.
+
+		X (array):
+			vector of a scalar measurement at every cell.
+
+		index_map (array):
+			index map that converts cell indices to indices in X.
+
+	Returns:
+
+		array:
+			local gradient vector with as many elements as there are dimensions
+			in the (trans-)location data.
+	"""
+	cell = cells[i]
+
+	# cache neighbours (indices and center locations)
+	if not isinstance(cell.cache, dict):
+		cell.cache = {}
+	try:
+		adjacent, centers = cell.cache['neighbours']
+	except KeyError:
+		adjacent = _adjacent = cells.neighbours(i)
+		if index_map is not None:
+			adjacent = index_map[_adjacent]
+			ok = 0 <= adjacent
+			assert np.all(ok)
+			#adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+		if _adjacent.size:
+			centers = np.vstack([ cells[j].center for j in _adjacent ])
+		else:
+			centers = None
+		cell.cache['neighbours'] = (adjacent, centers)
+
+	if adjacent.size == 0:
+		return None
+
+	if index_map is not None:
+		i = index_map[i]
+
+	# below, the measurement is renamed y and the coordinates are X
+	y0, y = X[i], X[adjacent]
+	X0, X = cell.center, centers
+
+	# compute the gradient for each dimension separately
+	grad = []
+	if cells.adjacency.dtype == bool or cell.dim != 2:
+		eps = 1e-2
+
+		for j in range(cell.dim):
+			x, x0 = X[:,j], X0[j]
+			u, v = x < x0 - eps, x0 + eps < x
+			if np.any(u):
+				if np.any(v):
+					grad_j = _vander(np.r_[x0, np.mean(x[u]), np.mean(x[v])],
+						np.r_[y0, np.mean(y[u]), np.mean(y[v])])
+				else:
+					grad_j = (y0 - np.mean(y[u])) / (x0 - np.mean(x[u]))
+			elif np.any(v):
+				grad_j = (y0 - np.mean(y[v])) / (x0 - np.mean(x[v]))
+			else:
+				grad_j = 0.
+			grad.append(grad_j)
+
+	else:
+		# InferenceMAP-compatible gradient with neighbour cells
+		# classified as left, right, top or bottom
+		LEFT, RIGHT, TOP, BOTTOM = 1, 2, 3, 4
+		dim = ((0, LEFT, RIGHT), (1, TOP, BOTTOM))
+		side = cells.adjacency[i].data
+		for j, pre, post in dim:
+			u, v = side == pre, side == post
+			x0 = X0[j]
+			if np.any(u):
+				if np.any(v):
+					grad_j = _vander(np.r_[x0, np.mean(X[u,j]), np.mean(X[v,j])],
+						np.r_[y0, np.mean(y[u]), np.mean(y[v])])
+				else:
+					grad_j = (y0 - np.mean(y[u])) / (x0 - np.mean(X[u,j]))
+			elif np.any(v):
+				grad_j = (y0 - np.mean(y[v])) / (x0 - np.mean(X[v,j]))
+			else:
+				grad_j = 0.
+			grad.append(grad_j)
+
+	return np.asarray(grad)
+
+
+def _vander(x, y):
 	P = poly.polyfit(x, y, 2)
 	dP = poly.polyder(P)
 	return poly.polyval(x[0], dP)
 
-def _vander(x, y):
-	"""
-	int k,j,i;
-	double phi,ff,b;
-
-	double* s = new double[nn+1];
-	for (i=0;i<=nn;i++) s[i]=cof[i]=0.0;
-	s[nn] = -xxx[0];
-	for (i=1;i<=nn;i++) {
-		for (j=nn-i;j<=nn-1;j++)
-			s[j] -= xxx[i]*s[j+1];
-		s[nn] -= xxx[i];
-	}
-	for (j=0;j<=nn;j++) {
-		phi=nn+1;
-		for (k=nn;k>=1;k--)
-			phi=k*s[k]+xxx[j]*phi;
-		ff=yyy[j]/phi;
-		b=1.0;
-		for (k=nn;k>=0;k--) {
-			cof[k] += b*ff;
-			b=s[k]+xxx[j]*b;
-		}
-	}
-	"""
-	x, y = x[[1,0,2]], y[[1,0,2]]
-	nn = 2
-	cof = np.zeros(nn+1, dtype=x.dtype)
-	s = np.zeros(nn+1, dtype=x.dtype)
-	s[nn] = -x[0]
-	for i in range(nn+1):
-		for j in range(nn-i, nn):
-			s[j] -= x[i] * s[j+1]
-		s[nn] -= x[i]
-	for j in range(nn+1):
-		phi = float(nn+1)
-		for k in range(nn, 0, -1):
-			phi = k * s[k] + phi * x[j]
-		ff = y[j] / phi
-		b = 1.
-		for k in range(nn, -1, -1):
-			cof[k] += b * ff
-			b = s[k] + x[j] * b
-	return cof[1] + 2. * cof[2] * x[1]
 
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
 	'identify_columns', 'get_locations', 'get_translocations', 'distributed',
-	'DiffusivityWarning', 'smooth_infer_init']
+	'DiffusivityWarning', 'smooth_infer_init', 'grad1', 'gradn']
 

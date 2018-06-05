@@ -25,7 +25,8 @@ from collections import OrderedDict
 setup = {'arguments': OrderedDict((
 		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
-		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed'))))}
+		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed')),
+		('debug',	dict(action='store_true'))))}
 
 
 def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, dt_mean, min_diffusivity):
@@ -70,7 +71,8 @@ def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, dt
 	return neg_posterior
 
 
-def infer_DF(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivity=None, **kwargs):
+def infer_DF(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivity=None, debug=False,
+		**kwargs):
 	if isinstance(cells, Distributed): # multiple cells
 		if min_diffusivity is None:
 			if jeffreys_prior:
@@ -105,6 +107,10 @@ def infer_DF(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivi
 				[ 'force ' + col for col in cells.space_cols ])
 		#for j, col in enumerate(cells.space_cols):
 		#	inferred['gradD '+col] = gradD[:,j]
+		if debug:
+			xy = np.vstack([ cells[i].center for i in index ])
+			inferred = inferred.join(pd.DataFrame(xy, index=index, \
+				columns=cells.space_cols))
 		return inferred
 	else: # single cell
 		cell = cells

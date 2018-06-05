@@ -165,7 +165,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False,
 	"""
 	if not isinstance(filters, (tuple, list)):
 		filters = (filters,)
-	fullnode = lazy or all( isinstance(f, type) for f in filters )
+	fullnode = lazy or all( isinstance(f, (type, tuple, list)) for f in filters )
 	if fullnode:
 		# force closure at definition time (otherwise `t` and `f` are overwritten)
 		def typefilter(t):
@@ -174,7 +174,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False,
 			return lambda a: f(rwa.lazyvalue(a, deep=True))
 		_filters = []
 		for _filter in filters:
-			if isinstance(_filter, type):
+			if isinstance(_filter, (type, tuple, list)):
 				_type = _filter
 				_filter = typefilter(_type)
 			elif callable(_filter) and not lazy:

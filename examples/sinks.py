@@ -88,7 +88,7 @@ def main():
 	DV = infer(rwa_file, mode='DV', output_label='DV', max_iter=20)
 
 	#
-	print(dict(DF))
+	#print(DF)
 	#bb = cells.bounding_box
 	#bb[cells.tessellation.scaler.columns] = \
 	#	np.c_[map_lower_bound, map_upper_bound - map_lower_bound]

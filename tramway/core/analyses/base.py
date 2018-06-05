@@ -414,7 +414,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
 	for i, _filter in enumerate(filters):
 		if quantifiers:
 			quantifier, _filter = _filter
-		if isinstance(_filter, type):
+		if isinstance(_filter, (type, tuple, list)):
 			_type = _filter
 			_filter = lambda a: isinstance(a.data, _type)
 		elif callable(_filter):

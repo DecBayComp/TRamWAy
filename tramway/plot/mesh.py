@@ -12,6 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
+from math import *
 import numpy as np
 import pandas as pd
 from matplotlib.colors import Normalize
@@ -261,4 +262,28 @@ def _graph_theme(tess, labels, color, negative):
 		color = neg_color[:nnp] + pos_color
 	return (labels, color)
 
+
+def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
+		arrow_size=5, arrow_color='y', font_size=12, shift_indices=False):
+	centers = np.vstack([ cells[i].center for i in cells ])
+	_min, _max = np.min(centers), np.max(centers)
+	arrow_size = float(arrow_size) * 1e-3 * (_max - _min)
+	half_base = arrow_size / sqrt(5.)
+	plotted = defaultdict(list)
+	for i in cells:
+		x = cells[i].center
+		for j in cells.adjacency[i].indices:
+			y = cells[j].center
+			if j not in plotted[i]:
+				plt.plot([x[0], y[0]], [x[1], y[1]], edge_color+'-')
+				plotted[i].append(j)
+			dr = y - x
+			top = x + .6667 * dr
+			dr /= sqrt(np.sum(dr * dr))
+			bottom = top - arrow_size * dr
+			n = np.array([-dr[1], dr[0]])
+			left, right = bottom + half_base * n, bottom - half_base * n
+			plt.plot([left[0], top[0], right[0]], [left[1], top[1], right[1]], arrow_color+'-')
+		plt.text(x[0], x[1], str(i+1 if shift_indices else i), fontsize=font_size)
+	plt.plot(centers[:,0], centers[:,1], vertex_color+vertex_style)
 

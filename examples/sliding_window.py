@@ -5,7 +5,6 @@ from tramway.inference import DiffusivityWarning, distributed
 from tramway.tessellation.time import *
 from tramway.helper import *
 from tramway.helper.simulation import *
-import matplotlib.pyplot as plt
 import warnings
 #warnings.simplefilter('error')
 import numpy as np

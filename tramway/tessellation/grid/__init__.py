@@ -26,12 +26,12 @@ class RegularMesh(Voronoi):
 	"""Regular k-D grid.
 
 	Attributes:
-		lower_bound (pandas.Series or numpy.ndarray):
-		upper_bound (pandas.Series or numpy.ndarray):
+		lower_bound (pandas.Series or numpy.ndarray): (scaled)
+		upper_bound (pandas.Series or numpy.ndarray): (scaled)
 		count_per_dim (list of ints):
-		min_probability (float):
+		min_probability (float): (not used)
 		avg_probability (float):
-		max_probability (float):
+		max_probability (float): (not used)
 		min_distance (float):
 			minimum distance between adjacent cell centers;
 			ignored if `avg_distance` is defined.

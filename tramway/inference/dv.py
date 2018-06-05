@@ -20,16 +20,18 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from collections import OrderedDict
+import time
 
 
 setup = {'arguments': OrderedDict((
 		('localization_error',	('-e', dict(type=float, default=0.03, help='localization error'))),
-		('diffusivity_prior',	('-d', dict(type=float, default=1., help='prior on the diffusivity'))),
-		('potential_prior',	('-v', dict(type=float, default=1., help='prior on the potential'))),
+		('diffusivity_prior',	('-d', dict(type=float, help='prior on the diffusivity'))),
+		('potential_prior',	('-v', dict(type=float, help='prior on the potential'))),
 		('jeffreys_prior',	('-j', dict(action='store_true', help="Jeffreys' prior"))),
 		('min_diffusivity',	dict(type=float, help='minimum diffusivity value allowed')),
-		('max_iter',		dict(type=int, help='maximum number of iterations')))),
-		'cell_sampling': 'group'}
+		('max_iter',		dict(type=int, help='maximum number of iterations')),
+		('export_centers',	dict(action='store_true')))),
+	'cell_sampling': 'group'}
 
 
 class DV(ChainArray):
@@ -77,7 +79,7 @@ class DV(ChainArray):
 
 
 def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
-		index, reverse_index):
+		index, reverse_index, verbose):
 	"""
 	Adapted from InferenceMAP's *dvPosterior* procedure modified:
 
@@ -120,33 +122,43 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 	with ``dx-D*gradVx*dt`` and ``dy-D*gradVy*dt`` modified as ``dx+D*gradVx*dt`` and ``dy+D*gradVy*dt`` respectively.
 
 	"""
+	t = time.time()
+
 	# extract `D` and `V`
 	dv.update(x)
 	D = dv.D
 	V = dv.V
 	#
+
 	if dv.minimum_diffusivity is not None:
 		observed_min = np.min(D)
 		if observed_min < dv.minimum_diffusivity and \
 				not np.isclose(observed_min, dv.minimum_diffusivity):
 			warn(DiffusivityWarning(observed_min, dv.minimum_diffusivity))
 	noise_dt = squared_localization_error
+
 	# for all cell
 	result = 0.
 	for j, i in enumerate(index):
 		cell = cells[i]
 		n = len(cell) # number of translocations
+
 		# spatial gradient of the local potential energy
 		gradV = cells.grad(i, V, reverse_index)
+		#print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
+		#print('{}\t{}\t{}'.format(i+1, *gradV))
 		if gradV is None:
 			continue
+
 		# various posterior terms
+		#print(cell.dt)
 		D_dt = D[j] * cell.dt
 		denominator = 4. * (D_dt + noise_dt)
 		dr_minus_drift = cell.dr + np.outer(D_dt, gradV)
 		# non-directional squared displacement
 		ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
 		result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
+
 		# priors
 		potential_prior = dv.potential_prior(j)
 		if potential_prior:
@@ -158,36 +170,55 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 			if gradD is not None:
 				# `grad_sum` memoizes and can be called several times at no extra cost
 				result += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
+		#print('{}\t{}\t{}'.format(i+1, D[j], result))
 	if jeffreys_prior:
 		result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
+
+	if verbose:
+		print('objective: {}\t time: {}ms'.format(result, int(round((time.time() - t) * 1e3))))
+
 	return result
 
 
 def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prior=1., \
-	jeffreys_prior=False, min_diffusivity=None, max_iter=None, **kwargs):
+	jeffreys_prior=False, min_diffusivity=None, max_iter=None, export_centers=False, \
+	verbose=True, **kwargs):
+
 	# initial values
 	index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
 		smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
 	V_initial = -np.log(n / np.max(n))
-	V_bounds = [(0., None)] * V_initial.size
 	dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
+
 	# parametrize the optimization algorithm
-	if min_diffusivity is not None:
-		kwargs['bounds'] = D_bounds + V_bounds
+	default_BFGS_options = dict(eps=1e-8, gtol=1e-10, maxiter=1e5) # the important option here is maxiter (should be 1e5 or more)
+	options = kwargs.pop('options', default_BFGS_options)
 	if max_iter:
-		options = kwargs.get('options', {})
 		options['maxiter'] = max_iter
-		kwargs['options'] = options
+	V_bounds = [(None, None)] * V_initial.size
+	if min_diffusivity is None:
+		bounds = None
+	else:
+		bounds = D_bounds + V_bounds
+		options['maxfun'] = options.pop('maxiter') # L-BFGS-B ignores maxiter and admits maxfun instead
+	options.update(kwargs)
+
 	# run the optimization routine
 	squared_localization_error = localization_error * localization_error
 	result = minimize(dv_neg_posterior, dv.combined, \
-		args=(dv, cells, squared_localization_error, jeffreys_prior, dt_mean, index, reverse_index), \
-		**kwargs)
+		args=(dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
+			index, reverse_index, verbose), \
+		bounds=bounds, options=options)
+
 	# collect the result
+	if not result.success and verbose:
+		warn(result.message, RuntimeWarning)
+		#print(dv_neg_posterior(result.x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, index, reverse_index))
 	dv.update(result.x)
 	D, V = dv.D, dv.V
 	DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
 		columns=[ 'diffusivity', 'potential'])
+
 	# derivate the forces
 	index_, F = [], []
 	for i in index:
@@ -201,5 +232,13 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prio
 		DVF = DVF.join(F)
 	else:
 		warn('not any cell is suitable for evaluating the local force', RuntimeWarning)
+
+	# add extra information if required
+	if export_centers:
+		xy = np.vstack([ cells[i].center for i in index ])
+		DVF = DVF.join(pd.DataFrame(xy, index=index, \
+			columns=cells.space_cols))
+		#DVF.to_csv('results.csv', sep='\t')
+
 	return DVF
 

@@ -60,6 +60,12 @@ class RWAStore(HDF5Store):
 
 
 def load_rwa(path, verbose=None):
+	if not os.path.exists(path):
+		try:
+			raise FileNotFoundError(path)
+		except NameError:
+			import errno
+			raise OSError(errno.ENOENT, path)
 	try:
 		hdf = RWAStore(path, 'r')
 		#hdf._default_lazy = PermissivePeek

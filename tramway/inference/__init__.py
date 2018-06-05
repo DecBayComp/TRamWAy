@@ -22,7 +22,7 @@ plugins = list_plugins(os.path.dirname(__file__), __package__,
 # add `worker_count` argument to every mode with `cell_sampling` option set
 # and `dilation` and `max_cell_count` if `cell_sampling` is not 'individual'
 _wc_args = dict(type=int, help='number of parallel processes to spawn')
-_mcc_args = dict(type=int, help='max number of cells per group')
+_mcc_args = dict(type=int, default=999999999999999999, help='max number of cells per group')
 _dil_args = dict(type=int, help='cell group overlap as a number of "layers" of cells')
 for _mode in plugins:
 	_setup, _module = plugins[_mode]

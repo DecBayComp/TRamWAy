@@ -31,9 +31,13 @@ from warnings import warn
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
 		delaunay=False, colorbar=True, alpha=None, colormap=None, **kwargs):
 	#	colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
+	coords = None
 	if isinstance(values, pd.DataFrame):
 		if values.shape[1] != 1:
-			warn('multiple parameters available; mapping first one only', UserWarning)
+			coords = values[[ col for col in 'xyzt' if col in values.columns ]]
+			values = values[[ col for col in values.columns if col not in 'xyzt' ]]
+			if values.shape[1] != 1:
+				warn('multiple parameters available; mapping first one only', UserWarning)
 		values = values.iloc[:,0] # to Series
 	#values = pd.to_numeric(values, errors='coerce')
 
@@ -48,6 +52,12 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 	if isinstance(cells, Distributed):
 		ix, xy, ok = zip(*[ (i, c.center, bool(c)) for i, c in cells.items() ])
 		ix, xy, ok = np.array(ix), np.array(xy), np.array(ok)
+		if not (coords is None or np.all(np.isclose(xy, coords))): # debug
+			print('coordinates mismatch')
+			print('in map:')
+			print(xy)
+			print('in cells:')
+			print(coords)
 		voronoi = scipy.spatial.Voronoi(xy)
 		for c, r in enumerate(voronoi.point_region):
 			if ok[c]:
@@ -59,7 +69,13 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 		Av = cells.tessellation.vertex_adjacency.tocsr()
 		xy = cells.tessellation.cell_centers
 		ix = np.arange(xy.shape[0])
-		ok = 0 < cells.location_count
+		try:
+			ok = 0 < cells.location_count
+		except (KeyboardInterrupt, SystemExit):
+			raise
+		except:
+			print(traceback.format_exc())
+			ok = np.ones(ix.size, dtype=bool)
 		if cells.tessellation.cell_label is not None:
 			ok = np.logical_and(ok, 0 < cells.tessellation.cell_label)
 		map_defined = np.zeros_like(ok)
