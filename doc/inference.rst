@@ -111,10 +111,9 @@ For each cell, :math:`P(D,V|T)` is optimized for the model parameters :math:`D` 
 Maps
 ^^^^
 
-The raw inferred maps are usually of type pandas' `DataFrame` with column names such as *diffusivity*, *potential*, *force x*, *force y* where *x* and *y* refers to space dimensions.
+The maps are available as :class:`~tramway.inference.base.Maps` objects that expose a `pandas.DataFrame`-like interface with "column" names such as '*diffusivity*', '*potential*' and '*force*'.
 
-The maps are encapsulated in :class:`~tramway.inference.base.Maps` objects that are transitional constructs to handle former formats for maps.
-The :class:`~tramway.inference.base.Maps` class is also a convenient container to store information about the method and parameters used to generate the encapsulated maps (see attribute :attr:`~tramway.inference.base.Maps.maps`).
+``maps['force']`` for 2D space-only data will typically return a :class:`~pandas.DataFrame` with two columns '*force x*' and '*force y*', where *x* and *y* refers to the space dimensions.
 
 
 Distributed cells
@@ -277,13 +276,13 @@ All the methods use :math:`\sigma = 0.03 \textrm{µm}` as default value for the 
 This parameter can be set with the ``-e`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
 Compare::
 
-	> tramway -i example.rwa infer dd -e 0.01
+	> tramway -i example.rwa infer dd -e 0.01 -l DD_sigma_10nm
 
 .. code-block:: python
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'DD', localization_error=0.01)
+	infer('example.rwa', 'DD', localization_error=0.01, output_label='DD_sigma_10nm')
 
 
 Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 
@@ -331,13 +330,13 @@ Its value varies depending on the inference mode. Compare:
 The Jeffreys' prior may be introduced in the posterior probability with the ``-j`` command-line option or the `jeffreys_prior` argument to :func:`~tramway.helper.inference.infer`.
 Compare::
 
-	> tramway -i example.rwa infer dd -j
+	> tramway -i example.rwa infer dd -j -l DD_jeffreys
 
 .. code-block:: python
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'DD', jeffreys_prior=True)
+	infer('example.rwa', 'DD', jeffreys_prior=True, output_label='DD_jeffreys')
 
 
 Note that with this prior the default minimum diffusivity value is :math:`0.01`. 
@@ -349,7 +348,7 @@ Consider modifying this value.
 Smoothing priors
 """"""""""""""""
 
-A smoothing prior penalizes the gradients of the inferred parameters. 
+A smoothing (improper) prior penalizes the gradients of the inferred parameters. 
 It is meant to reinforce the physical plausibility of the inferred maps. 
 For example, in certain situations we do not expect large changes in the diffusion coefficient between neighbouring cells.
 
@@ -375,13 +374,13 @@ with:
 The :math:`\mu` parameter can be set with the ``-d`` command-line option or the `diffusivity_prior` argument to :func:`~tramway.helper.inference.infer`.
 Compare::
 
-	> tramway -i example.rwa infer smooth.dd -d 0.1
+	> tramway -i example.rwa infer smooth.dd -d 1 -l DD_d_1
 
 .. code-block:: python
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'smooth.dd', diffusivity_prior=0.1)
+	infer('example.rwa', 'smooth.dd', diffusivity_prior=1., output_label='DD_d_1')
 
 
 

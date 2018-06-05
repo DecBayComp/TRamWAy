@@ -31,73 +31,73 @@ hdf5_storable(default_storable(Voronoi, exposes=voronoi_exposes), agnostic=True)
 
 # RegularMesh
 try:
-	from tramway.tessellation.grid import RegularMesh
+        from tramway.tessellation.grid import RegularMesh
 except ImportError:
-	pass
+        pass
 else:
-	regular_mesh_exposes = voronoi_exposes + \
-		['_diagonal_adjacency', 'lower_bound', 'upper_bound', 'count_per_dim', \
-			'min_probability', 'max_probability', 'avg_probability', \
-			'min_distance', 'avg_distance', 'grid']
-	hdf5_storable(default_storable(RegularMesh, exposes=regular_mesh_exposes), agnostic=True)
+        regular_mesh_exposes = voronoi_exposes + \
+                ['_diagonal_adjacency', 'lower_bound', 'upper_bound', 'count_per_dim', \
+                        'min_probability', 'max_probability', 'avg_probability', \
+                        'min_distance', 'avg_distance', 'grid']
+        hdf5_storable(default_storable(RegularMesh, exposes=regular_mesh_exposes), agnostic=True)
 
 # KDTreeMesh
 try:
-	from tramway.tessellation.kdtree import KDTreeMesh
+        from tramway.tessellation.kdtree import KDTreeMesh
 except ImportError:
-	pass
+        pass
 else:
-	kdtree_mesh_exposes = voronoi_exposes + ['_min_distance', '_avg_distance', \
-		'min_probability', 'max_probability', 'max_level', 'dichotomy', 'reference_length']
-	hdf5_storable(default_storable(KDTreeMesh, exposes=kdtree_mesh_exposes), agnostic=True)
+        kdtree_mesh_exposes = voronoi_exposes + ['_min_distance', '_avg_distance', \
+                'min_probability', 'max_probability', 'max_level', 'dichotomy', 'reference_length']
+        hdf5_storable(default_storable(KDTreeMesh, exposes=kdtree_mesh_exposes), agnostic=True)
 
 # KMeansMesh
 try:
-	from tramway.tessellation.kmeans import KMeansMesh
+        from tramway.tessellation.kmeans import KMeansMesh
 except ImportError:
-	pass
+        pass
 else:
-	kmeans_mesh_exposes = voronoi_exposes + ['_min_distance', 'avg_probability']
-	hdf5_storable(default_storable(KMeansMesh, exposes=kmeans_mesh_exposes), agnostic=True)
+        kmeans_mesh_exposes = voronoi_exposes + ['_min_distance', 'avg_probability']
+        hdf5_storable(default_storable(KMeansMesh, exposes=kmeans_mesh_exposes), agnostic=True)
 
 # GasMesh
 try:
-	from tramway.tessellation.gwr import GasMesh
+        from tramway.tessellation.gwr import GasMesh
 except ImportError:
-	pass
+        pass
 else:
-	# Gas
-	from tramway.tessellation.gwr.gas import Gas
-	hdf5_storable(default_storable(Gas), agnostic=True)
-	# ArrayGraph
-	from tramway.tessellation.gwr.graph.base import Graph
-	graph_exposes = list(Graph.__slots__)
-	from tramway.tessellation.gwr.graph.array import ArrayGraph
-	array_graph_exposes = graph_exposes + list(ArrayGraph.__slots__)
-	hdf5_storable(default_storable(ArrayGraph, exposes=array_graph_exposes), agnostic=True)
-	gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_avg_distance', '_max_distance', \
-		'min_probability']
-	hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)
+        # Gas
+        from tramway.tessellation.gwr.gas import Gas
+        hdf5_storable(default_storable(Gas), agnostic=True)
+        # ArrayGraph
+        from tramway.tessellation.gwr.graph.base import Graph
+        graph_exposes = list(Graph.__slots__)
+        from tramway.tessellation.gwr.graph.array import ArrayGraph
+        array_graph_exposes = graph_exposes + list(ArrayGraph.__slots__)
+        hdf5_storable(default_storable(ArrayGraph, exposes=array_graph_exposes), agnostic=True)
+        gas_mesh_exposes = voronoi_exposes + ['gas', '_min_distance', '_avg_distance', '_max_distance', \
+                'min_probability']
+        hdf5_storable(default_storable(GasMesh, exposes=gas_mesh_exposes), agnostic=True)
 
 # TimeLattice
 try:
-	from tramway.tessellation.time import TimeLattice
+        from tramway.tessellation.time import TimeLattice
 except ImportError:
-	pass
+        pass
 else:
-	time_lattice_exposes = tessellation_exposes + list(TimeLattice.__slots__)
-	hdf5_storable(default_storable(TimeLattice, exposes=time_lattice_exposes), agnostic=True)
+        time_lattice_exposes = tessellation_exposes + list(TimeLattice.__slots__)
+        hdf5_storable(default_storable(TimeLattice, exposes=time_lattice_exposes), agnostic=True)
 
 # NestedTessellations
 try:
-	from tramway.tessellation.nesting import NestedTessellations
+        from tramway.tessellation.nesting import NestedTessellations
 except ImportError:
-	pass
+        pass
 else:
-	nested_tessellations_expose = tessellation_exposes + list(NestedTessellations.__slots__)#\
-	#	[ _s for _s in NestedTessellations.__slots__ if _s not in ('child_factory',) ]
-	hdf5_storable(default_storable(NestedTessellations, exposes=nested_tessellations_expose), \
-		agnostic=True)
+        nested_tessellations_expose = tessellation_exposes + list(NestedTessellations.__slots__)#\
+        #       [ _s for _s in NestedTessellations.__slots__ if _s not in ('child_factory',) ]
+        hdf5_storable(default_storable(NestedTessellations, exposes=nested_tessellations_expose), \
+                agnostic=True)
 
 
 from tramway.inference.base import Local, Distributed, Cell, Locations, Translocations
@@ -111,9 +111,9 @@ distributed_exposes = local_exposes + list(Distributed.__slots__)
 hdf5_storable(default_storable(Distributed, exposes=distributed_exposes), agnostic=True)
 
 try:
-	from tramway.inference.dv import DV
+        from tramway.inference.dv import DV
 except ImportError:
-	pass
+        pass
 else:
-	hdf5_storable(default_storable(DV), agnostic=True)
+        hdf5_storable(default_storable(DV), agnostic=True)
 

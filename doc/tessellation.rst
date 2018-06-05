@@ -301,9 +301,10 @@ These maps can be individualized as follows:
 		map_plot(diffusivity_map, cells=static_cells)
 
 	# assemble the analysis tree
-	dynamic_cells = Analyses(dynamic_cells)
-	dynamic_cells.add(Analyses(diffusivity_maps), comment='diffusivity (D mode)')
 	analyses = Analyses(translocations)
-	analyses.add(dynamic_cells, comment='count-normalized kmeans tessellation')
+	analyses.add(dynamic_cells, label='time-windowed cells', \
+			comment='count-normalized kmeans tessellation')
+	analyses['time-windowed cells'].add(diffusivity_maps, label='D', \
+			comment='diffusivity (D mode)')
 
 

@@ -17,3 +17,12 @@ tramway.utils.contour module
     :show-inheritance:
 
 
+tramway.utils.imap module
+----------------------------
+
+.. automodule:: tramway.utils.imap
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+

@@ -1,21 +1,21 @@
 
 try:
-	from .lazy import PermissionError
+        from .lazy import PermissionError
 except ImportError:
-	pass
+        pass
 
 class NaNWarning(RuntimeWarning):
-	pass
+        pass
 
 class EfficiencyWarning(RuntimeWarning):
-	pass
+        pass
 
 class MissingSupportWarning(UserWarning):
-	pass
+        pass
 
 class IOWarning(Warning):
-	pass
+        pass
 
 class FileNotFoundWarning(IOWarning):
-	pass
+        pass
 
