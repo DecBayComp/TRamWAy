@@ -277,7 +277,7 @@ class Distributed(Local):
         def degree(self, d): # ro
                 self.__lazyassert__(d, 'adjacency')
 
-        def grad(self, i, X, index_map=None):
+        def grad(self, i, X, index_map=None, **kwargs):
                 """
                 Local gradient.
 
@@ -302,7 +302,7 @@ class Distributed(Local):
                                 gradient as a vector with as many elements as there are dimensions
                                 in the (trans-)location data.
                 """
-                return grad1(self, i, X, index_map)
+                return grad1(self, i, X, index_map, **kwargs)
 
         def grad_sum(self, i, grad, index_map=None):
                 """
@@ -1582,11 +1582,22 @@ def _poly2_deriv_eval(W, X):
         return np.hstack(Q)
 
 
-def grad1(cells, i, X, index_map=None):
+def grad1(cells, i, X, index_map=None, eps=None):
         """
         Local gradient by 2 degree polynomial interpolation along each dimension independently.
 
         Claims cache variable *neighbours*.
+
+        Supports the InferenceMAP way of dividing the space in non-overlapping regions so that
+        each neighbour is involved in the calculation of a single component of the gradient.
+        This is the default behaviour in cases where the `adjacent` attribute contains adequate
+        labels, i.e. ``-j`` and ``j`` for each dimension ``j``, representing one side and the other
+        side of cell-i's center.
+        This is also the default behaviour otherwise, when `eps` is ``None``.
+
+        If `eps` is defined and the adjacency matrix also contains booleans, the calculation of a
+        gradient component may recruit all the points minus those at a projected distance less than this
+        value.
 
         Arguments:
 
@@ -1602,6 +1613,13 @@ def grad1(cells, i, X, index_map=None):
                 index_map (array):
                         index map that converts cell indices to indices in X.
 
+                eps (float):
+                        minimum projected distance from cell-i's center for neighbours to be considered
+                        in the calculation of the gradient;
+                        if `eps` is ``None``, the space is instead divided in twice as many
+                        non-overlapping regions as dimensions, and each neighbour is assigned to
+                        a single region (counts against a single dimension)
+
         Returns:
 
                 array:
@@ -1614,7 +1632,7 @@ def grad1(cells, i, X, index_map=None):
         if not isinstance(cell.cache, dict):
                 cell.cache = {}
         try:
-                adjacent, centers = cell.cache['neighbours']
+                adjacent, centers, below, above = cell.cache['neighbours']
         except KeyError:
                 adjacent = _adjacent = cells.neighbours(i)
                 if index_map is not None:
@@ -1624,9 +1642,35 @@ def grad1(cells, i, X, index_map=None):
                         #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
                 if _adjacent.size:
                         centers = np.vstack([ cells[j].center for j in _adjacent ])
+                        center = cell.center
+                        below = np.zeros((centers.shape[1], centers.shape[0]), dtype=bool)
+                        above = np.zeros_like(below)
+                        if cells.adjacency.dtype == bool:
+                                if eps is None:
+                                        proj = centers - center[np.newaxis, :]
+                                        assigned_dim = np.argmax(np.abs(proj), axis=1)
+                                        proj_dist = proj[ np.arange(proj.shape[0]), assigned_dim ]
+                                        for j in range(cell.dim):
+                                                below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
+                                                above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
+                                else:
+                                        for j in range(cell.dim):
+                                                x, x0 = centers[:,j], center[j]
+                                                below[ j, x < x0 - eps ] = True
+                                                above[ j, x0 + eps < x ] = True
+                        elif cells.adjacency.dtype == int:
+                                # InferenceMAP-compatible gradient with neighbour cells
+                                # classified as left (-1), right (1), top (2) or bottom (-2);
+                                # applies to arbitrary dimensions
+                                code = cells.adjacency.data[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]]
+                                for j in range(cell.dim):
+                                        below[ j, code == -j ] = True
+                                        above[ j, code ==  j ] = True
+                        else:
+                                raise TypeError('{} adjacency labels are not supported'.format(cells.adjacency.dtype))
                 else:
                         centers = None
-                cell.cache['neighbours'] = (adjacent, centers)
+                cell.cache['neighbours'] = (adjacent, centers, below, above)
 
         if adjacent.size == 0:
                 return None
@@ -1640,44 +1684,19 @@ def grad1(cells, i, X, index_map=None):
 
         # compute the gradient for each dimension separately
         grad = []
-        if cells.adjacency.dtype == bool or cell.dim != 2:
-                eps = 1e-2 # should be larger than the localization error and smaller than the inter-cell distance
-
-                for j in range(cell.dim):
-                        x, x0 = X[:,j], X0[j]
-                        u, v = x < x0 - eps, x0 + eps < x
-                        if np.any(u):
-                                if np.any(v):
-                                        grad_j = _vander(np.r_[x0, np.mean(x[u]), np.mean(x[v])],
-                                                np.r_[y0, np.mean(y[u]), np.mean(y[v])])
-                                else:
-                                        grad_j = (y0 - np.mean(y[u])) / (x0 - np.mean(x[u]))
-                        elif np.any(v):
-                                grad_j = (y0 - np.mean(y[v])) / (x0 - np.mean(x[v]))
+        for j in range(cell.dim):
+                u, v = below[j], above[j]
+                if np.any(u):
+                        if np.any(v):
+                                grad_j = _vander(np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])],
+                                        np.r_[y0, np.mean(y[u]), np.mean(y[v])])
                         else:
-                                grad_j = 0.
-                        grad.append(grad_j)
-
-        else:
-                # InferenceMAP-compatible gradient with neighbour cells
-                # classified as left, right, top or bottom
-                LEFT, RIGHT, TOP, BOTTOM = 1, 2, 3, 4
-                dim = ((0, LEFT, RIGHT), (1, TOP, BOTTOM))
-                side = cells.adjacency[i].data
-                for j, pre, post in dim:
-                        u, v = side == pre, side == post
-                        x0 = X0[j]
-                        if np.any(u):
-                                if np.any(v):
-                                        grad_j = _vander(np.r_[x0, np.mean(X[u,j]), np.mean(X[v,j])],
-                                                np.r_[y0, np.mean(y[u]), np.mean(y[v])])
-                                else:
-                                        grad_j = (y0 - np.mean(y[u])) / (x0 - np.mean(X[u,j]))
-                        elif np.any(v):
-                                grad_j = (y0 - np.mean(y[v])) / (x0 - np.mean(X[v,j]))
-                        else:
-                                grad_j = 0.
-                        grad.append(grad_j)
+                                grad_j = (y0 - np.mean(y[u])) / (X0[j] - np.mean(X[u,j]))
+                elif np.any(v):
+                        grad_j = (y0 - np.mean(y[v])) / (X0[j] - np.mean(X[v,j]))
+                else:
+                        grad_j = 0.
+                grad.append(grad_j)
 
         return np.asarray(grad)
 

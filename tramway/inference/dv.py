@@ -30,6 +30,9 @@ setup = {'arguments': OrderedDict((
                 ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
                 ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
                 ('max_iter',            dict(type=int, help='maximum number of iterations')),
+                #('compatibility',       ('-c', '--inferencemap', '--inferencemap-compatible',
+                #                        dict(action='store_true', help='InferenceMAP compatible'))),
+                ('epsilon',             ('--eps', dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'))),
                 ('export_centers',      dict(action='store_true')),
                 ('verbose',             ()))),
         'cell_sampling': 'group'}
@@ -80,7 +83,7 @@ class DV(ChainArray):
 
 
 def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
-                index, reverse_index, verbose):
+                index, reverse_index, grad_kwargs, verbose):
         """
         Adapted from InferenceMAP's *dvPosterior* procedure modified:
 
@@ -145,7 +148,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
                 n = len(cell) # number of translocations
 
                 # spatial gradient of the local potential energy
-                gradV = cells.grad(i, V, reverse_index)
+                gradV = cells.grad(i, V, reverse_index, **grad_kwargs)
                 #print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
                 #print('{}\t{}\t{}'.format(i+1, *gradV))
                 if gradV is None:
@@ -167,7 +170,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
                 diffusivity_prior = dv.diffusivity_prior(j)
                 if diffusivity_prior:
                         # spatial gradient of the local diffusivity
-                        gradD = cells.grad(i, D, reverse_index)
+                        gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
                         if gradD is not None:
                                 # `grad_sum` memoizes and can be called several times at no extra cost
                                 result += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
@@ -181,15 +184,20 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
         return result
 
 
-def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prior=1., \
-        jeffreys_prior=False, min_diffusivity=None, max_iter=None, export_centers=False, \
-        verbose=True, **kwargs):
+def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_prior=None, \
+        jeffreys_prior=False, min_diffusivity=None, max_iter=None, eps=None, \
+        export_centers=False, verbose=True, **kwargs):
 
         # initial values
         index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
                 smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
         V_initial = -np.log(n / np.max(n))
         dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
+
+        # gradient options
+        grad_kwargs = {}
+        if eps is not None:
+                grad_kwargs['eps'] = eps
 
         # parametrize the optimization algorithm
         default_BFGS_options = dict(eps=1e-8, gtol=1e-10, maxiter=1e5) # the important option here is maxiter (should be 1e5 or more)
@@ -208,12 +216,12 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prio
         squared_localization_error = localization_error * localization_error
         result = minimize(dv_neg_posterior, dv.combined, \
                 args=(dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
-                        index, reverse_index, verbose), \
+                        index, reverse_index, grad_kwargs, verbose), \
                 bounds=bounds, options=options)
 
         # collect the result
         if not result.success and verbose:
-                warn(result.message, RuntimeWarning)
+                warn('{}'.format(result.message), RuntimeWarning)
                 #print(dv_neg_posterior(result.x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, index, reverse_index))
         dv.update(result.x)
         D, V = dv.D, dv.V
@@ -223,7 +231,7 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=1., potential_prio
         # derivate the forces
         index_, F = [], []
         for i in index:
-                gradV = cells.grad(i, V, reverse_index)
+                gradV = cells.grad(i, V, reverse_index, **grad_kwargs)
                 if gradV is not None:
                         index_.append(i)
                         F.append(-gradV)

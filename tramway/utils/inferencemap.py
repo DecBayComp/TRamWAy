@@ -45,16 +45,17 @@ def import_cluster_file(input_file):
         i = None
         ntr_defined = x_defined = y_defined = area_defined = convhull_defined = False
         C = OrderedDict
-        neighbours_prefixes, neighbours, nneighbours = C(), C(), C()
-        for side, prefixes in (
-                        ('left', (__left__, __nleft__)),
-                        ('right', (__right__, __nright__)),
-                        ('top', (__top__, __ntop__)),
-                        ('bottom', (__bottom__, __nbottom__)),
+        neighbours_prefixes, neighbours, nneighbours, neighbours_code = C(), C(), C(), C()
+        for side, prefixes, code in (
+                        ('left', (__left__, __nleft__), -1),
+                        ('right', (__right__, __nright__), 1),
+                        ('top', (__top__, __ntop__), 2),
+                        ('bottom', (__bottom__, __nbottom__), -2),
                 ):
                 neighbours_prefixes[side] = prefixes # static
                 neighbours[side] = [] # = undefined
                 nneighbours[side] = None # = undefined
+                neighbours_code[side] = code # static
         coord_section = False
         for l, line in enumerate(lines+['ZONE: -1']):
                 line = line.strip()
@@ -95,16 +96,16 @@ def import_cluster_file(input_file):
                                 cells[i - 1] = cell
                                 ncells = max(i, ncells)
                                 all_neighbours = []
-                                for k, side in enumerate(neighbours):
+                                for side in neighbours:
                                         if neighbours[side]:
                                                 if not (nneighbours[side] is None or len(neighbours[side]) == nneighbours[side]):
                                                         print('cell {}: wrong number of {} neighbours'.format(i, side))
-                                                all_neighbours += [ (j, k) for j in neighbours[side] ]
+                                                all_neighbours += [ (j, neighbours_code[side]) for j in neighbours[side] ]
                                         elif 0 < nneighbours[side]:
                                                 print('cell {}: {} neighbours are not defined'.format(i, side))
                                 if all_neighbours:
                                         ncells = max(ncells, *[ j for j,_ in all_neighbours ])
-                                        adjacency += [ (i-1,j-1,k+1) for j,k in all_neighbours ]
+                                        adjacency += [ (i-1,j-1,k) for j,k in all_neighbours ]
                         # initialize new cell parsing
                         i = int(line[len(__zone__):])
                         ntr_defined = x_defined = y_defined = area_defined = convhull_defined = False
