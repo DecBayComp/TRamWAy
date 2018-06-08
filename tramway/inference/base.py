@@ -48,11 +48,12 @@ class Local(Lazy):
                 span (array-like):
                         Difference vectors from this cell's center to adjacent centers.
 
-                boundary/convex_hull (scipy.spatial.qhull.ConvexHull):
+                boundary/hull (scipy.spatial.qhull.ConvexHull):
                         Convex hull of the contained locations.
 
         """
-        __slots__ = ('index', 'data', 'center', 'span', 'boundary')
+        __slots__ = ('index', 'data', 'center', 'span', '_boundary', '_volume')
+        __lazy__ = Lazy.__lazy__ + ('volume',)
 
         def __init__(self, index, data, center=None, span=None, boundary=None):
                 Lazy.__init__(self)
@@ -60,34 +61,66 @@ class Local(Lazy):
                 self.data = data
                 self.center = center
                 self.span = span
-                self.boundary = boundary
+                self._boundary = boundary
+                self._volume = None
 
         @property
-        def convex_hull(self):
+        def boundary(self):
                 """
-                `scipy.spatial.qhull.ConvexHull`, property
+                *any*, property
+
+                Cell boundary/hull.
+                """
+                return self._boundary
+
+        @boundary.setter
+        def boundary(self, b):
+                self.volume = None
+                self._boundary = b
+
+        @property
+        def hull(self):
+                """
+                `scipy.spatial.qhull.ConvexHull` (or *any* if not convex), property
 
                 Alias for `boundary`.
                 """
                 return self.boundary
 
-        @convex_hull.setter
-        def convex_hull(self, ch):
-                self.boundary = ch
+        @hull.setter
+        def hull(self, h):
+                self.boundary = h
 
         @property
         def volume(self):
                 """
                 `float`, property
 
-                Area of the convex hull.
+                Surface area (2D) or volume (3D+) of the convex hull.
+
+                Note that the hull should be convex so that the volume can be
+                transparently extracted.
+                In other cases, `volume` can be manually set just like a normal
+                attribute.
                 """
-                if self.convex_hull is None:
-                        return None
-                try:
-                        return self.convex_hull.volume
-                except AttributeError:
-                        return self.convex_hull[0]
+                if self._volume is None and self.hull is not None:
+                        if self.dim == 2:
+                                area = 0
+                                u = self.center
+                                for i in self.hull.simplices:
+                                        v, w = self.hull.points[i]
+                                        area += .5 * abs(\
+                                                        (v[0] - u[0]) * (w[1] - u[1]) - \
+                                                        (w[0] - u[0]) * (v[1] - u[1]) \
+                                                )
+                                self._volume = area
+                        else:
+                                self._volume = self.hull.volume
+                return self.__returnlazy__('volume', self._volume)
+
+        @volume.setter
+        def volume(self, v):
+                self.__setlazy__('volume', v)
 
         @property
         def dim(self):
@@ -100,7 +133,7 @@ class Local(Lazy):
 
         @dim.setter
         def dim(self, d):
-                self.__lazyassert__(d, 'data')
+                self.__assertlazy__('dim', d, related_attribute='data')
 
         @property
         def tcount(self):
@@ -113,7 +146,7 @@ class Local(Lazy):
 
         @tcount.setter
         def tcount(self, c):
-                self.__lazyassert__(c, 'data')
+                self.__assertlazy__('tcount', c, related_attribute='data')
 
 
 
@@ -186,7 +219,7 @@ class Distributed(Local):
 
         @reverse.setter
         def reverse(self, r): # ro
-                self.__lazyassert__(r, 'cells')
+                self.__assertlazy__('reverse', r, related_attribute='cells')
 
         @property
         def space_cols(self):
@@ -227,7 +260,7 @@ class Distributed(Local):
         @tcount.setter
         def tcount(self, c):
                 # write access allowed for performance issues, but `c` should equal self.tcount
-                self.__lazysetter__(c)
+                self.__setlazy__('tcount', c)
 
         @property
         def ccount(self):
@@ -240,11 +273,11 @@ class Distributed(Local):
                 if self._ccount is None:
                         self._ccount = sum([ cell.ccount if isinstance(cell, Distributed) else 1 \
                                 for cell in self.cells.values() ])
-                return self._ccount
+                return self._ccount # not mutable (no need for __returnlazy__)
 
         @ccount.setter
         def ccount(self, c): # rw for performance issues, but `c` should equal self.ccount
-                self.__lazysetter__(c)
+                self.__setlazy__('ccount', c)
 
         @property
         def adjacency(self):
@@ -343,7 +376,7 @@ class Distributed(Local):
 
                 new = copy(self)
                 new.cells = {i: Cell(i, concat([cell.data for cell in dist.cells.values()]), \
-                                dist.center, dist.span, convex_hull=dist.convex_hull) \
+                                dist.center, dist.span, hull=dist.hull) \
                         if isinstance(dist, Distributed) else dist \
                         for i, dist in self.cells.items() }
 
@@ -1192,7 +1225,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 J = np.logical_and(0 < cells.location_count, 0 < cells.tessellation.cell_label)
 
         # select (with the fuzzy filter) and pre-build cells
-        _fuzzy, data, convex_hull = {}, {}, {}
+        _fuzzy, data, hull = {}, {}, {}
         if are_translocations:
                 extra = {}
         for j, ok in enumerate(J): # for each cell
@@ -1212,16 +1245,16 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         _destination = get_point(final_point, i)
                         __origin = _origin.copy() # make copy
                         __origin.index += 1
+                        _points = _origin # for convex hull; ideally not only origins
                         points = _destination - __origin # translocations
                 else:
-                        points = get_point(locations, i) # locations
+                        points = _points = get_point(locations, i) # locations
 
                 # convex hull
-                _points = cells.descriptors(get_point(cells.points, i))
+                _points = np.asarray(cells.descriptors(_points))
                 if _points.shape[1] < _points.shape[0]:
-                        convex_hull[j] = scipy.spatial.qhull.ConvexHull(_points)
-                elif verbose:
-                        print('cannot evaluate the convex hull for cell {}'.format(j))
+                        hull[j] = scipy.spatial.qhull.ConvexHull(_points)
+
                 if points.size == 0:
                         J[j] = False
                 else:
@@ -1252,7 +1285,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         span = cells.tessellation.cell_centers[adj] - center
 
                 # make cell object
-                _cells[j] = new_cell(j, data[j], center, span, convex_hull.get(j, None), **new_cell_kwargs)
+                _cells[j] = new_cell(j, data[j], center, span, hull.get(j, None), **new_cell_kwargs)
                 _cells[j].time_col = time_col
                 _cells[j].space_cols = space_cols
                 if are_translocations:
@@ -1268,6 +1301,15 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         _cells[j].fuzzy = _fuzzy[j]
                 except AttributeError: # `_cells` does not have the `fuzzy` attribute
                         pass
+
+        # perform a few last checks
+        if verbose:
+                if hull:
+                        for j in J:
+                                if j not in hull:
+                                        print('cannot compute convex hull for cell {}'.format(j))
+                else:
+                        print('cannot compute convex hulls')
 
         #print(sum([ c.tcount == 0 for c in _cells.values() ]))
         self = new_group(_cells, _adjacency, **new_group_kwargs)
@@ -1646,26 +1688,36 @@ def grad1(cells, i, X, index_map=None, eps=None):
                         below = np.zeros((centers.shape[1], centers.shape[0]), dtype=bool)
                         above = np.zeros_like(below)
                         if cells.adjacency.dtype == bool:
+
                                 if eps is None:
+                                        # divide the space in non-overlapping region and
+                                        # assign each neighbour to a single region;
+                                        # assign each pair of symmetric regions to a single
+                                        # dimension (gradient calculation)
                                         proj = centers - center[np.newaxis, :]
                                         assigned_dim = np.argmax(np.abs(proj), axis=1)
                                         proj_dist = proj[ np.arange(proj.shape[0]), assigned_dim ]
                                         for j in range(cell.dim):
                                                 below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
                                                 above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
+
                                 else:
+                                        # along each dimension, divide the space in half-spaces
+                                        # minus margin `eps` (supposed to be positive)
                                         for j in range(cell.dim):
                                                 x, x0 = centers[:,j], center[j]
                                                 below[ j, x < x0 - eps ] = True
                                                 above[ j, x0 + eps < x ] = True
+
                         elif cells.adjacency.dtype == int:
                                 # InferenceMAP-compatible gradient with neighbour cells
                                 # classified as left (-1), right (1), top (2) or bottom (-2);
                                 # applies to arbitrary dimensions
-                                code = cells.adjacency.data[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]]
+                                code = cells.adjacency.data[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] - 1
                                 for j in range(cell.dim):
                                         below[ j, code == -j ] = True
                                         above[ j, code ==  j ] = True
+
                         else:
                                 raise TypeError('{} adjacency labels are not supported'.format(cells.adjacency.dtype))
                 else:

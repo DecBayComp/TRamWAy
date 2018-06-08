@@ -268,12 +268,14 @@ These factors are described in a :ref:`dedicated section <inference_smoothing>`.
 
 This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`.
 
+.. _inference_parameters:
 
-Priors and default values
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Common parameters and default values
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All the methods use :math:`\sigma = 0.03 \textrm{µm}` as default value for the experimental localization error.
-This parameter can be set with the ``-e`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
+This parameter is defined by the experimental setup and can be set in |tramway| with the ``-e`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
+
 Compare::
 
 	> tramway -i example.rwa infer dd -e 0.01 -l DD_sigma_10nm
@@ -288,6 +290,8 @@ Compare::
 Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 
 If the Jeffreys' prior is requested, then this minimum default value is :math:`0.01`. 
 This can be overwritten with the ``--min-diffusivity`` command-line option or the `min_diffusivity` argument to :func:`~tramway.helper.inference.infer`.
+
+Note that in some cases it can be beneficial to allow negative values for the diffusivity.
 
 If no specific prior is defined, a uniform prior is used by default.
 

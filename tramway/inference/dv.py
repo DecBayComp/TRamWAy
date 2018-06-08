@@ -30,9 +30,9 @@ setup = {'arguments': OrderedDict((
                 ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
                 ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
                 ('max_iter',            dict(type=int, help='maximum number of iterations')),
-                #('compatibility',       ('-c', '--inferencemap', '--inferencemap-compatible',
-                #                        dict(action='store_true', help='InferenceMAP compatible'))),
-                ('epsilon',             ('--eps', dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'))),
+                ('compatibility',       ('-c', '--inferencemap', '--compatible',
+                                        dict(action='store_true', help='InferenceMAP compatible'))),
+                ('epsilon',             dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
                 ('export_centers',      dict(action='store_true')),
                 ('verbose',             ()))),
         'cell_sampling': 'group'}
@@ -126,7 +126,8 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
         with ``dx-D*gradVx*dt`` and ``dy-D*gradVy*dt`` modified as ``dx+D*gradVx*dt`` and ``dy+D*gradVy*dt`` respectively.
 
         """
-        t = time.time()
+        if verbose:
+                t = time.time()
 
         # extract `D` and `V`
         dv.update(x)
@@ -185,22 +186,33 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 
 
 def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_prior=None, \
-        jeffreys_prior=False, min_diffusivity=None, max_iter=None, eps=None, \
-        export_centers=False, verbose=True, **kwargs):
+        jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
+        export_centers=False, verbose=True, compatibility=False, **kwargs):
 
         # initial values
         index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
                 smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
-        V_initial = -np.log(n / np.max(n))
+        try:
+                if compatibility:
+                        raise Exception # skip to the except block
+                volume = np.array([ cells[i].volume for i in index ])
+        except:
+                V_initial = -np.log(n / np.max(n))
+        else:
+                density = n / volume
+                V_initial = np.log(np.max(density)) - np.log(density)
         dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
 
         # gradient options
         grad_kwargs = {}
-        if eps is not None:
-                grad_kwargs['eps'] = eps
+        if epsilon is not None:
+                if compatibility:
+                        warn('epsilon should be None for backward compatibility with InferenceMAP', RuntimeWarning)
+                grad_kwargs['eps'] = epsilon
 
         # parametrize the optimization algorithm
-        default_BFGS_options = dict(eps=1e-8, gtol=1e-10, maxiter=1e5) # the important option here is maxiter (should be 1e5 or more)
+        default_BFGS_options = dict(eps=1e-8, gtol=1e-10, maxiter=1e5) # the important option here
+        # is maxiter (should be 1e5 or more especially if V is initialize on the sole basis of n)
         options = kwargs.pop('options', default_BFGS_options)
         if max_iter:
                 options['maxiter'] = max_iter
@@ -214,10 +226,9 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
 
         # run the optimization routine
         squared_localization_error = localization_error * localization_error
-        result = minimize(dv_neg_posterior, dv.combined, \
-                args=(dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
-                        index, reverse_index, grad_kwargs, verbose), \
-                bounds=bounds, options=options)
+        args = (dv, cells, squared_localization_error, jeffreys_prior, dt_mean,
+                        index, reverse_index, grad_kwargs, verbose)
+        result = minimize(dv_neg_posterior, dv.combined, args=args, bounds=bounds, options=options)
 
         # collect the result
         if not result.success and verbose:

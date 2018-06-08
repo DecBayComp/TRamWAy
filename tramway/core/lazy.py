@@ -120,6 +120,12 @@ class Lazy(object):
 		caller = sys._getframe(depth + 1).f_code.co_name
 		self.__setlazy__(caller, value)
 
+        def __assertlazy__(self, name, value, related_attribute=None):
+		if value is None: # None has a special meaning for lazy attributes/properties
+			self.__setlazy__(name, value)
+		else:
+			ro_property_assert(self, value, related_attribute, name)
+
 	def __lazyassert__(self, value, related_attribute=None, name=None, depth=0):
 		if value is None: # None has a special meaning for lazy attributes/properties
 			if name is None:

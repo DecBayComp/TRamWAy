@@ -4,4 +4,4 @@ scipy
 pandas
 tables
 matplotlib
-rwa-python>=0.6
+rwa-python>=0.7

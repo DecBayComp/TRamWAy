@@ -110,6 +110,9 @@ Inferring diffusivity and force with the *DF* mode::
 
 Other inference modes are *D* (``d``), *DD* (``dd``) and *DV* (``dv``).
 
+A common parameter is the localization error, which default value is :math:`\sigma = 0.03 \textrm{µm}`.
+See the :ref:`Common parameters section <inference_parameters>` to learn more about it.
+
 *DV* is notably more time-consuming than the other inference modes and generates diffusivity and potential energy maps::
 
 	> tramway infer dv -i example.rwa -L gwr1 -l dv-map*

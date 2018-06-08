@@ -27,9 +27,12 @@ The generated documentation will be available at ``_build/html/index.html`` from
 
 
 Notes for Installation on Windows
-============
+=================================
 
-If after following the above steps, launching TRamWAy on Windows generates an 
+If after following the above steps, launching |tramway| on Windows generates the following error:
+
 ::
 	ImportError: HDFStore requires PyTables, "DLL load failed: The specified procedure could not be found." problem importing
-error, please remove the ``PyTables`` version installed by ``pip`` and manually download and install the appropriate version from the following `web page <https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytables>`_.
+
+please remove the ``PyTables`` version installed by ``pip`` and manually download and install the appropriate version from the following `web page <https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytables>`_.
+

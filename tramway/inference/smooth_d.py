@@ -28,12 +28,13 @@ setup = {'name': 'smooth.d',
                 ('diffusivity_prior',   ('-d', dict(type=float, default=1., help='prior on the diffusivity'))),
                 ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
                 ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
-                ('max_iter',            dict(type=int, help='maximum number of iterations')))),
+                ('max_iter',            dict(type=int, help='maximum number of iterations')),
+                ('epsilon',             dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)))),
         'cell_sampling': 'group'}
 
 
 def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffusivity_prior, \
-        jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index):
+        jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs):
         """
         Adapted from InferenceMAP's *dDDPosterior* procedure:
 
@@ -90,7 +91,7 @@ def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffu
                 # prior
                 if diffusivity_prior:
                         # gradient of diffusivity
-                        gradD = cells.grad(i, diffusivity, reverse_index)
+                        gradD = cells.grad(i, diffusivity, reverse_index, **grad_kwargs)
                         if gradD is not None:
                                 result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
         if jeffreys_prior:
@@ -98,10 +99,19 @@ def smooth_d_neg_posterior(diffusivity, cells, squared_localization_error, diffu
         return result
 
 def infer_smooth_D(cells, localization_error=0.03, diffusivity_prior=1., jeffreys_prior=None, \
-        min_diffusivity=None, max_iter=None, **kwargs):
+        min_diffusivity=None, max_iter=None, epsilon=None, **kwargs):
+
         # initial values
         index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
                 smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
+
+        # gradient options
+        grad_kwargs = {}
+        if epsilon is not None:
+                if compatibility:
+                        warn('epsilon should be None for backward compatibility with InferenceMAP', RuntimeWarning)
+                grad_kwargs['eps'] = epsilon
+
         # parametrize the optimization procedure
         if min_diffusivity is not None:
                 kwargs['bounds'] = D_bounds
@@ -109,13 +119,16 @@ def infer_smooth_D(cells, localization_error=0.03, diffusivity_prior=1., jeffrey
                 options = kwargs.get('options', {})
                 options['maxiter'] = max_iter
                 kwargs['options'] = options
+
         # run the optimization
         sle = localization_error * localization_error # sle = squared localization error
         result = minimize(smooth_d_neg_posterior, D_initial, \
-                args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index), \
+                args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_indexi, grad_kwargs), \
                 **kwargs)
+
         # format the result
         D = result.x
         DD = pd.DataFrame(D, index=index, columns=['diffusivity'])
+
         return DD
 

@@ -29,12 +29,13 @@ setup = {'name': ('smooth.dd', 'smooth.ddrift'),
                 ('diffusivity_prior',   ('-d', dict(type=float, default=1., help='prior on the diffusivity'))),
                 ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
                 ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
-                ('max_iter',            dict(type=int, help='maximum number of iterations')))),
-                'cell_sampling': 'group'}
+                ('max_iter',            dict(type=int, help='maximum number of iterations')),
+                ('epsilon',             dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)))),
+        'cell_sampling': 'group'}
 
 
-def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivity_prior, jeffreys_prior,
-                dt_mean, min_diffusivity, index, reverse_index):
+def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivity_prior,
+                jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs):
         # extract `D` and `drift`
         dd.update(x)
         D, drift = dd['D'], dd['drift']
@@ -56,7 +57,7 @@ def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivit
                 ndsd = np.sum(dr_minus_drift_dt * dr_minus_drift_dt, axis=1)
                 result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
                 # priors
-                gradD = cells.grad(i, D, reverse_index) # spatial gradient of the local diffusivity
+                gradD = cells.grad(i, D, reverse_index, **grad_kwargs) # spatial gradient of the local diffusivity
                 if gradD is not None:
                         # `grad_sum` memoizes and can be called several times at no extra cost
                         result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
@@ -66,13 +67,22 @@ def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivit
 
 
 def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffreys_prior=False,
-        min_diffusivity=None, max_iter=None, **kwargs):
+        min_diffusivity=None, max_iter=None, epsilon=None, **kwargs):
+
         # initial values
         index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
                 smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
         initial_drift = np.zeros((len(cells), cells.dim), dtype=D_initial.dtype)
         drift_bounds = [(None, None)] * initial_drift.size # no bounds
         dd = ChainArray('D', D_initial, 'drift', initial_drift)
+
+        # gradient options
+        grad_kwargs = {}
+        if epsilon is not None:
+                if compatibility:
+                        warn('epsilon should be None for backward compatibility with InferenceMAP', RuntimeWarning)
+                grad_kwargs['eps'] = epsilon
+
         # parametrize the optimization algorithm
         if min_diffusivity is not None:
                 kwargs['bounds'] = D_bounds + drift_bounds
@@ -80,15 +90,19 @@ def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffre
                 options = kwargs.get('options', {})
                 options['maxiter'] = max_iter
                 kwargs['options'] = options
+
+        # run the optimization
         #cell.cache = None # no cache needed
         sle = localization_error * localization_error # sle = squared localization error
-        args = (dd, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index)
+        args = (dd, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
         result = minimize(smooth_dd_neg_posterior, dd.combined, args=args, **kwargs)
+
         # collect the result
         dd.update(result.x)
         D, drift = dd['D'], dd['drift']
         DD = pd.DataFrame(np.concatenate((D[:,np.newaxis], drift), axis=1), index=index, \
                 columns=[ 'diffusivity' ] + \
                         [ 'drift ' + col for col in cells.space_cols ])
+
         return DD
 

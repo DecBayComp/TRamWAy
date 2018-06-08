@@ -124,13 +124,17 @@ def _sample(method, parse_extra=None):
                 sys.exit(0)
         return sample
 
-def _infer(mode):
+def _infer(mode, parse_extra=None):
         def __infer(args):
                 input_file, kwargs = _parse_args(args)
                 output_file = kwargs.pop('output', None)
                 kwargs['mode'] = mode
                 if kwargs.get('profile', False) is None:
                         kwargs['profile'] = True
+                if parse_extra:
+                        for extra_arg, parse_arg in parse_extra:
+                                kwargs[extra_arg] = parse_arg(**kwargs)
+                kwargs = { kw: arg for kw, arg in kwargs.items() if arg is not None }
                 infer(input_file[0], output_file=output_file, **kwargs)
                 # kwargs: mode, localization_error, diffusivity_prior, potential_prior, jeffreys_prior
                 sys.exit(0)
@@ -305,16 +309,16 @@ def main():
                 mode_parser.add_argument('-l', '--output-label', help='output label')
                 mode_parser.add_argument('--comment', help='description message for the output artefact')
                 try:
-                        add_arguments(mode_parser, setup['arguments'], name=mode)
+                        translations = add_arguments(mode_parser, setup['arguments'], name=mode)
                 except KeyError:
-                        pass
+                        translations = None
                 mode_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
                 mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
                 try:
                         mode_parser.add_argument('input_file', nargs='?', help='path to input file')
                 except:
                         pass
-                mode_parser.set_defaults(func=_infer(mode))
+                mode_parser.set_defaults(func=_infer(mode, translations))
 
 
         # dump analysis tree

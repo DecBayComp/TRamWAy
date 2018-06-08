@@ -22,6 +22,7 @@ import scipy.spatial as spatial
 from tramway.core import *
 import itertools
 import copy
+from collections import Counter
 
 
 class CellStats(Lazy):
@@ -41,7 +42,7 @@ class CellStats(Lazy):
                 index of the ``i`` th point or ``-1`` if the ``i`` th point is not assigned to any cell.
 
         pair of arrays
-                Point-cell association in the shape of a sparse representation  
+                Point-cell association in the shape of a sparse representation 
                 ``(point_index, cell_index)`` such that for all ``i`` the ``point_index[i]`` point is 
                 in the ``cell_index[i]`` cell.
 
@@ -989,34 +990,80 @@ class Voronoi(Delaunay):
         @property
         def cell_volume(self):
                 if self._cell_volume is None:
-                        if len(self._cell_centers.shape) != 2:
-                                raise NotImplementedError('not 2D locations or single cell')
                         adjacency = self.vertex_adjacency.tocsr()
-                        self._cell_volume = np.zeros(adjacency.shape[0])
-                        for c, u in enumerate(self._cell_centers):
-                                vs = set(self.cell_vertices[c].tolist()) # vertex indices
-                                ordered_vs = []
-                                next_vs = set(vs) # copy
-                                try:
-                                        while vs:
-                                                v = next_vs.pop()
-                                                ordered_vs.append(v)
-                                                vs.remove(v)
-                                                next_vs = set(adjacency.indices[adjacency.indptr[v]:adjacency.indptr[v+1]]) & vs
-                                except KeyError:
+                        cell_volume = np.zeros(self._cell_centers.shape[0])
+                        for i, u in enumerate(self._cell_centers):
+                                js = self.cell_vertices[i] # vertex indices
+
+                                if u.size != 2:
+                                        # use Qhull to estimate the volume
+                                        hull = spatial.ConvexHull(self._vertices[js])
+                                        cell_volume[i] = hull.volume
                                         continue
-                                for a, b in zip(ordered_vs, ordered_vs[1:]+[ordered_vs[0]]):
-                                        v, w = self._vertices[a], self._vertices[b]
-                                        self._cell_volume[c] += abs( \
+
+                                js = set(js.tolist())
+                                simplices = []
+                                while js:
+                                        j = js.pop()
+                                        # j's neighbours
+                                        ks = adjacency.indices[adjacency.indptr[j]:adjacency.indptr[j+1]].tolist()
+                                        for k in ks:
+                                                if k in js:
+                                                        simplices.append((j, k))
+                                if len(simplices) != self.cell_vertices[i].size:
+                                        # the missing vertex is located at an infinite distance
+                                        # and two vertices have a single local neighbour;
+                                        # identify these two vertices and connect them to an extra
+                                        # (corner) vertex or directly together;
+                                        count = Counter(itertools.chain(*simplices))
+                                        j, k = [ j for j in count if count[j] == 1 ]
+                                        v, w = self._vertices[j], self.vertices[k]
+                                        if np.isclose(v[0], w[0]) or np.isclose(v[1], w[1]):
+                                                simplices.append((v, w))
+                                        else:
+                                                lb, ub = np.minimum(v, w), np.maximum(v, w)
+                                                if 0 < np.prod(v - w): # top-left or bottom-right
+                                                        _v, _w = v, w
+                                                        v, w = lb, ub
+                                                        # now top-left is u right of (v,w)
+                                                        # and bottom-right is u left of (v,w)
+                                                        vw = w - v
+                                                        vu = u - v
+                                                        if 0 < vu[1] * vw[0] - vu[0] * vw[1]:
+                                                                # bottom-right
+                                                                z = np.array([ub[0], lb[1]])
+                                                        else:
+                                                                # top-left
+                                                                z = np.array([lb[0], ub[1]])
+                                                        v, w = _v, _w
+                                                else:
+                                                        if v[0] < w[0]:
+                                                                v, w = w, v
+                                                        # now top-right is u right of (v,w)
+                                                        # and bottom-left is u left of (v,w)
+                                                        vw = w - v
+                                                        vu = u - v
+                                                        if 0 < vu[1] * vw[0] - vu[0] * vw[1]:
+                                                                # bottom-right
+                                                                z = lb
+                                                        else:
+                                                                # top-left
+                                                                z = ub
+                                                simplices.append((v, z))
+                                                simplices.append((w, z))
+                                for j, k in simplices:
+                                        v = self._vertices[j] if isinstance(j, int) else j
+                                        w = self._vertices[k] if isinstance(k, int) else k
+                                        cell_volume[i] += .5 * abs(\
                                                         (v[0] - u[0]) * (w[1] - u[1]) - \
                                                         (w[0] - u[0]) * (v[1] - u[1]) \
                                                 )
-                        self._cell_volume = self.scaler.unscale_surface_area(self._cell_volume * .5)
+                        self._cell_volume = self.scaler.unscale_surface_area(cell_volume)
                 return self.__returnlazy__('cell_volume', self._cell_volume)
 
         @cell_volume.setter
         def cell_volume(self, area):
-                self.__lazysetter__(area)
+                self.__setlazy__('cell_volume', area)
 
 
 

@@ -34,8 +34,6 @@ __bottom__ = 'BOTTOM_NEIGHBOURS:'
 __coord__ = ['DX', 'DY', 'DT']
 
 
-Area = namedtuple('Area', ['volume'])
-
 def import_cluster_file(input_file):
         with open(input_file, 'r') as f:
                 lines = f.readlines()
@@ -86,13 +84,7 @@ def import_cluster_file(input_file):
                                 if x_defined and y_defined:
                                         cell.center = np.array([x, y])
                                 if convhull_defined:
-                                        cell.boundary = Area(volume=convhull)
-                                #if area_defined or convhull_defined:
-                                #       cell.cache = dict()
-                                #if area_defined:
-                                #       cell.cache['area'] = np.full((2,), area)
-                                #if convhull_defined:
-                                #       cell.cache['convhull'] = np.full((2,), convhull)
+                                        cell.volume = convhull
                                 cells[i - 1] = cell
                                 ncells = max(i, ncells)
                                 all_neighbours = []

@@ -5,7 +5,7 @@ from codecs import open
 from os import path
 
 # requirements moved to requirements.txt
-install_requires = []#'six', 'numpy', 'scipy', 'pandas', 'tables', 'matplotlib', 'rwa-python>=0.6'
+install_requires = []#'six', 'numpy', 'scipy', 'pandas', 'tables', 'matplotlib', 'rwa-python>=0.7'
 extras_require = {}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']

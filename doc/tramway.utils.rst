@@ -17,10 +17,10 @@ tramway.utils.contour module
     :show-inheritance:
 
 
-tramway.utils.imap module
-----------------------------
+tramway.utils.inferencemap module
+---------------------------------
 
-.. automodule:: tramway.utils.imap
+.. automodule:: tramway.utils.inferencemap
     :members:
     :undoc-members:
     :show-inheritance:
