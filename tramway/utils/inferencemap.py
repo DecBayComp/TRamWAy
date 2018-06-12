@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 from tramway.core import *
-from tramway.inference import Distributed, Translocations, Maps
+from tramway.tessellation import CellStats
+from tramway.inference import Distributed, Translocations, Maps, distributed, neighbours_per_axis
 
 import numpy as np
 import pandas as pd
@@ -34,9 +35,11 @@ __bottom__ = 'BOTTOM_NEIGHBOURS:'
 __coord__ = ['DX', 'DY', 'DT']
 
 
-def import_cluster_file(input_file):
+def import_cluster_file(input_file, return_areas=False):
         with open(input_file, 'r') as f:
                 lines = f.readlines()
+        if return_areas:
+                areas = []
         cells = OrderedDict()
         ncells = 0
         adjacency = []
@@ -83,6 +86,8 @@ def import_cluster_file(input_file):
                                 cell.time_col = cols[-1]
                                 if x_defined and y_defined:
                                         cell.center = np.array([x, y])
+                                if area_defined and return_areas:
+                                        areas.append((i - 1, area))
                                 if convhull_defined:
                                         cell.volume = convhull
                                 cells[i - 1] = cell
@@ -154,7 +159,13 @@ def import_cluster_file(input_file):
                 neighbours = np.vstack([ cells[j].center for j in adjacency[i].indices ])
                 cell.span = neighbours - cell.center[np.newaxis,:]
         distr = Distributed(cells, adjacency)
-        return distr
+
+        if return_areas:
+                index, areas = zip(*areas)
+                areas = pd.Series(areas, index=index)
+                return distr, areas
+        else:
+                return distr
 
 
 def import_vmesh_file(input_file):
@@ -190,7 +201,15 @@ def import_vmesh_file(input_file):
         return maps
 
 
-def import_file(root_file, cluster_file=None, vmesh_file=None, output_file=None, clabel=None, vlabel=None, **kwargs):
+def import_file(root_file, label, cluster_file=None, vmesh_file=None, output_file=None, **kwargs):
+        clabel = vlabel = None
+        if isinstance(label, (tuple, list)):
+                try:
+                        clabel, vlabel = label
+                except ValueError:
+                        raise ValueError('too many labels')
+        else:
+                clabel = label # can be None
         try:
                 tree = load_rwa(root_file, verbose=False)
         except:
@@ -209,27 +228,99 @@ def import_file(root_file, cluster_file=None, vmesh_file=None, output_file=None,
         if vmesh_file:
                 maps = import_vmesh_file(vmesh_file)
                 tree[clabel].add(maps, label=vlabel)
-        save_rwa(output_file, tree, **kwargs)
+        save_rwa(output_file, tree, force=True, **kwargs)
+
+
+def export_to_cluster_file(cells, cluster_file, neighbours=None, neighbours_kwargs={}, new_cell=Translocations, **kwargs):
+        not_2D = ValueError('data are not 2D')
+        if isinstance(cells, Distributed):
+                if cells.dim != 2:
+                        raise not_2D
+                zones = cells
+        else:
+                if cells.tessellation._cell_centers.shape[1] != 2:
+                        raise not_2D
+                zones = distributed(cells, new_cell=new_cell, **kwargs)
+        if neighbours is None:
+                neighbours = neighbours_per_axis
+        with open(cluster_file, 'w') as f:
+                for i in zones:
+                        zone = zones[i]
+                        f.write('ZONE: {}\n'.format(i+1))
+                        f.write('NUMBER_OF_TRANSLOCATIONS: {}\n'.format(len(zone)))
+                        f.write('X-CENTRE: {}\n'.format(zone.center[0]))
+                        f.write('Y-CENTRE: {}\n'.format(zone.center[1]))
+                        #area = np.prod(np.max(zone.span, axis=0) - np.min(zone.span, axis=0))
+                        area = zone.volume
+                        f.write('AREA: {}\n'.format(area))
+                        f.write('AREA_CONVHULL: {}\n'.format(area))
+                        below, above = neighbours(i, zones, **neighbours_kwargs)
+                        _neighbours = zones.adjacency[i].indices
+                        _neighbours = OrderedDict(
+                                left = _neighbours[below[0]],
+                                right = _neighbours[above[0]],
+                                top = _neighbours[above[1]],
+                                bottom = _neighbours[below[1]],
+                                )
+                        for side in _neighbours:
+                                f.write('NUMBER_OF_{}_NEIGHBOURS: {}\n'.format(
+                                        side.upper(), _neighbours[side].size))
+                                if _neighbours[side].size:
+                                        f.write('{}_NEIGHBOURS: '.format(side.upper()))
+                                        for j in _neighbours[side]:
+                                                f.write('{}\t'.format(j+1))
+                                        f.write('\n')
+                        f.write('DX\tDY\tDT\n')
+                        for dx, dy, dt in np.hstack((zone.dr, zone.dt[:,np.newaxis])):
+                                f.write('{}\t{}\t{}\n'.format(dx, dy, dt))
+                        f.write('\n\n')
+
+
+def export_file(rwa_file, label, cluster_file, vmesh_file=None, eps=None, **kwargs):
+        no_vmesh_export = NotImplementedError('cannot export vmesh files')
+        if vmesh_file:
+                raise no_vmesh_export
+        if not label:
+                raise ValueError('label is required')
+        if isinstance(label, (tuple, list)):
+                if label[1:]:
+                        raise no_vmesh_export
+                clabel = label[0]
+        else:
+                clabel = label
+
+        if eps is not None:
+                neighbours_kwargs = kwargs.get('neighbours_kwargs', {})
+                neighbours_kwargs['eps'] = eps
+                kwargs['neighbours_kwargs'] = neighbours_kwargs
+
+        cells, = find_artefacts(load_rwa(rwa_file), ((CellStats, Distributed),), clabel)
+        export_to_cluster_file(cells, cluster_file, **kwargs)
 
 
 def main():
-        parser = argparse.ArgumentParser(prog='imap',
-                description='InferenceMAP to TRamWAy file converter.')
+        parser = argparse.ArgumentParser(prog='inferencemap',
+                description='InferenceMAP-TRamWAy file converter.')
         parser.add_argument('-t', '--trajectories', metavar='FILE', help='path to trajectory file')
         parser.add_argument('-c', '--cluster', metavar='FILE', help='path to cluster file')
-        parser.add_argument('-l1', '--clabel', metavar='LABEL', help='label for the imported cluster data')
         parser.add_argument('-v', '--vmesh', metavar='FILE', help='path to vmesh file')
-        parser.add_argument('-l2', '--vlabel', metavar='LABEL', help='label for the imported vmesh data')
-        parser.add_argument('-o', '--output', metavar='FILE', help='path to output file')
+        parser.add_argument('-l', '-L', '--label', metavar='LABEL', action='append', default=[], help='labels; the first one identifies the cluster data in the rwa file, the second one identifies the vmesh data') # ideally '-l' is to import, '-L' to export
+        import_or_export = parser.add_mutually_exclusive_group()
+        import_or_export.add_argument('-o', '--output', metavar='FILE', help='path to the rwa file which to import InferenceMAP files to')
+        import_or_export.add_argument('-i', '--input', metavar='FILE', help='path to the rwa file which to export from')
+        parser.add_argument('--eps', '--epsilon', metavar='EPSILON', type=float, help='margin for half-space gradient calculation (cluster file exports only; see also `tramway.inference.base.neighbours_per_axis`)')
         args = parser.parse_args()
         kwargs = {}
-        if args.trajectories:
-                root = args.trajectories
-        elif args.output and os.path.exists(args.output):
-                root = args.output
+        if args.input:
+                export_file(args.input, args.label, args.cluster, args.vmesh, args.eps)
         else:
-                raise ValueError('trajectory file not defined')
-        import_file(root, args.cluster, args.vmesh, args.output, args.clabel, args.vlabel)
+                if args.trajectories:
+                        root = args.trajectories
+                elif args.output and os.path.exists(args.output):
+                        root = args.output
+                else:
+                        raise ValueError('trajectory file not defined')
+                import_file(root, args.label, args.cluster, args.vmesh, args.output)
 
 
 if __name__ == '__main__':

@@ -993,7 +993,7 @@ class Voronoi(Delaunay):
                         adjacency = self.vertex_adjacency.tocsr()
                         cell_volume = np.zeros(self._cell_centers.shape[0])
                         for i, u in enumerate(self._cell_centers):
-                                js = self.cell_vertices[i] # vertex indices
+                                js = _js = self.cell_vertices[i] # vertex indices
 
                                 if u.size != 2:
                                         # use Qhull to estimate the volume
@@ -1010,47 +1010,15 @@ class Voronoi(Delaunay):
                                         for k in ks:
                                                 if k in js:
                                                         simplices.append((j, k))
+
                                 if len(simplices) != self.cell_vertices[i].size:
-                                        # the missing vertex is located at an infinite distance
-                                        # and two vertices have a single local neighbour;
-                                        # identify these two vertices and connect them to an extra
-                                        # (corner) vertex or directly together;
-                                        count = Counter(itertools.chain(*simplices))
-                                        j, k = [ j for j in count if count[j] == 1 ]
-                                        v, w = self._vertices[j], self.vertices[k]
-                                        if np.isclose(v[0], w[0]) or np.isclose(v[1], w[1]):
-                                                simplices.append((v, w))
-                                        else:
-                                                lb, ub = np.minimum(v, w), np.maximum(v, w)
-                                                if 0 < np.prod(v - w): # top-left or bottom-right
-                                                        _v, _w = v, w
-                                                        v, w = lb, ub
-                                                        # now top-left is u right of (v,w)
-                                                        # and bottom-right is u left of (v,w)
-                                                        vw = w - v
-                                                        vu = u - v
-                                                        if 0 < vu[1] * vw[0] - vu[0] * vw[1]:
-                                                                # bottom-right
-                                                                z = np.array([ub[0], lb[1]])
-                                                        else:
-                                                                # top-left
-                                                                z = np.array([lb[0], ub[1]])
-                                                        v, w = _v, _w
-                                                else:
-                                                        if v[0] < w[0]:
-                                                                v, w = w, v
-                                                        # now top-right is u right of (v,w)
-                                                        # and bottom-left is u left of (v,w)
-                                                        vw = w - v
-                                                        vu = u - v
-                                                        if 0 < vu[1] * vw[0] - vu[0] * vw[1]:
-                                                                # bottom-right
-                                                                z = lb
-                                                        else:
-                                                                # top-left
-                                                                z = ub
-                                                simplices.append((v, z))
-                                                simplices.append((w, z))
+                                        # missing vertices are at infinite distance;
+                                        # take instead the convex hull of the local vertices plus
+                                        # the center of the cell (ideally all the points in the cell)
+                                        hull = spatial.ConvexHull(np.r_[self._vertices[_js], u[np.newaxis,:]])
+                                        cell_volume[i] = hull.volume
+                                        continue
+
                                 for j, k in simplices:
                                         v = self._vertices[j] if isinstance(j, int) else j
                                         w = self._vertices[k] if isinstance(k, int) else k

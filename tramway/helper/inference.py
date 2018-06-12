@@ -30,7 +30,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
         localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
         max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
         store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
-        priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
+        grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
         return_cells=None, profile=None, force=False, **kwargs):
         """
         Inference helper.
@@ -81,6 +81,10 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
                 cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore 
                         `max_cell_count` and `dilation`
+
+                grad (callable or str): spatial gradient function; admits a callable (see
+                        :meth:`~tramway.inference.base.Distributed.grad`) or any of '*grad1*',
+                        '*gradn*'
 
                 input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
                         object in `cells` if the latter is an `Analyses` or filepath
@@ -176,6 +180,20 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                                 new_group = Distributed
                         else:
                                 new_group = constructor
+                if grad is not None:
+                        if not callable(grad):
+                                if grad == 'grad1':
+                                        grad = grad1
+                                elif grad == 'gradn':
+                                        grad = gradn
+                                else:
+                                        raise ValueError('unsupported gradient')
+                                        grad = None
+                        if grad is not None:
+                                class Distr(new_group):
+                                        def grad(self, *args, **kwargs):
+                                                return grad(self, *args, **kwargs)
+                                new_group = Distr
                 detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group)
 
                 if cell_sampling is None:

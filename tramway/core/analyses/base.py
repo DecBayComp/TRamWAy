@@ -192,8 +192,10 @@ class Analyses(object):
 
                         comment (str): associated comment.
 
-                        raw (bool): if `analysis` is not an :class:`Analyses`, it is wrapped into
-                                such a container object; set `raw` to ``True`` to prevent wrapping.
+                        raw (bool):
+                                if `analysis` is not an :class:`~tramway.core.analyses.base.Analyses`,
+                                it is wrapped into such a container object;
+                                set `raw` to ``True`` to prevent wrapping.
 
                 """
                 label = self.autoindex(label)
@@ -538,4 +540,30 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
                         assert isinstance(_node, str)
                         return itertools.chain([_node], *[_flatten(c) for c in _children])
         return '\n'.join(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
+
+
+def append_leaf(analysis_tree, augmented_branch):
+        """
+        Merge new analyses into an existing analysis tree.
+
+        Only leaves and missing branches are appended.
+        Existing nodes with children nodes are left untouched.
+
+        Arguments:
+
+                analysis_tree (tramway.core.analyses.base.Analyses): existing analysis tree.
+
+                augmented_branch (tramway.core.analyses.base.Analyses): sub-tree with extra leaves.
+
+        """
+        if augmented_branch:
+                for label in augmented_branch:
+                        if label in analysis_tree:
+                                append_leaf(analysis_tree[label], augmented_branch[label])
+                        else:
+                                analysis_tree.add(augmented_branch[label], label=label)
+        else:
+                if analysis_tree:
+                        raise ValueError('the existing analysis tree has higher branches than the augmented branch')
+                analysis_tree.data = augmented_branch.data
 

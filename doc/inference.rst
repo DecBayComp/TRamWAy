@@ -32,7 +32,7 @@ However such a straightforward call to :func:`~tramway.helper.inference.infer` m
 
 An argument that should be first considered in an attempt to deal with runtime errors is `localization_error` (or equivalently the ``-e`` command-line option).
 The inference may indeed hit an error because of this value being too small.
-See also the `Priors and default values`_ section.
+See also the `Common parameters and default values`_ section.
 
 
 Maps for 2D (trans-)location data can be rendered with the :func:`~tramway.helper.inference.map_plot` helper function.
