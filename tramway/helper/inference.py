@@ -13,6 +13,7 @@
 
 
 from tramway.core import *
+from tramway.core.hdf5 import *
 from tramway.inference import *
 import tramway.inference as inference # inference.plugins
 from tramway.helper.tessellation import *
@@ -109,6 +110,8 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
         They are deprecated and `diffusivity_prior` and `potential_prior` should be used instead
         respectively.
         """
+        if verbose:
+                inference.plugins.verbose = True
 
         input_file = None
         all_analyses = analysis = None
@@ -397,6 +400,14 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if not cells._lazy.get('bounding_box', True):
                 maps = box_crop(maps, cells.bounding_box, cells.tessellation)
 
+        xlim, ylim = kwargs.get('xlim', None), kwargs.get('ylim', None)
+        if xlim and ylim:
+                maps = box_crop(maps,
+                        pd.DataFrame(
+                                np.array([[xlim[0], ylim[0]], [xlim[1], ylim[1]]]),
+                                columns=['x', 'y']),
+                        cells.tessellation)
+
         # `mode` type may be inadequate because of loading a Py2-generated rwa file in Py3 or conversely
         if mode and not isinstance(mode, str):
                 try: # Py2
@@ -606,10 +617,23 @@ def _clip(m, q):
 
 def box_crop(maps, bounding_box, tessellation):
         centers = tessellation.cell_centers[maps.index]
+        try:
+                vertices = tessellation.vertices
+        except (KeyboardInterrupt, SystemExit):
+                raise
+        except:
+                vertices = None
         dims = columns(tessellation.descriptors(bounding_box))
         for col, dim in enumerate(dims):
                 lower, upper = bounding_box[dim]
                 _in = (lower <= centers[:,col]) & (centers[:,col] <= upper)
+                if vertices is not None:
+                        _v_in = (lower <= vertices[:,col]) & (vertices[:,col] <= upper)
+                        for i in range(_in.size):
+                                if _in[i]:
+                                        continue
+                                vs = tessellation.cell_vertices[i]
+                                _in[i] = np.any(_v_in[vs])
                 if col == 0:
                         inside = _in
                 else:

@@ -1,13 +1,12 @@
 
 from .time import TimeLattice
-from tramway.core import isstructured
-from tramway.core.hdf5 import *
+from ..core import isstructured, hdf5
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
 
 
-__all__ = ('setup', 'SlidingWindow')
+__all__ = ['setup', 'SlidingWindow']
 
 
 setup = {
@@ -69,8 +68,10 @@ class SlidingWindow(TimeLattice):
 import sys
 if sys.version_info[0] < 3:
 
-        sliding_window_exposes = time_lattice_exposes + ['duration', 'shift']
-        hdf5_storable(default_storable(SlidingWindow, exposes=sliding_window_exposes), agnostic=True)
+        import rwa
+        sliding_window_exposes = hdf5.time_lattice_exposes + ['duration', 'shift']
+        rwa.hdf5_storable(rwa.default_storable(SlidingWindow, exposes=sliding_window_exposes),
+                agnostic=True)
 
-        __all__ = __all__ + ('sliding_window_exposes', )
+        __all__.append('sliding_window_exposes')
 

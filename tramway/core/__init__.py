@@ -12,23 +12,12 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from .lazy import *
+from .lazy import ro_property_assert, Lazy # hide PermissionError
 from .namedcolumns import *
 from .chain import *
 from . import exceptions
 from .analyses import *
 from .scaler import *
 from .xyt import *
-from .hdf5 import *
-
-__all__ = ['exceptions', 'ro_property_assert', 'Lazy', \
-        'isstructured', 'columns', 'splitcoord', \
-        'Matrix', 'ArrayChain', 'ChainArray', \
-        'Analyses', 'map_analyses', 'extract_analysis', 'label_paths', 'format_analyses', \
-        'find_artefacts', \
-        'lazytype', 'lazyvalue', \
-        'Scaler', 'whiten', 'unitrange', \
-        'translocations', 'load_xyt', \
-        'hdf5_storable', 'hdf5_not_storable', 'HDF5Store', \
-        'RWAStore', 'load_rwa', 'save_rwa']
+#from .hdf5 import *
 

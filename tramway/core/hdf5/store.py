@@ -15,7 +15,7 @@
 from rwa import HDF5Store, lazytype, lazyvalue
 from ..lazy import Lazy
 from ..analyses import Analyses, coerce_labels, format_analyses
-from copy import copy
+#from copy import copy
 import os.path
 import traceback
 import errno
@@ -25,6 +25,8 @@ try:
 except NameError:
         pass
 
+
+__all__ = ['RWAStore', 'load_rwa', 'save_rwa']
 
 
 class RWAStore(HDF5Store):
@@ -52,7 +54,9 @@ class RWAStore(HDF5Store):
                         # set lazy attributes to None (unset them so that memory is freed)
                         #obj = copy(obj) # this causes a weird bug
                         for name in obj.__lazy__:
-                                if obj._lazy[name]:
+                                # `_lazy` should contain `name`;
+                                # if it is not, the object definition has changed
+                                if obj._lazy.get(name, True):
                                         setattr(obj, obj.__fromlazy__(name), None)
                 HDF5Store.poke(self, objname, obj, container, visited)
                 if unload is not None:

@@ -567,3 +567,18 @@ def append_leaf(analysis_tree, augmented_branch):
                         raise ValueError('the existing analysis tree has higher branches than the augmented branch')
                 analysis_tree.data = augmented_branch.data
 
+
+__all__ = [
+        'AnalysesView',
+        'InstancesView',
+        'CommentsView',
+        'Analyses',
+        'map_analyses',
+        'extract_analysis',
+        'label_paths',
+        'find_artefacts',
+        'coerce_labels',
+        'format_analyses',
+        'append_leaf',
+        ]
+

@@ -22,7 +22,8 @@ import scipy.spatial as spatial
 from tramway.core import *
 import itertools
 import copy
-from collections import Counter
+from collections import Counter, namedtuple
+import sys
 
 
 class CellStats(Lazy):
@@ -961,7 +962,11 @@ class Voronoi(Delaunay):
                 if self._cell_centers is None:
                         raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
                 else:
-                        voronoi = spatial.Voronoi(np.asarray(self._cell_centers))
+                        points = np.asarray(self._cell_centers)
+                        if points.shape[1] == 2:
+                                voronoi = boxed_voronoi_2d(points)
+                        else:
+                                voronoi = spatial.Voronoi(points)
                         self._vertices = voronoi.vertices
                         self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
                                         for i, r in enumerate(voronoi.point_region) if 0 <= r }
@@ -1064,8 +1069,145 @@ def sparse_to_dict(cell_vertex):
         return cell_vertex
 
 
+_Voronoi = namedtuple('BoxedVoronoi', (
+                'points',
+                'vertices',
+                'ridge_points',
+                'ridge_vertices',
+                'regions',
+                'point_region',
+        ))
+
+def boxed_voronoi_2d(points, bounding_box=None):
+        voronoi = spatial.Voronoi(points)
+        if bounding_box is None:
+                x_min, x_max = np.min(points, axis=0), np.max(points, axis=0)
+                bounding_box = (
+                        x_min,
+                        np.array([x_max[0], x_min[1]]),
+                        x_max,
+                        np.array([x_min[0], x_max[1]]),
+                        )
+        t = (bounding_box[0] + bounding_box[2]) * .5
+        lstsq_kwargs = {}
+        if sys.version_info[0] < 3:
+                lstsq_kwargs['rcond'] = None
+        region_point = np.full(len(voronoi.regions), -1, dtype=int)
+        region_point[voronoi.point_region] = np.arange(voronoi.point_region.size)
+        extra_vertices = []
+        vertex_index = n_vertices = voronoi.vertices.shape[0]
+        extra_ridges = []
+        n_ridges = voronoi.ridge_points.shape[0]
+        _ridge_vertices, _regions = voronoi.ridge_vertices, [[]]
+        for c, u in enumerate(points):
+                r = voronoi.point_region[c]
+                region = voronoi.regions[r]
+                #assert region_point[r] == c
+                _region = []
+                for k, h in enumerate(region):
+                        if h < 0:
+
+                                # find the two "adjacent" vertices
+                                i, j = region[k-1], region[(k+1)%len(region)]
+                                assert 0<=i
+                                assert 0<=j
+                                # find the corresponding neighbour cells
+                                m, n = set(), set() # mutable
+                                for d, hs in enumerate(voronoi.regions):
+                                        if not hs or d == r:
+                                                continue
+                                        for e, cs in ((i,m), (j,n)):
+                                                try:
+                                                        l = hs.index(e)
+                                                except ValueError:
+                                                        continue
+                                                if (hs[l-1]==-1) or (hs[(l+1)%len(hs)]==-1):
+                                                        cs.add(region_point[d])
+                                p, q = m.pop(), n.pop()
+                                assert not m
+                                assert not n
+                                # pick a distant point on the perpendicular bissector
+                                # of the neighbour centers, at the intersection with
+                                # the bounding box
+                                prev_edge = None
+                                for h, d in ((i,p), (j,q)):
+                                        try:
+                                                gs = _ridge_vertices[n_ridges+extra_ridges.index([d,c])]
+                                        except ValueError:
+                                                pass
+                                        else:
+                                                g, = [ g for g in gs if g != h ]
+                                                _region.append(g)
+                                                continue
+                                        v = voronoi.vertices[h]
+                                        w = points[d]
+                                        if np.any(v<bounding_box[0]) or np.any(bounding_box[2]<v):
+                                                # vertex v stands outside the bounding box
+                                                # TODO: check for corners as potential intermediate vertices
+                                                continue
+                                        n = np.array([u[1]-w[1], w[0]-u[0]])
+                                        #y = (u + w) * .5
+                                        y = v
+                                        # determine direction: n or -n?
+                                        if 0 < np.dot(n, t-y):
+                                                n = -n
+                                        # intersection of [y,n) and [a,ab]
+                                        v_next = None
+                                        for l, a in enumerate(bounding_box):
+                                                b = bounding_box[(l+1)%len(bounding_box)]
+                                                M, p = np.c_[n, a-b], a-y
+                                                q = np.linalg.lstsq(M, p, **lstsq_kwargs)
+                                                q = q[0]
+                                                if 0<=q[0] and 0<=q[1] and q[1]<=1:
+                                                        # intersection found
+                                                        v_next = y + q[0] * n
+                                                        #if 0<q[0]:
+                                                        break
+                                        assert v_next is not None
+                                        if prev_edge is None or prev_edge == l:
+                                                h_prev = h
+                                        else:
+                                                h_prev = vertex_index
+                                                vertex_index += 1
+                                                # add the corner which the previous
+                                                # and current edges intersect at
+                                                e_max = len(bounding_box)-1
+                                                if (0<l and prev_edge==l-1) or \
+                                                        (l==0 and prev_edge==e_max):
+                                                        v_prev = a
+                                                elif (l<e_max and prev_edge==l+1) or \
+                                                        (l==e_max and prev_edge==0):
+                                                        v_prev = b
+                                                else:
+                                                        raise RuntimeError
+                                                extra_vertices.append(v_prev)
+                                                extra_ridges.append([-1,c])
+                                                _ridge_vertices.append([h,h_prev])
+                                                _region.append(h_prev)
+                                        prev_edge = l
+                                        #
+                                        h_next = vertex_index
+                                        vertex_index += 1
+                                        #
+                                        extra_vertices.append(v_next)
+                                        extra_ridges.append([c,d])
+                                        _ridge_vertices.append([h_prev,h_next])
+                                        _region.append(h_next)
+                                        assert len(extra_vertices) == vertex_index - n_vertices
+
+                        else:
+                                _region.append(h)
+                _regions.append(_region)
+        _points = voronoi.points
+        _vertices = np.vstack([voronoi.vertices]+extra_vertices)
+        _ridge_points = np.vstack([voronoi.ridge_points]+extra_ridges)
+        _point_region = voronoi.point_region
+        return _Voronoi(_points, _vertices, _ridge_points, _ridge_vertices, _regions, _point_region)
+
+
 
 __all__ = ['CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
-        'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict']
+        'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict', \
+        '_Voronoi', 'boxed_voronoi_2d']
 
 

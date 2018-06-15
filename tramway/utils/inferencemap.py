@@ -204,10 +204,14 @@ def import_vmesh_file(input_file):
 def import_file(root_file, label, cluster_file=None, vmesh_file=None, output_file=None, **kwargs):
         clabel = vlabel = None
         if isinstance(label, (tuple, list)):
-                try:
-                        clabel, vlabel = label
-                except ValueError:
-                        raise ValueError('too many labels')
+                if label:
+                        if label[1:]:
+                                try:
+                                        clabel, vlabel = label
+                                except ValueError:
+                                        raise ValueError('too many labels')
+                        else:
+                                clabel = label[0]
         else:
                 clabel = label # can be None
         try:
