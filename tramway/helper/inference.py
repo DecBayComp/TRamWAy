@@ -629,10 +629,10 @@ def box_crop(maps, bounding_box, tessellation):
                 _in = (lower <= centers[:,col]) & (centers[:,col] <= upper)
                 if vertices is not None:
                         _v_in = (lower <= vertices[:,col]) & (vertices[:,col] <= upper)
-                        for i in range(_in.size):
+                        for i, j in enumerate(maps.index):
                                 if _in[i]:
                                         continue
-                                vs = tessellation.cell_vertices[i]
+                                vs = tessellation.cell_vertices[j]
                                 _in[i] = np.any(_v_in[vs])
                 if col == 0:
                         inside = _in
