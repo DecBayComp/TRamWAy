@@ -196,11 +196,11 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
         try:
                 if compatibility:
                         raise Exception # skip to the except block
-                volume = np.array([ cells[i].volume for i in index ])
+                volume = [ cells[i].volume for i in index ]
         except:
                 V_initial = -np.log(n / np.max(n))
         else:
-                density = n / volume
+                density = n / np.array([ np.inf if v is None else v for v in volume ])
                 V_initial = np.log(np.max(density)) - np.log(density)
         dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
 

@@ -24,6 +24,7 @@ import tramway.inference as inference
 import tramway.feature as feature
 from .helper import *
 import tramway.core.hdf5.compat
+import tramway.utils.inferencemap as inferencemap
 
 
 def _parse_args(args):
@@ -184,11 +185,19 @@ def _render_map(args):
 
 def _dump_rwa(args):
         input_files, kwargs = _parse_args(args)
-        verbose = kwargs.get('verbose', False)
-        for input_file in input_files:
-                print('in {}:'.format(input_file))
-                analyses = load_rwa(input_file)
-                print(format_analyses(analyses, global_prefix='\t', node=lazytype))
+        verbose = kwargs.pop('verbose', False)
+        label = kwargs.pop('label')
+        if label and input_files and not input_files[1:]:
+                label = kwargs.pop('input_label', None)
+                kwargs['cluster_file'] = kwargs.pop('cluster')
+                kwargs['vmesh_file'] = kwargs.pop('vmesh')
+                kwargs = { k: v for k, v in kwargs.items() if v is not None }
+                inferencemap.export_file(input_files[0], label=label, **kwargs)
+        else:
+                for input_file in input_files:
+                        print('in {}:'.format(input_file))
+                        analyses = load_rwa(input_file)
+                        print(format_analyses(analyses, global_prefix='\t', node=lazytype))
 
 def _curl(args):
         import copy
@@ -351,7 +360,15 @@ def main():
         dump_parser = sub.add_parser('dump')
         dump_parser.set_defaults(func=_dump_rwa)
         for arg1, arg2, kwargs in global_arguments:
-                dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+                if arg1 in ['-c', '-v', '-L']:
+                        dump_parser.add_argument(arg2, dest=arg1[1]+'post', **kwargs)
+                else:
+                        dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+        dump_parser.add_argument('-c', '--cluster', metavar='FILE', help='path to cluster file')
+        dump_parser.add_argument('-v', '--vmesh', metavar='FILE', help='path to vmesh file')
+        dump_parser.add_argument('-L', '--label', help='comma-separated list of labels')
+        dump_parser.add_argument('--eps', '--epsilon', metavar='EPSILON', type=float, help='margin for half-space gradient calculation (cluster file exports only; see also `tramway.inference.base.neighbours_per_axis`)')
+        dump_parser.add_argument('--auto', action='store_true', help='infer default values for missing parameters')
         try:
                 dump_parser.add_argument('input_file', nargs='?', help='path to input file')
         except:
