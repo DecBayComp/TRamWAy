@@ -2,7 +2,8 @@
 import os
 import sys
 from rwa import lazyvalue
-from tramway.core import find_artefacts, format_analyses, load_rwa, save_rwa
+from tramway.core import find_artefacts, format_analyses
+from tramway.core.hdf5 import load_rwa, save_rwa
 from tramway.tessellation import CellStats
 from tramway.inference import Maps
 from tramway.helper import tessellate, infer, map_plot, cell_plot

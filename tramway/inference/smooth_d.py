@@ -123,7 +123,7 @@ def infer_smooth_D(cells, localization_error=0.03, diffusivity_prior=1., jeffrey
         # run the optimization
         sle = localization_error * localization_error # sle = squared localization error
         result = minimize(smooth_d_neg_posterior, D_initial, \
-                args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_indexi, grad_kwargs), \
+                args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs), \
                 **kwargs)
 
         # format the result

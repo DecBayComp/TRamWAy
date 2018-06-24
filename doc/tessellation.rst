@@ -197,6 +197,7 @@ Both can be used to implemented such a use case:
 .. code-block:: python
 
 	from tramway.core import *
+	from tramway.core.hdf5 import *
 	from tramway.tessellation import *
 	from numpy.random import rand
 	from pandas import DataFrame
@@ -248,6 +249,7 @@ The following example use case makes contiguous segments such that the total loc
 .. code-block:: python
 
 	from tramway.core import *
+	from tramway.core.hdf5 import *
 	from tramway.tessellation import *
 	from tramway.helper import *
 	import numpy

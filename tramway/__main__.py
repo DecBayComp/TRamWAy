@@ -81,32 +81,6 @@ def _render_cells(args):
         sys.exit(0)
 
 
-def _tessellate(args):
-        input_file, kwargs = _parse_args(args)
-        output_file = kwargs.pop('output', None)
-        scaling = kwargs.pop('w', None)
-        if scaling and not kwargs['scaling']:
-                kwargs['scaling'] = 'whiten'
-        avg_location_count = kwargs.pop('location_count', None)
-        max_level = kwargs.pop('lower_levels', None)
-        min_nn = kwargs.pop('knn', None)
-        max_nn = kwargs.pop('max_nn', None)
-        if not (min_nn is None and max_nn is None):
-                knn = (min_nn, max_nn)
-        else:
-                knn = None
-        if kwargs.get('inplace', not None) is None:
-                del kwargs['inplace']
-        if kwargs['method'] is None:
-                del kwargs['method']
-        elif kwargs['method'] == 'kdtree' and min_nn is not None:
-                kwargs['metric'] = 'euclidean'
-        tessellate(input_file, output_file=output_file, \
-                avg_location_count=avg_location_count, max_level=max_level, \
-                knn=knn, **kwargs)
-        sys.exit(0)
-
-
 def _sample(method, parse_extra=None):
         def sample(args):
                 input_file, kwargs = _parse_args(args)
@@ -243,11 +217,12 @@ def _curl(args):
 def main():
         verbose = '--verbose' in sys.argv
         if not verbose:
-                try:
-                        k = sys.argv.index('-v')
-                except ValueError:
-                        pass
-                else:
+                simple = None
+                for k, a in enumerate(sys.argv):
+                        if a[0] == '-' and a[1:] and all(c == 'v' for c in a[1:]):
+                                simple = not a[2:]
+                                break
+                if simple is True:
                         # note that '-v' may not be the verbose flag
                         # if it appears after the first command (i.e. tessellate, infer);
                         # exclude one such known case by testing the argument that comes next:
@@ -255,6 +230,8 @@ def main():
                                 float(sys.argv[k+1])
                         except (ValueError, IndexError):
                                 verbose = True
+                elif simple is False:
+                        verbose = True
         if verbose:
                 tessellation.plugins.verbose = inference.plugins.verbose = True
 

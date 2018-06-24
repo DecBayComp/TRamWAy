@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
 from collections import OrderedDict
+from warnings import warn
 
 
 class HexagonalMesh(Voronoi):
@@ -59,26 +60,33 @@ class HexagonalMesh(Voronoi):
 
         def tessellate(self, points, **kwargs):
                 # center
+                if isinstance(points, pd.DataFrame):
+                        points = points.copy()
                 points = self._preprocess(points)
-                points = self.descriptors(points, asarray=True)
-                center = np.mean(points, axis=0, keepdims=True)
+                #points = self.descriptors(points, asarray=True)
+                center = self.descriptors(points).mean(axis=0, keepdims=True)
                 points -= center
                 # rotate
                 theta = self.tilt * pi / 6.
                 s, c = sin(-theta), cos(-theta)
                 rot = np.array([[c, -s], [s, c]])
-                points = np.dot(points, rot.T)
+                if isinstance(points, pd.DataFrame):
+                        pts = np.dot(points[self.scaler.columns].values, rot.T)
+                        points.loc[:,self.scaler.columns] = pts
+                        center = center.values
+                else:
+                        points = pts = np.dot(points, rot.T)
                 #
-                lower_bound = points.min(axis=0)
-                upper_bound = points.max(axis=0)
+                lower_bound = pts.min(axis=0)
+                upper_bound = pts.max(axis=0)
                 size = upper_bound - lower_bound
                 if self.avg_probability:
                         desired_n_cells = n_cells = 1. / self.avg_probability
                         total_area = np.prod(size)
                         hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
-                        n_cells_prev, hex_radius_prev = [] , []
+                        n_cells_prev, hex_radius_prev = [], []
                         while True:
-                                hex_radius = np.sqrt(total_area / ( 2. * sqrt(3.) * n_cells))
+                                hex_radius = np.sqrt(total_area / (2. * sqrt(3.) * n_cells))
                                 if self.min_distance is not None:
                                         hex_radius = max(hex_radius, .5 * self.min_distance)
                                 if any(np.isclose(hex_radius, r) for r in hex_radius_prev):
@@ -112,13 +120,14 @@ class HexagonalMesh(Voronoi):
                                 pass
                         hex_side = hex_radius / hex_cos
                         dx = 2. * hex_radius
-                        dy = hex_side + .5 * hex_radius
-                        m = int(round(size[0] / dx))
-                        n = int(round((size[1] + 2. * hex_side * hex_sin) / dy))
-                        lower_center_y = lower_bound[1] + hex_side * (1. - hex_sin)
+                        dy = 1.5 * hex_side# * (2. - hex_sin)
+                        m = int(ceil(size[0] / dx))
+                        n = int(ceil((size[1] + 2. * (hex_side * hex_sin - hex_radius)) / dy) + 1)
+                        lower_center_x = -.5 * float(m - 1) * dx
+                        lower_center_y = -.5 * float(n - 1) * dy
                         centers = []
                         for k in range(n):
-                                _centers_x = lower_bound[0] + float(k % 2) * hex_radius + dx * np.arange(m + 1 - (k % 2))
+                                _centers_x = lower_center_x + float(k % 2) * hex_radius + dx * np.arange(m + 1 - (k % 2))
                                 _centers_y = np.full_like(_centers_x, lower_center_y + float(k) * dy)
                                 centers.append(np.stack((_centers_x, _centers_y), axis=-1))
                         self._cell_centers = np.vstack(centers)

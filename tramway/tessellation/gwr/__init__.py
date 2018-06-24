@@ -49,14 +49,10 @@ class GasMesh(Voronoi):
                         self._avg_distance = avg_distance
                 else:
                         self._avg_distance = max_distance * 0.25
-                if self._avg_distance <= 0:
-                        raise ValueError('`avg_distance` is null or negative')
                 if max_distance or avg_distance is None:
                         self._max_distance = max_distance
                 else:
                         self._max_distance = avg_distance * 4
-                if self._max_distance <= 0:
-                        raise ValueError('`max_distance` is null or negative')
                 self.min_probability = min_probability
                 #self.avg_probability = avg_probability
 
@@ -67,8 +63,12 @@ class GasMesh(Voronoi):
                         if self._min_distance is not None:
                                 self._min_distance = self.scaler.scale_distance(self._min_distance)
                         if self._avg_distance is not None:
+                                if self._avg_distance <= 0:
+                                        raise ValueError('`avg_distance` is null or negative')
                                 self._avg_distance = self.scaler.scale_distance(self._avg_distance)
                         if self._max_distance is not None:
+                                if self._max_distance <= 0:
+                                        raise ValueError('`max_distance` is null or negative')
                                 self._max_distance = self.scaler.scale_distance(self._max_distance)
                 if self.gas is None:
                         self.gas = Gas(np.asarray(points))
