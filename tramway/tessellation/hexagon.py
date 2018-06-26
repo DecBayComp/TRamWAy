@@ -64,7 +64,10 @@ class HexagonalMesh(Voronoi):
                         points = points.copy()
                 points = self._preprocess(points)
                 #points = self.descriptors(points, asarray=True)
-                center = self.descriptors(points).mean(axis=0, keepdims=True)
+                mean_kwargs = {}
+                if not isinstance(points, pd.DataFrame):
+                        mean_kwargs['keepdims'] = True
+                center = self.descriptors(points).mean(axis=0, **mean_kwargs)
                 points -= center
                 # rotate
                 theta = self.tilt * pi / 6.

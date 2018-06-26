@@ -246,9 +246,15 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 figure = plt.gcf() # before PatchCollection
         if axes is None:
                 axes = figure.gca()
-        if alpha is None:
-                alpha = .9
-        patches = PatchCollection(polygons, alpha=alpha, linewidth=linewidth, cmap=colormap)
+        # draw patches
+        patch_kwargs = {}
+        if alpha is not False:
+                if alpha is None:
+                        alpha = .9
+                patch_kwargs['alpha'] = alpha
+        if colormap is not None:
+                patch_kwargs['cmap'] = colormap
+        patches = PatchCollection(polygons, linewidth=linewidth, **patch_kwargs)
         patches.set_array(scalar_map)
         if clim is not None:
                 patches.set_clim(clim)
