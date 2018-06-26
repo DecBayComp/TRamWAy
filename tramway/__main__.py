@@ -412,6 +412,7 @@ def main():
         map_parser.add_argument('--xlim', type=float, nargs='+', help='space-separated couple of limit values for the x axis')
         map_parser.add_argument('--ylim', type=float, nargs='+', help='space-separated couple of limit values for the y axis')
         map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
+        map_parser.add_argument('--dpi', type=int, help='dots per inch')
         try:
                 map_parser.add_argument('input_file', nargs='?', help='path to input file')
         except:

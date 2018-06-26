@@ -40,11 +40,11 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
                 cells (str or CellStats or Analyses): data partition or path to partition file
 
-                mode (str or callable): plugin name; see for example 
-                        :mod:`~tramway.inference.d` (``'d'``), 
-                        :mod:`~tramway.inference.df` (``'df'``), 
-                        :mod:`~tramway.inference.dd` (``'dd'``), 
-                        :mod:`~tramway.inference.dv` (``'dv'``); 
+                mode (str or callable): plugin name; see for example
+                        :mod:`~tramway.inference.d` (``'d'``),
+                        :mod:`~tramway.inference.df` (``'df'``),
+                        :mod:`~tramway.inference.dd` (``'dd'``),
+                        :mod:`~tramway.inference.dv` (``'dv'``);
                         can be also a function suitable for :meth:`Distributed.run`
 
                 output_file (str): desired path for the output map file
@@ -70,17 +70,17 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
                 min_diffusivity (float): (possibly negative) lower bound on local diffusivities
 
-                store_distributed (bool): store the :class:`~tramway.inference.base.Distributed` object 
+                store_distributed (bool): store the :class:`~tramway.inference.base.Distributed` object
                         in the map file
 
                 new_cell (callable): see also :func:`~tramway.inference.base.distributed`
 
                 new_group (callable): see also :func:`~tramway.inference.base.distributed`
 
-                constructor (callable): *deprecated*; see also :func:`~tramway.inference.base.distributed`; 
+                constructor (callable): *deprecated*; see also :func:`~tramway.inference.base.distributed`;
                         please use `new_group` instead
 
-                cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore 
+                cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore
                         `max_cell_count` and `dilation`
 
                 grad (callable or str): spatial gradient function; admits a callable (see
@@ -94,7 +94,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
                 comment (str): description message for the resulting analysis
 
-                return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.CellStats` 
+                return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.CellStats`
                         object as extra element
 
                 profile (bool or str): profile each child job if any;
@@ -106,7 +106,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
                 Maps or pandas.DataFrame or tuple:
 
-        `priorD` and `priorV` are legacy arguments. 
+        `priorD` and `priorV` are legacy arguments.
         They are deprecated and `diffusivity_prior` and `potential_prior` should be used instead
         respectively.
         """
@@ -282,7 +282,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
-        figsize=(24.0, 18.0), dpi=None, aspect=None, show=None, verbose=False, \
+        figsize=(24., 18.), dpi=None, aspect=None, show=None, verbose=False, \
         alpha=None, point_style=None, \
         label=None, input_label=None, mode=None, \
         **kwargs):
@@ -291,7 +291,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
         Arguments:
 
-                maps (str or Analyses or pandas.DataFrame or Maps): maps as a path to a rwa map file, 
+                maps (str or Analyses or pandas.DataFrame or Maps): maps as a path to a rwa map file,
                         an analysis tree, a dataframe or a :class:`Maps`;
                         filepaths and analysis trees may require `label` (or equivalently `input_label`)
                         to be defined; dataframes and encapsulated maps require `cells` to be defined
@@ -306,9 +306,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 fig_format (str): for example '*.png*'
 
-                figsize ((float, float)): figure size
+                figsize ((float, float)): figure size (width, height) in inches
 
-                dpi (int): dot per inch
+                dpi (int): dots per inch
 
                 aspect (float or str): aspect ratio or '*equal*'
 
@@ -317,7 +317,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 verbose (bool): verbosity level
 
-                alpha (float): alpha value for scalar maps; useful in combination with `point_style`
+                alpha (float): alpha value for scalar maps; useful in combination with `point_style`;
+                        if ``False``, the alpha value is not explicitly set
 
                 point_style (dict): if defined, points are overlaid
 
@@ -325,6 +326,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 mode (bool or str): inference mode; can be ``False`` so that mode information from
                         files, analysis trees and encapsulated maps are not displayed
+
+        Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
+        :func:`~tramway.plot.map.field_map_2d`.
+
         """
         # get cells and maps objects from the first input argument
         input_file = None
@@ -383,19 +388,6 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if isinstance(cells, Distributed):
                 # fix for rwa-0.5 OrderedDict
                 cells.cells = collections.OrderedDict((k, cells[k]) for k in range(max(cells.keys())+1) if k in cells )
-                #for i in cells:
-                #       print('{}\t{}\t{}'.format(i, *cells[i].center))
-        #if isinstance(cells, Distributed):
-        #       distr = cells
-        #       cells = Voronoi()
-        #       try:
-        #               cells.tessellate(pd.DataFrame(np.vstack([ distr[i].center for i in range(distr.adjacency.shape[0]) ]),
-        #                       columns=distr.space_cols))
-        #               cells = CellStats(analyses.data, cells)
-        #       except (KeyboardInterrupt, SystemExit):
-        #               raise
-        #       except:
-        #               raise TypeError('cannot handle `Distributed` objects with missing cells or location data')
 
         if not cells._lazy.get('bounding_box', True):
                 maps = box_crop(maps, cells.bounding_box, cells.tessellation)
@@ -460,7 +452,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 col_kwargs[a] = kwargs[a]
 
                 if figsize:
-                        fig = mplt.figure(figsize=figsize)
+                        fig = mplt.figure(figsize=figsize, dpi=dpi)
                 else:
                         fig = mplt.gcf()
                 figs.append(fig)
@@ -521,9 +513,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 var_kwargs[a] = kwargs[a][name]
                         else:
                                 var_kwargs[a] = kwargs[a]
-                
+
                 if figsize:
-                        fig = mplt.figure(figsize=figsize)
+                        fig = mplt.figure(figsize=figsize, dpi=dpi)
                 else:
                         fig = mplt.gcf()
                 figs.append(fig)
