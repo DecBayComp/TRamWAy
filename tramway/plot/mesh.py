@@ -94,7 +94,12 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
                 linewidth=1):
         vertices = cells.tessellation.vertices
         labels, color = _graph_theme(cells.tessellation, labels, color, negative)
-        color += 'w'
+        try:
+                color += 'w'
+        except TypeError:
+                if not isinstance(color, list):
+                        color = [color]
+                color.append('w')
         try:
                 special_edges = cells.tessellation.candidate_edges
                 #points = cells.descriptors(cells.points, asarray=True)
