@@ -134,6 +134,9 @@ def cell_to_polygon(c, X, voronoi=None, bounding_box=None, region_point=None, re
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
                 delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
                 **kwargs):
+        """
+        Setting colorbar to 'nice' allows to produce a colorbar close to the figure of the same size as the figure
+        """
         #       colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
         coords = None
         if isinstance(values, pd.DataFrame):
@@ -282,9 +285,20 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if aspect is not None:
                 axes.set_aspect(aspect)
 
-        if colorbar:
+        if colorbar==True:
                 try:
                         figure.colorbar(patches)
+                except AttributeError as e:
+                        warn(e.args[0], RuntimeWarning)
+        elif colorbar=='nice':
+                # make the colorbar closer to the plot and same size
+                from mpl_toolkits.axes_grid1 import make_axes_locatable
+                try:
+                        gca_bkp = plt.gca()
+                        divider = make_axes_locatable(figure.gca())
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        figure.colorbar(patches, cax=cax)
+                        plt.sca(gca_bkp)
                 except AttributeError as e:
                         warn(e.args[0], RuntimeWarning)
 
