@@ -147,11 +147,10 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
         # parse Delaunay-related arguments
         if delaunay:
-                delaunay_linewidth = linewidth
-                linewidth = 0
-                if isinstance(delaunay, dict):
-                        delaunay_linewidth = delaunay.pop('linewidth', delaunay_linewidth)
-                        kwargs.update(delaunay)
+                if not isinstance(delaunay, dict):
+                        delaunay = {}
+                if linewidth and 'linewidth' not in delaunay:
+                        delaunay['linewidth'] = linewidth
 
         # turn the cells into polygons
         polygons = []
@@ -247,12 +246,12 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if axes is None:
                 axes = figure.gca()
         # draw patches
-        patch_kwargs = {}
+        patch_kwargs = kwargs
         if alpha is not False:
                 if alpha is None:
                         alpha = .9
                 patch_kwargs['alpha'] = alpha
-        if colormap is not None:
+        if colormap is not None and 'cmap' not in patch_kwargs:
                 patch_kwargs['cmap'] = colormap
         patches = PatchCollection(polygons, linewidth=linewidth, **patch_kwargs)
         patches.set_array(scalar_map)
@@ -261,12 +260,11 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         axes.add_collection(patches)
 
         obj = None
-        if delaunay:
+        if delaunay or isinstance(delaunay, dict):
                 try:
                         import tramway.plot.mesh as mesh
                         obj = mesh.plot_delaunay(cells, centroid_style=None,
-                                linewidth=delaunay_linewidth,
-                                axes=axes, **kwargs)
+                                axes=axes, **delaunay)
                 except:
                         import traceback
                         traceback.print_exc()
