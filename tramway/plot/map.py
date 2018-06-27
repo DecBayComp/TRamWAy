@@ -293,7 +293,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 
 def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
-                cell_arrow_ratio=0.4, markeralpha=0.8, **kwargs):
+                cell_arrow_ratio=0.4, markeralpha=0.8, linewidth=None, **kwargs):
         force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
         if figure is None:
                 figure = plt.gcf()
@@ -330,7 +330,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
         # scale force amplitude
         large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
         scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
-        # 
+        #
         dw = float(angular_width) / 2.0
         t = tan(radians(dw))
         t = np.array([[0.0, -t], [t, 0.0]])
@@ -348,7 +348,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
                 #vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
                 markers.append(Polygon(vertices, True))
 
-        patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=markeralpha)
+        patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=markeralpha, linewidth=linewidth)
         axes.add_collection(patches)
 
         #axes.set_xlim(xmin, xmax)
@@ -356,4 +356,3 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
 
         if not overlay and obj:
                 return obj
-
