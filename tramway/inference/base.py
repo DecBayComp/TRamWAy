@@ -1108,7 +1108,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                         final_cell = ix[final]
 
         elif sparse.issparse(index): # sparse matrix
-                index = index.tocsr(True)
+                index = index.tocsr()
                 initial_cell = index[initial].indices # and not cells.cell_index!
                 final_cell = index[final].indices
 

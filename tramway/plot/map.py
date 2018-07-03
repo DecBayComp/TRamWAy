@@ -305,14 +305,21 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 
 def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
-                cell_arrow_ratio=0.4, markeralpha=0.8, linewidth=None, **kwargs):
+                cell_arrow_ratio=0.4, markeralpha=0.8, markerlinewidth=None, transform=np.log,
+                **kwargs):
         force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
         if figure is None:
                 figure = plt.gcf()
         if axes is None:
                 axes = figure.gca()
-        if not overlay:
-                obj = scalar_map_2d(cells, force_amplitude, figure=figure, axes=axes, **kwargs)
+        if overlay:
+                if markerlinewidth is None and 'linewidth' in kwargs:
+                        markerlinewidth = kwargs['linewidth']
+        else:
+                if transform is None:
+                        transform = lambda a: a
+                obj = scalar_map_2d(cells, transform(force_amplitude),
+                        figure=figure, axes=axes, **kwargs)
         if aspect is not None:
                 axes.set_aspect(aspect)
         xmin, xmax = axes.get_xlim()
@@ -360,7 +367,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
                 #vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
                 markers.append(Polygon(vertices, True))
 
-        patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=markeralpha, linewidth=linewidth)
+        patches = PatchCollection(markers, facecolor='y', edgecolor='k',
+                alpha=markeralpha, linewidth=markerlinewidth)
         axes.add_collection(patches)
 
         #axes.set_xlim(xmin, xmax)
