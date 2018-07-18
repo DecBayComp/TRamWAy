@@ -507,7 +507,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, \
         location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
         aspect=None, delaunay=None, locations={}, voronoi=None, colors=None, title=None, \
-        label=None, input_label=None):
+        cell_indices=None, label=None, input_label=None):
         """
         Partition plots.
 
@@ -572,6 +572,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 voronoi (bool or dict):
                         Overlay Voronoi graph (default: ``True``). If :class:`dict`, keyword arguments
                         to :func:`~tramway.plot.mesh.plot_voronoi`.
+
+                cell_indices (bool or dict):
+                        ``True`` or keyworded arguments; plot cell indices instead of centroids.
 
                 label/input_label (int or str or list):
                         If `cells` is a filepath or an analysis tree, label of the analysis instance.
@@ -736,6 +739,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 if xy_layer != 'delaunay' and voronoi:
                         if not isinstance(voronoi, dict):
                                 voronoi = {}
+                        if cell_indices and 'centroid_style' not in voronoi:
+                                voronoi['centroid_style'] = None
                         tplt.plot_voronoi(cells, **voronoi)
                         voronoi = True
                 if xy_layer == 'delaunay' or delaunay: # Delaunay above Voronoi
@@ -743,6 +748,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                                 delaunay = {}
                         tplt.plot_delaunay(cells, **delaunay)
                         delaunay = True
+                if cell_indices:
+                        if not isinstance(cell_indices, dict):
+                                cell_indices = {}
+                        tplt.plot_indices(cells, **cell_indices)
                 if title:
                         if isinstance(title, str):
                                 mplt.title(title)

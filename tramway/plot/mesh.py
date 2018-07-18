@@ -292,3 +292,16 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
                 plt.text(x[0], x[1], str(i+1 if shift_indices else i), fontsize=font_size)
         plt.plot(centers[:,0], centers[:,1], vertex_color+vertex_style)
 
+
+def plot_indices(cells, **kwargs):
+        try:
+                cells = cells.tessellation
+        except (KeyboardInterrupt, SystemExit):
+                raise
+        except:
+                pass
+        i = 0
+        for x,y in cells.cell_centers:
+                plt.text(x, y, str(i), **kwargs)
+                i += 1
+
