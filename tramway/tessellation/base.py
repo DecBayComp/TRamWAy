@@ -29,8 +29,8 @@ import sys
 class CellStats(Lazy):
         """Container datatype for a point dataset together with a tessellation.
 
-        A `CellStats` instance conveniently stores the tessellation (:attr:`tessellation`) and the 
-        partition of the data (:attr:`cell_index`) together with the data itself (:attr:`points`) and 
+        A `CellStats` instance conveniently stores the tessellation (:attr:`tessellation`) and the
+        partition of the data (:attr:`cell_index`) together with the data itself (:attr:`points`) and
         a few more intermediate results frequently derivated from a data partition.
 
         :attr:`locations` and :attr:`translocations` are aliases of :attr:`points`.
@@ -39,12 +39,12 @@ class CellStats(Lazy):
         The partition :attr:`cell_index` may be in any of the following formats:
 
         array
-                Cell index of size the number of data points. The element at index ``i`` is the cell 
+                Cell index of size the number of data points. The element at index ``i`` is the cell
                 index of the ``i`` th point or ``-1`` if the ``i`` th point is not assigned to any cell.
 
         pair of arrays
-                Point-cell association in the shape of a sparse representation 
-                ``(point_index, cell_index)`` such that for all ``i`` the ``point_index[i]`` point is 
+                Point-cell association in the shape of a sparse representation
+                ``(point_index, cell_index)`` such that for all ``i`` the ``point_index[i]`` point is
                 in the ``cell_index[i]`` cell.
 
         sparse matrix (:mod:`scipy.sparse`)
@@ -54,7 +54,7 @@ class CellStats(Lazy):
 
         .. note::
 
-                If the point coordinates are defined as a :class:`~pandas.DataFrame`, 
+                If the point coordinates are defined as a :class:`~pandas.DataFrame`,
                 point indices are row indices and NOT row labels (see also :attr:`~pandas.DataFrame.iloc`).
 
 
@@ -73,7 +73,7 @@ class CellStats(Lazy):
                         Point-cell association (or data partition).
 
                 location_count (numpy.ndarray, lazy):
-                        point count per cell; ``location_count[i]`` is the number of 
+                        point count per cell; ``location_count[i]`` is the number of
                         points in cell ``i``.
 
                 bounding_box (array-like, lazy):
@@ -81,7 +81,7 @@ class CellStats(Lazy):
                         where ``D`` is the dimension of the point data.
 
                 param (dict):
-                        Arguments involved in the tessellation and the partition steps, as key-value 
+                        Arguments involved in the tessellation and the partition steps, as key-value
                         pairs. Such information is maintained in :class:`~tramway.tessellation.CellStats`
                         so that it can be stored in *.rwa* files and retrieve for traceability.
 
@@ -256,11 +256,11 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 
                 select (callable): called only if ``format == 'array'`` and points are
                         associated to multiple cells; `select` takes the point index
-                        as first argument, the corresponding cell indices (:class:`numpy.ndarray`) 
+                        as first argument, the corresponding cell indices (:class:`numpy.ndarray`)
                         as second argument and the extra keyword arguments given to
                         :func:`format_cell_index`.
 
-                shape (int, int): number of points, number of cells. 
+                shape (int, int): number of points, number of cells.
 
                 copy (bool): if ``True``, ensures that a copy of `K` is returned if `K`
                         is already in the requested format.
@@ -313,7 +313,7 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 
 def nearest_cell(locations, cell_centers):
         """
-        Generate a function suitable for use as 
+        Generate a function suitable for use as
         :func:`format_cell_index`'s argument `select`.
 
         The returned function takes a point index and cell indices as arguments
@@ -355,13 +355,13 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
                         defined, j->i is not.
 
                 cell_labels (callable):
-                        Takes an array of cell labels as input 
+                        Takes an array of cell labels as input
                         (see :attr:`Tessellation.cell_label`)
                         and returns a bool array of equal shape.
 
                 adjacency_labels (callable):
-                        Takes an array of edge labels as input 
-                        (see :attr:`Tessellation.adjacency_label`) 
+                        Takes an array of edge labels as input
+                        (see :attr:`Tessellation.adjacency_label`)
                         and returns a bool array of equal shape.
 
         Returns:
@@ -435,7 +435,7 @@ class Tessellation(Lazy):
 
                 _cell_adjacency (private):
                         square adjacency matrix for cells.
-                        If :attr:`_adjacency_label` is defined, :attr:`_cell_adjacency` should be 
+                        If :attr:`_adjacency_label` is defined, :attr:`_cell_adjacency` should be
                         sparse and the explicit elements should be indices in :attr:`_adjacency_label`.
 
                 _cell_label (numpy.ndarray, private):
@@ -494,22 +494,22 @@ class Tessellation(Lazy):
 
                 The returned value depends on the `format` input argument:
 
-                * *array*: returns a vector ``v`` such that ``v[i]`` is cell index for 
+                * *array*: returns a vector ``v`` such that ``v[i]`` is cell index for
                         point index ``i`` or ``-1``.
 
-                * *pair*: returns a pair of ``I``-sized arrays ``(p, c)`` where, for each 
-                        point-cell association ``i`` in ``range(I)``, ``p[i]`` is a point index 
+                * *pair*: returns a pair of ``I``-sized arrays ``(p, c)`` where, for each
+                        point-cell association ``i`` in ``range(I)``, ``p[i]`` is a point index
                         and ``c[i]`` is a corresponding cell index.
 
-                * *matrix* or *coo* or *csr* or *csc*: 
+                * *matrix* or *coo* or *csr* or *csc*:
                         returns a :mod:`~scipy.sparse` matrix with points as rows and
                         cells as columns; non-zeros are all ``True`` or float weights.
 
                 By default with `format` undefined, any implementation may favor any format.
 
-                Note that *array* may not be an acceptable format and :meth:`cell_index` may 
+                Note that *array* may not be an acceptable format and :meth:`cell_index` may
                 not comply with ``format='index'`` unless `select` is defined.
-                When a location or a translocation is associated to several cells, `select` 
+                When a location or a translocation is associated to several cells, `select`
                 chooses a single cell among them.
 
                 The default implementation calls :func:`format_cell_index` on the result of an
@@ -521,10 +521,10 @@ class Tessellation(Lazy):
                 Arguments:
                         points (array-like): point (location) coordinates.
 
-                        format (str): preferred representation of the point-cell association 
+                        format (str): preferred representation of the point-cell association
                                 (or partition).
 
-                        select (callable): takes the point index, an array of cell indices and the 
+                        select (callable): takes the point index, an array of cell indices and the
                                 tessellation as arguments, and returns a cell index or ``-1`` for no cell.
 
                 """
@@ -548,8 +548,8 @@ class Tessellation(Lazy):
         # cell_adjacency property
         @property
         def cell_adjacency(self):
-                """Square cell adjacency matrix. If :attr:`adjacency_label` is defined, 
-                :attr:`cell_adjacency` is sparse and the explicit elements are indices in 
+                """Square cell adjacency matrix. If :attr:`adjacency_label` is defined,
+                :attr:`cell_adjacency` is sparse and the explicit elements are indices in
                 :attr:`adjacency_label`."""
                 return self._cell_adjacency
 
@@ -569,20 +569,20 @@ class Tessellation(Lazy):
 
         def simplified_adjacency(self, adjacency=None, label=None, format='coo'):
                 """
-                Simplified copy of :attr:`cell_adjacency` as a :class:`scipy.sparse.spmatrix` sparse 
+                Simplified copy of :attr:`cell_adjacency` as a :class:`scipy.sparse.spmatrix` sparse
                 matrix with no explicit zeros.
 
                 Non-zero values indicate adjacency and all these values are strictly positive.
 
-                In addition, cells with negative (or null) labels are also disconnected from their 
+                In addition, cells with negative (or null) labels are also disconnected from their
                 neighbours.
 
                 Labels are `cell_label` by default. Alternative labels can be provided as `label`.
 
                 To prevent label-based disconnection, set `label` to ``False``.
 
-                Multiple arrays of labels can also be supplied as a tuple. 
-                Note that explicit labels always supersede `cell_label` and the later should be 
+                Multiple arrays of labels can also be supplied as a tuple.
+                Note that explicit labels always supersede `cell_label` and the later should be
                 explicitely listed in the tuple so that it is applied in combination with other
                 label arrays.
 
@@ -652,6 +652,19 @@ class Tessellation(Lazy):
                         else:
                                 return points
 
+        def neighbours(self, i):
+                """
+                Indices of neighbour cells.
+
+                Arguments:
+                        i (int): cell index.
+
+                Returns:
+                        numpy.ndarray: indices of the neighbour cells of cell *i*.
+                """
+                A = self.cell_adjacency.tocsr()
+                return A.indices[A.indptr[i]:A.indptr[i+1]]
+
         def contour(self, cell, distance=1, fallback=False, adjacency=None, **kwargs):
                 """
                 Select a close path around a cell.
@@ -667,8 +680,8 @@ class Tessellation(Lazy):
                 """
                 Delete the data required to and only to incrementally update the tessellation.
 
-                This may save large amounts of memory but differs from 
-                :meth:`~tramway.core.lazy.Lazy.unload` in that the subsequent data loss may not 
+                This may save large amounts of memory but differs from
+                :meth:`~tramway.core.lazy.Lazy.unload` in that the subsequent data loss may not
                 be undone.
                 """
                 pass
@@ -679,10 +692,10 @@ class Delaunay(Tessellation):
         """
         Delaunay graph.
 
-        A cell is represented by a centroid and an edge of the graph represents a neighbor relationship 
+        A cell is represented by a centroid and an edge of the graph represents a neighour relationship
         between two cells.
 
-        :class:`Delaunay` implements the nearest neighbor feature and support for cell overlap.
+        :class:`Delaunay` implements the nearest neighour feature and support for cell overlap.
 
         Attributes:
                 _cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
@@ -694,8 +707,8 @@ class Delaunay(Tessellation):
         def tessellate(self, points):
                 self._cell_centers = np.asarray(self._preprocess(points))
 
-        def cell_index(self, points, format=None, select=None, knn=None,
-                min_location_count=None, metric='euclidean', filter=None, 
+        def cell_index(self, points, format=None, select=None, knn=None, radius=None,
+                min_location_count=None, metric='euclidean', filter=None,
                 filter_descriptors_only=False, **kwargs):
                 """
                 See :meth:`Tessellation.cell_index`.
@@ -706,7 +719,7 @@ class Delaunay(Tessellation):
 
                 In addition to the values allowed by :meth:`Tessellation.cell_index`, `format` admits
                 value *force array* that acts like ``format='array', select=nearest_cell(...)``.
-                The implementation however is more straight-forward and simply ignores 
+                The implementation however is more straight-forward and simply ignores
                 the minimum number of nearest neighbours if provided.
 
                 Arguments:
@@ -714,21 +727,28 @@ class Delaunay(Tessellation):
                         format: see :meth:`Tessellation.cell_index`; additionally admits *force array*.
                         select: see :meth:`Tessellation.cell_index`.
                         knn (int or tuple):
-                                minimum number of points per cell (or of nearest neighbors to the cell 
-                                center). Cells may overlap and the returned cell index may be a sparse 
+                                minimum number of points per cell (or of nearest neighours to the cell
+                                center). Cells may overlap and the returned cell index may be a sparse
                                 point-cell association.
                                 can also be a pair of ints, in which case these ints define the minimum
                                 and maximum number of points per cell respectively.
+                        radius (float or tuple)
+                                distance from the cell center; smaller cells may include locations
+                                from neighbour cells and larger cells may include only part of their
+                                associated locations.
+                                can also be a pair of floats, in which case these floats define the
+                                minimum and maximum radius of a cell respectively; any of these values
+                                can be None.
                         min_location_count (int):
-                                minimum number of points for a cell to be included in the labeling. 
-                                This argument applies before `knn`. The points in these cells, if not 
+                                minimum number of points for a cell to be included in the labeling.
+                                This argument applies before `knn`. The points in these cells, if not
                                 associated with another cell, are labeled ``-1``. The other cell labels
                                 do not change.
                         metric (str): any metric name understandable by :func:`~scipy.spatial.distance.cdist`.
                         filter (callable): takes the calling instance, a cell index and the corresponding
-                                subset of points; returns ``True`` if the corresponding cell should be 
+                                subset of points; returns ``True`` if the corresponding cell should be
                                 included in the labeling.
-                        filter_descriptors_only (bool): whether `filter` should get points as 
+                        filter_descriptors_only (bool): whether `filter` should get points as
                                 descriptors only.
 
                 Returns:
@@ -739,8 +759,16 @@ class Delaunay(Tessellation):
                         return format_cell_index(np.full(points.shape[0], -1, dtype=int), format=format)
                 if isinstance(knn, tuple):
                         min_nn, max_nn = knn
+                        if min_nn is not None and max_nn is not None and max_nn < min_nn:
+                                raise ValueError('min_nearest_neighbours > max_nearest_neighbours')
                 else:
                         min_nn, max_nn = knn, None
+                if isinstance(radius, tuple):
+                        min_r, max_r = radius
+                        if min_r is not None and max_r is not None and max_r < min_r:
+                                raise ValueError('min_radius > max_radius')
+                else:
+                        min_r = max_r = radius
                 points = self.scaler.scale_point(points, inplace=False)
                 X = self.descriptors(points, asarray=True)
                 Y = self._cell_centers
@@ -778,10 +806,11 @@ class Delaunay(Tessellation):
                 #
                 ncells = self._cell_centers.shape[0]
                 if format == 'force array':
-                        min_nn = None
+                        min_nn = min_r = None
                         format = 'array' # for later call to :func:`format_cell_index`
-                if max_nn or min_nn or min_location_count or filter is not None:
+                if max_nn or min_nn or min_location_count or filter is not None or min_r or max_r:
                         if K is None:
+                                # D should be defined
                                 K = np.argmin(D, axis=1) # cell indices
                         nonempty, positive_count = np.unique(K, return_counts=True)
                         if filter is not None:
@@ -800,6 +829,10 @@ class Delaunay(Tessellation):
                                 if np.any(excluded_cells):
                                         for c in nonempty[excluded_cells]:
                                                 K[K == c] = -1
+                                        # remove the excluded cells from nonempty and positive_count
+                                        ok = np.ones(nonempty.size, dtype=bool)
+                                        ok[excluded_cells] = False
+                                        nonempty, positive_count = nonempty[ok], positive_count[ok]
                         # max_nn:
                         # set K[i] = -1 for all point i in cells that are too large
                         if max_nn:
@@ -813,14 +846,34 @@ class Delaunay(Tessellation):
                                                 cell, = cell.nonzero()
                                                 excess = cell[I[max_nn:]]
                                                 K[excess] = -1
+                        # max radius:
+                        if max_r:
+                                excluded_cells = []
+                                for c in nonempty:
+                                        cell = K == c
+                                        if D is None:
+                                                d = X[cell] - Y[[c]]
+                                                d = np.sqrt(np.sum(d * d, axis=1))
+                                        else:
+                                                d = D[cell, c]
+                                        cell, = cell.nonzero()
+                                        discard = max_r < d
+                                        K[cell[discard]] = -1
+                                        if np.all(discard):
+                                                excluded_cells.append(c)
+                                if excluded_cells:
+                                        # remove the excluded cells from nonempty and positive_count
+                                        ok = np.ones(nonempty.size, dtype=bool)
+                                        ok[excluded_cells] = False
+                                        nonempty, positive_count = nonempty[ok], positive_count[ok]
                         # min_nn:
                         # switch to vector-pair representation if any cell is too small
                         if min_nn:
                                 count = np.zeros(ncells, dtype=positive_count.dtype)
                                 count[nonempty] = positive_count
                                 small = count < min_nn
-                                if min_location_count:
-                                        small = np.logical_and(small, min_location_count <= count)
+                                #if min_location_count:
+                                #        small = np.logical_and(small, min_location_count <= count)
                                 if np.any(small):
                                         if D is None:
                                                 raise memory_error
@@ -829,8 +882,8 @@ class Delaunay(Tessellation):
                                         small, = small.nonzero()
                                         J = np.tile(small, min_nn) # cell indices
                                         # large-enough cells
-                                        if min_location_count:
-                                                small = count < min_nn
+                                        #if min_location_count:
+                                        #        small = count < min_nn
                                         point_in_small_cells = np.any(
                                                 small[:,np.newaxis] == K[np.newaxis,:], axis=0)
                                         Ic = np.logical_not(point_in_small_cells)
@@ -840,6 +893,43 @@ class Delaunay(Tessellation):
                                         Jc = Jc[0 <= Jc]
                                         #
                                         K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
+                        # min radius:
+                        # switch to vector-pair representation if any cell is too small
+                        if min_r:
+                                if isinstance(K, tuple):
+                                        _I, _J = K
+                                I, J = [], []
+                                for c in nonempty:
+                                        pending_cells = set([c])
+                                        visited_cells = set()
+                                        included_points = np.zeros(X.shape[0], dtype=bool)
+                                        while pending_cells:
+                                                _pending_cells = set()
+                                                for _c in pending_cells:
+                                                        visited_cells.add(_c)
+                                                        if isinstance(K, tuple):
+                                                                cell = _I[_J == _c]
+                                                        else:
+                                                                cell = K == _c
+                                                        if D is None:
+                                                                d = X[cell] - Y[[c]]
+                                                                d = np.sqrt(np.sum(d * d, axis=1))
+                                                        else:
+                                                                d = D[cell, c]
+                                                        _in = d <= min_r
+                                                        if np.any(_in):
+                                                                if np.all(_in):
+                                                                        included_points[cell] = True
+                                                                else:
+                                                                        cell, = cell.nonzero()
+                                                                        included_points[cell[_in]] = True
+                                                                _pending_cells |= set(self.neighbours(_c).tolist())
+                                                pending_cells = _pending_cells - visited_cells
+                                        Ic, = included_points.nonzero()
+                                        I.append(Ic)
+                                        J.append(np.full_like(Ic, c))
+                                K = (np.concatenate(I), np.concatenate(J))
+
                 elif K is None:
                         K = np.argmin(D, axis=1) # cell indices
                 point_count = points.shape[0]

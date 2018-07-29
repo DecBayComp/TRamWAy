@@ -37,77 +37,86 @@ class IgnoredInputWarning(UserWarning):
 
 def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         scaling=False, time_scale=None, \
-        knn=None, distance=None, ref_distance=None, \
+        knn=None, radius=None, distance=None, ref_distance=None, \
         rel_min_distance=None, rel_avg_distance=None, rel_max_distance=None, \
         min_location_count=None, avg_location_count=None, max_location_count=None, \
         rel_max_size=None, rel_max_volume=None, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
-        force=False, return_analyses=False, **kwargs):
+        force=False, return_analyses=False, tessellation_options=None, partition_options=None, \
+        **kwargs):
         """
         Tessellation from points series and partitioning.
 
-        This helper routine is a high-level interface to the various tessellation techniques 
+        This helper routine is a high-level interface to the various tessellation techniques
         implemented in TRamWAy.
 
-        In addition to `knn`, *filter* and *metric*, arguments with prefix *strict_* in their name 
+        In addition to `knn`, *filter* and *metric*, arguments with prefix *strict_* in their name
         apply to the partitioning step only, while the others apply to the tessellation step.
 
-        *rel_max_size* and *rel_max_volume* are notable exceptions in that they currently apply to 
+        *rel_max_size* and *rel_max_volume* are notable exceptions in that they currently apply to
         the partitioning step whereas they should conceptually apply to the tessellation step instead.
         This may change in a future version.
 
         Arguments:
                 xyt_data (str or matrix):
-                        Path to a *.trxyt* or *.rwa* file or raw data in the shape of 
-                        :class:`pandas.DataFrame`. 
+                        Path to a *.trxyt* or *.rwa* file or raw data in the shape of
+                        :class:`pandas.DataFrame`.
 
 
                 method (str):
                         Tessellation method or plugin name.
-                        See for example 
-                        :class:`~tramway.tessellation.grid.RegularMesh` ('*grid*'), 
-                        :class:`~tramway.tessellation.kdtree.KDTreeMesh` ('*kdtree*'), 
-                        :class:`~tramway.tessellation.kmeans.KMeansMesh` ('*kmeans*') and 
+                        See for example
+                        :class:`~tramway.tessellation.random.RandomMesh` ('*random*'),
+                        :class:`~tramway.tessellation.grid.RegularMesh` ('*grid*'),
+                        :class:`~tramway.tessellation.hexagon.HexagonalMesh` ('*hexagon*'),
+                        :class:`~tramway.tessellation.kdtree.KDTreeMesh` ('*kdtree*'),
+                        :class:`~tramway.tessellation.kmeans.KMeansMesh` ('*kmeans*') and
                         :class:`~tramway.tessellation.gwr.GasMesh` ('*gas*' or '*gwr*').
 
                 output_file (str):
-                        Path to a *.rwa* file. The resulting tessellation and data partition will be 
-                        stored in this file. If `xyt_data` is a path to a file and `output_file` is not 
-                        defined, then `output_file` will be adapted from `xyt_data` with extension 
+                        Path to a *.rwa* file. The resulting tessellation and data partition will be
+                        stored in this file. If `xyt_data` is a path to a file and `output_file` is not
+                        defined, then `output_file` will be adapted from `xyt_data` with extension
                         *.rwa* and possibly overwrite the input file.
 
                 verbose (bool or int): Verbose output.
 
                 scaling (bool or str):
                         Normalization of the data.
-                        Any of '*unitrange*', '*whiten*' or other methods defined in 
+                        Any of '*unitrange*', '*whiten*' or other methods defined in
                         :mod:`tramway.spatial.scaler`.
 
-                time_scale (bool or float): 
-                        If this argument is defined and intepretable as ``True``, the time axis is 
-                        scaled by this factor and used as a space variable for the tessellation (2D+T or 
+                time_scale (bool or float):
+                        If this argument is defined and intepretable as ``True``, the time axis is
+                        scaled by this factor and used as a space variable for the tessellation (2D+T or
                         3D+T, for example).
-                        This is equivalent to manually scaling the ``t`` column and passing 
+                        This is equivalent to manually scaling the ``t`` column and passing
                         ``scaling=True``.
 
                 knn (int or pair of ints):
-                        After growing the tessellation, a minimum and maximum numbers of nearest 
-                        neighbors of each cell center can be used instead of the entire cell 
-                        population. Let's denote ``min_nn, max_nn = knn``. Any of ``min_nn`` and 
+                        After growing the tessellation, a minimum and maximum numbers of nearest
+                        neighbours of each cell center can be used instead of the entire cell
+                        population. Let us denote ``min_nn, max_nn = knn``. Any of ``min_nn`` and
                         ``max_nn`` can be ``None``.
                         If a single `int` is supplied instead of a pair, then `knn` becomes ``min_nn``.
                         ``min_nn`` enables cell overlap and any point may be associated with several
                         cells.
+                        See also :met:`~tramway.tessellation.base.Delaunay.cell_index`.
+
+                radius (float):
+                        After growing the tessellation as a set of centroids, a cell will consist of
+                        the locations within this distance from the centroid.
+                        See also :met:`~tramway.tessellation.base.Delaunay.cell_index`.
 
                 distance/ref_distance (float):
-                        Supposed to be the average translocation distance. Can be modified so that the 
+                        Supposed to be the average translocation distance. Can be modified so that the
                         cells are smaller or larger.
 
                 rel_min_distance (float):
                         Multiplies with `ref_distance` to define the minimum inter-cell distance.
 
                 rel_avg_distance (float):
-                        Multiplies with `ref_distance` to define an upper on the average inter-cell 
+                        Multiplies with `ref_distance` to define an upper on the average inter-cell
                         distance.
 
                 rel_max_distance (float):
@@ -125,20 +134,20 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         Maximum number of points per cell. This is used by *kdtree* and *gwr*.
 
                 rel_max_size (float):
-                        Maximum cell radius as a number of `ref_distance`. Radius (or size) is
-                        estimated as twice the distance between the center of cell and the nearest 
+                        Maximum cell diameter as a number of `ref_distance`. Diameter (or size) is
+                        estimated as twice the distance between the center of cell and the nearest
                         vertex. Cells of excess size are ignored so as the associated locations.
 
                 rel_max_volume (float):
-                        Maximum cell volume (or surface area in 2D) as a number of `ref_distance`. 
+                        Maximum cell volume (or surface area in 2D) as a number of `ref_distance`.
                         Cells of excess volume are ignored so as the associated locations.
 
                 strict_min_location_count (int):
-                        Minimum number of points per cell in the eventual partition. Cells with 
+                        Minimum number of points per cell in the eventual partition. Cells with
                         insufficient points are ignored so as the associated locations.
 
                 strict_rel_max_size (float):
-                        Maximum cell radius as a number of `ref_distance`. Radius (or size) is
+                        Maximum cell diameter as a number of `ref_distance`. Diameter (or size) is
                         estimated as the maximum distance between any pair of locations in the cell.
                         Cells of excess size are ignored so as the associated locations.
 
@@ -156,7 +165,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         Description message for the resulting analysis.
 
                 return_analyses (bool):
-                        Return a :class:`~tramway.core.analyses.base.Analyses` object instead of 
+                        Return a :class:`~tramway.core.analyses.base.Analyses` object instead of
                         the default :class:`~tramway.tessellation.base.CellStats` output.
 
         Returns:
@@ -165,7 +174,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 
         Apart from the parameters defined above, extra input arguments are admitted and passed to the
-        initializer of the selected tessellation method. See the individual documentation of these 
+        initializer of the selected tessellation method. See the individual documentation of these
         methods for more information.
 
         """
@@ -246,7 +255,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         else:
                 plugin = True
         assert plugin
-        
+
         transloc_length = min_distance = avg_distance = max_distance = None
         if ref_distance is None and distance is not None:
                 # `distance` is only for compatibility with the tramway commandline
@@ -262,7 +271,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 rel_min_distance = .8
         if rel_avg_distance is None and avg_distance is None:
                 rel_avg_distance = 2.
-                
+
         if ref_distance is None:
                 transloc_xy = np.asarray(translocations(xyt_data))
                 if transloc_xy.shape[0] == 0:
@@ -289,7 +298,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 scaler = None
 
         if min_location_count is None: # former default value: 20
-                if knn is None:
+                if knn is None and radius is None:
                         min_location_count = 20
         n_pts = float(xyt_data.shape[0])
         if min_location_count:
@@ -326,23 +335,30 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 scaler.factor = [('t', time_scale)]
 
         # distinguish between tessellation and partition arguments
-        tessellation_kwargs = dict(kwargs)
-        partition_kwargs = {}
-        for _kw in kwargs:
-                if _kw.startswith('strict_'):
-                        partition_kwargs[_kw[7:]] = tessellation_kwargs.pop(_kw)
-        for _kw in ('filter', 'filter_descriptors_only', 'metric'):
-                try:
-                        _arg = tessellation_kwargs.pop(_kw)
-                except KeyError:
-                        pass
-                else:
-                        partition_kwargs[_kw] = _arg
-        for _kw in ('rel_max_size', 'rel_max_volume'):
-                try:
-                        del tessellation_kwargs[_kw]
-                except KeyError:
-                        pass
+        if tessellation_options is None and partition_options is None:
+                tessellation_kwargs = dict(kwargs)
+                partition_kwargs = {}
+                for _kw in kwargs:
+                        if _kw.startswith('strict_'):
+                                partition_kwargs[_kw[7:]] = tessellation_kwargs.pop(_kw)
+                for _kw in ('filter', 'filter_descriptors_only', 'metric'):
+                        try:
+                                _arg = tessellation_kwargs.pop(_kw)
+                        except KeyError:
+                                pass
+                        else:
+                                partition_kwargs[_kw] = _arg
+                for _kw in ('rel_max_size', 'rel_max_volume'):
+                        try:
+                                del tessellation_kwargs[_kw]
+                        except KeyError:
+                                pass
+        elif tessellation_options is None:
+                tessellation_kwargs = kwargs
+                partition_kwargs = partition_options
+        else:
+                tessellation_kwargs = tessellation_options
+                partition_kwargs = kwargs
 
         # initialize a Tessellation object
         params = dict( \
@@ -434,13 +450,15 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 if 'filter_descriptors_only' not in partition_kwargs:
                         partition_kwargs['filter_descriptors_only'] = True
         try:
-                if knn is None:
+                if knn is None and radius is None:
                         cell_index = tess.cell_index(xyt_data, **partition_kwargs)
                 else:
                         if 'min_location_count' not in partition_kwargs:
                                 partition_kwargs['min_location_count'] = min_location_count
                         if 'metric' not in partition_kwargs:
                                 partition_kwargs['metric'] = 'euclidean'
+                        if radius is not None and 'radius' not in partition_kwargs:
+                                partition_kwargs['radius'] = radius
                         cell_index = tess.cell_index(xyt_data, knn=knn, **partition_kwargs)
         except MemoryError:
                 if verbose:
@@ -464,6 +482,8 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 stats.param['max_distance'] = max_distance
         if knn:
                 stats.param['knn'] = knn
+        if radius:
+                stats.param['radius'] = radius
         stats.param.update(kwargs)
 
         # insert the resulting analysis in the analysis tree
@@ -516,8 +536,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
         Arguments:
                 cells (str or CellStats or Analyses):
-                        Path to a *.imt.rwa* file or :class:`~tramway.tessellation.CellStats` 
-                        instance or analysis tree; files and analysis trees may require 
+                        Path to a *.imt.rwa* file or :class:`~tramway.tessellation.CellStats`
+                        instance or analysis tree; files and analysis trees may require
                         `label`/`input_label` to be defined.
 
                 xy_layer ({None, 'delaunay', 'voronoi'}):
@@ -525,38 +545,38 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                         *Deprecated!* Please use `delaunay` and `voronoi` arguments instead.
 
                 output_file (str):
-                        Path to a file in which the figure will be saved. If `cells` is a path and 
+                        Path to a file in which the figure will be saved. If `cells` is a path and
                         `fig_format` is defined, `output_file` is automatically set.
 
                 fig_format (str):
                         Any image format supported by :func:`matplotlib.pyplot.savefig`.
 
                 show (bool or str):
-                        Makes `cell_plot` show the figure(s) which is the default behavior if and only 
-                        if the figures are not saved. If ``show='draw'``, 
-                        :func:`~matplotlib.pyplot.draw` is called instead of 
-                        :func:`~matplotlib.pyplot.show`. 
+                        Makes `cell_plot` show the figure(s) which is the default behavior if and only
+                        if the figures are not saved. If ``show='draw'``,
+                        :func:`~matplotlib.pyplot.draw` is called instead of
+                        :func:`~matplotlib.pyplot.show`.
 
                 verbose (bool): Verbose output.
 
                 figsize (pair of floats):
-                        Passed to :func:`matplotlib.pyplot.figure`. Applies only to the spatial 
+                        Passed to :func:`matplotlib.pyplot.figure`. Applies only to the spatial
                         representation figure.
 
                 dpi (int):
-                        Passed to :func:`matplotlib.pyplot.savefig`. Applies only to the spatial 
+                        Passed to :func:`matplotlib.pyplot.savefig`. Applies only to the spatial
                         representation figure.
 
                 location_count_hist (bool):
-                        Plot a histogram of point counts (per cell). If the figure is saved, the 
+                        Plot a histogram of point counts (per cell). If the figure is saved, the
                         corresponding file will have sub-extension *.hpc*.
 
                 cell_dist_hist (bool):
-                        Plot a histogram of distances between neighbor centroids. If the figure is 
+                        Plot a histogram of distances between neighbour centroids. If the figure is
                         saved, the corresponding file will have sub-extension *.hcd*.
 
                 location_dist_hist (bool):
-                        Plot a histogram of distances between points from neighbor cells. If the figure 
+                        Plot a histogram of distances between points from neighbour cells. If the figure
                         is saved, the corresponding file will have sub-extension *.hpd*.
 
                 aspect (str):
@@ -566,7 +586,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                         Keyword arguments to :func:`~tramway.plot.mesh.plot_points`.
 
                 delaunay (bool or dict):
-                        Overlay Delaunay graph. If :class:`dict`, keyword arguments to 
+                        Overlay Delaunay graph. If :class:`dict`, keyword arguments to
                         :func:`~tramway.plot.mesh.plot_delaunay`.
 
                 voronoi (bool or dict):
