@@ -280,9 +280,11 @@ def main():
                         method_parser.add_argument('--inplace', action='store_true', \
                                 help='replace the input sampling by the output one (only when --input-label is defined)')
                         method_parser.add_argument('-n', '--knn', '--min-nn', '--knn-min', type=int, \
-                                help='minimum number of nearest neighbors; cells can overlap')
+                                help='minimum number of nearest neighbours; cells can overlap')
                         method_parser.add_argument('-N', '--max-nn', '--knn-max', type=int, \
-                                help='maximum number of nearest neighbors')
+                                help='maximum number of nearest neighbours')
+                        method_parser.add_argument('-r', '--radius', type=float, \
+                                help='selection radius for locations around the cell centers; cells can overlap')
                         method_parser.add_argument('-d', '--distance', type=float, help='reference distance (default is the average translocation distance)')
                         method_group = method_parser.add_mutually_exclusive_group()
                         method_group.add_argument('-w', action='store_true', help='whiten the input data')

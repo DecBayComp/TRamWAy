@@ -1078,42 +1078,48 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                 coord_cols, trajectory_col, get_var, get_point = identify_columns(points, trajectory_col)
         if trajectory_col is None:
                 raise ValueError('cannot find trajectory indices')
+
+        # trajectory index
         n = np.asarray(get_var(points, trajectory_col))
-        final = np.r_[False, np.diff(n, axis=0) == 0]
-        initial = np.r_[final[1:], False]
-
-        # points
+        # point coordinates
         points = get_var(points, coord_cols)
-        initial_point = get_point(points, initial)
-        final_point = get_point(points, final)
 
-        # cell indices
-        if index is None:
-                initial_cell = final_cell = None
+        if index is None or isinstance(index, np.ndarray):
+                initial = np.diff(n, axis=0) == 0
+                final = np.r_[False, initial]
+                initial = np.r_[initial, False]
 
-        elif isinstance(index, np.ndarray):
-                initial_cell = index[initial]
-                final_cell = index[final]
+                # cell indices
+                if index is None:
+                        initial_cell = final_cell = None
 
-        elif isinstance(index, tuple):
-                ix = np.full(points.shape[0], -1, dtype=index[1].dtype)
-                if isinstance(points, pd.DataFrame):
-                        ix = pd.DataFrame(data=ix, index=points.index, columns=('cell',))
-                        ix.loc[index[0], 'cell'] = index[1]
-                        initial_cell = np.asarray(ix['cell'].iloc[initial])
-                        final_cell = np.asarray(ix['cell'].iloc[final])
                 else:
-                        ix[index[0]] = index[1]
-                        initial_cell = ix[initial]
-                        final_cell = ix[final]
-
-        elif sparse.issparse(index): # sparse matrix
-                index = index.tocsr()
-                initial_cell = index[initial].indices # and not cells.cell_index!
-                final_cell = index[final].indices
+                        initial_cell = index[initial]
+                        final_cell = index[final]
 
         else:
-                raise ValueError('wrong index format')
+                _point, _cell = format_cell_index(index, 'pair')
+
+                initial, final = [], []
+                i = 0
+                ci, = (_point==i).nonzero()
+                for f in range(1, n.size):
+                        cf, = (_point==f).nonzero()
+                        if n[i] == n[f]:
+                               for _cf in cf:
+                                        for _ci in ci:
+                                                initial.append(_ci)
+                                                final.append(_cf)
+                        i, ci = f, cf
+                initial, final = np.array(initial), np.array(final)
+
+                initial_cell = _cell[initial]
+                final_cell = _cell[final]
+
+                initial, final, = _point[initial], _point[final]
+
+        initial_point = get_point(points, initial)
+        final_point = get_point(points, final)
 
         return initial_point, final_point, initial_cell, final_cell, get_point
 
@@ -1128,7 +1134,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
                 cells (CellStats): tessellation and partition; must contain (trans-)location data.
 
-                new_cell (callable): cell constructor; default is :class:`Locations` or 
+                new_cell (callable): cell constructor; default is :class:`Locations` or
                         :class:`Translocations` depending on the data in `cells`.
 
                 new_group (callable): constructor for groups of cell; default is :class:`Distributed`.

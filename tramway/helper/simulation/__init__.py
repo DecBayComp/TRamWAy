@@ -19,7 +19,7 @@ from tramway.core.xyt import crop
 
 def random_walk(diffusivity=None, force=None,
                 trajectory_mean_count=100, trajectory_count_sd=3, turnover=.1,
-                lifetime_tau=None,
+                lifetime_tau=None, single=False,
                 box=(0., 0., 1., 1.), duration=10., time_step=.05,
                 full=False, count_outside_trajectories=False):
         """
@@ -41,6 +41,8 @@ def random_walk(diffusivity=None, force=None,
 
                 lifetime_tau (float): trajectory lifetime constant in seconds;
                         `turnover` is ignored if `tau` is defined
+
+                single (bool): allow single untracked locations
 
                 box (array-like): origin and size of the bounding box
 
@@ -94,7 +96,7 @@ def random_walk(diffusivity=None, force=None,
                         kupdate, knew = 0, k
                 elif lifetime_tau:
                         # `lifetime` is the remaining lifetime of the trajectories
-                        lifetime -= 1.
+                        lifetime -= time_step
                         update = 0<=lifetime
                         kupdate = np.sum(update)
                         kexcess = max(0, kupdate - k)
@@ -148,7 +150,9 @@ def random_walk(diffusivity=None, force=None,
                                 X = Xnew
                                 n = nnew
                         if lifetime_tau:
-                                lifetime_new = -np.log(np.random.rand(knew) * lifetime_tau) * lifetime_tau
+                                lifetime_new = -np.log(1 - np.random.rand(knew)) * lifetime_tau
+                                if not single:
+                                        lifetime_new = np.maximum(time_step, lifetime_new)
                                 if concat:
                                         lifetime = np.concatenate((lifetime_new, lifetime))
                                 else:

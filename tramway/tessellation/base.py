@@ -726,19 +726,22 @@ class Delaunay(Tessellation):
                         points: see :meth:`Tessellation.cell_index`.
                         format: see :meth:`Tessellation.cell_index`; additionally admits *force array*.
                         select: see :meth:`Tessellation.cell_index`.
-                        knn (int or tuple):
-                                minimum number of points per cell (or of nearest neighours to the cell
+                        knn (int or tuple or callable):
+                                If `int`: minimum number of points per cell (or of nearest neighours to the cell
                                 center). Cells may overlap and the returned cell index may be a sparse
                                 point-cell association.
-                                can also be a pair of ints, in which case these ints define the minimum
-                                and maximum number of points per cell respectively.
-                        radius (float or tuple)
-                                distance from the cell center; smaller cells may include locations
-                                from neighbour cells and larger cells may include only part of their
-                                associated locations.
-                                can also be a pair of floats, in which case these floats define the
-                                minimum and maximum radius of a cell respectively; any of these values
-                                can be None.
+                                If `tuple` (pair of ints): minimum and maximum number of points per cell
+                                respectively.
+                                If `callable`: takes a cell index and returns the minimum and maximum
+                                number of points.
+                        radius (float or tuple or callable)
+                                If `float`: distance from the cell center; smaller cells may include
+                                locations from neighbour cells and larger cells may include only part of
+                                their associated locations.
+                                If `tuple` (pair of floats): minimum and maximum radius of a cell
+                                respectively; any of these values can be None.
+                                If `callable`: takes a cell index and returns the minimum and maximum
+                                radius.
                         min_location_count (int):
                                 minimum number of points for a cell to be included in the labeling.
                                 This argument applies before `knn`. The points in these cells, if not
@@ -757,13 +760,17 @@ class Delaunay(Tessellation):
                 """
                 if self._cell_centers.size == 0:
                         return format_cell_index(np.full(points.shape[0], -1, dtype=int), format=format)
-                if isinstance(knn, tuple):
+                if callable(knn):
+                        min_nn = max_nn = True
+                elif isinstance(knn, tuple):
                         min_nn, max_nn = knn
                         if min_nn is not None and max_nn is not None and max_nn < min_nn:
                                 raise ValueError('min_nearest_neighbours > max_nearest_neighbours')
                 else:
                         min_nn, max_nn = knn, None
-                if isinstance(radius, tuple):
+                if callable(radius):
+                        min_r = max_r = True
+                elif isinstance(radius, tuple):
                         min_r, max_r = radius
                         if min_r is not None and max_r is not None and max_r < min_r:
                                 raise ValueError('min_radius > max_radius')
@@ -836,20 +843,37 @@ class Delaunay(Tessellation):
                         # max_nn:
                         # set K[i] = -1 for all point i in cells that are too large
                         if max_nn:
-                                large, = (max_nn < positive_count).nonzero()
-                                if large.size:
-                                        if D is None:
-                                                raise memory_error
-                                        for c in nonempty[large]:
+                                if callable(knn):
+                                        for i, c in enumerate(nonempty):
+                                                _, _max = knn(c)
+                                                if _max is None or positive_count[i] <= _max:
+                                                        continue
+                                                if D is None:
+                                                        raise memory_error
                                                 cell = K == c
                                                 I = np.argsort(D[cell, c])
                                                 cell, = cell.nonzero()
-                                                excess = cell[I[max_nn:]]
+                                                excess = cell[I[_max:]]
                                                 K[excess] = -1
+                                else:
+                                        large, = (max_nn < positive_count).nonzero()
+                                        if large.size:
+                                                if D is None:
+                                                        raise memory_error
+                                                for c in nonempty[large]:
+                                                        cell = K == c
+                                                        I = np.argsort(D[cell, c])
+                                                        cell, = cell.nonzero()
+                                                        excess = cell[I[max_nn:]]
+                                                        K[excess] = -1
                         # max radius:
                         if max_r:
                                 excluded_cells = []
                                 for c in nonempty:
+                                        if callable(radius):
+                                                _, max_r = radius(c)
+                                                if max_r is None:
+                                                        continue
                                         cell = K == c
                                         if D is None:
                                                 d = X[cell] - Y[[c]]
@@ -869,37 +893,65 @@ class Delaunay(Tessellation):
                         # min_nn:
                         # switch to vector-pair representation if any cell is too small
                         if min_nn:
-                                count = np.zeros(ncells, dtype=positive_count.dtype)
-                                count[nonempty] = positive_count
-                                small = count < min_nn
-                                #if min_location_count:
-                                #        small = np.logical_and(small, min_location_count <= count)
-                                if np.any(small):
-                                        if D is None:
-                                                raise memory_error
-                                        # small and missing cells
-                                        I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
-                                        small, = small.nonzero()
-                                        J = np.tile(small, min_nn) # cell indices
-                                        # large-enough cells
+                                if callable(knn):
+                                        any_small = False
+                                        I, n = [], []
+                                        for i, c in enumerate(nonempty):
+                                                _min, _ = knn(c)
+                                                if _min is None or _min <= positive_count[i]:
+                                                        Ic, = (K == c).nonzero()
+                                                else:
+                                                        any_small = True
+                                                        if D is None:
+                                                                raise memory_error
+                                                        Ic = np.argsort(D[:,c])[:_min]
+                                                I.append(Ic)
+                                                n.append(len(Ic))
+                                        if any_small:
+                                                I = np.concatenate(I)
+                                                J = np.repeat(nonempty, n)
+                                                K = (I, J)
+                                else:
+                                        count = np.zeros(ncells, dtype=positive_count.dtype)
+                                        count[nonempty] = positive_count
+                                        small = count < min_nn
                                         #if min_location_count:
-                                        #        small = count < min_nn
-                                        point_in_small_cells = np.any(
-                                                small[:,np.newaxis] == K[np.newaxis,:], axis=0)
-                                        Ic = np.logical_not(point_in_small_cells)
-                                        Jc = K[Ic]
-                                        Ic, = Ic.nonzero()
-                                        Ic = Ic[0 <= Jc]
-                                        Jc = Jc[0 <= Jc]
-                                        #
-                                        K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
+                                        #        small = np.logical_and(small, min_location_count <= count)
+                                        if np.any(small):
+                                                if D is None:
+                                                        raise memory_error
+                                                # small and missing cells
+                                                I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
+                                                small, = small.nonzero()
+                                                J = np.tile(small, min_nn) # cell indices
+                                                # large-enough cells
+                                                #if min_location_count:
+                                                #        small = count < min_nn
+                                                point_in_small_cells = np.any(
+                                                        small[:,np.newaxis] == K[np.newaxis,:], axis=0)
+                                                Ic = np.logical_not(point_in_small_cells)
+                                                Jc = K[Ic]
+                                                Ic, = Ic.nonzero()
+                                                Ic = Ic[0 <= Jc]
+                                                Jc = Jc[0 <= Jc]
+                                                #
+                                                K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
                         # min radius:
-                        # switch to vector-pair representation if any cell is too small
+                        # switch to vector-pair representation
                         if min_r:
                                 if isinstance(K, tuple):
                                         _I, _J = K
-                                I, J = [], []
+                                I, n = [], []
                                 for c in nonempty:
+                                        if callable(knn):
+                                                min_r, _ = knn(c)
+                                                if min_r is None:
+                                                        if isinstance(K, tuple):
+                                                                Ic = I[J == c]
+                                                        else:
+                                                                Ic, = (K == c).nonzero()
+                                                        I.append(Ic)
+                                                        continue
                                         pending_cells = set([c])
                                         visited_cells = set()
                                         included_points = np.zeros(X.shape[0], dtype=bool)
@@ -927,8 +979,10 @@ class Delaunay(Tessellation):
                                                 pending_cells = _pending_cells - visited_cells
                                         Ic, = included_points.nonzero()
                                         I.append(Ic)
-                                        J.append(np.full_like(Ic, c))
-                                K = (np.concatenate(I), np.concatenate(J))
+                                        n.append(len(Ic))
+                                I = np.concatenate(I)
+                                J = np.repeat(nonempty, n)
+                                K = (I, J)
 
                 elif K is None:
                         K = np.argmin(D, axis=1) # cell indices
@@ -958,27 +1012,27 @@ class Voronoi(Delaunay):
         """
         Voronoi graph.
 
-        :class:`Voronoi` explicitly represents the cell boundaries, as a Voronoi graph, on top of the 
+        :class:`Voronoi` explicitly represents the cell boundaries, as a Voronoi graph, on top of the
         Delaunay graph that connects the cell centers.
         It implements the construction of this additional graph using :class:`scipy.spatial.Voronoi`.
         This default implementation is lazy. If vertices and ridges are available, they are stored in
         private attributes :attr:`_vertices`, :attr:`_vertex_adjacency` and :attr:`_cell_vertices`.
-        Otherwise, when `vertices`, `vertex_adjacency` or `cell_vertices` properties are called, the 
+        Otherwise, when `vertices`, `vertex_adjacency` or `cell_vertices` properties are called, the
         attributes are transparently made available calling the :meth:`_postprocess` private method.
-        Memory space can thus be freed again, setting `vertices`, `vertex_adjacency` and `cell_vertices` 
+        Memory space can thus be freed again, setting `vertices`, `vertex_adjacency` and `cell_vertices`
         to ``None``.
         Note however that subclasses may override these on-time calculation mechanics.
 
         Attributes:
 
-                _vertices (numpy.ndarray): 
+                _vertices (numpy.ndarray):
                         scaled coordinates of the Voronoi vertices.
 
                 _vertex_adjacency (scipy.sparse):
                         adjacency matrix for Voronoi vertices.
 
                 _cell_vertices (dict of array-like):
-                        mapping of cell indices to their associated vertices as indices in 
+                        mapping of cell indices to their associated vertices as indices in
                         :attr:`vertices`.
 
                 _cell_volume (numpy.ndarray):
