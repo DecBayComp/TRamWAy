@@ -12,8 +12,8 @@ The *tramway* command features the :ref:`tessellate <commandline_tessellation>` 
 Let us consider again some of the example calls to this sub-command::
 
 	> tramway tessellate kmeans -i example.trxyt -l kmeans
-	> tramway tessellate gwr -i example.rwa -w -n 50 -l gwr*
-	> tramway tessellate gwr -i example.rwa -d 0.1 -s 10 -n 30 -l gwr*
+	> tramway tessellate gwr -i example.rwa -w -n 50 -N 50 -l gwr*
+	> tramway tessellate gwr -i example.rwa -d 0.1 -ss 10 -n 30 -l gwr*
 
 
 The equivalent Python code is:
@@ -23,8 +23,8 @@ The equivalent Python code is:
 	from tramway.helper import *
 
 	tessellate('example.trxyt', 'kmeans', label='kmeans')
-	tessellate('example.rwa', 'gwr', scaling=True, knn=50, label='gwr*')
-	tessellate('example.rwa', 'gwr', ref_distance=0.1, min_location_count=10, knn=30, label='gwr*')
+	tessellate('example.rwa', 'gwr', scaling=True, knn=(50, 50), label='gwr*')
+	tessellate('example.rwa', 'gwr', ref_distance=0.1, strict_min_location_count=10, knn=30, label='gwr*')
 
 
 The above calls to the :func:`~tramway.helper.tessellation.tessellate` helper read and write into the *example.rwa* file.

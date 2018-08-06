@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -50,8 +50,8 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         This helper routine is a high-level interface to the various tessellation techniques
         implemented in TRamWAy.
 
-        In addition to `knn`, *filter* and *metric*, arguments with prefix *strict_* in their name
-        apply to the partitioning step only, while the others apply to the tessellation step.
+        In addition to `knn`, `radius`, *filter* and *metric*, arguments with prefix *strict_* in
+        their name apply to the partitioning step only, while the others apply to the tessellation step.
 
         *rel_max_size* and *rel_max_volume* are notable exceptions in that they currently apply to
         the partitioning step whereas they should conceptually apply to the tessellation step instead.
@@ -84,7 +84,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 scaling (bool or str):
                         Normalization of the data.
                         Any of '*unitrange*', '*whiten*' or other methods defined in
-                        :mod:`tramway.spatial.scaler`.
+                        :mod:`tramway.core.scaler`.
 
                 time_scale (bool or float):
                         If this argument is defined and intepretable as ``True``, the time axis is
@@ -158,7 +158,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         Label for the resulting analysis instance.
 
                 inplace (bool):
-                        if True, `label`/`output_label`/`input_label` are exclusive, they all define
+                        If True, `label`/`output_label`/`input_label` are exclusive, they all define
                         a same analysis and the resulting analysis replaces the input analysis.
 
                 comment (str):
@@ -168,14 +168,28 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         Return a :class:`~tramway.core.analyses.base.Analyses` object instead of
                         the default :class:`~tramway.tessellation.base.CellStats` output.
 
+                tessellation_options (dict):
+                        Pass explicit keyword arguments to the *__init__* function of the
+                        tessellation class as well as to the
+                        :meth:`~tramway.tessellation.base.Tessellation.tessellate` method, and ignore
+                        the extra input arguments.
+
+                partition_options (dict):
+                        Pass explicit keyword arguments to the
+                        :meth:`~tramway.tessellation.base.Tessellation.cell_index` method and ignore
+                        the extra input arguments.
+
         Returns:
                 tramway.tessellation.base.CellStats: A partition of the data with its
                         :attr:`~tramway.tessellation.base.CellStats.tessellation` attribute set.
 
 
-        Apart from the parameters defined above, extra input arguments are admitted and passed to the
-        initializer of the selected tessellation method. See the individual documentation of these
-        methods for more information.
+        Apart from the parameters defined above, extra input arguments are admitted and may be passed
+        to the initializer of the selected tessellation method as well as to the
+        :meth:`~tramway.tessellation.base.Tessellation.tessellate` and
+        :meth:`~tramway.tessellation.base.Tessellation.cell_index` methods.
+
+        See the individual documentation of these methods for more information.
 
         """
         if verbose:

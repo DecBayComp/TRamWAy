@@ -46,25 +46,43 @@ The available methods are:
 ``kmeans`` and ``gwr`` methods run optimization on the data and consequently are vulnerable to numerical scaling. 
 It is recommended to scale your data adding the option ``-w``.
 
-A key parameter is ``--knn`` (or shorter ``-n``). 
-It combines with any of the above methods and allows to impose a lower bound on the number of points (or nearest neighbors) associated with each cell of the mesh, independently of the way the mesh has been grown::
+Each method exposes specific parameters.
+Some parameters however apply after a mesh has been grown and therefore apply to all the methods.
+Some of these parameters are ``--knn`` (or shorter ``-n``), ``--radius`` (or shorter ``-r``) and ``--strict-min-location-count`` (or shorter ``-ss``).
 
-	> tramway tessellate gwr -i example.rwa -w -n 50 -l gwr*
+``--knn`` allows to impose a lower bound on the number of points (nearest neighbours) associated with each cell of the mesh, independently of the way the mesh has been grown.
 
-Note that in the above example the *example.rwa* file already exists and we add the analysis.
+Note that ``-n`` controls the minimum number of nearest neighbours and expands the cells if necessary.
+To make all the cells contain a uniform number of points, the ``-N`` argument controls the maximum number
+of nearest neighbours and can be set to the same value as ``-n``::
 
-The ``*`` symbol will be replaced by the lowest available natural integer starting from 0.
+	> tramway tessellate gwr -i example.rwa -w -n 50 -N 50 -l gwr*
+
+``--radius`` forces all the cells to be hyperspheres of uniform radius.
+Values are specified in the units of the single molecule data, typically |um|.
+
+With the above two arguments, some cells may overlap.
+
+``--strict-min-location-count`` discards the cells that contain less locations than thereby specified.
+Note that this filter applies before ``--knn``.
+Cells with too few locations will be discarded anyway.
+
+Other parameters directly affect the tessellation methods but can be found in all these methods.
+The main such parameter is ``--distance`` (shorter ``-d``).
+It drives how the cells scale and offers some degree of control over the distance between neighbour
+cell centers, especially in dense areas.
+Per default it is set to the average translocation distance.
+A lower value may yield smaller cells.
+
+The following example combines specified inter-cell distance (``-d``), sparse cell removal (``-ss``) and cell expansion to a minimum location number (``-n``)::
+
+	> tramway tessellate gwr -i example.rwa -d 0.1 -ss 10 -n 30 -l gwr*
+
+Note that, in the above two examples, the *example.rwa* file already exists and we add the meshes to the existing analysis tree.
+
+The ``*`` symbol is replaced by the lowest available natural integer starting from 0.
 This prevents from overwriting an analysis with the same label, if any.
 
-Other key parameters are ``--distance`` (shorter ``-d``) and ``--min-location-count`` (shorter ``-s``).
-
-The former drives how the cells scale, especially in dense areas. Per default it is set to the average translocation distance.
-A lower value will yield smaller cells.
-
-The latter parameter allows to discard the cells that would contain less locations than thereby specified.
-This filter applies before ``knn``::
-
-	> tramway tessellate gwr -i example.rwa -d 0.1 -s 10 -n 30 -l gwr*
 
 You can check the content of the *example.rwa* file::
 

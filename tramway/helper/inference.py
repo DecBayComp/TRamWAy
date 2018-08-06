@@ -45,7 +45,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                         :mod:`~tramway.inference.df` (``'df'``),
                         :mod:`~tramway.inference.dd` (``'dd'``),
                         :mod:`~tramway.inference.dv` (``'dv'``);
-                        can be also a function suitable for :meth:`Distributed.run`
+                        can be also a function suitable for :meth:`~tramway.helper.inference.base.Distributed.run`
 
                 output_file (str): desired path for the output map file
 
