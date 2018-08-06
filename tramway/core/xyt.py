@@ -142,9 +142,9 @@ def crop(points, box, by=None):
 
                 by (str): for translocations only;
                         '*start*': crop by translocation starting point; keep the associated
-                                destination points;
+                        destination points;
                         '*stop*': crop by translocation destination point; keep the associated
-                               origins;
+                        origins;
                         trajectories with a single non-terminal point outside the bounding box are
                         not splitted
 

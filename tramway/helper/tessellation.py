@@ -101,12 +101,12 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         If a single `int` is supplied instead of a pair, then `knn` becomes ``min_nn``.
                         ``min_nn`` enables cell overlap and any point may be associated with several
                         cells.
-                        See also :met:`~tramway.tessellation.base.Delaunay.cell_index`.
+                        See also :meth:`~tramway.tessellation.base.Delaunay.cell_index`.
 
                 radius (float):
                         After growing the tessellation as a set of centroids, a cell will consist of
                         the locations within this distance from the centroid.
-                        See also :met:`~tramway.tessellation.base.Delaunay.cell_index`.
+                        See also :meth:`~tramway.tessellation.base.Delaunay.cell_index`.
 
                 distance/ref_distance (float):
                         Supposed to be the average translocation distance. Can be modified so that the

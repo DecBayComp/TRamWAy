@@ -443,13 +443,14 @@ class Tessellation(Lazy):
 
                 _adjacency_label (numpy.ndarray, private):
                         inter-cell edge labels with as many elements as there are edges.
-
-        Arguments:
-                scaler (tramway.core.scaler.Scaler): scaler.
         """
         __slots__ = ('scaler', '_cell_adjacency', '_cell_label', '_adjacency_label')
 
         def __init__(self, scaler=None):
+                """
+                Arguments:
+                        scaler (tramway.core.scaler.Scaler): scaler.
+                """
                 Lazy.__init__(self)
                 if scaler is None:
                         self.scaler = Scaler()
@@ -461,7 +462,7 @@ class Tessellation(Lazy):
 
         def _preprocess(self, points):
                 """
-                Identify euclidian variables (usually called *x*, *y*, *z*) and scale the coordinates.
+                Identify euclidean variables (usually called *x*, *y*, *z*) and scale the coordinates.
 
                 See also:
                         :mod:`tramway.core.scaler`.

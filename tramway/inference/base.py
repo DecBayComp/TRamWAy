@@ -1013,6 +1013,33 @@ class Translocations(Cell):
 
 
 def identify_columns(points, trajectory_col=True):
+        """
+        Identify columns by type.
+
+        Arguments:
+                points (array-like):
+                        location coordinates and trajectory index.
+
+                trajectory_col (bool or int or str):
+                        trajectory column index or name,
+                        or ``False`` or ``None`` if there is no trajectory information is to be
+                        found or extracted,
+                        or ``True`` to automatically identify such a column.
+
+        Returns:
+                tuple: (*coord_cols*, *trajectory_col*, *get_var*, *get_point*)
+
+        *coord_cols* is an array of column indices/names other than the trajectory column.
+
+        *trajectory_col* is the column index/name that contains tracking information.
+
+        *get_var* is a callable that takes an array like `points` and column identifiers and
+        returns the corresponding sub-matrix.
+
+        *get_point* is a callable that takes an array like `points` and row indices and
+        returns the corresponding sub-matrix.
+
+        """
         _has_trajectory = trajectory_col not in [False, None]
         _traj_undefined = trajectory_col is True
 
@@ -1066,14 +1093,137 @@ def identify_columns(points, trajectory_col=True):
 
 
 def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=None):
+        """
+        Make helpers for manipulating the point data.
+
+        Arguments:
+
+                points (array-like):
+                        location coordinates and trajectory index.
+
+                index (ndarray or pair of ndarrrays or sparse matrix):
+                        point-cell association (see :class:`~tramway.tessellation.base.CellStats`
+                        documentation or :meth:`~tramway.tessellation.base.Tessellation.cell_index`).
+
+        Returns:
+                tuple: (*locations*, *location_cell*, *get_point*)
+
+        *locations* are point coordinates (same format as `points` with the trajectory column
+        removed.
+
+        *location_cell* is either an array of cell indices (same size as *locations*) or
+        a callable that takes point indices and a cell index and return a boolean array with Trues
+        for point associated with the specified cell and Falses elsewhere.
+
+        *get_point* is a callable that takes an array like `points` or `locations` and row indices
+        and returns the corresponding rows in the same format.
+
+        """
         if coord_cols is None:
                 coord_cols, _, get_var, get_point = identify_columns(points)
         locations = get_var(points, coord_cols)
-        location_cell = format_cell_index(index, 'array', nearest_cell, (locations.shape[0],))
+        #location_cell = format_cell_index(index, 'array', nearest_cell, (locations.shape[0],))
+        if index is None or isinstance(index, np.ndarray):
+
+                location_cell = index
+
+        elif isinstance(index, tuple):
+
+                _point, _cell = index
+
+                def __associated__(location, cell):
+                        """
+                        Location-cell association.
+
+                        Arguments:
+
+                                location (int or array-like):
+                                        location index(ices).
+
+                                cell (int):
+                                        cell index.
+
+                        Returns:
+
+                                bool or ndarray:
+                                        True for locations associated to cell `cell`,
+                                        False otherwise.
+                        """
+                        if np.isscalar(location):
+                                _in = np.any(_cell[_point == location] == cell)
+                        else:
+                                _in = np.zeros(location.size, dtype=bool)
+                                for i, loc in location:
+                                        _in[i] = np.any(_cell[_point == loc] == cell)
+                        return _in
+
+                location_cell = __associated__
+
+        else:#if sparse.issparse(index):
+                assert sparse.issparse(index)
+
+                try:
+                        index = index.tocsc(copy=True)
+                except TypeError: # not already a CSC matrix; copy is implicit
+                        index = index.tocsc()
+
+                def __association__(location, cell):
+                        """
+                        Location-cell association.
+
+                        Arguments:
+
+                                location (int or array-like):
+                                        location index(ices).
+
+                                cell (int):
+                                        cell index.
+
+                        Returns:
+
+                                any:
+                                        scalar value or ndarray which elements evaluate to
+                                        True for locations associated to cell `cell`,
+                                        False otherwise.
+                        """
+                        if np.isscalar(location):
+                                _in = index[location, cell].tolist()
+                        else:
+                                _in = index.getcol(cell).todense()[location]
+                        return _in
+
+                location_cell = __association__
+
         return locations, location_cell, get_point
 
 
-def get_translocations(points, index=None, coord_cols=None, trajectory_col=True, get_var=None, get_point=None):
+def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
+                get_var=None, get_point=None):
+        """
+        Identify translocations as initial and final points.
+
+        Arguments:
+                points (array-like):
+                        location coordinates and trajectory index.
+
+                index (ndarray or pair of ndarrrays or sparse matrix):
+                        point-cell association (see :class:`~tramway.tessellation.base.CellStats`
+                        documentation or :meth:`~tramway.tessellation.base.Tessellation.cell_index`).
+
+        Returns:
+                tuple: (*initial_point*, *final_point*, *initial_cell*, *final_cell*, *get_point*)
+
+        *initial_point* and *final_point* are point coordinates (same format as `points` with the
+        trajectory index column removed) respectively of the initial and final displacement locations.
+
+        *initial_cell* and *final_cell* are either arrays of cell indices (same size as *initial_point*)
+        or callables that take point indices and a cell index and return a boolean array with Trues
+        for point associated with the specified cell and Falses elsewhere.
+
+        *get_point* is a callable that takes an array like `points` and row indices and returns
+        the corresponding rows in the same format.
+
+        """
         if coord_cols is None:
                 coord_cols, trajectory_col, get_var, get_point = identify_columns(points, trajectory_col)
         if trajectory_col is None:
@@ -1084,39 +1234,93 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         # point coordinates
         points = get_var(points, coord_cols)
 
-        if index is None or isinstance(index, np.ndarray):
-                initial = np.diff(n, axis=0) == 0
-                final = np.r_[False, initial]
-                initial = np.r_[initial, False]
+        initial = np.diff(n, axis=0) == 0
+        final = np.r_[False, initial]
+        initial = np.r_[initial, False]
 
-                # cell indices
-                if index is None:
-                        initial_cell = final_cell = None
+        if index is None:
 
-                else:
-                        initial_cell = index[initial]
-                        final_cell = index[final]
+                initial_cell = final_cell = None
 
-        else:
-                _point, _cell = format_cell_index(index, 'pair')
+        elif isinstance(index, np.ndarray):
 
-                initial, final = [], []
-                i = 0
-                ci, = (_point==i).nonzero()
-                for f in range(1, n.size):
-                        cf, = (_point==f).nonzero()
-                        if n[i] == n[f]:
-                               for _cf in cf:
-                                        for _ci in ci:
-                                                initial.append(_ci)
-                                                final.append(_cf)
-                        i, ci = f, cf
-                initial, final = np.array(initial), np.array(final)
+                initial_cell = index[initial]
+                final_cell = index[final]
 
-                initial_cell = _cell[initial]
-                final_cell = _cell[final]
+        elif isinstance(index, tuple):
 
-                initial, final, = _point[initial], _point[final]
+                _point, _cell = index
+
+                def __f__(termination):
+                        termination, = termination.nonzero()
+                        def __associated__(translocation, cell):
+                                """
+                                Translocation-cell association.
+
+                                Arguments:
+
+                                        translocation (int or array-like):
+                                                translocation index(ices).
+
+                                        cell (int):
+                                                cell index.
+
+                                Returns:
+
+                                        bool or ndarray:
+                                                True for translocations associated to cell `cell`,
+                                                False otherwise.
+                                """
+                                if np.isscalar(translocation):
+                                        _in = np.any(_cell[_point == termination[translocation]] == cell)
+                                else:
+                                        _in = np.zeros(translocation.size, dtype=bool)
+                                        for i, tr in enumerate(translocation):
+                                                _in[i] = np.any(_cell[_point == termination[tr]] == cell)
+                                return _in
+                        return __associated__
+
+                initial_cell = __f__(initial)
+                final_cell = __f__(final)
+
+        else:#if sparse.issparse(index):
+                assert sparse.issparse(index)
+
+                try:
+                        index = index.tocsc(copy=True)
+                except TypeError: # not already a CSC matrix; copy is implicit
+                        index = index.tocsc()
+
+                def __f__(termination):
+                        termination, = termination.nonzero()
+                        def __association__(translocation, cell):
+                                """
+                                Translocation-cell association.
+
+                                Arguments:
+
+                                        translocation (int or array-like):
+                                                translocation index(ices).
+
+                                        cell (int):
+                                                cell index.
+
+                                Returns:
+
+                                        any:
+                                                scalar value or ndarray which elements evaluate to
+                                                True for translocations associated to cell `cell`,
+                                                False otherwise.
+                                """
+                                if np.isscalar(translocation):
+                                        _in = index[termination[translocation], cell].tolist()
+                                else:
+                                        _in = index.getcol(cell).todense()[termination[translocation]]
+                                return _in
+                        return __association__
+
+                initial_cell = __f__(initial)
+                final_cell = __f__(final)
 
         initial_point = get_point(points, initial)
         final_point = get_point(points, final)
@@ -1139,7 +1343,8 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
                 new_group (callable): constructor for groups of cell; default is :class:`Distributed`.
 
-                fuzzy (callable): (trans-)location-cell weighting function.
+                fuzzy (callable): (trans-)location-cell weighting function; the default for
+                        translocations considers the initial cell, no weight.
 
                 new_cell_kwargs (dict): keyword arguments for `new_cell`.
 
@@ -1148,6 +1353,17 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 fuzzy_kwargs (dict): keyword arguments for `fuzzy`.
 
                 new (callable): legacy argument; use `new_group` instead.
+
+        `fuzzy` takes a :class:`~tramway.tessellation.base.Tessellation` object, a cell index (`int`),
+        location coordinates (array-like), cell indices (array-like or callable) and the *get_point*
+        function returned by `get_locations` or `get_translocations`.
+
+        If the data are translocations, `fuzzy` takes a pair of arrays as location coordinates (initial
+        and final locations respectively) and a pair of arrays or callables as cell indices (initial
+        and final cells respectively).
+
+        `fuzzy` returns an array of booleans or values of any scalar type that can be evaluated logically.
+        The returned array contains as many elements as input (trans-)locations.
 
         """
         if new is not None:
@@ -1175,7 +1391,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         get_translocations(cells.points, cells.cell_index, *precomputed)
                 if new_cell is None:
                         new_cell = Translocations
-                fuzzy_args = (final_point, final_cell, initial_point, initial_cell, get_point)
+                fuzzy_args = ((initial_point, final_point), (initial_cell, final_cell), get_point)
         else:
                 locations, location_index, get_point = \
                         get_locations(cells.points, cells.cell_index, *precomputed)
@@ -1186,21 +1402,19 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         # assign/weight (trans-)locations to cells
         if fuzzy is None:
                 if are_translocations:
-                        def f(tessellation, cell, final_point, final_cell,
-                                initial_point, initial_cell, get_point):
-                                ## example handling:
-                                #j = np.logical_or(initial_cell == cell, final_cell == cell)
-                                #initial_point = get_point(initial_point, j)
-                                #final_point = get_point(final_point, j)
-                                #initial_cell = initial_cell[j]
-                                #final_cell = final_cell[j]
-                                #i = final_cell == cell # criterion i could be more sophisticated
-                                #j[j] = i
-                                #return j
-                                return initial_cell == cell
+                        def f(tessellation, cell, translocations, translocation_cell, get_point):
+                                initial_point, final_point = translocations
+                                initial_cell, final_cell = translocation_cell
+                                if callable(initial_cell):
+                                        return initial_cell(np.arange(initial_point.shape[0]), cell)
+                                else:
+                                        return initial_cell == cell
                 else:
                         def f(tesselation, cell, locations, location_cell, get_point):
-                                return location_cell == cell
+                                if callable(location_cell):
+                                        return location_cell(np.arange(locations.shape[0]), cell)
+                                else:
+                                        return location_cell == cell
                 fuzzy = f
 
         # time and space columns in (trans-)locations array
