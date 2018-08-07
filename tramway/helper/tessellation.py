@@ -42,7 +42,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         min_location_count=None, avg_location_count=None, max_location_count=None, \
         rel_max_size=None, rel_max_volume=None, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
-        force=False, return_analyses=False, tessellation_options=None, partition_options=None, \
+        force=None, return_analyses=False, tessellation_options=None, partition_options=None, \
         **kwargs):
         """
         Tessellation from points series and partitioning.
@@ -527,7 +527,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         output_file = os.path.splitext(xyt_files[0])[0] + '.rwa'
 
                 save_rwa(output_file, analyses, verbose, \
-                        force=force or (len(input_files)==1 and input_files[0]==output_file))
+                        force=force or (force is not False and len(input_files)==1 and input_files[0]==output_file))
 
         if return_analyses:
                 return analyses

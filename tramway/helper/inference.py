@@ -204,13 +204,16 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                                 cell_sampling = setup['cell_sampling']
                         except KeyError:
                                 pass
-                multiscale = cell_sampling in ['individual', 'group']
+                multiscale = cell_sampling in ['individual', 'group', 'connected']
                 if multiscale and max_cell_count is None:
                         if cell_sampling == 'individual':
                                 max_cell_count = 1
                         #else: # adaptive scaling is no longer default
                         #       max_cell_count = 20
-                if max_cell_count:
+                if cell_sampling == 'connected':
+                        multiscale_map = detailled_map.group(connected=True)
+                        _map = multiscale_map
+                elif max_cell_count:
                         if dilation is None:
                                 if cell_sampling == 'individual':
                                         dilation = 0

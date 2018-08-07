@@ -383,12 +383,12 @@ class Distributed(Local):
                 return new
 
         def group(self, ngroups=None, max_cell_count=None, cell_centers=None, \
-                adjacency_margin=2):
+                adjacency_margin=2, connected=False):
                 """
                 Make groups of cells.
 
-                This builds up an extra hierarchical level. 
-                For example if `self` is a `Distributed` of `Cell`, then this returns a `Distributed` 
+                This builds up an extra hierarchical level.
+                For example if `self` is a `Distributed` of `Cell`, then this returns a `Distributed`
                 of `Distributed` (the groups) of `Cell`.
 
                 Several grouping strategies are proposed.
@@ -402,13 +402,18 @@ class Distributed(Local):
                                 maximum number of cells per group.
 
                         cell_centers (array-like):
-                                spatial centers of the groups. A cell is associated to the group which 
-                                center is the nearest one. If not provided, :meth:`group` will use 
+                                spatial centers of the groups.
+                                Cells are sorted by nearest neighbours.
+                                If not provided, :meth:`group` will use
                                 a k-means approach to positionning the centers.
 
                         adjacency_margin (int):
-                                groups are dilated to the adjacent cells `adjacency_margin` times. 
+                                groups are dilated to the adjacent cells `adjacency_margin` times.
                                 Defaults to 2.
+
+                        connected (bool):
+                                separates the connected components from one another.
+                                Conflicts with the other arguments.
 
                 Returns:
 
@@ -419,7 +424,17 @@ class Distributed(Local):
                 """
                 ncells = self.adjacency.shape[0]
                 new = copy(self)
-                if ngroups or (max_cell_count and max_cell_count < ncells) or cell_centers is not None:
+
+                strategy_0 = ngroups or (max_cell_count and max_cell_count < ncells) or cell_centers is not None
+                if not strategy_0 and not connected:
+                        #raise KeyError('`group` expects more input arguments')
+                        return new
+
+                elif strategy_0:
+
+                        if connected:
+                                raise ValueError('`connected` is not supported in combination with other arguments')
+
                         any_cell = self.any_cell()
 
                         points = np.zeros((ncells, self.dim), dtype=any_cell.center.dtype)
@@ -499,12 +514,38 @@ class Distributed(Local):
                                         new.cells[j].central = L
                                 assert bool(new.cells[j])
 
-                        new.ccount = self.ccount
-                        # _tcount is not supposed to change
-
                 else:
-                        pass
-                        #raise KeyError('`group` expects more input arguments')
+                        new.cells = type(self.cells)()
+                        j = 0
+                        available_cells = self.cells
+                        while available_cells:
+
+                                any_cell = next(iter(available_cells))
+                                neighbours = set(self.neighbours(any_cell).tolist())
+                                visited_cells = set([any_cell])
+                                while neighbours:
+                                        visited_cells |= neighbours
+                                        new_neighbours = set()
+                                        for cell in neighbours:
+                                                new_neighbours |= set(self.neighbours(cell).tolist())
+                                        neighbours = new_neighbours - visited_cells
+                                available_cells = { k: cell for k, cell in available_cells.items()
+                                        if k not in visited_cells } # update for next iteration
+
+                                K = list(visited_cells)
+                                A = self.adjacency[K,:].tocsc()[:,K].tocsr() # point adjacency matrix
+                                D = OrderedDict([ (i, self.cells[k]) \
+                                        for i, k in enumerate(K) if k in self.cells ])
+
+                                new.cells[j] = type(self)(D, A, index=j)
+
+                                j += 1
+
+                        new.adjacency = sparse.csr_matrix((np.array([], dtype=bool), (np.array([], dtype=int), np.array([], dtype=int))), shape=(j, j))
+
+
+                new.ccount = self.ccount
+                # _tcount is not supposed to change
 
                 return new
 
@@ -512,10 +553,10 @@ class Distributed(Local):
                 """
                 Apply a function to the groups (:class:`Distributed`) of terminal cells.
 
-                The results are merged into a single :class:`~pandas.DataFrame` array, 
+                The results are merged into a single :class:`~pandas.DataFrame` array,
                 handling adjacency margins if any.
 
-                Although this method was designed for `Distributed` of `Distributed`, its usage is 
+                Although this method was designed for `Distributed` of `Distributed`, its usage is
                 advised to call any function that returns a DataFrame with cell indices as indices.
 
                 Multiples processes may be spawned.
@@ -523,7 +564,7 @@ class Distributed(Local):
                 Arguments:
 
                         function (callable):
-                                the function to be called on each terminal :class:`Distributed`. 
+                                the function to be called on each terminal :class:`Distributed`.
                                 Its first argument is the :class:`Distributed` object.
                                 It should return a :class:`~pandas.DataFrame`.
 
@@ -1112,8 +1153,8 @@ def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=N
         removed.
 
         *location_cell* is either an array of cell indices (same size as *locations*) or
-        a callable that takes point indices and a cell index and return a boolean array with Trues
-        for point associated with the specified cell and Falses elsewhere.
+        a callable that takes a cell index and returns a boolean array with Trues
+        for locations associated with the specified cell and Falses elsewhere.
 
         *get_point* is a callable that takes an array like `points` or `locations` and row indices
         and returns the corresponding rows in the same format.
@@ -1130,15 +1171,13 @@ def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=N
         elif isinstance(index, tuple):
 
                 _point, _cell = index
+                loc_count = locations.shape[0]
 
-                def __associated__(location, cell):
+                def __associated__(cell):
                         """
                         Location-cell association.
 
                         Arguments:
-
-                                location (int or array-like):
-                                        location index(ices).
 
                                 cell (int):
                                         cell index.
@@ -1149,12 +1188,8 @@ def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=N
                                         True for locations associated to cell `cell`,
                                         False otherwise.
                         """
-                        if np.isscalar(location):
-                                _in = np.any(_cell[_point == location] == cell)
-                        else:
-                                _in = np.zeros(location.size, dtype=bool)
-                                for i, loc in location:
-                                        _in[i] = np.any(_cell[_point == loc] == cell)
+                        _in = np.zeros(loc_count, dtype=bool)
+                        _in[_point[_cell == cell]] = True
                         return _in
 
                 location_cell = __associated__
@@ -1167,14 +1202,11 @@ def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=N
                 except TypeError: # not already a CSC matrix; copy is implicit
                         index = index.tocsc()
 
-                def __association__(location, cell):
+                def __association__(cell):
                         """
                         Location-cell association.
 
                         Arguments:
-
-                                location (int or array-like):
-                                        location index(ices).
 
                                 cell (int):
                                         cell index.
@@ -1186,11 +1218,7 @@ def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=N
                                         True for locations associated to cell `cell`,
                                         False otherwise.
                         """
-                        if np.isscalar(location):
-                                _in = index[location, cell].tolist()
-                        else:
-                                _in = index.getcol(cell).todense()[location]
-                        return _in
+                        return index.getcol(cell).todense()
 
                 location_cell = __association__
 
@@ -1217,8 +1245,8 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         trajectory index column removed) respectively of the initial and final displacement locations.
 
         *initial_cell* and *final_cell* are either arrays of cell indices (same size as *initial_point*)
-        or callables that take point indices and a cell index and return a boolean array with Trues
-        for point associated with the specified cell and Falses elsewhere.
+        or callables that take a cell index and return a boolean array with Trues
+        for displacements/translocations associated with the specified cell and Falses elsewhere.
 
         *get_point* is a callable that takes an array like `points` and row indices and returns
         the corresponding rows in the same format.
@@ -1250,17 +1278,19 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         elif isinstance(index, tuple):
 
                 _point, _cell = index
+                _unique = np.unique(_point)
+                transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        termination, = termination.nonzero()
-                        def __associated__(translocation, cell):
+                        _transloc = np.full_like(_point, -1)
+                        _ok = _unique[termination[_unique]]
+                        _transloc[_ok] = np.arange(_ok.size)
+                        _transloc = _transloc[_point]
+                        def __associated__(cell):
                                 """
                                 Translocation-cell association.
 
                                 Arguments:
-
-                                        translocation (int or array-like):
-                                                translocation index(ices).
 
                                         cell (int):
                                                 cell index.
@@ -1271,12 +1301,9 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                                                 True for translocations associated to cell `cell`,
                                                 False otherwise.
                                 """
-                                if np.isscalar(translocation):
-                                        _in = np.any(_cell[_point == termination[translocation]] == cell)
-                                else:
-                                        _in = np.zeros(translocation.size, dtype=bool)
-                                        for i, tr in enumerate(translocation):
-                                                _in[i] = np.any(_cell[_point == termination[tr]] == cell)
+                                _in = np.zeros(transloc_count, dtype=bool)
+                                _ok = _transloc[_cell == cell]
+                                _in[_ok[0<=_ok]] = True
                                 return _in
                         return __associated__
 
@@ -1290,17 +1317,17 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                         index = index.tocsc(copy=True)
                 except TypeError: # not already a CSC matrix; copy is implicit
                         index = index.tocsc()
+                loc_count = index.shape[0]
+                transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        termination, = termination.nonzero()
-                        def __association__(translocation, cell):
+                        _transloc = np.full_like(loc_count, -1)
+                        _transloc[_termination] = np.arange(transloc_count)
+                        def __association__(cell):
                                 """
                                 Translocation-cell association.
 
                                 Arguments:
-
-                                        translocation (int or array-like):
-                                                translocation index(ices).
 
                                         cell (int):
                                                 cell index.
@@ -1312,10 +1339,9 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                                                 True for translocations associated to cell `cell`,
                                                 False otherwise.
                                 """
-                                if np.isscalar(translocation):
-                                        _in = index[termination[translocation], cell].tolist()
-                                else:
-                                        _in = index.getcol(cell).todense()[termination[translocation]]
+                                _in = np.zeros(transloc_count, dtype=bool)
+                                _ok = _transloc[index.indices[index.indptr[cell]:index.indptr[cell+1]]]
+                                _in[_ok[0<=_ok]] = True
                                 return _in
                         return __association__
 
@@ -1406,13 +1432,13 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                                 initial_point, final_point = translocations
                                 initial_cell, final_cell = translocation_cell
                                 if callable(initial_cell):
-                                        return initial_cell(np.arange(initial_point.shape[0]), cell)
+                                        return initial_cell(cell)
                                 else:
                                         return initial_cell == cell
                 else:
                         def f(tesselation, cell, locations, location_cell, get_point):
                                 if callable(location_cell):
-                                        return location_cell(np.arange(locations.shape[0]), cell)
+                                        return location_cell(cell)
                                 else:
                                         return location_cell == cell
                 fuzzy = f
@@ -1614,6 +1640,34 @@ class Maps(Lazy):
                 except (TypeError, KeyError):
                         raise KeyError("no such map: '{}'".format(variable_name))
 
+        def sub(self, ix, reindex=False):
+                """
+                Sub-map.
+
+                Operates like `loc` on a `DataFrame`.
+
+                Arguments:
+
+                        ix (slice or array-like):
+                                cell indices or boolean array.
+
+                        reindex (bool):
+                                make index range from 0 without missing integer.
+
+                Returns:
+
+                        tramway.inference.base.Maps: sub-map.
+
+                """
+                sub_map = copy(self)
+                if isinstance(ix, slice):
+                        ix = np.arange(ix.start, ix.stop, ix.step)
+                sub_map.maps = self.maps.loc[ix]
+                if reindex:
+                        sub_map.maps.index = np.arange(sub_map.maps.index.size)
+                return sub_map
+
+
 
 class OptimizationWarning(RuntimeWarning):
         pass
@@ -1680,7 +1734,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
         for i in cells:
                 cell = cells[i]
 
-                assert i == cell.index
+                #assert i == cell.index # NO!
                 if not bool(cell):
                         raise ValueError('empty cells')
 
@@ -1692,7 +1746,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
                 # check cell i has neighbours
                 try:
-                        adjacent = np.vstack([ cells[c].center for c in cells.adjacency.indices[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] if cells[c] ])
+                        adjacent = cells.adjacency.indices[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]]
                 except ValueError:
                         continue
 
@@ -1709,7 +1763,15 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
                 D_initial.append(D_initial_i)
 
                 # border
-                border.append(np.logical_or( np.max(adjacent) <= cell.center, cell.center <= np.min(adjacent) ))
+                if cell.center is None:
+                        warn('missing cell center', RuntimeWarning)
+                        border.append(np.zeros(cell.dim, dtype=np.bool_))
+                else:
+                        adjacent = np.vstack([ cells[c].center for c in adjacent if cells[c] ])
+                        border.append(np.logical_or(
+                                np.max(adjacent, axis=0) <= cell.center,
+                                cell.center <= np.min(adjacent, axis=0)
+                                )) # to be improved
 
         n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
         D_bounds = [(min_diffusivity, None)] * D_initial.size

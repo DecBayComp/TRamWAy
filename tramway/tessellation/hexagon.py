@@ -83,10 +83,10 @@ class HexagonalMesh(Voronoi):
                 lower_bound = pts.min(axis=0)
                 upper_bound = pts.max(axis=0)
                 size = upper_bound - lower_bound
+                hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
                 if self.avg_probability:
                         desired_n_cells = n_cells = 1. / self.avg_probability
                         total_area = np.prod(size)
-                        hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
                         n_cells_prev, hex_radius_prev = [], []
                         while True:
                                 hex_radius = np.sqrt(total_area / (2. * sqrt(3.) * n_cells))
@@ -143,7 +143,13 @@ class HexagonalMesh(Voronoi):
 
         def _preprocess(self, points):
                 if points.shape[1] != 2:
-                        raise ValueError('the number of dimensions is not 2')
+                        msg = 'the number of dimensions is not 2'
+                        try:
+                                points = points[['x', 'y']]
+                        except:
+                                raise ValueError(msg)
+                        else:
+                                warn(msg, RuntimeWarning)
                 Voronoi._preprocess(self, points) # initialize `scaler`
                 return points # ... but do not scale
 
@@ -184,6 +190,7 @@ class HexagonalMesh(Voronoi):
                         for j in range(m - (k % 2)):
                                 A[i, i+1] = True
                                 i += 1
+                        assert A.shape == (n_cells, n_cells)
                         self._cell_adjacency = (A + A.T).tocsr()
                 return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
 
