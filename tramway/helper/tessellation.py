@@ -41,6 +41,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         rel_min_distance=None, rel_avg_distance=None, rel_max_distance=None, \
         min_location_count=None, avg_location_count=None, max_location_count=None, \
         rel_max_size=None, rel_max_volume=None, \
+        time_window_duration=None, time_window_shift=None, time_window_options=None, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
         force=None, return_analyses=False, tessellation_options=None, partition_options=None, \
         **kwargs):
@@ -150,6 +151,24 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         Maximum cell diameter as a number of `ref_distance`. Diameter (or size) is
                         estimated as the maximum distance between any pair of locations in the cell.
                         Cells of excess size are ignored so as the associated locations.
+
+                time_window_duration (float):
+                        Window duration in seconds (or frames with
+                        ``time_window_options=dict(frames=True)``).
+                        This time windowing combines with any other spatial tessellation method.
+                        To use the :mod:`~tramway.tessellation.window` plugin only, use ``method=window``
+                        and its *duration* and *shift* arguments instead.
+                        See also the :mod:`~tramway.tessellation.window` plugin.
+
+                time_window_shift (float):
+                        Window shift in seconds (or frames with
+                        ``time_window_options=dict(frames=True)``).
+                        Default is no overlap, i.e. ``time_window_shift=time_window_duration``.
+                        See also the :mod:`~tramway.tessellation.window` plugin.
+
+                time_window_options (dict):
+                        Extra arguments for time windowing.
+                        See also the :mod:`~tramway.tessellation.window` plugin.
 
                 input_label (str):
                         Label for the input tessellation for nesting tessellations.
@@ -275,11 +294,12 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 # `distance` is only for compatibility with the tramway commandline
                 ref_distance = distance
         if input_label and input_partition.param is not None:
+                prm = input_partition.param.get('tessellation', input_partition.param)
                 if not ref_distance:
-                        ref_distance = input_partition.param.get('ref_distance', None)
-                min_distance = input_partition.param.get('min_distance', min_distance)
-                avg_distance = input_partition.param.get('avg_distance', avg_distance)
-                max_distance = input_partition.param.get('max_distance', max_distance)
+                        ref_distance = prm.get('ref_distance', None)
+                min_distance = prm.get('min_distance', min_distance)
+                avg_distance = prm.get('avg_distance', avg_distance)
+                max_distance = prm.get('max_distance', max_distance)
         # former default values for `rel_min_distance` and `rel_avg_distance`
         if rel_min_distance is None and min_distance is None:
                 rel_min_distance = .8
@@ -406,12 +426,26 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         else:
                 params.update(tessellation_kwargs)
                 tessellation_kwargs = params
+        time_window_kwargs = {}
+
         if input_label:
+                if time_window_duration:
+                        raise NotImplementedError('spatial tessellation combined with time windowing is not supported yet by tessellation nesting')
                 tess = NestedTessellations(scaler, input_partition, factory=constructor,
                         **tessellation_kwargs)
                 xyt_data = data = input_partition.points
         else:
-                tess = constructor(scaler, **tessellation_kwargs)
+                if time_window_duration:
+                        time_window_kwargs['duration'] = time_window_duration
+                        if time_window_shift:
+                                time_window_kwargs['shift'] = time_window_shift
+                        if time_window_options:
+                                time_window_kwargs.update(time_window_options)
+                        import tramway.tessellation.window as window
+                        tess = window.SlidingWindow(**time_window_kwargs)
+                        tess.spatial_mesh = constructor(scaler, **tessellation_kwargs)
+                else:
+                        tess = constructor(scaler, **tessellation_kwargs)
                 data = xyt_data[colnames]
 
         # grow the tessellation
@@ -464,16 +498,18 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 if 'filter_descriptors_only' not in partition_kwargs:
                         partition_kwargs['filter_descriptors_only'] = True
         try:
-                if knn is None and radius is None:
-                        cell_index = tess.cell_index(xyt_data, **partition_kwargs)
-                else:
+                if not (knn is None and radius is None):
+                        if knn is not None:
+                                partition_kwargs['knn'] = knn
+                        if radius is not None:
+                                if 'radius' not in partition_kwargs:
+                                        warn('overwriting `radius`', RuntimeWarning)
+                                partition_kwargs['radius'] = radius
                         if 'min_location_count' not in partition_kwargs:
                                 partition_kwargs['min_location_count'] = min_location_count
                         if 'metric' not in partition_kwargs:
                                 partition_kwargs['metric'] = 'euclidean'
-                        if radius is not None and 'radius' not in partition_kwargs:
-                                partition_kwargs['radius'] = radius
-                        cell_index = tess.cell_index(xyt_data, knn=knn, **partition_kwargs)
+                cell_index = tess.cell_index(xyt_data, **partition_kwargs)
         except MemoryError:
                 if verbose:
                         print(traceback.format_exc())
@@ -484,20 +520,21 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
         # store some parameters together with the partition
         stats.param['method'] = method
-        if transloc_length:
-                stats.param['transloc_length'] = transloc_length
-        else:
-                stats.param['ref_distance'] = ref_distance
-        if min_distance:
-                stats.param['min_distance'] = min_distance
-        if avg_distance:
-                stats.param['avg_distance'] = avg_distance
-        if max_distance:
-                stats.param['max_distance'] = max_distance
-        if knn:
-                stats.param['knn'] = knn
-        if radius:
-                stats.param['radius'] = radius
+        #if transloc_length:
+        #        stats.param['transloc_length'] = transloc_length
+        #else:
+        #        stats.param['ref_distance'] = ref_distance
+        #for _arg in ('min_distance', 'avg_distance', 'max_distance', 'knn', 'radius', \
+        #                'time_window_duration', 'time_window_shift', 'time_window_options'):
+        #        _val = eval(_arg)
+        #        if _val:
+        #                stats.param[_arg] = _val
+        if time_window_kwargs:
+                stats.param['time_window'] = time_window_kwargs
+        if tessellation_kwargs:
+                stats.param['tessellation'] = tessellation_kwargs
+        if partition_kwargs:
+                stats.param['partition'] = partition_kwargs
         stats.param.update(kwargs)
 
         # insert the resulting analysis in the analysis tree
@@ -541,7 +578,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, \
         location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
         aspect=None, delaunay=None, locations={}, voronoi=None, colors=None, title=None, \
-        cell_indices=None, label=None, input_label=None):
+        cell_indices=None, segment=None, label=None, input_label=None):
         """
         Partition plots.
 
@@ -612,6 +649,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
                 label/input_label (int or str or list):
                         If `cells` is a filepath or an analysis tree, label of the analysis instance.
+
+                segment (int):
+                        Segment index; if multiple time segments were defined, show only one segment.
 
         Notes:
                 See also :mod:`tramway.plot.mesh`.
@@ -697,6 +737,35 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                                 raise ValueError('multiple instances; label is required')
                         label = labels[-1]
                         cells = analyses[label].data
+
+        # identify time segments if any
+        try:
+                import tramway.tessellation.time as time
+                with_segments = isinstance(cells.tessellation, time.TimeLattice) \
+                                and cells.tessellation.spatial_mesh is not None
+        except ImportError:
+                with_segments = False
+        if with_segments:
+                xyt = cells.points
+                mesh = cells.tessellation.spatial_mesh
+                prms = cells.param.get('partition', {})
+                prms.pop('exclude_cells_by_location_count', None)
+                time_col = prms.pop('time_col', 't')
+                if segment is not None:
+                        if isinstance(segment, (tuple, list)):
+                                if segment[1:]:
+                                        warn('cannot plot multiple segments in a single `cell_plot` call', RuntimeWarning)
+                                segment = segment.pop()
+                                print('plotting segment {}'.format(segment))
+                        t0, t1 = cells.tessellation.time_lattice[segment]
+                        ts = xyt[time_col]
+                        if isinstance(ts, (pd.Series, pd.DataFrame)):
+                                ts = ts.values
+                        xyt = xyt[np.logical_and(t0 <= ts, ts < t1)]
+                cells = CellStats(xyt, mesh, mesh.cell_index(xyt, **prms))
+        elif segment is not None:
+                warn('cannot find time segments', RuntimeWarning)
+                segment = None
 
         # guess back some input parameters (with backward "compatibility")
         method_name = {}

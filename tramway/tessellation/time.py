@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -375,7 +375,7 @@ class TimeLattice(Tessellation):
 
 
         def split_frames(self, df, return_times=False):
-                if not isinstance(df, pd.DataFrame):
+                if not isinstance(df, (pd.Series, pd.DataFrame)):
                         raise TypeError('implemented only for `pandas.DataFrame`s')
                 if self.spatial_mesh is None:
                         raise NotImplementedError('missing spatial tessellation')

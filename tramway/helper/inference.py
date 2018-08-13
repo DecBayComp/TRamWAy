@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -286,7 +286,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         figsize=(24., 18.), dpi=None, aspect=None, show=None, verbose=False, \
-        alpha=None, point_style=None, \
+        alpha=None, point_style=None, variable=None, segment=None, \
         label=None, input_label=None, mode=None, \
         **kwargs):
         """
@@ -324,6 +324,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         if ``False``, the alpha value is not explicitly set
 
                 point_style (dict): if defined, points are overlaid
+
+                variable (str): variable name (e.g. 'diffusivity', 'force')
+
+                segment (int): segment index;
+                        if multiple time segments were defined, show only this segment
 
                 label/input_label (int or str): analysis instance label
 
@@ -403,6 +408,26 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 columns=['x', 'y']),
                         cells.tessellation)
 
+        # identify time segments, if any
+        try:
+                import tramway.tessellation.time as lattice
+                with_segments = isinstance(cells.tessellation, lattice.TimeLattice) \
+                                and cells.tessellation.spatial_mesh is not None
+        except ImportError:
+                with_segments = False
+        if with_segments:
+                if segment is None:
+                        raise ValueError('`segment` is required')
+                elif isinstance(segment, (tuple, list)):
+                        if segment[1:]:
+                                warn('cannot plot multiple segments in a single `map_plot` call', RuntimeWarning)
+                        segment = segment.pop()
+                        print('plotting segment {}'.format(segment))
+                _mesh = cells.tessellation.spatial_mesh
+                _cells, cells = cells, CellStats(tessellation=_mesh, location_count=np.ones(_mesh.cell_centers.shape[0]))
+        elif segment is not None:
+                warn('cannot find time segments', RuntimeWarning)
+
         # `mode` type may be inadequate because of loading a Py2-generated rwa file in Py3 or conversely
         if mode and not isinstance(mode, str):
                 try: # Py2
@@ -441,7 +466,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         figs = []
         nfig = 0
 
-        all_vars = splitcoord(maps.columns)
+        if variable is None:
+                all_vars = splitcoord(maps.columns)
+        elif isinstance(variable, (frozenset, set, tuple, list)):
+                all_vars = variable
+        else:
+                all_vars = (variable,)
         scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
         scalar_vars = [ (v, scalar_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 1 ]
 
@@ -474,6 +504,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 if isinstance(maps, pd.DataFrame) and 'x' in maps.columns and col not in 'xyzt':
                         _map = maps[[ col for col in 'xyzt' if col in maps.columns ]].join(_map)
                 #
+
+                # split time segments, if any
+                if with_segments:
+                        if 'clim' not in col_kwargs:
+                                col_kwargs['clim'] = [_map.values.min(), _map.values.max()]
+                        _map = _cells.tessellation.split_frames(_map)[segment]
+
                 yplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
                 if point_style is not None:
@@ -533,6 +570,14 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         __clip = clip
                 if __clip:
                         _vector_map = _clip(_vector_map, __clip)
+
+                # split time segments, if any
+                if with_segments:
+                        _vector_map = _cells.tessellation.split_frames(_vector_map)[segment]
+                        if 'clim' not in var_kwargs:
+                                _scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
+                                var_kwargs['clim'] = [_scalar_map.values.min(), _scalar_map.values.max()]
+
                 if point_style is None:
                         yplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
                 else:
