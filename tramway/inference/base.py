@@ -932,7 +932,7 @@ class Locations(Cell):
                 """
                 `array-like`, property
 
-                Locations as a matrix of coordinates and times with as many 
+                Locations as a matrix of coordinates and times with as many
                 columns as dimensions; this is an alias for :attr:`~Local.data`.
                 """
                 return self.data
@@ -1400,18 +1400,18 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 raise TypeError('`cells` is not a `CellStats`')
 
         # format (trans-)locations
+        coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
         precomputed = ()
-        if isinstance(new_cell, Locations):
+        if new_cell is Locations:
                 are_translocations = False
-        elif isinstance(new_cell, Translocations):
+        elif new_cell is Translocations:
                 are_translocations = True
         else:
-                coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
                 are_translocations = trajectory_col is not None
-                if are_translocations:
-                        precomputed = (coord_cols, trajectory_col, get_var, get_point)
-                else:
-                        precomputed = (coord_cols, get_var, get_point)
+        if are_translocations:
+                precomputed = (coord_cols, trajectory_col, get_var, get_point)
+        else:
+                precomputed = (coord_cols, get_var, get_point)
         if are_translocations:
                 initial_point, final_point, initial_cell, final_cell, get_point = \
                         get_translocations(cells.points, cells.cell_index, *precomputed)
