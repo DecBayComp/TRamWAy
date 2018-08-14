@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -163,7 +163,11 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
                 dr_minus_drift = cell.dr + np.outer(D_dt, gradV)
                 # non-directional squared displacement
                 ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
-                result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
+                res = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
+                if np.isnan(res):
+                        #print('isnan')
+                        continue
+                result += res
 
                 # priors
                 potential_prior = dv.potential_prior(j)
@@ -193,14 +197,18 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
         # initial values
         index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
                 smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
+        #min_diffusivity = None
         try:
                 if compatibility:
                         raise Exception # skip to the except block
-                volume = np.array([ cells[i].volume for i in index ])
+                volume = [ cells[i].volume for i in index ]
         except:
                 V_initial = -np.log(n / np.max(n))
         else:
-                density = n / volume
+                density = n / np.array([ np.inf if v is None else v for v in volume ])
+                if any( v is None for v in volume ):
+                        warn('cannot properly initialize energy potentials', RuntimeWarning)
+                        density[density == 0] = np.min(density[0 < density])
                 V_initial = np.log(np.max(density)) - np.log(density)
         dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
 
@@ -214,6 +222,7 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
         # parametrize the optimization algorithm
         default_BFGS_options = dict(maxcor=dv.combined.size, ftol=1e-8, maxiter=1e3,
                 disp=verbose)
+        #default_BFGS_options = dict(maxiter=1e3, disp=verbose)
         options = kwargs.pop('options', default_BFGS_options)
         if max_iter:
                 options['maxiter'] = max_iter
@@ -235,18 +244,21 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                         index, reverse_index, grad_kwargs)
 
         # get the initial posterior value so that it is subtracted from the further evaluations
-        x0 = dv_neg_posterior(dv.combined, *(args + (0., False)))
+        y0 = dv_neg_posterior(dv.combined, *(args + (0., False)))
         if verbose:
-                print('At X0\tactual posterior= {}\n'.format(x0))
-        args = args + (x0, 1 < int(verbose))
+                print('At X0\tactual posterior= {}\n'.format(y0))
+        #y0 = 0.
+        args = args + (y0, 1 < int(verbose))
 
         # run the optimization routine
         result = minimize(dv_neg_posterior, dv.combined, args=args, bounds=bounds, options=options)
         if not (result.success or verbose):
                 warn('{}'.format(result.message), OptimizationWarning)
 
+        y = np.array(result.x)
+
         # collect the result
-        dv.update(result.x)
+        dv.update(y)
         D, V = dv.D, dv.V
         if np.any(V < 0):
                 V -= np.min(V)

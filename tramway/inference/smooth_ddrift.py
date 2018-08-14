@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -72,7 +72,7 @@ def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffre
         # initial values
         index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
                 smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
-        initial_drift = np.zeros((len(cells), cells.dim), dtype=D_initial.dtype)
+        initial_drift = np.zeros((len(index), cells.dim), dtype=D_initial.dtype)
         drift_bounds = [(None, None)] * initial_drift.size # no bounds
         dd = ChainArray('D', D_initial, 'drift', initial_drift)
 
@@ -100,7 +100,7 @@ def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffre
         # collect the result
         dd.update(result.x)
         D, drift = dd['D'], dd['drift']
-        DD = pd.DataFrame(np.concatenate((D[:,np.newaxis], drift), axis=1), index=index, \
+        DD = pd.DataFrame(np.hstack((D[:,np.newaxis], drift)), index=index, \
                 columns=[ 'diffusivity' ] + \
                         [ 'drift ' + col for col in cells.space_cols ])
 

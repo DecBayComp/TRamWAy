@@ -15,6 +15,7 @@
 from rwa import HDF5Store, lazytype, lazyvalue
 from ..lazy import Lazy
 from ..analyses import Analyses, coerce_labels, format_analyses
+import tramway.core.analyses.base as ba
 #from copy import copy
 import os.path
 import traceback
@@ -93,7 +94,7 @@ def load_rwa(path, verbose=None):
 
 
 def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=False):
-        if not isinstance(analyses, Analyses):
+        if not isinstance(analyses, ba.Analyses):
                 raise TypeError('`analyses` is not an `Analyses` instance')
         if os.path.isfile(path):
                 if append:

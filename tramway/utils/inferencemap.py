@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from tramway.core import *
+from tramway.core.hdf5 import *
 from tramway.tessellation import CellStats
 from tramway.inference import Distributed, Translocations, Maps, distributed, neighbours_per_axis
 
@@ -9,7 +10,7 @@ import pandas as pd
 import scipy.sparse as sparse
 from collections import namedtuple, OrderedDict
 
-import os.path
+import os
 import argparse
 try:
         from ConfigParser import ConfigParser
@@ -235,7 +236,7 @@ def import_file(root_file, label, cluster_file=None, vmesh_file=None, output_fil
         save_rwa(output_file, tree, force=True, **kwargs)
 
 
-def export_to_cluster_file(cells, cluster_file, neighbours=None, neighbours_kwargs={}, new_cell=Translocations, **kwargs):
+def export_to_cluster_file(cells, cluster_file, neighbours=None, neighbours_kwargs={}, new_cell=Translocations, distributed_kwargs={}, **kwargs):
         not_2D = ValueError('data are not 2D')
         if isinstance(cells, Distributed):
                 if cells.dim != 2:
@@ -244,7 +245,7 @@ def export_to_cluster_file(cells, cluster_file, neighbours=None, neighbours_kwar
         else:
                 if cells.tessellation._cell_centers.shape[1] != 2:
                         raise not_2D
-                zones = distributed(cells, new_cell=new_cell, **kwargs)
+                zones = distributed(cells, new_cell=new_cell, **distributed_kwargs)
         if neighbours is None:
                 neighbours = neighbours_per_axis
         with open(cluster_file, 'w') as f:
@@ -280,26 +281,140 @@ def export_to_cluster_file(cells, cluster_file, neighbours=None, neighbours_kwar
                         f.write('\n\n')
 
 
-def export_file(rwa_file, label, cluster_file, vmesh_file=None, eps=None, **kwargs):
-        no_vmesh_export = NotImplementedError('cannot export vmesh files')
-        if vmesh_file:
-                raise no_vmesh_export
+def export_to_vmesh_file(cells, maps, vmesh_file, cluster_file=None, auto=False, new_cell=Translocations, distributed_kwargs={}, **kwargs):
+        not_2D = ValueError('data are not 2D')
+        if isinstance(cells, Distributed):
+                if cells.dim != 2:
+                        raise not_2D
+                zones = cells
+        else:
+                if cells.tessellation._cell_centers.shape[1] != 2:
+                        raise not_2D
+                zones = distributed(cells, new_cell=new_cell, **distributed_kwargs)
+        with open(vmesh_file, 'w') as f:
+                # Input File
+                if cluster_file is None and auto:
+                        dirname, basename = os.path.split(vmesh_file)
+                        cluster_files = [ fn
+                                for fn in os.listdir(dirname if dirname else '.')
+                                if fn.endswith('.cluster') and basename.startswith(fn[:8]) ]
+                        if cluster_files:
+                                if cluster_files[1:]:
+                                        print('multiple cluster files match:')
+                                        for fn in cluster_files:
+                                                print('\t'+fn)
+                                cluster_file = cluster_files[0]
+                        else:
+                                cluster_file = ''
+                if cluster_file is not None:
+                        f.write('Input File: {}\n'.format(cluster_file))
+                # Inference Mode
+                mode = maps.mode.upper()
+                if mode is None and auto:
+                        if 'potential' in maps.variables:
+                                mode = 'DV'
+                        elif 'force' in maps.variables:
+                                mode = 'DF'
+                        elif 'drift' in maps.variables:
+                                mode = 'DD'
+                        else:
+                                mode = 'D'
+                if mode is not None:
+                        f.write('Inference Mode: {}\n'.format(mode))
+                # Localization Error
+                err = maps.localization_error
+                if err is None and auto:
+                        err = .03
+                if err is not None:
+                        f.write('Localization Error: {:f} [nm]\n'.format(err*1e3))
+                # Number of Zones
+                f.write('Number of Zones: {}\n'.format(len(zones)))
+                # Diffusion Prior
+                dp = maps.diffusivity_prior
+                if dp is None and auto:
+                        dp = 0.
+                if dp is not None:
+                        f.write('Diffusion Prior: {:f}\n'.format(dp))
+                # Potential Prior
+                vp = maps.potential_prior
+                if vp is None and auto:
+                        vp = 0.
+                if vp is not None:
+                        f.write('Potential Prior: {:f}\n'.format(vp))
+                # Jeffreys' Prior
+                jp = maps.jeffreys_prior
+                if jp is None and auto:
+                        jp = 0
+                if jp is not None:
+                        f.write("Jeffreys' Prior: {:d}\n".format(jp))
+                # table header
+                f.write('\nZone ID\tTranslocations\tx-Centre\ty-Centre')
+                na = np.isnan(maps.maps.values) | np.isinf(maps.maps.values)
+                ok = ~np.all(na, axis=1)
+                data0 = [ [i, len(zones[i]), zones[i].center] for i in maps.maps.index[ok] ]
+                data1 = []
+                nvars = 0
+                if 'diffusivity' in maps.variables:
+                        f.write('\tDiffusion')
+                        data1.append(maps['diffusivity'].values[ok])
+                        nvars += 1
+                if 'force' in maps.variables:
+                        f.write('\tx-Force\ty-Force')
+                        data1.append(maps['force'].values[ok])
+                        nvars += 2
+                if 'potential' in maps.variables:
+                        f.write('\tPotential')
+                        data1.append(maps['potential'].values[ok])
+                        nvars += 1
+                # table data
+                data1 = np.hstack(data1)
+                fmt0 = '\n{:d}\t{:d}\t{:f}\t{:f}'
+                for r, s in zip(data0, data1):
+                        i, n, r = r
+                        s = [ 'NA' if np.isnan(x) or np.isinf(x) else x for x in s ]
+                        fmt1 = '\t{' + '}\t{'.join('' if x is 'NA' else ':f' for x in s) + '}'
+                        f.write((fmt0+fmt1).format(i, n, *(r.tolist() + s)))
+
+
+def export_file(rwa_file, label, cluster_file=None, vmesh_file=None, eps=None, **kwargs):
+        if not (cluster_file or vmesh_file):
+                raise ValueError('output filename(s) not defined')
         if not label:
-                raise ValueError('label is required')
+                raise ValueError('labels are required')
+        vlabel = None
         if isinstance(label, (tuple, list)):
                 if label[1:]:
-                        raise no_vmesh_export
-                clabel = label[0]
+                        clabel, vlabel = label
+                else:
+                        clabel = label[0]
         else:
                 clabel = label
+        if vlabel is None and vmesh_file:
+                raise ValueError('label for vmesh file is required')
 
-        if eps is not None:
-                neighbours_kwargs = kwargs.get('neighbours_kwargs', {})
-                neighbours_kwargs['eps'] = eps
-                kwargs['neighbours_kwargs'] = neighbours_kwargs
+        analyses = load_rwa(rwa_file)
 
-        cells, = find_artefacts(load_rwa(rwa_file), ((CellStats, Distributed),), clabel)
-        export_to_cluster_file(cells, cluster_file, **kwargs)
+        if vmesh_file:
+
+                cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), (clabel, vlabel))
+
+        elif cluster_file:
+
+                cells, = find_artefacts(analyses, ((CellStats, Distributed), ), (clabel, ))
+
+        if cluster_file:
+
+                if eps is not None:
+                        neighbours_kwargs = kwargs.get('neighbours_kwargs', {})
+                        neighbours_kwargs['eps'] = eps
+                        kwargs['neighbours_kwargs'] = neighbours_kwargs
+
+                export_to_cluster_file(cells, cluster_file, **kwargs)
+
+        if vmesh_file:
+
+                export_to_vmesh_file(cells, maps, vmesh_file, cluster_file, **kwargs)
+
 
 
 def main():
@@ -313,10 +428,12 @@ def main():
         import_or_export.add_argument('-o', '--output', metavar='FILE', help='path to the rwa file which to import InferenceMAP files to')
         import_or_export.add_argument('-i', '--input', metavar='FILE', help='path to the rwa file which to export from')
         parser.add_argument('--eps', '--epsilon', metavar='EPSILON', type=float, help='margin for half-space gradient calculation (cluster file exports only; see also `tramway.inference.base.neighbours_per_axis`)')
+        parser.add_argument('--auto', action='store_true', help='infer default values for missing parameters')
         args = parser.parse_args()
         kwargs = {}
         if args.input:
-                export_file(args.input, args.label, args.cluster, args.vmesh, args.eps)
+                export_file(args.input, args.label, args.cluster, args.vmesh,
+                        eps=args.eps, auto=args.auto)
         else:
                 if args.trajectories:
                         root = args.trajectories

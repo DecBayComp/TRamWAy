@@ -24,6 +24,7 @@ import tramway.inference as inference
 import tramway.feature as feature
 from .helper import *
 import tramway.core.hdf5.compat
+import tramway.utils.inferencemap as inferencemap
 
 
 def _parse_args(args):
@@ -77,32 +78,6 @@ def _render_cells(args):
         cell_plot(input_file, output_file=output_file, fig_format=fig_format, \
                 location_count_hist='c' in hist, cell_dist_hist='d' in hist, \
                 location_dist_hist='p' in hist, **kwargs)
-        sys.exit(0)
-
-
-def _tessellate(args):
-        input_file, kwargs = _parse_args(args)
-        output_file = kwargs.pop('output', None)
-        scaling = kwargs.pop('w', None)
-        if scaling and not kwargs['scaling']:
-                kwargs['scaling'] = 'whiten'
-        avg_location_count = kwargs.pop('location_count', None)
-        max_level = kwargs.pop('lower_levels', None)
-        min_nn = kwargs.pop('knn', None)
-        max_nn = kwargs.pop('max_nn', None)
-        if not (min_nn is None and max_nn is None):
-                knn = (min_nn, max_nn)
-        else:
-                knn = None
-        if kwargs.get('inplace', not None) is None:
-                del kwargs['inplace']
-        if kwargs['method'] is None:
-                del kwargs['method']
-        elif kwargs['method'] == 'kdtree' and min_nn is not None:
-                kwargs['metric'] = 'euclidean'
-        tessellate(input_file, output_file=output_file, \
-                avg_location_count=avg_location_count, max_level=max_level, \
-                knn=knn, **kwargs)
         sys.exit(0)
 
 
@@ -184,11 +159,19 @@ def _render_map(args):
 
 def _dump_rwa(args):
         input_files, kwargs = _parse_args(args)
-        verbose = kwargs.get('verbose', False)
-        for input_file in input_files:
-                print('in {}:'.format(input_file))
-                analyses = load_rwa(input_file)
-                print(format_analyses(analyses, global_prefix='\t', node=lazytype))
+        verbose = kwargs.pop('verbose', False)
+        label = kwargs.pop('label')
+        if label and input_files and not input_files[1:]:
+                label = kwargs.pop('input_label', None)
+                kwargs['cluster_file'] = kwargs.pop('cluster')
+                kwargs['vmesh_file'] = kwargs.pop('vmesh')
+                kwargs = { k: v for k, v in kwargs.items() if v is not None }
+                inferencemap.export_file(input_files[0], label=label, **kwargs)
+        else:
+                for input_file in input_files:
+                        print('in {}:'.format(input_file))
+                        analyses = load_rwa(input_file)
+                        print(format_analyses(analyses, global_prefix='\t', node=lazytype))
 
 def _curl(args):
         import copy
@@ -234,11 +217,12 @@ def _curl(args):
 def main():
         verbose = '--verbose' in sys.argv
         if not verbose:
-                try:
-                        k = sys.argv.index('-v')
-                except ValueError:
-                        pass
-                else:
+                simple = None
+                for k, a in enumerate(sys.argv):
+                        if a[0] == '-' and a[1:] and all(c == 'v' for c in a[1:]):
+                                simple = not a[2:]
+                                break
+                if simple is True:
                         # note that '-v' may not be the verbose flag
                         # if it appears after the first command (i.e. tessellate, infer);
                         # exclude one such known case by testing the argument that comes next:
@@ -246,6 +230,8 @@ def main():
                                 float(sys.argv[k+1])
                         except (ValueError, IndexError):
                                 verbose = True
+                elif simple is False:
+                        verbose = True
         if verbose:
                 tessellation.plugins.verbose = inference.plugins.verbose = True
 
@@ -294,14 +280,16 @@ def main():
                         method_parser.add_argument('--inplace', action='store_true', \
                                 help='replace the input sampling by the output one (only when --input-label is defined)')
                         method_parser.add_argument('-n', '--knn', '--min-nn', '--knn-min', type=int, \
-                                help='minimum number of nearest neighbors; cells can overlap')
+                                help='minimum number of nearest neighbours; cells can overlap')
                         method_parser.add_argument('-N', '--max-nn', '--knn-max', type=int, \
-                                help='maximum number of nearest neighbors')
+                                help='maximum number of nearest neighbours')
+                        method_parser.add_argument('-r', '--radius', type=float, \
+                                help='selection radius for locations around the cell centers; cells can overlap')
                         method_parser.add_argument('-d', '--distance', type=float, help='reference distance (default is the average translocation distance)')
                         method_group = method_parser.add_mutually_exclusive_group()
                         method_group.add_argument('-w', action='store_true', help='whiten the input data')
                         method_group.add_argument('--scaling', choices=['whiten', 'unit'])
-                        method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
+                        method_parser.add_argument('-s', '--min-location-count', type=int, \
                                 help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn and -ss for partition-related parameters')
                         method_parser.add_argument('-ss', '--strict-min-location-count', type=int, \
                                 metavar='MIN_LOCATION_COUNT', \
@@ -351,7 +339,15 @@ def main():
         dump_parser = sub.add_parser('dump')
         dump_parser.set_defaults(func=_dump_rwa)
         for arg1, arg2, kwargs in global_arguments:
-                dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+                if arg1 in ['-c', '-v', '-L']:
+                        dump_parser.add_argument(arg2, dest=arg1[1]+'post', **kwargs)
+                else:
+                        dump_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+        dump_parser.add_argument('-c', '--cluster', metavar='FILE', help='path to cluster file')
+        dump_parser.add_argument('-v', '--vmesh', metavar='FILE', help='path to vmesh file')
+        dump_parser.add_argument('-L', '--label', help='comma-separated list of labels')
+        dump_parser.add_argument('--eps', '--epsilon', metavar='EPSILON', type=float, help='margin for half-space gradient calculation (cluster file exports only; see also `tramway.inference.base.neighbours_per_axis`)')
+        dump_parser.add_argument('--auto', action='store_true', help='infer default values for missing parameters')
         try:
                 dump_parser.add_argument('input_file', nargs='?', help='path to input file')
         except:
@@ -418,6 +414,7 @@ def main():
         map_parser.add_argument('--xlim', type=float, nargs='+', help='space-separated couple of limit values for the x axis')
         map_parser.add_argument('--ylim', type=float, nargs='+', help='space-separated couple of limit values for the y axis')
         map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
+        map_parser.add_argument('--dpi', type=int, help='dots per inch')
         try:
                 map_parser.add_argument('input_file', nargs='?', help='path to input file')
         except:

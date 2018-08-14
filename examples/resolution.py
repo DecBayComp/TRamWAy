@@ -2,7 +2,8 @@
 import os
 import sys
 from rwa import lazyvalue
-from tramway.core import find_artefacts, format_analyses, load_rwa, save_rwa
+from tramway.core import find_artefacts, format_analyses
+from tramway.core.hdf5 import load_rwa, save_rwa
 from tramway.tessellation import CellStats
 from tramway.inference import Maps
 from tramway.helper import tessellate, infer, map_plot, cell_plot
@@ -21,8 +22,8 @@ verbose = True
 
 methods = ['grid', 'kdtree', 'kmeans', 'gwr']
 default_localization_error = 0.03
-default_prior_diffusivity = 0.05
-default_prior_potential = 0.05
+default_diffusivity_prior = 0.
+default_potential_prior = 1.
 
 default_ref_distances = [.36, .27, .18, .09]
 min_location_count = 20
@@ -38,8 +39,8 @@ arguments = [
         ('-df', dict(help='DF inference mode (default)', action='store_true')),
         ('-dv', dict(help='DV inference mode', action='store_true')),
         (('--localization-error', '-le'), dict(help='localization error', type=float, default=default_localization_error)),
-        (('--prior-diffusivity', '-pd'), dict(help='prior diffusivity', type=float, default=default_prior_diffusivity)),
-        (('--prior-potential', '-pv'), dict(help='prior potential', type=float, default=default_prior_potential)),
+        (('--prior-diffusivity', '-pd'), dict(help='prior diffusivity', type=float, default=default_diffusivity_prior)),
+        (('--prior-potential', '-pv'), dict(help='prior potential', type=float, default=default_potential_prior)),
         ('-nc', dict(help='do NOT plot colorbars', action='store_true'))]
 
 
@@ -123,8 +124,8 @@ def main(**kwargs):
                 _df = True
 
         localization_error = kwargs.get('locatization_error', default_localization_error)
-        priorD = kwargs.get('prior_diffusivity', default_prior_diffusivity)
-        priorV = kwargs.get('prior_potential', default_prior_potential)
+        priorD = kwargs.get('diffusivity_prior', default_diffusivity_prior)
+        priorV = kwargs.get('potential_prior', default_potential_prior)
 
         def img(mode, res):
                 return '{}.{}.{}.{}.png'.format(output_basename, method, int(res * 100), mode)

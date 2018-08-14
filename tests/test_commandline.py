@@ -17,9 +17,9 @@ import traceback
 import random
 
 
-py2_hash, py3_hash = '9SoX67ul', 'Y8eL4ZvC'
+py2_hash, py3_hash = 'AbXq21ao', 'Y8jQ01Uf'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '180316'
+data_update = '180621'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
@@ -137,9 +137,46 @@ class TestTessellation(object):
         def test_kmeans(self, tmpdir, datadir):
                 self.common(tmpdir, datadir, 'kmeans -w -s 40', 'kmeans0')
         def test_gwr(self, tmpdir, datadir):
-                self.common(tmpdir, datadir, 'gwr -ss 6', 'gwr0')
+                self.common(tmpdir, datadir, 'gwr -w -ss 6', 'gwr0')
+        def test_random(self, tmpdir, datadir):
+                self.common(tmpdir, datadir, 'random --cell-count 20 -ss 20', 'rand0')
         def test_overlapping_knn(self, tmpdir, datadir):
-                self.common(tmpdir, datadir, 'gwr -w -d 0.3 -s 30 --knn 50', 'knn0')
+                self.common(tmpdir, datadir, 'random --cell-count 250 -ss 10 --knn 200', 'knn0')
+        def test_hexagon(self, tmpdir, datadir):
+                self.common(tmpdir, datadir, 'hexagon -c 100 --tilt .1', 'hex0')
+        def test_nesting(self, tmpdir, datadir):
+                output_file = os.path.join(tmpdir.strpath, 'nested_tessellations.rwa')
+                label = 'nested'
+                reference = 'nesting0'
+                self.tmpdir, self.datadir = tmpdir, datadir
+                input_file = self.xytfile()
+                random.seed(seed)
+                numpy.random.seed(seed)
+                cmd = 'window --duration 50 --shift 50'
+                status = execute('{} -m tramway tessellate {} -i {} -o {} -l {} --seed {}', sys.executable, cmd, input_file, output_file, label, seed)
+                assert status == 0
+                cmd = 'random -c 100'
+                status = execute('{} -m tramway tessellate {} -i {} -L {} --inplace --seed {}', sys.executable, cmd, output_file, label, seed)
+                assert status == 0
+                if reference:
+                        reference = self.rwafile(reference)
+                        p = subprocess.Popen(('h5diff', reference, output_file),
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        out, err = p.communicate()
+                        if out:
+                                if not isinstance(out, str):
+                                        out = out.decode('utf-8')
+                                self.print(out)
+                                out = out.splitlines()
+                                out = '\n'.join([ '\n'.join((line1, line2)) \
+                                        for (line1, line2) in zip(out[:-1:2], out[1::2])
+                                        if not (line1.startswith('Failed reading attribute') or \
+                                                line1.startswith('attribute: <TITLE of ')) ])
+                        if err:
+                                if not isinstance(err, str):
+                                        err = err.decode('utf-8')
+                                self.print(err)
+                        assert not out
 
 class TestInference(object):
 
@@ -185,12 +222,14 @@ class TestInference(object):
                 self.common(tmpdir, datadir, 'df -j', 'df0')
         def test_dd(self, tmpdir, datadir):
                 self.common(tmpdir, datadir, 'dd -j', 'dd0')
-        def test_dv(self, tmpdir, datadir):
-                self.common(tmpdir, datadir, 'dv --dilation 1 --max-cell-count 10 -j', 'dv0')
+        def test_dv0(self, tmpdir, datadir):
+                self.common(tmpdir, datadir, 'dv -j --max-iter 10', 'dv0')
+        def test_dv1(self, tmpdir, datadir):
+                self.common(tmpdir, datadir, 'dv -d 1 -v 1 --max-iter 10', 'dv1')
         def test_smooth_d(self, tmpdir, datadir):
-                self.common(tmpdir, datadir, 'smooth.d -C 10 --dilation 1 -j', 'd1')
+                self.common(tmpdir, datadir, 'smooth.d -j --max-iter 10', 'd1')
         def test_smooth_df(self, tmpdir, datadir):
-                self.common(tmpdir, datadir, 'smooth.df -C 10 --dilation 1 -j', 'df1')
+                self.common(tmpdir, datadir, 'smooth.df -j --max-iter 10', 'df1')
         def test_smooth_dd(self, tmpdir, datadir):
-                self.common(tmpdir, datadir, 'smooth.dd -C 10 --dilation 1 -j', 'dd1')
+                self.common(tmpdir, datadir, 'smooth.dd -j --max-iter 10', 'dd1')
 

@@ -1,6 +1,7 @@
 
 import os
 import sys
+from tramway.core.hdf5 import *
 from tramway.inference import DiffusivityWarning, distributed
 from tramway.tessellation.time import *
 from tramway.helper import *
@@ -20,8 +21,8 @@ name = 'regular_temporal_mesh'
 
 method = 'grid'
 localization_error = 0.03
-priorD = 0.05
-#priorV = 0.05
+priorD = 0.
+#priorV = 1.
 minD = -localization_error
 
 
@@ -89,7 +90,7 @@ def main():
                         subext = 'truth.{}'.format(i)
                         print('plotting ground truth maps at time {}: {}'.format(t, \
                                 out(subext, 'png')))
-                        map_plot(true_map, cells=cells, mode='true', \
+                        map_plot(true_map, cells=grid, mode='true', \
                                 output_file=out(subext, 'png'), aspect='equal', clim=[D, D0], \
                                 colorbar=None)
                 if not new_tessellation:

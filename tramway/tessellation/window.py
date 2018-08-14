@@ -20,8 +20,10 @@ setup = {
 
 class SlidingWindow(TimeLattice):
 
-        def __init__(self, scaler=None, duration=None, shift=None, frames=False, label=(0, 1)):
-                TimeLattice.__init__(self, scaler, label=label)
+        __slots__ = ('duration', 'shift')
+
+        def __init__(self, scaler=None, duration=None, shift=None, frames=False, time_label=(0, 1)):
+                TimeLattice.__init__(self, scaler, time_label=time_label)
                 if duration is None:
                         raise ValueError("'duration' is required")
                 elif np.isclose(max(0, duration), 0):
@@ -57,7 +59,7 @@ class SlidingWindow(TimeLattice):
                         dt /= 10.
                 else:
                         dt = 1e-7 # precision down to a microsecond (quantum < microsecond)
-                nsegments = np.floor((t1 - t0 - duration) / shift) + 1.
+                nsegments = np.round((t1 - t0 - duration) / shift) + 1.
                 t1 = t0 + (nsegments - 1.) * shift + duration
                 t0s = np.arange(t0, t1 - duration + dt, shift)
                 t1s = t0s + duration + dt

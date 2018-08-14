@@ -94,7 +94,12 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
                 linewidth=1):
         vertices = cells.tessellation.vertices
         labels, color = _graph_theme(cells.tessellation, labels, color, negative)
-        color += 'w'
+        try:
+                color += 'w'
+        except TypeError:
+                if not isinstance(color, list):
+                        color = [color]
+                color.append('w')
         try:
                 special_edges = cells.tessellation.candidate_edges
                 #points = cells.descriptors(cells.points, asarray=True)
@@ -286,4 +291,17 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
                         plt.plot([left[0], top[0], right[0]], [left[1], top[1], right[1]], arrow_color+'-')
                 plt.text(x[0], x[1], str(i+1 if shift_indices else i), fontsize=font_size)
         plt.plot(centers[:,0], centers[:,1], vertex_color+vertex_style)
+
+
+def plot_indices(cells, **kwargs):
+        try:
+                cells = cells.tessellation
+        except (KeyboardInterrupt, SystemExit):
+                raise
+        except:
+                pass
+        i = 0
+        for x,y in cells.cell_centers:
+                plt.text(x, y, str(i), **kwargs)
+                i += 1
 

@@ -29,7 +29,7 @@ These text files contain numerical values organized in tab-delimited columns suc
 
 Trajectory number, if available, is the first column. 
 Time (in |seconds|) is always the last columns. 
-All the intermediate columns - usually two (`x`, `y`) or three (`x`, `y`, `z`) - are spatial coordinates in |um|.
+All the intermediate columns - usually two (`x`, `y`) or three (`x`, `y`, `z`) - are spatial coordinates, typically in |um|.
 These coordinates should be locations, NOT translocations, even if they represent trajectories.
 
 

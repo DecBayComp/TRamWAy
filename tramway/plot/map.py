@@ -134,6 +134,9 @@ def cell_to_polygon(c, X, voronoi=None, bounding_box=None, region_point=None, re
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
                 delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
                 **kwargs):
+        """
+        Setting colorbar to 'nice' allows to produce a colorbar close to the figure of the same size as the figure
+        """
         #       colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
         coords = None
         if isinstance(values, pd.DataFrame):
@@ -147,11 +150,10 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
         # parse Delaunay-related arguments
         if delaunay:
-                delaunay_linewidth = linewidth
-                linewidth = 0
-                if isinstance(delaunay, dict):
-                        delaunay_linewidth = delaunay.pop('linewidth', delaunay_linewidth)
-                        kwargs.update(delaunay)
+                if not isinstance(delaunay, dict):
+                        delaunay = {}
+                if linewidth and 'linewidth' not in delaunay:
+                        delaunay['linewidth'] = linewidth
 
         # turn the cells into polygons
         polygons = []
@@ -246,21 +248,26 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 figure = plt.gcf() # before PatchCollection
         if axes is None:
                 axes = figure.gca()
-        if alpha is None:
-                alpha = .9
-        patches = PatchCollection(polygons, alpha=alpha, linewidth=linewidth, cmap=colormap)
+        # draw patches
+        patch_kwargs = kwargs
+        if alpha is not False:
+                if alpha is None:
+                        alpha = .9
+                patch_kwargs['alpha'] = alpha
+        if colormap is not None and 'cmap' not in patch_kwargs:
+                patch_kwargs['cmap'] = colormap
+        patches = PatchCollection(polygons, linewidth=linewidth, **patch_kwargs)
         patches.set_array(scalar_map)
         if clim is not None:
                 patches.set_clim(clim)
         axes.add_collection(patches)
 
         obj = None
-        if delaunay:
+        if delaunay or isinstance(delaunay, dict):
                 try:
                         import tramway.plot.mesh as mesh
                         obj = mesh.plot_delaunay(cells, centroid_style=None,
-                                linewidth=delaunay_linewidth,
-                                axes=axes, **kwargs)
+                                axes=axes, **delaunay)
                 except:
                         import traceback
                         traceback.print_exc()
@@ -276,9 +283,20 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if aspect is not None:
                 axes.set_aspect(aspect)
 
-        if colorbar:
+        if colorbar==True:
                 try:
                         figure.colorbar(patches)
+                except AttributeError as e:
+                        warn(e.args[0], RuntimeWarning)
+        elif colorbar=='nice':
+                # make the colorbar closer to the plot and same size
+                from mpl_toolkits.axes_grid1 import make_axes_locatable
+                try:
+                        gca_bkp = plt.gca()
+                        divider = make_axes_locatable(figure.gca())
+                        cax = divider.append_axes("right", size="5%", pad=0.05)
+                        figure.colorbar(patches, cax=cax)
+                        plt.sca(gca_bkp)
                 except AttributeError as e:
                         warn(e.args[0], RuntimeWarning)
 
@@ -287,14 +305,21 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 
 def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
-                cell_arrow_ratio=0.4, markeralpha=0.8, **kwargs):
+                cell_arrow_ratio=0.4, markeralpha=0.8, markerlinewidth=None, transform=np.log,
+                **kwargs):
         force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
         if figure is None:
                 figure = plt.gcf()
         if axes is None:
                 axes = figure.gca()
-        if not overlay:
-                obj = scalar_map_2d(cells, force_amplitude, figure=figure, axes=axes, **kwargs)
+        if overlay:
+                if markerlinewidth is None and 'linewidth' in kwargs:
+                        markerlinewidth = kwargs['linewidth']
+        else:
+                if transform is None:
+                        transform = lambda a: a
+                obj = scalar_map_2d(cells, transform(force_amplitude),
+                        figure=figure, axes=axes, **kwargs)
         if aspect is not None:
                 axes.set_aspect(aspect)
         xmin, xmax = axes.get_xlim()
@@ -324,7 +349,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
         # scale force amplitude
         large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
         scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
-        # 
+        #
         dw = float(angular_width) / 2.0
         t = tan(radians(dw))
         t = np.array([[0.0, -t], [t, 0.0]])
@@ -342,7 +367,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
                 #vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
                 markers.append(Polygon(vertices, True))
 
-        patches = PatchCollection(markers, facecolor='y', edgecolor='k', alpha=markeralpha)
+        patches = PatchCollection(markers, facecolor='y', edgecolor='k',
+                alpha=markeralpha, linewidth=markerlinewidth)
         axes.add_collection(patches)
 
         #axes.set_xlim(xmin, xmax)
@@ -350,4 +376,3 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
 
         if not overlay and obj:
                 return obj
-
