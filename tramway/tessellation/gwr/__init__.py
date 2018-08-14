@@ -23,6 +23,7 @@ from .gas import Gas
 from scipy.spatial.distance import cdist
 import time
 from collections import OrderedDict
+from warnings import warn
 
 
 class GasMesh(Voronoi):
@@ -161,10 +162,15 @@ class GasMesh(Voronoi):
                 if 4 < adjacency.data[-1]:
                         adjacency.data[:] = 1
                 delaunay = sparse.csr_matrix( \
-                        (2 * np.ones(2 * voronoi.ridge_points.shape[0], dtype=int), \
+                        (np.ones(2*voronoi.ridge_points.shape[0], dtype=int), \
                         (voronoi.ridge_points.flatten('F'), \
                         np.fliplr(voronoi.ridge_points).flatten('F'))), \
                         shape=adjacency.shape)
+                # if `ridge_points` includes the same ridge twice,
+                # the corresponding elements in `data` are added
+                if not np.all(delaunay.data == 1):
+                        warn('some Voronoi ridges appear twice', RuntimeWarning)
+                delaunay.data[:] = 2
                 A = sparse.tril(adjacency + delaunay, format='coo')
                 self._adjacency_label = A.data # labels are: 1=gas only, 2=voronoi only, 3=both
                 # edge indices for _adjacency_label

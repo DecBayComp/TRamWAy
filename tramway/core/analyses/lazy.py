@@ -194,3 +194,12 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False,
                         artefacts.append(subtree)
                 return tuple(artefacts)
 
+
+__all__ = [
+        'InstancesView',
+        'Analyses',
+        'find_artefacts',
+        'label_paths',
+        ]
+
+

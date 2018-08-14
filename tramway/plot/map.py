@@ -13,6 +13,7 @@
 
 
 from math import tan, atan2, degrees, radians
+import sys
 import numpy as np
 import pandas as pd
 import numpy.ma as ma
@@ -23,13 +24,116 @@ from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
 import matplotlib.pyplot as plt
 import scipy.spatial
-import scipy.linalg as la
 import scipy.sparse as sparse
 from warnings import warn
 
 
+def _bounding_box(cells, xy):
+        # bounding box
+        try:
+                bounding_box = cells.bounding_box[['x', 'y']]
+                xy_min, xy_max = bounding_box.values
+        except (KeyboardInterrupt, SystemExit):
+                raise
+        except:
+                xy_min, xy_max = xy.min(axis=0), xy.max(axis=0)
+        bounding_box = [ np.array(vs) for vs in (xy_min, [xy_min[0], xy_max[1]], xy_max, [xy_max[0], xy_min[1]]) ]
+        return bounding_box
+
+
+def cell_to_polygon(c, X, voronoi=None, bounding_box=None, region_point=None, return_voronoi=False):
+        lstsq_kwargs = {}
+        if sys.version_info[0] < 3:
+                lstsq_kwargs['rcond'] = None
+        if bounding_box is None:
+                bounding_box = _bounding_box(None, X)
+        if voronoi is None:
+                voronoi = scipy.spatial.Voronoi(X)
+        r = voronoi.point_region[c]
+        region = voronoi.regions[r]
+        if region_point is None:
+                region_point = np.full(len(voronoi.regions), -1, dtype=int)
+                region_point[voronoi.point_region] = np.arange(voronoi.point_region.size)
+        #assert region_point[r] == c
+        t = (bounding_box[0] + bounding_box[2]) * .5
+        u = X[c]
+        vertices = []
+        for k, v in enumerate(region):
+                if v < 0:
+
+                        # find the two "adjacent" vertices
+                        i, j = region[k-1], region[(k+1)%len(region)]
+                        assert 0<=i
+                        assert 0<=j
+                        # find the corresponding neighbour cells
+                        m, n = set(), set() # mutable
+                        for d, vs in enumerate(voronoi.regions):
+                                if not vs or d == r:
+                                        continue
+                                for e, cs in ((i,m), (j,n)):
+                                        try:
+                                                l = vs.index(e)
+                                        except ValueError:
+                                                continue
+                                        if (vs[l-1]==-1) or (vs[(l+1)%len(vs)]==-1):
+                                                cs.add(region_point[d])
+                        p, q = m.pop(), n.pop()
+                        assert not m
+                        assert not n
+                        # pick a distant point on the perpendicular bissector
+                        # of the neighbour centers, at the intersection with
+                        # the bounding box
+                        prev_edge = None
+                        for v, w in ((i,p), (j,q)):
+                                v, w = voronoi.vertices[v], X[w]
+                                if np.any(v<bounding_box[0]) or np.any(bounding_box[2]<v):
+                                        # vertex v stands outside the bounding box
+                                        continue
+                                n = np.array([u[1]-w[1], w[0]-u[0]])
+                                #w = (u + w) * .5
+                                w = v
+                                # determine direction: n or -n?
+                                if 0 < np.dot(n, t-w):
+                                        n = -n
+                                # intersection of [w,n) and [a,ab]
+                                z = None
+                                for l, a in enumerate(bounding_box):
+                                        b = bounding_box[(l+1)%len(bounding_box)]
+                                        M, p = np.c_[n, a-b], a-w
+                                        q = np.linalg.lstsq(M, p, **lstsq_kwargs)
+                                        q = q[0]
+                                        if 0<=q[0] and 0<=q[1] and q[1]<=1:
+                                                # intersection found
+                                                z = w + q[0] * n
+                                                #if 0<q[0]:
+                                                break
+                                assert z is not None
+                                if not (prev_edge is None or prev_edge == l):
+                                        # add the corner which the previous
+                                        # and current edges intersect at
+                                        e_max = len(bounding_box)-1
+                                        if (0<l and prev_edge==l-1) or \
+                                                (l==0 and prev_edge==e_max):
+                                                vertices.append(a)
+                                        elif (l<e_max and prev_edge==l+1) or \
+                                                (l==e_max and prev_edge==0):
+                                                vertices.append(b)
+                                        else:
+                                                raise RuntimeError
+                                prev_edge = l
+                                vertices.append(z)
+
+                else:
+                        vertices.append(voronoi.vertices[v])
+        if return_voronoi:
+                return vertices, voronoi, bounding_box, region_point
+        else:
+                return vertices
+
+
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
-                delaunay=False, colorbar=True, alpha=None, colormap=None, **kwargs):
+                delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
+                **kwargs):
         #       colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
         coords = None
         if isinstance(values, pd.DataFrame):
@@ -41,6 +145,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 values = values.iloc[:,0] # to Series
         #values = pd.to_numeric(values, errors='coerce')
 
+        # parse Delaunay-related arguments
         if delaunay:
                 delaunay_linewidth = linewidth
                 linewidth = 0
@@ -48,8 +153,10 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                         delaunay_linewidth = delaunay.pop('linewidth', delaunay_linewidth)
                         kwargs.update(delaunay)
 
+        # turn the cells into polygons
         polygons = []
         if isinstance(cells, Distributed):
+
                 ix, xy, ok = zip(*[ (i, c.center, bool(c)) for i, c in cells.items() ])
                 ix, xy, ok = np.array(ix), np.array(xy), np.array(ok)
                 if not (coords is None or np.all(np.isclose(xy, coords))): # debug
@@ -58,14 +165,15 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                         print(xy)
                         print('in cells:')
                         print(coords)
-                voronoi = scipy.spatial.Voronoi(xy)
-                for c, r in enumerate(voronoi.point_region):
+                rp = bb = voronoi = None
+                for c in range(xy.shape[0]):
                         if ok[c]:
-                                region = [ v for v in voronoi.regions[r] if 0 <= v ]
-                                if region[1:]:
-                                        vertices = voronoi.vertices[region]
-                                        polygons.append(Polygon(vertices, True))
+                                vertices, voronoi, bb, rp = cell_to_polygon(
+                                        c, xy, voronoi, bb, rp, True)
+                                polygons.append(Polygon(vertices, True))
+
         elif isinstance(cells, CellStats) and isinstance(cells.tessellation, Voronoi):
+
                 Av = cells.tessellation.vertex_adjacency.tocsr()
                 xy = cells.tessellation.cell_centers
                 ix = np.arange(xy.shape[0])
@@ -116,14 +224,6 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 except AttributeError:
                         raise TypeError('wrong type for `cells`: {}'.format(_type))
 
-        try:
-                bounding_box = cells.bounding_box[['x', 'y']]
-                xy_min, xy_max = bounding_box.values
-        except (KeyboardInterrupt, SystemExit):
-                raise
-        except:
-                xy_min, xy_max = xy.min(axis=0), xy.max(axis=0)
-
         scalar_map = values.loc[ix[ok]].values
 
         #print(np.nonzero(~ok)[0])
@@ -163,10 +263,16 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                                 axes=axes, **kwargs)
                 except:
                         import traceback
-                        print(traceback.format_exc())
+                        traceback.print_exc()
 
-        axes.set_xlim(xy_min[0], xy_max[0])
-        axes.set_ylim(xy_min[1], xy_max[1])
+        if not xlim or not ylim:
+                xy_min, _, xy_max, _ = _bounding_box(cells, xy)
+                if not xlim:
+                        xlim = (xy_min[0], xy_max[0])
+                if not ylim:
+                        ylim = (xy_min[1], xy_max[1])
+        axes.set_xlim(*xlim)
+        axes.set_ylim(*ylim)
         if aspect is not None:
                 axes.set_aspect(aspect)
 
@@ -191,12 +297,19 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
                 obj = scalar_map_2d(cells, force_amplitude, figure=figure, axes=axes, **kwargs)
         if aspect is not None:
                 axes.set_aspect(aspect)
+        xmin, xmax = axes.get_xlim()
+        ymin, ymax = axes.get_ylim()
         if axes.get_aspect() == 'equal':
                 aspect_ratio = 1
         else:
-                xmin, xmax = axes.get_xlim()
-                ymin, ymax = axes.get_ylim()
                 aspect_ratio = (xmax - xmin) / (ymax - ymin)
+        # identify the visible cell centers
+        if isinstance(cells, Distributed):
+                pts = np.vstack([ cells[i].center for i in cells ])#values.index ])
+        elif isinstance(cells, CellStats):
+                assert isinstance(cells.tessellation, Tessellation)
+                pts = cells.tessellation.cell_centers#[values.index]
+        inside = (xmin<=pts[:,0]) & (pts[:,0]<=xmax) & (ymin<=pts[:,1]) & (pts[:,1]<=ymax)
         # compute the distance between adjacent cell centers
         if isinstance(cells, Distributed):
                 A = cells.adjacency
@@ -204,20 +317,12 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
                 A = cells.tessellation.cell_adjacency
         A = sparse.triu(A, format='coo')
         I, J = A.row, A.col
-        if isinstance(cells, Distributed):
-                pts_i = np.stack([ cells.cells[i].center for i in I ])
-                pts_j = np.stack([ cells.cells[j].center for j in J ])
-        elif isinstance(cells, CellStats):
-                assert isinstance(cells.tessellation, Tessellation)
-                pts_i = cells.tessellation.cell_centers[I]
-                pts_j = cells.tessellation.cell_centers[J]
-        inter_cell_distance = la.norm(pts_i - pts_j, axis=1)
+        _inside = inside[I] & inside[J]
+        pts_i, pts_j = pts[I[_inside]], pts[J[_inside]]
+        inter_cell_distance = pts_i - pts_j
+        inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
         # scale force amplitude
-        #scale = np.nanmedian(force_amplitude)
-        #if np.isclose(scale, 0):
-        #       scale = np.median(force_amplitude[0 < force_amplitude])
-        #scale = np.nanmedian(inter_cell_distance) / 2.0 / scale
-        large_arrow_length = np.max(force_amplitude) # consider clipping
+        large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
         scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
         # 
         dw = float(angular_width) / 2.0
@@ -225,10 +330,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
         t = np.array([[0.0, -t], [t, 0.0]])
         markers = []
         for i in values.index:
-                try:
-                        center = cells.tessellation.cell_centers[i]
-                except AttributeError:
-                        center = cells[i].center
+                center = pts[i]
                 radius = force_amplitude[i]
                 f = np.asarray(values.loc[i]) * scale
                 #fx, fy = f

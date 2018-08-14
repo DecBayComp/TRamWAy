@@ -13,19 +13,26 @@
 
 """This module implements the :class:`~rwa.storable.Storable` class for TRamWAy datatypes."""
 
-import rwa
-from rwa import HDF5Store, hdf5_storable, hdf5_not_storable
+#from warnings import filterwarnings
+#filterwarnings('ignore', category=FutureWarning, module='h5py', lineno=36) # best in top package __init__
 import sys
+from rwa import *
 from .store import *
+from . import store
+
+__all__ = ['HDF5Store', 'hdf5_storable', 'hdf5_not_storable', 'lazytype', 'lazyvalue'] # from rwa
+__all__ += store.__all__ + ['store'] # from .store
 
 try:
-        rwa.hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
+        hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
                 'tramway.tessellation', 'tramway.inference', 'tramway.feature']
 except TypeError: # rwa is Mock in rtd
         pass
 
 if sys.version_info[0] < 3:
         from .rules import *
+        from . import rules
+        __all__ += rules.__all__ + ['rules']
 
 
 # backward compatibility trick for `CellStats`
@@ -36,7 +43,8 @@ except:
 else:
         from ..lazy import Lazy
         cell_stats_expose = Lazy.__slots__ + CellStats.__slots__ + ('_tesselation',)
-        rwa.hdf5_storable(rwa.default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
+        __all__.append('cell_stats_expose')
+        hdf5_storable(default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
 
 try:
         from tramway.tessellation.kdtree.dichotomy import Dichotomy, ConnectedDichotomy
@@ -46,9 +54,11 @@ else:
         dichotomy_exposes = ['base_edge', 'min_depth', 'max_depth', \
                 'origin', 'lower_bound', 'upper_bound', \
                 'min_count', 'max_count', 'subset', 'cell']
-        rwa.hdf5_storable(rwa.generic.kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
+        __all__.append('dichotomy_exposes')
+        hdf5_storable(generic.kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
         connected_dichotomy_exposes = dichotomy_exposes + ['adjacency']
-        rwa.hdf5_storable(rwa.generic.kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
+        __all__.append('connected_dichotomy_exposes')
+        hdf5_storable(generic.kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
 
 
 try:
@@ -113,11 +123,12 @@ else:
                                 setattr(maps, r, store.peek(r, container))
                 return maps
 
-        rwa.hdf5_storable(rwa.Storable(Maps, \
-                handlers=rwa.StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
+        __all__ += ['poke_maps', 'peek_maps']
+        hdf5_storable(Storable(Maps, \
+                handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
 
 from ..analyses import Analyses, base
-_analyses_storable = rwa.default_storable(Analyses, exposes=base.Analyses.__slots__)
+_analyses_storable = default_storable(Analyses, exposes=base.Analyses.__slots__)
 _analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
-rwa.hdf5_storable(_analyses_storable)
+hdf5_storable(_analyses_storable)
 

@@ -126,3 +126,10 @@ class ChainArray(ArrayChain):
                 else:
                         self.combined = x
 
+
+__all__ = [
+        'Matrix',
+        'ArrayChain',
+        'ChainArray',
+        ]
+

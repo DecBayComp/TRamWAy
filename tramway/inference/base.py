@@ -1251,7 +1251,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         points = _points = get_point(locations, i) # locations
 
                 # convex hull
-                _points = np.asarray(cells.descriptors(_points))
+                _points = np.asarray(get_var(_points, space_cols))
                 if _points.shape[1] < _points.shape[0]:
                         hull[j] = scipy.spatial.qhull.ConvexHull(_points)
 
@@ -1395,6 +1395,10 @@ class Maps(Lazy):
                         raise KeyError("no such map: '{}'".format(variable_name))
 
 
+class OptimizationWarning(RuntimeWarning):
+        pass
+
+
 class DiffusivityWarning(RuntimeWarning):
         def __init__(self, diffusivity, lower_bound=None):
                 self.diffusivity = diffusivity
@@ -1519,40 +1523,44 @@ def gradn(cells, i, X, index_map=None):
                         in the (trans-)location data.
         """
         cell = cells[i]
-        adjacent = _adjacent = cells.neighbours(i)
-        if index_map is not None:
-                i = index_map[i]
-                adjacent = index_map[_adjacent]
-                ok = 0 <= adjacent
-                assert np.all(ok)
-                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
-        if adjacent.size == 0:
-                return None
-        try:
-                ok = np.logical_not(X[adjacent].mask)
-                if np.any(ok):
-                        ok = np.r_[True, ok]
-                else:
-                        #warn('Distributed.grad: all the points are masked', RuntimeWarning)
-                        return None
-        except AttributeError:
-                ok = slice(adjacent.size + 1)
 
         # below, the measurement is renamed Y and the coordinates are X
-        local = np.r_[i, adjacent]
-        Y = X[local]
+        Y = X
         X0 = cell.center
 
         # cache the components related to X
         if not isinstance(cell.cache, dict):
-                cell.cache = dict(vander=None)
-        if cell.cache.get('vander', None) is None:
-                X = np.vstack([ X0 ] + [ cells[j].center for j in _adjacent ])
-                cell.cache['vander'] = _poly2(X)
-        V = cell.cache['vander']
+                cell.cache = {}
+        try:
+                poly = cell.cache['poly']
+
+        except KeyError: # fill in the cache
+                # find neighbours
+                adjacent = _adjacent = cells.neighbours(i)
+                if index_map is not None:
+                        i = index_map[i]
+                        adjacent = index_map[_adjacent]
+                        ok = 0 <= adjacent
+                        assert np.all(ok)
+                        adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+                if adjacent.size:
+                        X0_dup = _adjacent.size
+                        local = np.r_[np.full(X0_dup, i), adjacent]
+                        # neighbour locations
+                        X = np.vstack([ X0 ] * X0_dup + [ cells[j].center for j in _adjacent ])
+                        # cache X-related terms and indices of the neighbours
+                        poly = cell.cache['poly'] = (_poly2(X), local)
+                else:
+                        poly = cell.cache['poly'] = None
+
+        if poly is None:
+                return
+
+        V, local = poly
+        Y = Y[local]
 
         # interpolate
-        W, _, _, _ = np.linalg.lstsq(V[ok], Y[ok], rcond=None)
+        W, _, _, _ = np.linalg.lstsq(V, Y, rcond=None)
         gradX = _poly2_deriv_eval(W, X0)
 
         return gradX
@@ -1624,22 +1632,75 @@ def _poly2_deriv_eval(W, X):
         return np.hstack(Q)
 
 
+def neighbours_per_axis(i, cells, eps=None, centers=None):
+        """
+        """
+        if centers is None:
+                centers = np.vstack([ cells[j].center for j in cells.neighbours(i) ])
+
+        cell = cells[i]
+        center = cell.center
+        below = np.zeros((centers.shape[1], centers.shape[0]), dtype=bool)
+        above = np.zeros_like(below)
+
+        if eps is None:
+                # InferenceMAP-compatible gradient
+
+                if cells.adjacency.dtype == bool:
+                        # divide the space in non-overlapping region and
+                        # assign each neighbour to a single region;
+                        # assign each pair of symmetric regions to a single
+                        # dimension (gradient calculation)
+                        proj = centers - center[np.newaxis, :]
+                        assigned_dim = np.argmax(np.abs(proj), axis=1)
+                        proj_dist = proj[ np.arange(proj.shape[0]), assigned_dim ]
+                        for j in range(cell.dim):
+                                below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
+                                above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
+
+                elif cells.adjacency.dtype == int:
+                        # neighbour cells are already classified
+                        # as left (-1), right (1), top (2) or bottom (-2), etc
+                        # in the adjacency matrix
+                        code = cells.adjacency.data[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] - 1
+                        for j in range(cell.dim):
+                                below[ j, code == -j ] = True
+                                above[ j, code ==  j ] = True
+
+                else:
+                        raise TypeError('{} adjacency labels are not supported'.format(cells.adjacency.dtype))
+
+        else:
+                # along each dimension, divide the space in half-spaces
+                # minus margin `eps` (supposed to be positive)
+                for j in range(cell.dim):
+                        x, x0 = centers[:,j], center[j]
+                        below[ j, x < x0 - eps ] = True
+                        above[ j, x0 + eps < x ] = True
+
+        return below, above
+
+
 def grad1(cells, i, X, index_map=None, eps=None):
         """
         Local gradient by 2 degree polynomial interpolation along each dimension independently.
 
-        Claims cache variable *neighbours*.
+        Claims cache variable *grad1*.
 
-        Supports the InferenceMAP way of dividing the space in non-overlapping regions so that
-        each neighbour is involved in the calculation of a single component of the gradient.
+        Supports the InferenceMAP way of dividing the space in non-overlapping regions (quadrants in 2D)
+        so that each neighbour is involved in the calculation of a single component of the gradient.
+
         This is the default behaviour in cases where the `adjacent` attribute contains adequate
         labels, i.e. ``-j`` and ``j`` for each dimension ``j``, representing one side and the other
         side of cell-i's center.
         This is also the default behaviour otherwise, when `eps` is ``None``.
 
-        If `eps` is defined and the adjacency matrix also contains booleans, the calculation of a
-        gradient component may recruit all the points minus those at a projected distance less than this
-        value.
+        If `eps` is defined, the calculation of a gradient component may recruit all the points
+        minus those at a projected distance smaller than this value.
+
+        See also:
+
+                `neighbours_per_axis`.
 
         Arguments:
 
@@ -1653,7 +1714,8 @@ def grad1(cells, i, X, index_map=None, eps=None):
                         vector of a scalar measurement at every cell.
 
                 index_map (array):
-                        index map that converts cell indices to indices in X.
+                        index map that converts cell indices to indices in X;
+                        for a given cell, should be constant.
 
                 eps (float):
                         minimum projected distance from cell-i's center for neighbours to be considered
@@ -1669,12 +1731,15 @@ def grad1(cells, i, X, index_map=None, eps=None):
                         in the (trans-)location data.
         """
         cell = cells[i]
+        # below, the measurement is renamed y and the coordinates are X
+        y = X
+        X0 = cell.center
 
         # cache neighbours (indices and center locations)
         if not isinstance(cell.cache, dict):
                 cell.cache = {}
         try:
-                adjacent, centers, below, above = cell.cache['neighbours']
+                i, adjacent, X = cell.cache['grad1']
         except KeyError:
                 adjacent = _adjacent = cells.neighbours(i)
                 if index_map is not None:
@@ -1683,84 +1748,75 @@ def grad1(cells, i, X, index_map=None, eps=None):
                         assert np.all(ok)
                         #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
                 if _adjacent.size:
-                        centers = np.vstack([ cells[j].center for j in _adjacent ])
-                        center = cell.center
-                        below = np.zeros((centers.shape[1], centers.shape[0]), dtype=bool)
-                        above = np.zeros_like(below)
-                        if cells.adjacency.dtype == bool:
+                        X = np.vstack([ cells[j].center for j in _adjacent ])
+                        below, above = neighbours_per_axis(i, cells, eps, X)
 
-                                if eps is None:
-                                        # divide the space in non-overlapping region and
-                                        # assign each neighbour to a single region;
-                                        # assign each pair of symmetric regions to a single
-                                        # dimension (gradient calculation)
-                                        proj = centers - center[np.newaxis, :]
-                                        assigned_dim = np.argmax(np.abs(proj), axis=1)
-                                        proj_dist = proj[ np.arange(proj.shape[0]), assigned_dim ]
-                                        for j in range(cell.dim):
-                                                below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
-                                                above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
+                        # pre-compute the X terms for each dimension
+                        X_neighbours = []
+                        for j in range(cell.dim):
+                                u, v = below[j], above[j]
+                                if not np.any(u):
+                                        u = None
+                                if not np.any(v):
+                                        v = None
 
+                                if u is None:
+                                        if v is None:
+                                                Xj = None
+                                        else:
+                                                Xj = 1. / (X0[j] - np.mean(X[v,j]))
+                                elif v is None:
+                                        Xj = 1. / (X0[j] - np.mean(X[u,j]))
                                 else:
-                                        # along each dimension, divide the space in half-spaces
-                                        # minus margin `eps` (supposed to be positive)
-                                        for j in range(cell.dim):
-                                                x, x0 = centers[:,j], center[j]
-                                                below[ j, x < x0 - eps ] = True
-                                                above[ j, x0 + eps < x ] = True
+                                        Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
 
-                        elif cells.adjacency.dtype == int:
-                                # InferenceMAP-compatible gradient with neighbour cells
-                                # classified as left (-1), right (1), top (2) or bottom (-2);
-                                # applies to arbitrary dimensions
-                                code = cells.adjacency.data[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] - 1
-                                for j in range(cell.dim):
-                                        below[ j, code == -j ] = True
-                                        above[ j, code ==  j ] = True
+                                X_neighbours.append((u, v, Xj))
 
-                        else:
-                                raise TypeError('{} adjacency labels are not supported'.format(cells.adjacency.dtype))
+                        X = X_neighbours
                 else:
-                        centers = None
-                cell.cache['neighbours'] = (adjacent, centers, below, above)
+                        X = []
 
-        if adjacent.size == 0:
+                if index_map is not None:
+                        i = index_map[i]
+                cell.cache['grad1'] = (i, adjacent, X)
+
+        if not X:
                 return None
 
-        if index_map is not None:
-                i = index_map[i]
-
-        # below, the measurement is renamed y and the coordinates are X
-        y0, y = X[i], X[adjacent]
-        X0, X = cell.center, centers
+        y0, y = y[i], y[adjacent]
 
         # compute the gradient for each dimension separately
         grad = []
-        for j in range(cell.dim):
-                u, v = below[j], above[j]
-                if np.any(u):
-                        if np.any(v):
-                                grad_j = _vander(np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])],
-                                        np.r_[y0, np.mean(y[u]), np.mean(y[v])])
+        for u, v, Xj in X: # j= dimension index
+                #u, v, Xj= below, above, X term
+                if u is None:
+                        if v is None:
+                                grad_j = 0.
                         else:
-                                grad_j = (y0 - np.mean(y[u])) / (X0[j] - np.mean(X[u,j]))
-                elif np.any(v):
-                        grad_j = (y0 - np.mean(y[v])) / (X0[j] - np.mean(X[v,j]))
+                                # 1./Xj = X0[j] - np.mean(X[v,j])
+                                grad_j = (y0 - np.mean(y[v])) * Xj
+                elif v is None:
+                        # 1./Xj = X0[j] - np.mean(X[u,j])
+                        grad_j = (y0 - np.mean(y[u])) * Xj
                 else:
-                        grad_j = 0.
+                        # Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
+                        grad_j = _vander(Xj, np.r_[y0, np.mean(y[u]), np.mean(y[v])])
                 grad.append(grad_j)
 
         return np.asarray(grad)
 
 
 def _vander(x, y):
-        P = poly.polyfit(x, y, 2)
-        dP = poly.polyder(P)
-        return poly.polyval(x[0], dP)
+        #P = poly.polyfit(x, y, 2)
+        #dP = poly.polyder(P)
+        #return poly.polyval(x[0], dP)
+        _, b, a = poly.polyfit(x, y, 2)
+        return b + 2. * a * x[0]
 
 
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
         'identify_columns', 'get_locations', 'get_translocations', 'distributed',
-        'DiffusivityWarning', 'smooth_infer_init', 'grad1', 'gradn']
+        'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init',
+        'neighbours_per_axis', 'grad1', 'gradn']
 

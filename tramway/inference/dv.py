@@ -29,10 +29,11 @@ setup = {'arguments': OrderedDict((
                 ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
                 ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
                 ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
-                ('max_iter',            dict(type=int, help='maximum number of iterations')),
+                ('max_iter',            dict(type=int, help='maximum number of iterations (~100)')),
                 ('compatibility',       ('-c', '--inferencemap', '--compatible',
                                         dict(action='store_true', help='InferenceMAP compatible'))),
                 ('epsilon',             dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
+                ('grad',                dict(help="gradient; any of 'grad1', 'gradn'")),
                 ('export_centers',      dict(action='store_true')),
                 ('verbose',             ()))),
         'cell_sampling': 'group'}
@@ -83,7 +84,7 @@ class DV(ChainArray):
 
 
 def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
-                index, reverse_index, grad_kwargs, verbose):
+                index, reverse_index, grad_kwargs, y0, verbose):
         """
         Adapted from InferenceMAP's *dvPosterior* procedure modified:
 
@@ -182,7 +183,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
         if verbose:
                 print('objective: {}\t time: {}ms'.format(result, int(round((time.time() - t) * 1e3))))
 
-        return result
+        return result - y0
 
 
 def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_prior=None, \
@@ -211,31 +212,44 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                 grad_kwargs['eps'] = epsilon
 
         # parametrize the optimization algorithm
-        default_BFGS_options = dict(eps=1e-8, gtol=1e-10, maxiter=1e5) # the important option here
-        # is maxiter (should be 1e5 or more especially if V is initialize on the sole basis of n)
+        default_BFGS_options = dict(maxcor=dv.combined.size, ftol=1e-8, maxiter=1e3,
+                disp=verbose)
         options = kwargs.pop('options', default_BFGS_options)
         if max_iter:
                 options['maxiter'] = max_iter
         V_bounds = [(None, None)] * V_initial.size
-        if min_diffusivity is None:
+        if min_diffusivity is None: # currently, cannot be None
                 bounds = None
         else:
                 bounds = D_bounds + V_bounds
-                options['maxfun'] = options.pop('maxiter') # L-BFGS-B ignores maxiter and admits maxfun instead
+                options['maxfun'] = 1e10
+                # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
+                # function evaluations is much higher (~1e4-1e5);
+                # with maxfun defined, an iteration can stop anytime and the optimization may terminate
+                # with an error message
         options.update(kwargs)
 
-        # run the optimization routine
+        # posterior function input arguments
         squared_localization_error = localization_error * localization_error
         args = (dv, cells, squared_localization_error, jeffreys_prior, dt_mean,
-                        index, reverse_index, grad_kwargs, verbose)
+                        index, reverse_index, grad_kwargs)
+
+        # get the initial posterior value so that it is subtracted from the further evaluations
+        x0 = dv_neg_posterior(dv.combined, *(args + (0., False)))
+        if verbose:
+                print('At X0\tactual posterior= {}\n'.format(x0))
+        args = args + (x0, 1 < int(verbose))
+
+        # run the optimization routine
         result = minimize(dv_neg_posterior, dv.combined, args=args, bounds=bounds, options=options)
+        if not (result.success or verbose):
+                warn('{}'.format(result.message), OptimizationWarning)
 
         # collect the result
-        if not result.success and verbose:
-                warn('{}'.format(result.message), RuntimeWarning)
-                #print(dv_neg_posterior(result.x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, index, reverse_index))
         dv.update(result.x)
         D, V = dv.D, dv.V
+        if np.any(V < 0):
+                V -= np.min(V)
         DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
                 columns=[ 'diffusivity', 'potential'])
 

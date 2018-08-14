@@ -15,9 +15,9 @@
 import os
 import numpy as np
 import pandas as pd
-import scipy.linalg as la
 import scipy.sparse as sparse
 from ..core import *
+from ..core.hdf5 import *
 from ..tessellation import *
 from warnings import warn
 import six
@@ -169,6 +169,9 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         methods for more information.
 
         """
+        if verbose:
+                plugins.verbose = True
+
         compress = True
         if inplace:
                 labels_exclusive = ValueError("multiple different values in exclusive arguments 'label', 'input_label' and 'output_label'")
@@ -208,6 +211,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         except (KeyboardInterrupt, SystemExit):
                                 raise
                         except:
+                                #traceback.print_exc()
                                 xyt_file = xyt_data
                         else:
                                 xyt_file = False
@@ -797,7 +801,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                         i = i[0 < label[k]]
                         j = j[0 < label[k]]
                 pts = cells.tessellation.cell_centers
-                dist = la.norm(pts[i,:] - pts[j,:], axis=1)
+                dist = pts[i,:] - pts[j,:]
+                dist = np.sqrt(np.sum(dist * dist, axis=1))
                 fig = mplt.figure()
                 figs.append(fig)
                 mplt.hist(np.log(dist), bins=50)

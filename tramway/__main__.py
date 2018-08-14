@@ -18,6 +18,7 @@ try:
 except ImportError:
         from configparser import ConfigParser
 import sys
+from tramway.core.plugin import *
 import tramway.tessellation as tessellation
 import tramway.inference as inference
 import tramway.feature as feature
@@ -231,6 +232,23 @@ def _curl(args):
 
 
 def main():
+        verbose = '--verbose' in sys.argv
+        if not verbose:
+                try:
+                        k = sys.argv.index('-v')
+                except ValueError:
+                        pass
+                else:
+                        # note that '-v' may not be the verbose flag
+                        # if it appears after the first command (i.e. tessellate, infer);
+                        # exclude one such known case by testing the argument that comes next:
+                        try:
+                                float(sys.argv[k+1])
+                        except (ValueError, IndexError):
+                                verbose = True
+        if verbose:
+                tessellation.plugins.verbose = inference.plugins.verbose = True
+
         parser = argparse.ArgumentParser(prog='tramway',
                 description='TRamWAy central command.',
                 epilog='See also https://github.com/DecBayComp/TRamWAy',
@@ -247,78 +265,86 @@ def main():
 
 
         # tessellate
+        tessellate_name = 'tessellate'
+        tessellate_aliases = ['sample']
+        load_tessellate_plugins = tessellate_name in sys.argv
         try:
-                tessellate_parser = sub.add_parser('tessellate', aliases=['sample'])
+                tessellate_parser = sub.add_parser(tessellate_name, aliases=tessellate_aliases)
         except TypeError: # Py2
-                tessellate_parser = sub.add_parser('tessellate')
+                tessellate_parser = sub.add_parser(tessellate_name)
+        else:
+                if not load_tessellate_plugins:
+                        load_tessellate_plugins = any(alias in sys.argv for alias in tessellate_aliases)
         tsub = tessellate_parser.add_subparsers(title='methods', \
                 description="type '%(prog)s sample method --help' for additional help about method")
-        for method in tessellation.plugins:
-                method_parser = tsub.add_parser(method)
-                setup, _ = tessellation.plugins[method]
-                short_args = short_options(setup.get('make_arguments', {}))
-                for short_arg, long_arg, kwargs in global_arguments:
-                        dest = short_arg[1:] + 'post'
-                        if short_arg in short_args:
-                                method_parser.add_argument(long_arg, dest=dest, **kwargs)
-                        else:
-                                method_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
-                method_parser.add_argument('-l', '--label', '--output-label', help='output label')
-                method_parser.add_argument('--comment', help='description message')
-                method_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
-                method_parser.add_argument('--inplace', action='store_true', \
-                        help='replace the input sampling by the output one (only when --input-label is defined)')
-                method_parser.add_argument('-n', '--knn', '--min-nn', '--knn-min', type=int, \
-                        help='minimum number of nearest neighbors; cells can overlap')
-                method_parser.add_argument('-N', '--max-nn', '--knn-max', type=int, \
-                        help='maximum number of nearest neighbors')
-                method_parser.add_argument('-d', '--distance', type=float, help='reference distance (default is the average translocation distance)')
-                method_group = method_parser.add_mutually_exclusive_group()
-                method_group.add_argument('-w', action='store_true', help='whiten the input data')
-                method_group.add_argument('--scaling', choices=['whiten', 'unit'])
-                method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
-                        help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn and -ss for partition-related parameters')
-                method_parser.add_argument('-ss', '--strict-min-location-count', type=int, \
-                        metavar='MIN_LOCATION_COUNT', \
-                        help='minimum number of locations per cell; this is enforced at partition time; cells with insufficient locations are discarded and not compensated for')
-                method_parser.add_argument('--seed', nargs='?', default=False, \
-                        help='random generator seed (for testing purposes)')
-                translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
-                try:
-                        method_parser.add_argument('input_file', nargs='*', help='path to input file(s)')
-                except:
-                        pass
-                method_parser.set_defaults(func=_sample(method, translations))
+        if load_tessellate_plugins:
+                for method in tessellation.plugins:
+                        method_parser = tsub.add_parser(method)
+                        setup, _ = tessellation.plugins[method]
+                        short_args = short_options(setup.get('make_arguments', {}))
+                        for short_arg, long_arg, kwargs in global_arguments:
+                                dest = short_arg[1:] + 'post'
+                                if short_arg in short_args:
+                                        method_parser.add_argument(long_arg, dest=dest, **kwargs)
+                                else:
+                                        method_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
+                        method_parser.add_argument('-l', '--label', '--output-label', help='output label')
+                        method_parser.add_argument('--comment', help='description message')
+                        method_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+                        method_parser.add_argument('--inplace', action='store_true', \
+                                help='replace the input sampling by the output one (only when --input-label is defined)')
+                        method_parser.add_argument('-n', '--knn', '--min-nn', '--knn-min', type=int, \
+                                help='minimum number of nearest neighbors; cells can overlap')
+                        method_parser.add_argument('-N', '--max-nn', '--knn-max', type=int, \
+                                help='maximum number of nearest neighbors')
+                        method_parser.add_argument('-d', '--distance', type=float, help='reference distance (default is the average translocation distance)')
+                        method_group = method_parser.add_mutually_exclusive_group()
+                        method_group.add_argument('-w', action='store_true', help='whiten the input data')
+                        method_group.add_argument('--scaling', choices=['whiten', 'unit'])
+                        method_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
+                                help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn and -ss for partition-related parameters')
+                        method_parser.add_argument('-ss', '--strict-min-location-count', type=int, \
+                                metavar='MIN_LOCATION_COUNT', \
+                                help='minimum number of locations per cell; this is enforced at partition time; cells with insufficient locations are discarded and not compensated for')
+                        method_parser.add_argument('--seed', nargs='?', default=False, \
+                                help='random generator seed (for testing purposes)')
+                        translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
+                        try:
+                                method_parser.add_argument('input_file', nargs='*', help='path to input file(s)')
+                        except:
+                                pass
+                        method_parser.set_defaults(func=_sample(method, translations))
 
 
         # infer
         infer_parser = sub.add_parser('infer') #, conflict_handler='resolve'
         isub = infer_parser.add_subparsers(title='modes', \
                 description="type '%(prog)s infer mode --help' for additional help about mode")
-        for mode in inference.plugins:
-                mode_parser = isub.add_parser(mode)
-                setup, _ = inference.plugins[mode]
-                short_args = short_options(setup.get('arguments', {}))
-                for short_arg, long_arg, kwargs in global_arguments:
-                        dest = short_arg[1:] + 'post'
-                        if short_arg in short_args:
-                                mode_parser.add_argument(long_arg, dest=dest, **kwargs)
-                        else:
-                                mode_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
-                mode_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
-                mode_parser.add_argument('-l', '--output-label', help='output label')
-                mode_parser.add_argument('--comment', help='description message for the output artefact')
-                try:
-                        translations = add_arguments(mode_parser, setup['arguments'], name=mode)
-                except KeyError:
-                        translations = None
-                mode_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
-                mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
-                try:
-                        mode_parser.add_argument('input_file', nargs='?', help='path to input file')
-                except:
-                        pass
-                mode_parser.set_defaults(func=_infer(mode, translations))
+        if 'infer' in sys.argv:
+                for mode in inference.plugins:
+                        mode_parser = isub.add_parser(mode)
+                        setup, _ = inference.plugins[mode]
+                        short_args = short_options(setup.get('arguments', {}))
+                        for short_arg, long_arg, kwargs in global_arguments:
+                                dest = short_arg[1:] + 'post'
+                                if short_arg in short_args:
+                                        mode_parser.add_argument(long_arg, dest=dest, **kwargs)
+                                else:
+                                        mode_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
+                        mode_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+                        mode_parser.add_argument('-l', '--output-label', help='output label')
+                        mode_parser.add_argument('--comment', help='description message for the output artefact')
+                        try:
+                                translations = add_arguments(mode_parser, setup['arguments'], name=mode)
+                        except KeyError:
+                                translations = None
+                        mode_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
+                        mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
+                        try:
+                                mode_parser.add_argument('input_file', nargs='?', help='path to input file')
+                        except:
+                                pass
+                        mode_parser.set_defaults(func=_infer(mode, translations))
 
 
         # dump analysis tree
@@ -389,6 +415,8 @@ def main():
         map_parser.add_argument('-cm', '--colormap', help='colormap name (see https://matplotlib.org/users/colormaps.html)')
         map_parser.add_argument('-c', '--clip', type=float, nargs='?', default=0., help='clip map by absolute values; clipping threshold can be specified as a number of interquartile distances above the median')
         map_parser.add_argument('-cb', '--colorbar', action='store_false', help='do not plot colorbar')
+        map_parser.add_argument('--xlim', type=float, nargs='+', help='space-separated couple of limit values for the x axis')
+        map_parser.add_argument('--ylim', type=float, nargs='+', help='space-separated couple of limit values for the y axis')
         map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
         try:
                 map_parser.add_argument('input_file', nargs='?', help='path to input file')

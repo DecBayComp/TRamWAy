@@ -74,3 +74,10 @@ def splitcoord(varnames):
                         vs[v].append(v)
         return vs
 
+
+__all__ = [
+        'isstructured',
+        'columns',
+        'splitcoord',
+        ]
+

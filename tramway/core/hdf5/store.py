@@ -15,15 +15,18 @@
 from rwa import HDF5Store, lazytype, lazyvalue
 from ..lazy import Lazy
 from ..analyses import Analyses, coerce_labels, format_analyses
-from copy import copy
+#from copy import copy
 import os.path
 import traceback
+import errno
 
 try:
         input = raw_input # Py2
 except NameError:
         pass
 
+
+__all__ = ['RWAStore', 'load_rwa', 'save_rwa']
 
 
 class RWAStore(HDF5Store):
@@ -51,7 +54,9 @@ class RWAStore(HDF5Store):
                         # set lazy attributes to None (unset them so that memory is freed)
                         #obj = copy(obj) # this causes a weird bug
                         for name in obj.__lazy__:
-                                if obj._lazy[name]:
+                                # `_lazy` should contain `name`;
+                                # if it is not, the object definition has changed
+                                if obj._lazy.get(name, True):
                                         setattr(obj, obj.__fromlazy__(name), None)
                 HDF5Store.poke(self, objname, obj, container, visited)
                 if unload is not None:
@@ -60,12 +65,6 @@ class RWAStore(HDF5Store):
 
 
 def load_rwa(path, verbose=None):
-        if not os.path.exists(path):
-                try:
-                        raise FileNotFoundError(path)
-                except NameError:
-                        import errno
-                        raise OSError(errno.ENOENT, path)
         try:
                 hdf = RWAStore(path, 'r')
                 #hdf._default_lazy = PermissivePeek
@@ -81,7 +80,9 @@ def load_rwa(path, verbose=None):
                 finally:
                         hdf.close()
         except EnvironmentError as e:
-                if e.args[1:]:
+                if hasattr(e, 'errno') and e.errno == errno.ENOENT:
+                        raise
+                elif e.args[1:]:
                         if verbose:
                                 print(traceback.format_exc())
                         raise OSError('HDF5 libraries may not be installed')
@@ -91,15 +92,23 @@ def load_rwa(path, verbose=None):
 
 
 
-def save_rwa(path, analyses, verbose=False, force=False, compress=True):
+def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=False):
         if not isinstance(analyses, Analyses):
                 raise TypeError('`analyses` is not an `Analyses` instance')
-        if not force and os.path.isfile(path):
-                answer = input("overwrite file '{}': [N/y] ".format(path))
-                if not (answer and answer[0].lower() == 'y'):
-                        return
+        if os.path.isfile(path):
+                if append:
+                        extra_analyses = analyses
+                        analyses = load_rwa(path)
+                        append_leaf(analyses, extra_analyses)
+                elif not force:
+                        answer = input("overwrite file '{}': [N/y] ".format(path))
+                        if not (answer and answer[0].lower() == 'y'):
+                                return
+        elif append:
+                if verbose:
+                        print('file not found; flushing all the analyses')
         try:
-                store = RWAStore(path, 'w', int(verbose) - 1 if verbose else False)
+                store = RWAStore(path, 'w', max(0, int(verbose) - 2))
                 try:
                         store.unload = compress
                         if verbose:
@@ -107,10 +116,13 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True):
                         store.poke('analyses', analyses)
                 finally:
                         store.close()
-        except EnvironmentError:
+        except EnvironmentError as e:
+                if hasattr(e, 'errno') and e.errno == errno.ENOENT:
+                        raise
                 print(traceback.format_exc())
                 raise ImportError('HDF5 libraries may not be installed')
-        if verbose:
+        if 1 < int(verbose):
                 print('written analysis tree:')
                 print(format_analyses(analyses, global_prefix='\t', node=lazytype))
+
 

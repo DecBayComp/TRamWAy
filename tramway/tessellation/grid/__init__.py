@@ -217,6 +217,7 @@ setup = {
                 ('max_probability', ()),
                 ('min_distance', ()),
                 ('avg_distance', ()),
+                # avg_location_count allows to control avg_probability from the commandline
                 ('avg_location_count', dict(args=('-c', '--location-count'), kwargs=dict(type=int, default=80, help='average number of locations per cell'), translate=True)),
                 )),
         }

@@ -12,6 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
+from __future__ import print_function
 import importlib
 import copy
 import os
@@ -21,17 +22,23 @@ try:
 except AttributeError: # Py2
         fullmatch = re.match
 from warnings import warn
+import traceback
 
 
-def list_plugins(dirname, package, lookup={}, force=False, require=None):
+def list_plugins(dirname, package, lookup={}, force=False, require=None, verbose=False):
+        if verbose:
+                _pre = 'loading: '
+                _post = '...'
+                _success = '[done]'
+                _failure = '[failed]'
         if not require:
                 require = ()
         elif isinstance(require, str):
                 require = (require,)
         pattern = re.compile(r'[a-zA-Z0-9].*([.]py)?')
-        candidate_modules = [ os.path.splitext(fn)[0] \
+        candidate_modules = set([ os.path.splitext(fn)[0] \
                 for fn in os.listdir(dirname) \
-                if fullmatch(pattern, fn) is not None ]
+                if fullmatch(pattern, fn) is not None ])
         modules = {}
         provided = {}
         for name in candidate_modules:
@@ -39,7 +46,12 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None):
                 # load module
                 try:
                         module = importlib.import_module(path)
+                except (KeyboardInterrupt, SystemExit):
+                        raise
                 except:
+                        if verbose:
+                                print('{}{}{}\t{}'.format(_pre, path, _post, _failure))
+                                print(traceback.format_exc(), end='')
                         continue
                 # ensure that all the required attributes are available
                 _continue = False
@@ -48,6 +60,8 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None):
                                 _continue = True
                                 break
                 if _continue:   continue
+                elif verbose:
+                        print('{}{}{}'.format(_pre, path, _post), end='\t')
                 # parse setup
                 if hasattr(module, 'setup'):
                         setup = module.setup
@@ -63,6 +77,7 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None):
                 except AttributeError:
                         namespace = list(module.__dict__.keys())
                 missing = conflicting = None
+                warning = []
                 for key in lookup:
                         if key in setup:
                                 continue
@@ -90,13 +105,22 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None):
                                 if not force:
                                         break
                 if conflicting:
-                        warn("multiple matches in module '{}' for key '{}'".format(path, conflicting), ImportWarning)
+                        warning.append(("multiple matches in module '{}' for key '{}'".format(path, conflicting), ImportWarning))
                         if not force:
                                 continue
                 if missing:
-                        warn("no match in module '{}' for key '{}'".format(path, missing), ImportWarning)
-                        if not force:
-                                continue
+                        warning.append(("no match in module '{}' for key '{}'".format(path, missing), ImportWarning))
+                        if verbose:
+                                if force:
+                                        print(_success)
+                                else:
+                                        print(_failure)
+                elif verbose:
+                        print(_success)
+                for w in warning:
+                        warn(*w)
+                if missing and not force:
+                        continue
                 # register plugin
                 plugin = (setup, module)
                 if isinstance(name, str):
@@ -171,6 +195,8 @@ def add_arguments(parser, arguments, name=None):
                                 args = (long_arg,)
                 try:
                         parser.add_argument(*args, **kwargs)
+                except (KeyboardInterrupt, SystemExit):
+                        raise
                 except:
                         if name:
                                 print("WARNING: option `{}` from plugin '{}' ignored".format(arg, name))
@@ -195,4 +221,93 @@ def short_options(arguments):
                                 if arg[0] != arg[1]:
                                         _options.append(arg)
         return _options
+
+
+class Plugins(object):
+
+        __slots__ = ('modules', 'dirname', 'package', 'lookup', 'force', 'require', 'verbose', 'post_load')
+
+        def __init__(self, dirname, package, lookup={}, force=False, require=None, verbose=False):
+                self.modules = None
+                self.dirname = dirname
+                self.package = package
+                self.lookup = lookup
+                self.force = force
+                self.require = require
+                self.verbose = verbose
+                self.post_load = None
+
+        def __load__(self):
+                if self.modules is None:
+                        self.modules = list_plugins(
+                                self.dirname,
+                                self.package,
+                                self.lookup,
+                                self.force,
+                                self.require,
+                                self.verbose,
+                                )
+                        if self.post_load:
+                                self.post_load(self)
+
+        def __repr__(self):
+                return 'Plugins{{in \'{}\'}}{}'.format(self.package, '{(not loaded)}' if self.modules is None else repr(self.modules))
+
+        def __nonzero__(self):
+                self.__load__()
+                return self.modules.__nonzero__()
+
+        def __len__(self):
+                self.__load__()
+                return self.modules.__len__()
+
+        def __iter__(self):
+                self.__load__()
+                return self.modules.__iter__()
+
+        def __getitem__(self, mod):
+                self.__load__()
+                return self.modules.__getitem__(mod)
+
+        def __setitem__(self, mod, descr):
+                self.__load__()
+                self.modules.__setitem__(mod, descr)
+
+        def __missing__(self, mod):
+                self.__load__()
+                return self.modules.__missing__(mod)
+
+        def keys(self):
+                self.__load__()
+                return self.modules.keys()
+
+        def values(self):
+                self.__load__()
+                return self.modules.values()
+
+        def items(self):
+                self.__load__()
+                return self.modules.items()
+
+        def get(self, mod, default):
+                self.__load__()
+                return self.modules.get(mod, default)
+
+        def pop(self, mod, default):
+                self.__load__()
+                return self.modules.pop(mod, default)
+
+        def update(self, plugins):
+                self.__load__()
+                if not isinstance(plugins, dict):
+                        raise TypeError('not a `dict`')
+                self.modules.update(plugins)
+
+
+__all__ = [
+        'list_plugins',
+        'add_arguments',
+        'short_options',
+        'Plugins',
+        ]
 
