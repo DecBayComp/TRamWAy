@@ -578,7 +578,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, \
         location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
         aspect=None, delaunay=None, locations={}, voronoi=None, colors=None, title=None, \
-        cell_indices=None, segment=None, label=None, input_label=None):
+        cell_indices=None, segment=None, label=None, input_label=None, num = None):
         """
         Partition plots.
 
@@ -652,6 +652,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
                 segment (int):
                         Segment index; if multiple time segments were defined, show only one segment.
+                        
+                num (int):
+                    Figure number. Default: None (new figure for each call).
 
         Notes:
                 See also :mod:`tramway.plot.mesh`.
@@ -828,7 +831,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 except AttributeError:
                         raise e
         if dim == 2:
-                fig = mplt.figure(figsize=figsize)
+                fig = mplt.figure(figsize=figsize, num = num)
                 figs.append(fig)
                 if locations is not None:
                         if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
