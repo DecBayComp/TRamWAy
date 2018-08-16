@@ -17,3 +17,12 @@ tramway.utils.contour module
     :show-inheritance:
 
 
+tramway.utils.inferencemap module
+---------------------------------
+
+.. automodule:: tramway.utils.inferencemap
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+

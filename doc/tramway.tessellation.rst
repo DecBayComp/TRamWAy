@@ -33,6 +33,15 @@ tramway.tessellation.gwr plugin
     :undoc-members:
 
 
+tramway.tessellation.hexagon plugin
+-----------------------------------
+
+.. automodule:: tramway.tessellation.hexagon
+    :members:
+    :show-inheritance:
+    :undoc-members:
+
+
 tramway.tessellation.kdtree plugin
 ----------------------------------
 
@@ -58,6 +67,15 @@ tramway.tessellation.nesting module
     :show-inheritance:
     :undoc-members:   :undoc-members:
  
+
+tramway.tessellation.random plugin
+----------------------------------
+
+.. automodule:: tramway.tessellation.random
+    :members:
+    :show-inheritance:
+    :undoc-members:
+
 
 tramway.tessellation.time module
 --------------------------------

@@ -15,16 +15,16 @@
 from .base import *
 from .time import *
 from .nesting import *
-from tramway.core.plugin import list_plugins
+from tramway.core.plugin import Plugins
 import os.path
 
 
 try:
-	from .grid import RegularMesh
+        from .grid import RegularMesh
 except ImportError:
-	pass
+        pass
 
 
-plugins = list_plugins(os.path.dirname(__file__), __package__, \
-	{'make': Tessellation}, require='setup')
+plugins = Plugins(os.path.dirname(__file__), __package__, \
+        {'make': Tessellation}, require='setup')
 
