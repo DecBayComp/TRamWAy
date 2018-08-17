@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -31,7 +31,7 @@ class KMeansMesh(Voronoi):
 
                 avg_probability (float): probability of a point to be in a given cell (controls the
                         number of cells and indirectly their size).
-        
+
         Other Attributes:
 
                 _min_distance (float): scaled minimum distance between adjacent cell centers;
@@ -77,7 +77,7 @@ class KMeansMesh(Voronoi):
 
                 Attributes:
                         points: see :meth:`~tramway.tessellation.base.Tessellation.tessellate`.
-                        tol (float): error tolerance. 
+                        tol (float): error tolerance.
                                 Passed as `thresh` to :func:`scipy.cluster.vq.kmeans`.
                         prune (bool or float): prunes the Voronoi and removes the edges which length
                                 is greater than `prune` times the median edge length;

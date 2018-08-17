@@ -1747,6 +1747,9 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
                 # check cell i has neighbours
                 try:
                         adjacent = cells.adjacency.indices[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]]
+                        adjacent = [ c for c in adjacent if cells[c] ]
+                        if not adjacent:
+                                continue
                 except ValueError:
                         continue
 
@@ -1763,19 +1766,25 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
                 D_initial.append(D_initial_i)
 
                 # border
-                if cell.center is None:
-                        warn('missing cell center', RuntimeWarning)
-                        border.append(np.zeros(cell.dim, dtype=np.bool_))
-                else:
-                        adjacent = np.vstack([ cells[c].center for c in adjacent if cells[c] ])
-                        border.append(np.logical_or(
-                                np.max(adjacent, axis=0) <= cell.center,
-                                cell.center <= np.min(adjacent, axis=0)
-                                )) # to be improved
+                try:
+                        if cell.center is None:
+                                warn('missing cell center', RuntimeWarning)
+                                border.append(np.zeros(cell.dim, dtype=np.bool_))
+                        else:
+                                adjacent = np.vstack([ cells[c].center for c in adjacent if cells[c] ])
+                                border.append(np.logical_or(
+                                        np.max(adjacent, axis=0) <= cell.center,
+                                        cell.center <= np.min(adjacent, axis=0)
+                                        )) # to be improved
+                except ValueError:
+                        border.append(None)
 
         n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
         D_bounds = [(min_diffusivity, None)] * D_initial.size
-        border = np.vstack(border)
+        try:
+                border = np.vstack(border)
+        except:
+                border = None
 
         return index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border
 

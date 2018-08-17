@@ -220,8 +220,9 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                 grad_kwargs['eps'] = epsilon
 
         # parametrize the optimization algorithm
-        default_BFGS_options = dict(maxcor=dv.combined.size, ftol=1e-8, maxiter=1e3,
-                disp=verbose)
+        default_BFGS_options = dict(maxiter=1e3, disp=verbose)
+        if min_diffusivity not in (False, None):
+                default_BFGS_options.update(dict(maxcor=dv.combined.size, ftol=1e-8))
         #default_BFGS_options = dict(maxiter=1e3, disp=verbose)
         options = kwargs.pop('options', default_BFGS_options)
         if max_iter:
