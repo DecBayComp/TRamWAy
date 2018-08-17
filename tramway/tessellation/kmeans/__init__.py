@@ -68,6 +68,16 @@ class KMeansMesh(Voronoi):
                                 raise ValueError('avg_probability (or avg_location_count) not defined')
                         self._cell_centers = np.random.rand(n_cells, points.shape[1])
                         self._cell_centers = self._cell_centers * (upper_bound - lower_bound) + lower_bound
+                elif self.initial == 'center':
+                        lower_bound = np.asarray(points).min(axis=0, keepdims=True)
+                        upper_bound = np.asarray(points).max(axis=0, keepdims=True)
+                        center = np.asarray(points).mean(axis=0, keepdims=True)
+                        if self.avg_probability:
+                                n_cells = int(round(1. / self.avg_probability))
+                        else:
+                                raise ValueError('avg_probability (or avg_location_count) not defined')
+                        self._cell_centers = np.random.randn(n_cells, points.shape[1])
+                        self._cell_centers = self._cell_centers * (1e-3 * (upper_bound - lower_bound)) + center
                 self.roi_subset_size = 10000
                 self.roi_subset_count = 10
                 return points
