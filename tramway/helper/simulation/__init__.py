@@ -1,4 +1,4 @@
 
-from functional import random_walk, truth
-from categoricaltrap import random_walk_2d
+from .functional import random_walk, truth
+from .categoricaltrap import random_walk_2d
 

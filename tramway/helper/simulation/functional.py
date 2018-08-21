@@ -25,6 +25,9 @@ def random_walk(diffusivity=None, force=None,
         """
         Generate random walks.
 
+        Consider the alternative generator :func:`~tramway.helper.simulation.categoricaltrap.random_walk_2d`
+        that has been better validated.
+
         Arguments:
 
                 diffusivity (callable): takes a coordinate vector (array-like) and time (float)
