@@ -164,7 +164,7 @@ class Distributed(Local):
         def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
                 boundary=None):
                 Local.__init__(self, index, OrderedDict(), center, span, boundary)
-                self.cells = cells # let's `cells` setter perform the necessary checks 
+                self.cells = cells # let's `cells` setter perform the necessary checks
                 self.adjacency = adjacency
                 self.central = central
 
@@ -173,8 +173,8 @@ class Distributed(Local):
                 """
                 `list` or `OrderedDict`, rw property for :attr:`data`
 
-                Collection of :class:`Local`. Indices may not match with the global 
-                :attr:`~Local.index` attribute of the elements, but match with attributes 
+                Collection of :class:`Local`. Indices may not match with the global
+                :attr:`~Local.index` attribute of the elements, but match with attributes
                 :attr:`central`, :attr:`adjacency` and :attr:`degree`.
                 """
                 return self.data
@@ -350,7 +350,7 @@ class Distributed(Local):
                                 local gradient.
 
                         index_map (array):
-                                index mapping, useful to convert cell indices to positional indices in 
+                                index mapping, useful to convert cell indices to positional indices in
                                 an optimization array for example.
 
                 Returns:
@@ -996,7 +996,7 @@ class Translocations(Cell):
                 """
                 `array-like`, property
 
-                Translocations as a matrix of variations of coordinate and time with as many 
+                Translocations as a matrix of variations of coordinate and time with as many
                 columns as dimensions; this is an alias for :attr:`~Local.data`.
                 """
                 return self.data
@@ -1463,6 +1463,8 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         space_cols = np.ones(cells.points.shape[1], dtype=bool)
                         space_cols[time_col] = False
                         space_cols, = space_cols.nonzero()
+        if cells.tessellation.scaler is not None and cells.tessellation.scaler.columns is not None:
+                space_cols = cells.tessellation.scaler.columns
 
         # pre-select cells
         if cells.tessellation.cell_label is None:
@@ -1564,6 +1566,87 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         self.ccount = self.adjacency.shape[0]
 
         return self
+
+
+
+class DistributeMerge(Distributed):
+
+        __slots__ = ('merged', )
+
+        def __init__(self, cells, adjacency, min_location_count=None):
+                if min_location_count is None:
+                        raise ValueError('`min_location_count` is not defined')
+                Distributed.__init__(self, cells, adjacency)
+                count = np.array([ len(cells[i]) for i in cells ])
+                index, = (count < min_location_count).nonzero()
+                ordered_index = np.argsort(count[index])
+                ordered_index = index[ordered_index]
+                index = set(index)
+                merged = dict()
+                for i in ordered_index[::-1]:
+                        js = [ j for j in self.neighbours(i).tolist() if j not in index ]
+                        if not js:
+                                warn('no neighbours', RuntimeWarning)
+                                continue
+                        dr = np.vstack([ cells[j].center for j in js ]) - cells[i].center#[np.newaxis,:]
+                        j = js[np.argmin(np.sum(dr * dr, axis=1))]
+                        j = merged.get(j, j)
+                        # merge cells i and j
+                        # attributes: center(?),time_data,space_data,span,boundary,fuzzy,origins,destinations
+                        cells[j].data = (np.vstack((cells[j].space_data, cells[i].space_data)),
+                                        np.r_[cells[j].time_data, cells[i].time_data])
+                        if cells[j].span is not None:
+                                try:
+                                        cells[j].span = np.vstack((cells[j].span, cells[i].span))
+                                except (AttributeError, TypeError):
+                                        pass
+                        if cells[j].boundary is not None:
+                                # cannot merge properly
+                                try:
+                                        cells[j].boundary = np.vstack((cells[j].boundary, cells[i].boundary))
+                                except (AttributeError, TypeError):
+                                        pass
+                        try:
+                                cells[j].fuzzy = np.r_[cells[j].fuzzy, cells[i].fuzzy]
+                        except (AttributeError, ValueError):
+                                pass
+                        try:
+                                cells[j].origins = np.vstack((cells[j].origins, cells[i].origins))
+                                cells[j].destinations = np.vstack((cells[j].destinations, cells[i].destinations))
+                        except AttributeError:
+                                pass
+                        #
+                        merged[i] = j
+                        index.remove(i)
+                # clear and register the merged cells
+                discarded = set(ordered_index)
+                self.cells = type(cells)([(i, cells[i]) for i in cells if i not in discarded])
+                self.merged = dict()
+                for i, j in merged.items():
+                        try:
+                                self.merged[j].add(i)
+                        except KeyError:
+                                self.merged[j] = set([i])
+                # modify the adjacency matrix
+                adjacency = sparse.lil_matrix(adjacency.shape, dtype=adjacency.dtype)
+                for i in range(adjacency.shape[0]):
+                        if i in discarded:
+                                continue
+                        js = set(self.neighbours(i).tolist())
+                        try:
+                                ks = self.merged[i]
+                        except KeyError:
+                                pass
+                        else:
+                                for k in ks:
+                                        js |= set(self.neighbours(k).tolist())
+                        js -= discarded
+                        for j in js:
+                                adjacency[i,j] = True
+                                adjacency[j,i] = True
+                self.adjacency = adjacency.tocsr()
+                assert set(self.cells.keys()) == set((self.adjacency.indptr[1:] - self.adjacency.indptr[:-1]).nonzero()[0].tolist())
+                assert set(self.cells.keys()) == set(self.adjacency.indices.tolist())
 
 
 class Maps(Lazy):
@@ -2108,6 +2191,7 @@ def _vander(x, y):
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
         'identify_columns', 'get_locations', 'get_translocations', 'distributed',
+        'DistributeMerge',
         'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init',
         'neighbours_per_axis', 'grad1', 'gradn']
 

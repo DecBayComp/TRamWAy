@@ -19,7 +19,7 @@ from math import *
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
-from scipy.cluster.vq import kmeans
+from scipy.cluster.vq import kmeans, kmeans2
 from scipy.spatial.distance import cdist
 from collections import OrderedDict
 
@@ -47,7 +47,7 @@ class KMeansMesh(Voronoi):
                 self._min_distance = min_distance
                 self.initial = initial
 
-        def _preprocess(self, points):
+        def _preprocess(self, points, **kwargs):
                 init = self.scaler.init
                 points = Voronoi._preprocess(self, points)
                 if init and self._min_distance is not None:
@@ -69,15 +69,17 @@ class KMeansMesh(Voronoi):
                         self._cell_centers = np.random.rand(n_cells, points.shape[1])
                         self._cell_centers = self._cell_centers * (upper_bound - lower_bound) + lower_bound
                 elif self.initial == 'center':
-                        lower_bound = np.asarray(points).min(axis=0, keepdims=True)
-                        upper_bound = np.asarray(points).max(axis=0, keepdims=True)
-                        center = np.asarray(points).mean(axis=0, keepdims=True)
+                        initial_spread = kwargs.pop('initial_spread', 1e-2)
+                        points = np.asarray(points)
+                        lower_bound = points.min(axis=0, keepdims=True)
+                        upper_bound = points.max(axis=0, keepdims=True)
+                        center = points.mean(axis=0, keepdims=True)
                         if self.avg_probability:
                                 n_cells = int(round(1. / self.avg_probability))
                         else:
                                 raise ValueError('avg_probability (or avg_location_count) not defined')
                         self._cell_centers = np.random.randn(n_cells, points.shape[1])
-                        self._cell_centers = self._cell_centers * (1e-3 * (upper_bound - lower_bound)) + center
+                        self._cell_centers = self._cell_centers * (initial_spread * (upper_bound - lower_bound)) + center
                 self.roi_subset_size = 10000
                 self.roi_subset_count = 10
                 return points
@@ -93,7 +95,7 @@ class KMeansMesh(Voronoi):
                                 is greater than `prune` times the median edge length;
                                 ``True`` is translated to the default value.
                 """
-                points = self._preprocess(points)
+                points = self._preprocess(points, **kwargs)
                 self._cell_centers, _ = kmeans(np.asarray(points), self._cell_centers, \
                         thresh=tol)
 

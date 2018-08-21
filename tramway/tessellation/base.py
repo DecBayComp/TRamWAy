@@ -870,7 +870,7 @@ class Delaunay(Tessellation):
                         # max radius:
                         if max_r:
                                 excluded_cells = []
-                                for c in nonempty:
+                                for i, c in enumerate(nonempty):
                                         if callable(radius):
                                                 _, max_r = radius(c)
                                                 if max_r is None:
@@ -885,7 +885,7 @@ class Delaunay(Tessellation):
                                         discard = max_r < d
                                         K[cell[discard]] = -1
                                         if np.all(discard):
-                                                excluded_cells.append(c)
+                                                excluded_cells.append(i)
                                 if excluded_cells:
                                         # remove the excluded cells from nonempty and positive_count
                                         ok = np.ones(nonempty.size, dtype=bool)

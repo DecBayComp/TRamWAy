@@ -31,6 +31,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
         localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
         max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
         store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
+        merge_threshold_count=False, \
         grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
         return_cells=None, profile=None, force=False, **kwargs):
         """
@@ -80,8 +81,13 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                 constructor (callable): *deprecated*; see also :func:`~tramway.inference.base.distributed`;
                         please use `new_group` instead
 
-                cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore
-                        `max_cell_count` and `dilation`
+                cell_sampling (str): either ``None``, ``'individual'``, ``'group'`` or
+                        ``'connected'``; may ignore `max_cell_count` and `dilation`
+
+                merge_threshold_count (int):
+                        Merge cells that are have a number of (trans-)locations lower than the
+                        number specified; each smaller cell is merged together with the nearest
+                        large-enough neighbour cell.
 
                 grad (callable or str): spatial gradient function; admits a callable (see
                         :meth:`~tramway.inference.base.Distributed.grad`) or any of '*grad1*',
@@ -178,9 +184,15 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                         raise ValueError('no cells found')
 
                 # prepare the data for the inference
+                distributed_kwargs = {}
                 if new_group is None:
                         if constructor is None:
-                                new_group = Distributed
+                                if merge_threshold_count:
+                                        new_group = DistributeMerge
+                                        distributed_kwargs['new_group_kwargs'] = \
+                                                {'min_location_count': merge_threshold_count}
+                                else:
+                                        new_group = Distributed
                         else:
                                 new_group = constructor
                 if grad is not None:
@@ -197,7 +209,8 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                                         def grad(self, *args, **kwargs):
                                                 return grad(self, *args, **kwargs)
                                 new_group = Distr
-                detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group)
+                detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group,
+                                **distributed_kwargs)
 
                 if cell_sampling is None:
                         try:
@@ -252,7 +265,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                 x = _map.run(getattr(module, setup['infer']), **kwargs)
 
         else:
-                raise ValueError('unknown ''{}'' mode'.format(mode))
+                raise ValueError("unknown '{}' mode".format(mode))
 
         maps = Maps(x, mode=mode)
         for p in kwargs:
@@ -285,7 +298,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
-        figsize=(24., 18.), dpi=None, aspect=None, show=None, verbose=False, \
+        figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
         alpha=None, point_style=None, variable=None, segment=None, \
         label=None, input_label=None, mode=None, \
         **kwargs):
@@ -334,6 +347,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 mode (bool or str): inference mode; can be ``False`` so that mode information from
                         files, analysis trees and encapsulated maps are not displayed
+
+                xlim (array-like): min and max values for the x-axis; this argument is keyworded only
+
+                ylim (array-like): min and max values for the y-axis; this argument is keyworded only
+
+                clim (array-like): min and max values for the colormap; this argument is keyworded only
 
         Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
         :func:`~tramway.plot.map.field_map_2d`.
@@ -435,6 +454,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 except AttributeError: # Py3
                         mode = mode.decode('utf-8')
 
+        # figure size
+        new_fig = bool(figsize)
+        if figsize in (None, True):
+                figsize = (24., 18.)
+
         # output filenames
         print_figs = output_file or (input_file and fig_format)
 
@@ -484,7 +508,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         else:
                                 col_kwargs[a] = kwargs[a]
 
-                if figsize:
+                if new_fig or figs:
                         fig = mplt.figure(figsize=figsize, dpi=dpi)
                 else:
                         fig = mplt.gcf()
@@ -554,7 +578,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         else:
                                 var_kwargs[a] = kwargs[a]
 
-                if figsize:
+                if new_fig or figs:
                         fig = mplt.figure(figsize=figsize, dpi=dpi)
                 else:
                         fig = mplt.gcf()

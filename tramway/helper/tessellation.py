@@ -502,7 +502,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         if knn is not None:
                                 partition_kwargs['knn'] = knn
                         if radius is not None:
-                                if 'radius' not in partition_kwargs:
+                                if 'radius' in partition_kwargs:
                                         warn('overwriting `radius`', RuntimeWarning)
                                 partition_kwargs['radius'] = radius
                         if 'min_location_count' not in partition_kwargs:
@@ -652,7 +652,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
                 segment (int):
                         Segment index; if multiple time segments were defined, show only one segment.
-                        
+
                 num (int):
                     Figure number. Default: None (new figure for each call).
 
