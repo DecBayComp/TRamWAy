@@ -231,8 +231,8 @@ class generate_trajectories:
         lambda_   = self.lambda_
         D_, grad_D_x_, grad_D_y_, gamma_, V_, fx_, fy_ = self.give_diffusion_drift_gamma( u_, v_)
 
-        u_  = u_ + (fx_ + lambda_ *grad_D_x_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
-        v_  = v_ + (fy_ + lambda_ *grad_D_y_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
+        u_  = u_ + (fx_*gamma_ + lambda_ *grad_D_x_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
+        v_  = v_ + (fy_*gamma_ + lambda_ *grad_D_y_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
         t_  = t_ + dt_short_
         return u_, v_, t_
 ############################################################
@@ -261,9 +261,6 @@ class generate_trajectories:
             #x_[indice_]       = u_
             #y_[indice_]       = v_
             #t_[indice_]       = t
-            assert np.isscalar(u_)
-            assert np.isscalar(v_)
-            assert np.isscalar(t)
             nb_.append(i)
             x_.append(u_)
             y_.append(v_)
@@ -279,9 +276,6 @@ class generate_trajectories:
                     #x_[indice_]       = u_
                     #y_[indice_]       = v_
                     #t_[indice_]       = t
-                    assert np.isscalar(u_)
-                    assert np.isscalar(v_)
-                    assert np.isscalar(t)
                     nb_.append(i)
                     x_.append(u_)
                     y_.append(v_)

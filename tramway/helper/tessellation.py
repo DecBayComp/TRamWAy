@@ -43,7 +43,8 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         rel_max_size=None, rel_max_volume=None, \
         time_window_duration=None, time_window_shift=None, time_window_options=None, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
-        force=None, return_analyses=False, tessellation_options=None, partition_options=None, \
+        force=None, return_analyses=False, \
+        load_options=None, tessellation_options=None, partition_options=None, \
         **kwargs):
         """
         Tessellation from points series and partitioning.
@@ -187,6 +188,10 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         Return a :class:`~tramway.core.analyses.base.Analyses` object instead of
                         the default :class:`~tramway.tessellation.base.CellStats` output.
 
+                load_options (dict):
+                        Pass extra keyword arguments to :func:`~tramway.core.hdf5.store.load_rwa`
+                        and :func:`~tramway.core.xyt.load_xyt`.
+
                 tessellation_options (dict):
                         Pass explicit keyword arguments to the *__init__* function of the
                         tessellation class as well as to the
@@ -245,11 +250,13 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 if not xyt_data[1:]:
                         xyt_data = xyt_data[0]
         if xyt_files:
+                if load_options is None:
+                        load_options = {}
                 if multiple_files(xyt_data):
                         xyt_file = xyt_data
                 else:
                         try:
-                                analyses = load_rwa(xyt_data)
+                                analyses = load_rwa(xyt_data, **load_options)
                         except (KeyboardInterrupt, SystemExit):
                                 raise
                         except:
@@ -261,7 +268,8 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                                         input_partition, = find_artefacts(analyses, CellStats, input_label)
                                 xyt_data = analyses.data
                 if xyt_file:
-                        xyt_data, xyt_files = load_xyt(xyt_files, return_paths=True, verbose=verbose)
+                        xyt_data, xyt_files = load_xyt(xyt_files, return_paths=True, verbose=verbose,
+                                **load_options)
                         analyses = Analyses(xyt_data)
                         if input_label is not None:
                                 raise no_nesting_error

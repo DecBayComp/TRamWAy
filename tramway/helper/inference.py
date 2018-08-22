@@ -298,7 +298,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
-        figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
+        figsize=(24., 18.), dpi=None, aspect=None, show=None, verbose=False, \
         alpha=None, point_style=None, variable=None, segment=None, \
         label=None, input_label=None, mode=None, \
         **kwargs):

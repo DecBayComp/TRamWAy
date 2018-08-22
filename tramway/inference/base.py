@@ -1279,13 +1279,16 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 
                 _point, _cell = index
                 _unique = np.unique(_point)
+                loc_count = _unique[-1]+1 # should be enough
                 transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        _transloc = np.full_like(_point, -1)
+                        _transloc = np.full(loc_count, -1, dtype=int)
                         _ok = _unique[termination[_unique]]
                         _transloc[_ok] = np.arange(_ok.size)
                         _transloc = _transloc[_point]
+                        if np.all(_transloc==-1):
+                                raise ValueError('no translocations available')
                         def __associated__(cell):
                                 """
                                 Translocation-cell association.
@@ -1321,8 +1324,10 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                 transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        _transloc = np.full_like(loc_count, -1)
+                        _transloc = np.full_like(loc_count, -1, dtype=int)
                         _transloc[_termination] = np.arange(transloc_count)
+                        if np.all(_transloc==-1):
+                                raise ValueError('no translocations available')
                         def __association__(cell):
                                 """
                                 Translocation-cell association.
