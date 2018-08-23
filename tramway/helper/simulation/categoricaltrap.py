@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Copyright © 2018, Institut Pasteur
-#   Contributors: Jean-Baptiste Masson, François Laurent
+#   Contributor: Jean-Baptiste Masson
 
 # This file is part of the TRamWAy software available at
 # "https://github.com/DecBayComp/TRamWAy" and is distributed under
@@ -231,8 +231,8 @@ class generate_trajectories:
         lambda_   = self.lambda_
         D_, grad_D_x_, grad_D_y_, gamma_, V_, fx_, fy_ = self.give_diffusion_drift_gamma( u_, v_)
 
-        u_  = u_ + (fx_*gamma_ + lambda_ *grad_D_x_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
-        v_  = v_ + (fy_*gamma_ + lambda_ *grad_D_y_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
+        u_  = u_ + (fx_/gamma_ + lambda_ *grad_D_x_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
+        v_  = v_ + (fy_/gamma_ + lambda_ *grad_D_y_)*dt_short_ +  np.sqrt(2 * D_ * dt_short_) * np.random.randn()
         t_  = t_ + dt_short_
         return u_, v_, t_
 ############################################################

@@ -124,7 +124,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
         if isinstance(cells, str):
                 try:
                         input_file = cells
-                        all_analyses = load_rwa(input_file)
+                        all_analyses = load_rwa(input_file, lazy=True)
                         if output_file and output_file == input_file:
                                 all_analyses = extract_analysis(all_analyses, input_label)
                         cells = None
@@ -356,6 +356,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
         Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
         :func:`~tramway.plot.map.field_map_2d`.
+        They can be dictionnaries with variable names as keys and the corresponding values for the
+        parameters.
 
         """
         # get cells and maps objects from the first input argument
@@ -376,7 +378,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 if label is None:
                         label = input_label
                 try:
-                        analyses = load_rwa(input_file)
+                        analyses = load_rwa(input_file, lazy=True)
                         #if label:
                         #       analyses = extract_analysis(analyses, label)
                 except KeyError:

@@ -170,7 +170,7 @@ def _dump_rwa(args):
         else:
                 for input_file in input_files:
                         print('in {}:'.format(input_file))
-                        analyses = load_rwa(input_file)
+                        analyses = load_rwa(input_file, lazy=True)
                         print(format_analyses(analyses, global_prefix='\t', node=lazytype))
 
 def _curl(args):
@@ -181,7 +181,7 @@ def _curl(args):
         if input_file[1:]:
                 raise NotImplementedError('cannot handle multiple input files')
         input_file = input_file[0]
-        analyses = load_rwa(input_file)
+        analyses = load_rwa(input_file, lazy=True)
         cells, maps, leaf = find_artefacts(analyses, (CellStats, Maps), input_label, return_subtree=True)
         curl = tramway.feature.curl.Curl(cells, maps)
         vector_fields = { f: vs for f, vs in curl.variables.items() if len(vs) == 2 }

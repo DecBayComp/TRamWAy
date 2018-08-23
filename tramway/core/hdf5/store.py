@@ -65,11 +65,26 @@ class RWAStore(HDF5Store):
 
 
 
-def load_rwa(path, verbose=None):
+def load_rwa(path, verbose=None, lazy=False):
+        """
+        Load a .rwa file.
+
+        Arguments:
+
+                path (str): path to .rwa file
+
+                verbose (bool): verbosity level
+
+                lazy (bool): reads the file lazily
+
+        Returns:
+
+                Analyses: analysis tree
+        """
         try:
                 hdf = RWAStore(path, 'r')
                 #hdf._default_lazy = PermissivePeek
-                hdf.lazy = True
+                hdf.lazy = lazy
                 try:
                         analyses = lazyvalue(hdf.peek('analyses'))
                 except (KeyboardInterrupt, SystemExit):
@@ -94,6 +109,25 @@ def load_rwa(path, verbose=None):
 
 
 def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=False):
+        """
+        Save an analysis tree into a .rwa file.
+
+        Arguments:
+
+                path (str): path to .rwa file
+
+                analyses (Analyses): analysis tree
+
+                verbose (bool): verbose mode
+
+                force (bool): do not ask whether to overwrite an existing file or not
+
+                compress (bool): delete the lazy attributes that can be computed again automatically
+
+                append (bool): do not overwrite; reload the file instead and append the analyses as
+                        a subtree
+
+        """
         if not isinstance(analyses, ba.Analyses):
                 raise TypeError('`analyses` is not an `Analyses` instance')
         if os.path.isfile(path):

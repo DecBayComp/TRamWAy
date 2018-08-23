@@ -256,7 +256,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         xyt_file = xyt_data
                 else:
                         try:
-                                analyses = load_rwa(xyt_data, **load_options)
+                                analyses = load_rwa(xyt_data, lazy=True, **load_options)
                         except (KeyboardInterrupt, SystemExit):
                                 raise
                         except:
@@ -687,7 +687,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                                         warn('can only process a single file', RuntimeWarning)
                                 input_file = input_file[0]
                         try:
-                                analyses = load_rwa(input_file)
+                                analyses = load_rwa(input_file, lazy=True)
                                 #if labels:
                                 #       analyses = extract_analysis(analyses, labels)
                         except KeyError as e:

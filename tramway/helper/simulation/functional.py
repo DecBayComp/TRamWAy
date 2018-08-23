@@ -215,7 +215,7 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         # post-process
         if not full:
                 points = crop(points, _box)
-                points = points.loc[points['t'] <= duration]
+                points = points.loc[points['t'] <= duration+time_step*.1]
                 if not single:
                         n, count = np.unique(points['n'].values, return_counts=True)
                         n = n[count == 1]

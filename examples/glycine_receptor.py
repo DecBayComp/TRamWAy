@@ -66,7 +66,7 @@ def main(**kwargs):
         _tessellate = True
         if os.path.isfile(rwa_file):
                 try:
-                        _, = find_artefacts(load_rwa(rwa_file), CellStats, labels=method)
+                        _, = find_artefacts(load_rwa(rwa_file, lazy=True), CellStats, labels=method)
                 except:
                         pass
                 else:
@@ -135,7 +135,8 @@ def main(**kwargs):
         if _df:
                 DF, cells = infer(rwa_file, mode='df', input_label=method, output_label='DF',
                         localization_error=localization_error, return_cells=True)
-                map_plot(DF, output_file=img('df'), cells=cells, **map_plot_args)
+                map_plot(DF, output_file=img('df'), cells=cells, transform={'force': np.log},
+                        **map_plot_args)
 
         if _dd:
                 DD, cells = infer(rwa_file, mode='dd', input_label=method, output_label='DD',
@@ -146,7 +147,8 @@ def main(**kwargs):
                 DV, cells = infer(rwa_file, mode='dv', input_label=method, output_label='DV',
                         localization_error=localization_error, diffusivity_prior=diffusivity_prior,
                         potential_prior=potential_prior, return_cells=True)
-                map_plot(DV, output_file=img('dv'), cells=cells, **map_plot_args)
+                map_plot(DV, output_file=img('dv'), cells=cells, transform={'force': np.log},
+                        **map_plot_args)
 
         sys.exit(0)
 

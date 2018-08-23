@@ -104,7 +104,7 @@ def main():
                 cell_plot(tessellation_file, output_file=out(extension='mesh.png'), \
                         show=True, aspect='equal')
 
-        analyses = load_rwa(tessellation_file)
+        analyses = load_rwa(tessellation_file, lazy=True)
         static_cells, = find_artefacts(analyses, CellStats)
         if static_cells is None:
                 raise EnvironmentError("cannot load file: {}".format(tessellation_file))

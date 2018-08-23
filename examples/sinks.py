@@ -103,10 +103,10 @@ def main():
         output_file = out('df', 'png')
 
         print('plotting DF maps: {}'.format(output_file))
-        map_plot(DF, output_file=output_file, show=True, aspect='equal')
+        map_plot(DF, output_file=output_file, show=True, aspect='equal', transform={'force': np.log})
         output_file = out('dv', 'png')
         print('plotting DV maps: {}'.format(output_file))
-        map_plot(DV, output_file=output_file, show=True, aspect='equal')
+        map_plot(DV, output_file=output_file, show=True, aspect='equal', transform={'force': np.log})
 
         sys.exit(0)
 

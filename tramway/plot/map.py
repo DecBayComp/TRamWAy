@@ -135,9 +135,43 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
                 **kwargs):
         """
-        Setting colorbar to 'nice' allows to produce a colorbar close to the figure of the same size as the figure
+        Plot a 2d scalar map as a colourful image.
+
+        Arguments:
+
+                cells (CellStats or Distributed): spatial description of the cells
+
+                values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
+
+                aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
+
+                clim (2-element sequence): passed to :func:`~matplotlib.cm.ScalarMappable.set_clim`
+
+                figure (matplotlib.figure.Figure): figure handle
+
+                axes (matplotlib.axes.Axes): axes handle
+
+                linewidth (int): cell border line width
+
+                delaunay (bool or dict): overlay the Delaunay graph; if ``dict``, options are passed
+                        to :func:`~tramway.core.plot.mesh.plot_delaunay`
+
+                colorbar (bool or str or dict): add a colour bar; if ``dict``, options are passed to
+                        :func:`~matplotlib.pyplot.colorbar`;
+                        setting colorbar to '*nice*' allows to produce a colorbar close to the figure
+                        of the same size as the figure
+
+                alpha (float): alpha value of the cells
+
+                colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
+
+                xlim (2-element sequence): lower and upper x-axis bounds
+
+                ylim (2-element sequence): lower and upper y-axis bounds
+
+        Extra keyword arguments are passed to :func:`~matplotlib.collections.PatchCollection`.
+
         """
-        #       colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
         coords = None
         if isinstance(values, pd.DataFrame):
                 if values.shape[1] != 1:
@@ -283,12 +317,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if aspect is not None:
                 axes.set_aspect(aspect)
 
-        if colorbar==True:
-                try:
-                        figure.colorbar(patches)
-                except AttributeError as e:
-                        warn(e.args[0], RuntimeWarning)
-        elif colorbar=='nice':
+        if colorbar=='nice':
                 # make the colorbar closer to the plot and same size
                 from mpl_toolkits.axes_grid1 import make_axes_locatable
                 try:
@@ -299,13 +328,20 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                         plt.sca(gca_bkp)
                 except AttributeError as e:
                         warn(e.args[0], RuntimeWarning)
+        elif colorbar:
+                if not isinstance(colorbar, dict):
+                        colorbar = {}
+                try:
+                        figure.colorbar(patches, **colorbar)
+                except AttributeError as e:
+                        warn(e.args[0], RuntimeWarning)
 
         return obj
 
 
 
 def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
-                cell_arrow_ratio=0.4, markeralpha=0.8, markerlinewidth=None, transform=np.log,
+                cell_arrow_ratio=0.4, markeralpha=0.8, markerlinewidth=None, transform=None,
                 **kwargs):
         force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
         if figure is None:
@@ -318,6 +354,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
         else:
                 if transform is None:
                         transform = lambda a: a
+                elif transform == 'log':
+                        transform = np.log
                 obj = scalar_map_2d(cells, transform(force_amplitude),
                         figure=figure, axes=axes, **kwargs)
         if aspect is not None:
