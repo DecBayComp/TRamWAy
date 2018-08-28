@@ -1591,7 +1591,7 @@ class DistributeMerge(Distributed):
                 for i in ordered_index[::-1]:
                         js = [ j for j in self.neighbours(i).tolist() if j not in index ]
                         if not js:
-                                warn('no neighbours', RuntimeWarning)
+                                warn('no large-enough neighbours for cell {:d}'.format(i), RuntimeWarning)
                                 continue
                         dr = np.vstack([ cells[j].center for j in js ]) - cells[i].center#[np.newaxis,:]
                         j = js[np.argmin(np.sum(dr * dr, axis=1))]

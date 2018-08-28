@@ -189,8 +189,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         the default :class:`~tramway.tessellation.base.CellStats` output.
 
                 load_options (dict):
-                        Pass extra keyword arguments to :func:`~tramway.core.hdf5.store.load_rwa`
-                        and :func:`~tramway.core.xyt.load_xyt`.
+                        Pass extra keyword arguments to :func:`~tramway.core.xyt.load_xyt` if called.
 
                 tessellation_options (dict):
                         Pass explicit keyword arguments to the *__init__* function of the
@@ -256,7 +255,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         xyt_file = xyt_data
                 else:
                         try:
-                                analyses = load_rwa(xyt_data, lazy=True, **load_options)
+                                analyses = load_rwa(xyt_data, lazy=True)
                         except (KeyboardInterrupt, SystemExit):
                                 raise
                         except:
@@ -290,6 +289,9 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                 if isinstance(constructor, str):
                         constructor = getattr(module, setup['make'])
         except KeyError: # former code
+                from tramway.tessellation.kdtree import KDTreeMesh
+                from tramway.tessellation.kmeans import KMeansMesh
+                from tramway.tessellation.gwr import GasMesh
                 plugin = False
                 methods = dict(grid=RegularMesh, kdtree=KDTreeMesh, kmeans=KMeansMesh, gwr=GasMesh)
                 constructor = methods[method]
@@ -327,10 +329,10 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         if rel_avg_distance is not None:
                 avg_distance = rel_avg_distance * ref_distance
         if rel_max_distance is not None:
-                # applies only to KDTreeMesh
+                # applies only to KDTreeMesh and Kohonen
                 max_distance = rel_max_distance * ref_distance
-                if method not in ['kdtree', 'gwr']:
-                        warn('`rel_max_distance` is relevant only with `kdtree`', IgnoredInputWarning)
+                #if method not in ['kdtree', 'gwr', 'kohonen']:
+                #        warn('`rel_max_distance` is relevant only with `kdtree`', IgnoredInputWarning)
 
         if scaling:
                 if scaling is True:
@@ -583,15 +585,14 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 
 def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
-        show=None, verbose=False, figsize=(24.0, 18.0), dpi=None, \
+        show=None, verbose=False, figsize=None, dpi=None, \
         location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
         aspect=None, delaunay=None, locations={}, voronoi=None, colors=None, title=None, \
         cell_indices=None, segment=None, label=None, input_label=None, num = None):
         """
         Partition plots.
 
-        Plots a spatial representation of the tessellation and partition if data are 2D, and optionally
-        histograms.
+        Plots a spatial representation of the tessellation and partition if data are 2D.
 
         Arguments:
                 cells (str or CellStats or Analyses):
@@ -612,9 +613,11 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
                 show (bool or str):
                         Makes `cell_plot` show the figure(s) which is the default behavior if and only
-                        if the figures are not saved. If ``show='draw'``,
-                        :func:`~matplotlib.pyplot.draw` is called instead of
+                        if the figures are not saved.
+                        If ``show='draw'``, :func:`~matplotlib.pyplot.draw` is called instead of
                         :func:`~matplotlib.pyplot.show`.
+                        To maintain the current default behaviour in the future, set `show` to
+                        ``True`` from now on.
 
                 verbose (bool): Verbose output.
 
@@ -628,15 +631,18 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
                 location_count_hist (bool):
                         Plot a histogram of point counts (per cell). If the figure is saved, the
-                        corresponding file will have sub-extension *.hpc*.
+                        corresponding file will have sub-extension *.hpc*;
+                        **deprecated**.
 
                 cell_dist_hist (bool):
                         Plot a histogram of distances between neighbour centroids. If the figure is
-                        saved, the corresponding file will have sub-extension *.hcd*.
+                        saved, the corresponding file will have sub-extension *.hcd*;
+                        **deprecated**.
 
                 location_dist_hist (bool):
                         Plot a histogram of distances between points from neighbour cells. If the figure
-                        is saved, the corresponding file will have sub-extension *.hpd*.
+                        is saved, the corresponding file will have sub-extension *.hpd*;
+                        **deprecated**.
 
                 aspect (str):
                         Aspect ratio. Can be '*equal*'.
@@ -778,38 +784,41 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 warn('cannot find time segments', RuntimeWarning)
                 segment = None
 
-        # guess back some input parameters (with backward "compatibility")
-        method_name = {}
-        try:
-                method_name[RegularMesh] = ('grid', 'grid', 'regular grid')
-        except NameError:
-                pass
-        try:
-                import tramway.tessellation.kdtree
-        except ImportError:
-                pass
-        else:
-                method_name[tramway.tessellation.kdtree.KDTreeMesh] = \
-                        ('kdtree', 'k-d tree', 'k-d tree based tessellation')
-        try:
-                import tramway.tessellation.kmeans
-        except ImportError:
-                pass
-        else:
-                method_name[tramway.tessellation.kmeans.KMeansMesh] = \
-                        ('kmeans', 'k-means', 'k-means based tessellation')
-        try:
-                import tramway.tessellation.gwr
-        except ImportError:
-                pass
-        else:
-                method_name[tramway.tessellation.gwr.GasMesh] = ('gwr', 'GWR', 'GWR based tessellation')
-        try:
-                method_name, pp_method_name, method_title = method_name[type(cells.tessellation)]
-        except (KeyError, AttributeError):
-                method_name = pp_method_name = method_title = ''
+        # guess back some input parameters (for backward compatible titles)
+        complementary_plots = location_count_hist or cell_dist_hist or location_dist_hist
+        if (title and not isinstance(title, str)) or complementary_plots:
+                method_name = {}
+                try:
+                        method_name[RegularMesh] = ('grid', 'grid', 'regular grid')
+                except NameError:
+                        pass
+                try:
+                        import tramway.tessellation.kdtree
+                except ImportError:
+                        pass
+                else:
+                        method_name[tramway.tessellation.kdtree.KDTreeMesh] = \
+                                ('kdtree', 'k-d tree', 'k-d tree based tessellation')
+                try:
+                        import tramway.tessellation.kmeans
+                except ImportError:
+                        pass
+                else:
+                        method_name[tramway.tessellation.kmeans.KMeansMesh] = \
+                                ('kmeans', 'k-means', 'k-means based tessellation')
+                try:
+                        import tramway.tessellation.gwr
+                except ImportError:
+                        pass
+                else:
+                        method_name[tramway.tessellation.gwr.GasMesh] = ('gwr', 'GWR', 'GWR based tessellation')
+                try:
+                        method_name, pp_method_name, method_title = method_name[type(cells.tessellation)]
+                except (KeyError, AttributeError):
+                        method_name = pp_method_name = method_title = ''
 
-        if location_count_hist or cell_dist_hist or location_dist_hist:
+        if complementary_plots:
+                warn('complementary plots will be removed in a future release', DeprecationWarning)
                 min_distance = cells.param.get('min_distance', 0)
                 avg_distance = cells.param.get('avg_distance', None)
         try:
@@ -818,6 +827,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 min_location_count = 0
 
         print_figs = output_file or (input_file and fig_format)
+        if (print_figs and figsize is None) or figsize is True:
+                figsize = (16., 12.)
 
         # import graphics libraries with adequate backend
         if print_figs:
@@ -839,7 +850,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 except AttributeError:
                         raise e
         if dim == 2:
-                fig = mplt.figure(figsize=figsize, num = num)
+                if figs or figsize is not None or num is not None:
+                        fig = mplt.figure(figsize=figsize, num = num)
+                else:
+                        fig = mplt.gcf()
                 figs.append(fig)
                 if locations is not None:
                         if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
@@ -961,7 +975,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                                 print('writing file: {}'.format(hpd_file))
                         fig.savefig(hpd_file)
 
-        if show or not print_figs:
+        if show or not print_figs: # 'or' will become 'and'
                 if show == 'draw':
                         mplt.draw()
                 elif show is not False:

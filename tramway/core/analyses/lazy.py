@@ -90,6 +90,27 @@ class Analyses(base.Analyses):
         def __str__(self):
                 return base.format_analyses(self, node=rwa.lazytype)
 
+        def terminate(self):
+                """
+                Close the opened file if any and delete all the handles.
+                """
+                def _terminate(obj, ok=False):
+                        if rwa.islazy(obj):
+                                if ok:
+                                        obj.store.handle = None
+                                else:
+                                        obj.store.close()
+                                        ok = True
+                        elif isinstance(obj, Analyses):
+                                obj = obj._instances
+                                if isinstance(obj, dict): # implicit: not rwa.islazy(obj)
+                                        for k in obj:
+                                                ok |= _terminate(obj[k], ok)
+                                else:
+                                        ok |= _terminate(obj, ok)
+                        return ok
+                _terminate(self)
+
 
 
 def label_paths(analyses, filter, lazy=False):

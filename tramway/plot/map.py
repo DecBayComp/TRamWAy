@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -135,7 +135,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
                 **kwargs):
         """
-        Plot a 2d scalar map as a colourful image.
+        Plot a 2D scalar map as a colourful image.
 
         Arguments:
 
@@ -340,15 +340,71 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 
 
-def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
-                cell_arrow_ratio=0.4, markeralpha=0.8, markerlinewidth=None, transform=None,
+def field_map_2d(cells, values, angular_width=30.0, overlay=False,
+                aspect=None, figure=None, axes=None,
+                cell_arrow_ratio=0.4,
+                markercolor='y', markeredgecolor='k', markeralpha=0.8, markerlinewidth=None,
+                transform=None,
                 **kwargs):
-        force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
+        """
+        Plot a 2D field (vector) map as arrows.
+
+        Arguments:
+
+                cells (CellStats or Distributed): spatial description of the cells
+
+                values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
+
+                angular_width (float): angle of the tip of the arrows
+
+                overlay (bool): do not plot the amplitude as a scalar map
+
+                aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
+
+                figure (matplotlib.figure.Figure): figure handle
+
+                axes (matplotlib.axes.Axes): axes handle
+
+                cell_arrow_ratio (float): size of the largest arrow relative to the median
+                        inter-cell distance
+
+                markercolor (str): colour of the arrows
+
+                markeredgecolor (str): colour of the border of the arrows
+
+                markeralpha (float): alpha value of the arrows
+
+                markerlinewidth (float): line width of the border of the arrows
+
+                transform ('log' or callable): if `overlay` is ``False``,
+                        transform applied to the amplitudes as a NumPy array
+
+        Extra keyword arguments are passed to :func:`scalar_map_2d` if called.
+
+        If `overlay` is ``True``, the *marker*-prefixed arguments can be renamed without
+        the *marker* prefix.
+        These arguments can only be keyworded.
+
+        """
+        try:
+                force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
+        except (KeyboardInterrupt, SystemExit):
+                raise
+        except:
+                if not overlay:
+                        warn('cannot compute the amplitude; setting `overlay` to True', RuntimeWarning)
+                        overlay = True
         if figure is None:
                 figure = plt.gcf()
         if axes is None:
                 axes = figure.gca()
         if overlay:
+                if markercolor is None and 'color' in kwargs:
+                        markercolor = kwargs['color']
+                if markeredgecolor is None and 'edgecolor' in kwargs:
+                        markeredgecolor = kwargs['edgecolor']
+                if markeralpha is None and 'alpha' in kwargs:
+                        markeralpha = kwargs['alpha']
                 if markerlinewidth is None and 'linewidth' in kwargs:
                         markerlinewidth = kwargs['linewidth']
         else:
@@ -405,7 +461,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
                 #vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
                 markers.append(Polygon(vertices, True))
 
-        patches = PatchCollection(markers, facecolor='y', edgecolor='k',
+        patches = PatchCollection(markers, facecolor=markercolor, edgecolor=markeredgecolor,
                 alpha=markeralpha, linewidth=markerlinewidth)
         axes.add_collection(patches)
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -103,8 +103,11 @@ else:
                 #print('peek_maps')
                 read = list(Maps.__lazy__) # do not read any lazy attribute;
                 # in principle no lazy attribute should be found in `container`
-                mode = store.peek('mode', container)
-                read.append('mode')
+                try:
+                        mode = store.peek('mode', container)
+                        read.append('mode')
+                except KeyError:
+                        mode = None
                 try:
                         maps = store.peek('maps', container)
                         read.append('maps')
@@ -114,6 +117,8 @@ else:
                                 maps = store.peek('result', container)
                                 read.append('result')
                                 mode = None
+                        elif mode is None:
+                                raise
                         else:
                                 maps = store.peek(mode, container)
                                 read.append(mode)

@@ -75,7 +75,7 @@ def _render_cells(args):
         if delaunay:
                 kwargs['xy_layer'] = 'delaunay'
         del kwargs['min_location_count']
-        cell_plot(input_file, output_file=output_file, fig_format=fig_format, \
+        cell_plot(input_file, output_file=output_file, fig_format=fig_format, figsize=True, \
                 location_count_hist='c' in hist, cell_dist_hist='d' in hist, \
                 location_dist_hist='p' in hist, **kwargs)
         sys.exit(0)
@@ -154,7 +154,7 @@ def _render_map(args):
                 kwargs['clip'] = 4.
         elif kwargs['clip'] == 0.:
                 del kwargs['clip']
-        map_plot(input_file[0], output_file=output_file, fig_format=fig_format, **kwargs)
+        map_plot(input_file[0], output_file=output_file, fig_format=fig_format, figsize=True, **kwargs)
         sys.exit(0)
 
 def _dump_rwa(args):
@@ -393,7 +393,7 @@ def main():
         cells_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
                 help='minimum number of locations per cell')
         cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
-        cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers)")
+        cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers); DEPRECATED")
         cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
         try:
                 cells_parser.add_argument('input_file', nargs='?', help='path to input file')

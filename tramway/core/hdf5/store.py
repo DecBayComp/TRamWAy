@@ -69,6 +69,11 @@ def load_rwa(path, verbose=None, lazy=False):
         """
         Load a .rwa file.
 
+        Note about laziness: the analysis tree uses an active handle to the opened file.
+        As a consequence, the file should be read only once.
+        It is safe to load, modify, save and then load again, but the first loaded data
+        should be terminated before loading the data again.
+
         Arguments:
 
                 path (str): path to .rwa file

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -298,9 +298,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
-        figsize=(24., 18.), dpi=None, aspect=None, show=None, verbose=False, \
+        figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
         alpha=None, point_style=None, variable=None, segment=None, \
-        label=None, input_label=None, mode=None, \
+        label=None, input_label=None, mode=None, title=True, \
         **kwargs):
         """
         Plot scalar/vector 2D maps.
@@ -322,14 +322,19 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 fig_format (str): for example '*.png*'
 
-                figsize ((float, float)): figure size (width, height) in inches
+                figsize (bool or (float, float)): figure size (width, height) in inches;
+                        `figsize` is defined if multiple figures are drawn or the figures are printed
+                        to files, which opens a new figure for each plot;
+                        this can be prevented setting `figsize` to ``False``
 
                 dpi (int): dots per inch
 
                 aspect (float or str): aspect ratio or '*equal*'
 
                 show (bool or str): call :func:`~matplotlib.pyplot.show`; if ``show='draw'``, call
-                        :func:`~matplotlib.pyplot.draw` instead
+                        :func:`~matplotlib.pyplot.draw` instead.
+                        `show` is ``True`` if the figures are not printed to files; to maintain this
+                        default behaviour in future releases, set `show` to ``True`` from now on.
 
                 verbose (bool): verbosity level
 
@@ -347,6 +352,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 mode (bool or str): inference mode; can be ``False`` so that mode information from
                         files, analysis trees and encapsulated maps are not displayed
+
+                title (bool or str): add titles to the figures, based on the variable name and
+                        inference mode
 
                 xlim (array-like): min and max values for the x-axis; this argument is keyworded only
 
@@ -456,14 +464,15 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 except AttributeError: # Py3
                         mode = mode.decode('utf-8')
 
-        # figure size
-        new_fig = bool(figsize)
-        if figsize in (None, True):
-                figsize = (24., 18.)
-
-        # output filenames
+        # determine whether the figures should be printed to file or not
         print_figs = output_file or (input_file and fig_format)
 
+        # figure size
+        new_fig = bool(figsize) or (print_figs and figsize is not False)
+        if figsize in (None, True):
+                figsize = (16., 12.)
+
+        # output filenames
         if print_figs:
                 if output_file:
                         filename, figext = os.path.splitext(output_file)
@@ -492,12 +501,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         figs = []
         nfig = 0
 
-        if variable is None:
-                all_vars = splitcoord(maps.columns)
-        elif isinstance(variable, (frozenset, set, tuple, list)):
-                all_vars = variable
-        else:
-                all_vars = (variable,)
+        all_vars = splitcoord(maps.columns)
+        if isinstance(variable, (frozenset, set, tuple, list)):
+                all_vars = { v: all_vars[v] for v in variable }
+        elif variable is not None:
+                all_vars = { variable: all_vars[variable] }
         scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
         scalar_vars = [ (v, scalar_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 1 ]
 
@@ -545,16 +553,19 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 point_style['color'] = None
                         xplt.plot_points(points, **point_style)
 
-                if mode:
-                        if short_name:
-                                title = '{} ({} - {} mode)'.format(short_name, col, mode)
+                if title:
+                        if isinstance(title, str):
+                                _title = title
+                        elif mode:
+                                if short_name:
+                                        _title = '{} ({} - {} mode)'.format(short_name, col, mode)
+                                else:
+                                        _title = '{} ({} mode)'.format(col, mode)
+                        elif short_name:
+                                _title = '{} ({})'.format(short_name, col)
                         else:
-                                title = '{} ({} mode)'.format(col, mode)
-                elif short_name:
-                        title = '{} ({})'.format(short_name, col)
-                else:
-                        title = '{}'.format(col)
-                mplt.title(title)
+                                _title = '{}'.format(col)
+                        mplt.title(_title)
 
                 if print_figs:
                         if maps.shape[1] == 1:
@@ -570,6 +581,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
         vector_vars = {'force': 'F'}
         vector_vars = [ (v, vector_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 2 ]
+
         for name, short_name in vector_vars:
                 cols = all_vars[name]
 
@@ -621,16 +633,20 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         extra = name
                 else:
                         main = name
-                if mode:
-                        if extra:
-                                extra += ' - {} mode'.format(mode)
+                if title:
+                        if isinstance(title, str):
+                                _title = title
                         else:
-                                extra = '{} mode'.format(mode)
-                if extra:
-                        title = '{} ({})'.format(main, extra)
-                else:
-                        title = main
-                mplt.title(title)
+                                if mode:
+                                        if extra:
+                                                extra += ' - {} mode'.format(mode)
+                                        else:
+                                                extra = '{} mode'.format(mode)
+                                if extra:
+                                        _title = '{} ({})'.format(main, extra)
+                                else:
+                                        _title = main
+                        mplt.title(_title)
 
                 if print_figs:
                         if maps.shape[1] == 1:
@@ -645,7 +661,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 print('writing file: {}'.format(figfile))
                         fig.savefig(figfile, dpi=dpi)
 
-        if show or not print_figs:
+        if show or not print_figs: # 'or' will be replaced by 'and'
                 if show == 'draw':
                         mplt.draw()
                 elif show is not False:
