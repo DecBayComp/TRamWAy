@@ -145,9 +145,9 @@ else:
                 pass
 
 from ..analyses import Analyses, base
-_analyses_storable = default_storable(Analyses, exposes=base.Analyses.__slots__)
-_analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
 try:
+        _analyses_storable = default_storable(Analyses, exposes=base.Analyses.__slots__)
+        _analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
         hdf5_storable(_analyses_storable)
 except NameError: # in rtd again
         pass
