@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -84,7 +84,10 @@ def load_rwa(path, verbose=None, lazy=False):
 
         Returns:
 
-                Analyses: analysis tree
+                tramway.core.analyses.base.Analyses:
+                        analysis tree;
+                        if `lazy` is ``True``, return type is
+                        :class:`tramway.core.analyses.lazy.Analyses` instead
         """
         try:
                 hdf = RWAStore(path, 'r')
@@ -121,7 +124,7 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=F
 
                 path (str): path to .rwa file
 
-                analyses (Analyses): analysis tree
+                analyses (tramway.core.analyses.base.Analyses): analysis tree
 
                 verbose (bool): verbose mode
 

@@ -26,7 +26,7 @@ __all__ += store.__all__ + ['store'] # from .store
 try:
         hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
                 'tramway.tessellation', 'tramway.inference', 'tramway.feature']
-except TypeError: # rwa is Mock in rtd
+except (TypeError, NameError): # rwa is Mock in rtd
         pass
 
 if sys.version_info[0] < 3:

@@ -596,13 +596,13 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
         Arguments:
                 cells (str or CellStats or Analyses):
-                        Path to a *.imt.rwa* file or :class:`~tramway.tessellation.CellStats`
+                        Path to a *.rwa* file or :class:`~tramway.tessellation.CellStats`
                         instance or analysis tree; files and analysis trees may require
                         `label`/`input_label` to be defined.
 
                 xy_layer ({None, 'delaunay', 'voronoi'}):
                         Overlay Delaunay or Voronoi graph over the data points. For 2D data only.
-                        *Deprecated!* Please use `delaunay` and `voronoi` arguments instead.
+                        **Deprecated**! Please use `delaunay` and `voronoi` arguments instead.
 
                 output_file (str):
                         Path to a file in which the figure will be saved. If `cells` is a path and

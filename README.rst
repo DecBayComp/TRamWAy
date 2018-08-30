@@ -1,7 +1,8 @@
 TRamWAy
 =======
 
-*TRamWAy* helps analyzing single molecule dynamics. It infers the diffusivity, drift, force and potential across space and time. It will eventually localize and track molecules in stacks of images.
+*TRamWAy* helps analyzing single molecule dynamics.
+It infers the diffusivity, drift, force and potential energy across space and time.
 
 The `official documentation <http://TRamWAy.readthedocs.io>`_ is now on `readthedocs <http://TRamWAy.readthedocs.io>`_.
 

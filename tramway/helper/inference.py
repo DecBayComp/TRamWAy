@@ -51,7 +51,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                 output_file (str): desired path for the output map file
 
                 partition (dict): keyword arguments for :func:`~tramway.helper.tessellation.find_partition`
-                        if `cells` is a path; deprecated
+                        if `cells` is a path; **deprecated**
 
                 verbose (bool or int): verbosity level
 
@@ -78,7 +78,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
                 new_group (callable): see also :func:`~tramway.inference.base.distributed`
 
-                constructor (callable): *deprecated*; see also :func:`~tramway.inference.base.distributed`;
+                constructor (callable): **deprecated**; see also :func:`~tramway.inference.base.distributed`;
                         please use `new_group` instead
 
                 cell_sampling (str): either ``None``, ``'individual'``, ``'group'`` or
