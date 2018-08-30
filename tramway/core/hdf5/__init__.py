@@ -44,7 +44,10 @@ else:
         from ..lazy import Lazy
         cell_stats_expose = Lazy.__slots__ + CellStats.__slots__ + ('_tesselation',)
         __all__.append('cell_stats_expose')
-        hdf5_storable(default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
+        try:
+                hdf5_storable(default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
+        except NameError: # in rtd again
+                pass
 
 try:
         from tramway.tessellation.kdtree.dichotomy import Dichotomy, ConnectedDichotomy
@@ -55,10 +58,16 @@ else:
                 'origin', 'lower_bound', 'upper_bound', \
                 'min_count', 'max_count', 'subset', 'cell']
         __all__.append('dichotomy_exposes')
-        hdf5_storable(generic.kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
+        try:
+                hdf5_storable(generic.kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
+        except NameError: # in rtd again
+                pass
         connected_dichotomy_exposes = dichotomy_exposes + ['adjacency']
         __all__.append('connected_dichotomy_exposes')
-        hdf5_storable(generic.kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
+        try:
+                hdf5_storable(generic.kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
+        except NameError: # in rtd again
+                pass
 
 
 try:
@@ -129,11 +138,17 @@ else:
                 return maps
 
         __all__ += ['poke_maps', 'peek_maps']
-        hdf5_storable(Storable(Maps, \
-                handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
+        try:
+                hdf5_storable(Storable(Maps, \
+                        handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
+        except NameError: # in rtd again
+                pass
 
 from ..analyses import Analyses, base
 _analyses_storable = default_storable(Analyses, exposes=base.Analyses.__slots__)
 _analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
-hdf5_storable(_analyses_storable)
+try:
+        hdf5_storable(_analyses_storable)
+except NameError: # in rtd again
+        pass
 
