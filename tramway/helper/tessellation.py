@@ -730,6 +730,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                                 # load the data
                                 input_file = imt_path
                                 try:
+                                        from rwa import HDF5Store
                                         hdf = HDF5Store(input_file, 'r')
                                         hdf.lazy = False
                                         cells = hdf.peek('cells')
@@ -1014,6 +1015,7 @@ def find_mesh(path, method=None, full_list=False):
         found = False
         for path in paths:
                 try:
+                        from rwa import HDF5Store
                         hdf = HDF5Store(path, 'r')
                         hdf.lazy = False
                         try:

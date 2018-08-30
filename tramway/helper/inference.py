@@ -391,10 +391,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         #       analyses = extract_analysis(analyses, label)
                 except KeyError:
                         print(traceback.format_exc())
+                        from rwa import HDF5Store
+                        store = HDF5Store(input_file, 'r')
+                        store.lazy = False
                         try:
                                 # old format
-                                store = HDF5Store(input_file, 'r')
-                                store.lazy = False
                                 maps = peek_maps(store, store.store)
                         finally:
                                 store.close()

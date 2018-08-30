@@ -20,7 +20,7 @@ from rwa import *
 from .store import *
 from . import store
 
-__all__ = ['HDF5Store', 'hdf5_storable', 'hdf5_not_storable', 'lazytype', 'lazyvalue'] # from rwa
+__all__ = ['hdf5_storable', 'hdf5_not_storable', 'lazytype', 'lazyvalue'] # from rwa
 __all__ += store.__all__ + ['store'] # from .store
 
 try:
