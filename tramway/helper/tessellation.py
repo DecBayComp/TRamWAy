@@ -44,7 +44,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         time_window_duration=None, time_window_shift=None, time_window_options=None, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
         force=None, return_analyses=False, \
-        load_options=None, tessellation_options=None, partition_options=None, \
+        load_options=None, tessellation_options=None, partition_options=None, save_options=None, \
         **kwargs):
         """
         Tessellation from points series and partitioning.
@@ -201,6 +201,9 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         Pass explicit keyword arguments to the
                         :meth:`~tramway.tessellation.base.Tessellation.cell_index` method and ignore
                         the extra input arguments.
+
+                save_options (dict):
+                        Pass extra keyword arguments to :func:`~tramway.core.xyt.save_rwa` if called.
 
         Returns:
                 tramway.tessellation.base.CellStats: A partition of the data with its
@@ -572,9 +575,12 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
         if output_file or xyt_files:
                 if output_file is None:
                         output_file = os.path.splitext(xyt_files[0])[0] + '.rwa'
+                if save_options is None:
+                        save_options = {}
+                if 'force' not in save_options:
+                        save_options['force'] = force or (force is not False and len(input_files)==1 and input_files[0]==output_file)
 
-                save_rwa(output_file, analyses, verbose, \
-                        force=force or (force is not False and len(input_files)==1 and input_files[0]==output_file))
+                save_rwa(output_file, analyses, verbose, **save_options)
 
         if return_analyses:
                 return analyses

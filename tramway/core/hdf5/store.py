@@ -14,7 +14,7 @@
 
 from rwa import HDF5Store, lazytype, lazyvalue
 from ..lazy import Lazy
-from ..analyses import Analyses, coerce_labels, format_analyses
+from ..analyses import Analyses, coerce_labels, format_analyses, append_leaf
 import tramway.core.analyses.base as ba
 #from copy import copy
 import os.path
@@ -142,7 +142,7 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=F
                 if append:
                         extra_analyses = analyses
                         analyses = load_rwa(path)
-                        append_leaf(analyses, extra_analyses)
+                        append_leaf(analyses, extra_analyses, overwrite=force)
                 elif not force:
                         answer = input("overwrite file '{}': [N/y] ".format(path))
                         if not (answer and answer[0].lower() == 'y'):

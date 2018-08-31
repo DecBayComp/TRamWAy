@@ -1505,7 +1505,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
                 # convex hull
                 _points = np.asarray(get_var(_points, space_cols))
-                if _points.shape[1] < _points.shape[0]:
+                if False:#_points.shape[1] < _points.shape[0]:
                         hull[j] = scipy.spatial.qhull.ConvexHull(_points)
 
                 if points.size == 0:
