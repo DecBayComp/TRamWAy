@@ -108,10 +108,15 @@ class KMeansMesh(Voronoi):
                 if prune: # inter-center-distance-based pruning
                         if prune is True: # backward compatibility
                                 prune = 2.5 # 2.5 is empirical
+                        self._postprocess(adjacency_label=True)
                         A = sparse.tril(self.cell_adjacency, format='coo')
                         i, j, k = A.row, A.col, A.data
                         if self._adjacency_label is None:
-                                self._adjacency_label = np.ones(np.max(k)+1, dtype=bool)
+                                if np.max(k) == 1:
+                                        k = np.arange(k.size)
+                                        self._cell_adjacency = sparse.csr_matrix((np.tile(k, 2),
+                                                (np.r_[i, j], np.r_[j, i])), shape=A.shape)
+                                self._adjacency_label = np.ones(k.size, dtype=bool)
                         else:
                                 l = 0 < self._adjacency_label[k]
                                 i, j, k = i[l], j[l], k[l]

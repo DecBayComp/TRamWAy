@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -26,19 +26,34 @@ class TimeLattice(Tessellation):
         If `time_lattice` contains integers, these elements are regarded as frame indices,
         whereas if it contains floats, the elements represent time.
 
+        The `time_edge` attribute (`time_label` init argument) drives the encoding of temporal
+        adjacency.
+        It is a two-element sequence respectively representing *past* and *future* relationships.
+        If `time_label` is supplied as a single scalar value, *past* and *future* relationships
+        are encoded with this same label.
+        If a label is ``None`` or ``False``, then the corresponding relationship is not represented.
+        If a label is ``True``, then it is translated into an integer value that is not used yet.
+
+        The `omit_time` attribute (default value is ``False``) may be useful combined with
+        a defined `spatial_mesh` to omit time in the representation of cell centers and
+        the calculation of cell volumes.
+        If `spatial_mesh` is not defined, `omit_time` is ignored.
+
         Functional dependencies:
 
         * setting `time_lattice` unsets `cell_label`, `cell_adjacency` and `adjacency_label`
-        * setting `spatial_mesh` unsets `cell_centers`, `cell_label`, `cell_adjacency` and `adjacency_label`
-        * `cell_centers` and `split_frames` are available only when `spatial_mesh` is defined
+        * setting `spatial_mesh` unsets `cell_centers`, `cell_label`, `cell_adjacency` and `adjacency_label`, `cell_volume`
+        * `cell_centers`, `cell_volume` and `split_frames` are available only when `spatial_mesh`
+        is defined
 
         """
-        __slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers')
+        __slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers', '_cell_volume',
+                'omit_time')
 
         __lazy__ = Tessellation.__lazy__ + \
-                ('cell_centers', 'cell_adjacency', 'cell_label', 'adjacency_label')
+                ('cell_centers', 'cell_adjacency', 'cell_label', 'adjacency_label', 'cell_volume')
 
-        def __init__(self, scaler=None, segments=None, time_label=None, mesh=None):
+        def __init__(self, scaler=None, segments=None, time_label=None, mesh=None, omit_time=None):
                 Tessellation.__init__(self, scaler) # scaler is ignored
                 self._time_lattice = segments
                 self.time_edge = time_label
@@ -46,7 +61,9 @@ class TimeLattice(Tessellation):
                 self._cell_label = None
                 self._adjacency_label = None
                 self._spatial_mesh = mesh
+                self.omit_time = omit_time # None is treated as False
                 self._cell_centers = None
+                self._cell_volume = None
 
         @property
         def time_lattice(self):
@@ -70,6 +87,7 @@ class TimeLattice(Tessellation):
                 self.adjacency_label = None
                 self._spatial_mesh = tessellation
                 self.cell_centers = None
+                self.cell_volume = None
 
         def tessellate(self, points, **kwargs):
                 if self.spatial_mesh is not None:
@@ -349,8 +367,8 @@ class TimeLattice(Tessellation):
         @property
         def cell_centers(self):
                 if self._cell_centers is None:
-                        if self.time_lattice.dtype == int:
-                                raise ValueError('cannot return timestamps')
+                        if not self.omit_time and self.time_lattice.dtype == int:
+                                raise ValueError('time is encoded as frame indices')
                         nsegments = self.time_lattice.shape[0]
                         if self.spatial_mesh is None:
                                 raise AttributeError('`cell_centers` is defined only for time lattices combined with spatial tessellations')
@@ -359,9 +377,10 @@ class TimeLattice(Tessellation):
                                 self._cell_centers = self.spatial_mesh.cell_centers
                                 ncells = self._cell_centers.shape[0]
                                 self._cell_centers = np.tile(self._cell_centers, (nsegments, 1))
-                                self._cell_centers = np.hstack((self._cell_centers, \
-                                        np.repeat(np.mean(self.time_lattice, axis=1), \
-                                                ncells)[:,np.newaxis]))
+                                if not self.omit_time:
+                                        self._cell_centers = np.hstack((self._cell_centers, \
+                                                np.repeat(np.mean(self.time_lattice, axis=1), \
+                                                        ncells)[:,np.newaxis]))
                 return self.__returnlazy__('cell_centers', self._cell_centers)
 
         @cell_centers.setter
@@ -374,6 +393,37 @@ class TimeLattice(Tessellation):
                         raise AttributeError('`cell_centers` is read-only')
 
 
+        # Voronoi properties and methods
+        @property
+        def cell_volume(self):
+                if self._cell_volume is None:
+                        if not self.omit_time and self.time_lattice.dtype == int:
+                                raise ValueError('time is encoded as frame indices')
+                        nsegments = self.time_lattice.shape[0]
+                        if self.spatial_mesh is None:
+                                raise AttributeError('`cell_volume` is defined only for time lattices combined with spatial tessellations')
+                                self._cell_volume = np.diff(self.time_lattice, axis=1)
+                        else:
+                                self._cell_volume = self.spatial_mesh.cell_volume
+                                ncells = self._cell_volume.shape[0]
+                                self._cell_volume = np.tile(self._cell_volume, nsegments)
+                                if not self.omit_time:
+                                        segment_duration = np.squeeze(np.diff(self.time_lattice, axis=1))
+                                        self._cell_volume *= \
+                                                np.repeat(segment_duration, ncells)
+                return self.__returnlazy__('cell_volume', self._cell_volume)
+
+        @cell_volume.setter
+        def cell_volume(self, v):
+                if v is None:
+                        self.__lazysetter__(v)
+                elif self.spatial_mesh is None:
+                        raise AttributeError('`cell_volume` is defined only for time lattices combined with spatial tessellations')
+                else:
+                        raise AttributeError('`cell_volume` is read-only')
+
+
+        # other methods
         def split_frames(self, df, return_times=False):
                 if not isinstance(df, (pd.Series, pd.DataFrame)):
                         raise TypeError('implemented only for `pandas.DataFrame`s')

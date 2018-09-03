@@ -701,6 +701,8 @@ class Delaunay(Tessellation):
         Attributes:
                 _cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
         """
+        __slots__ = ('_cell_centers',)
+
         def __init__(self, scaler=None):
                 Tessellation.__init__(self, scaler)
                 self._cell_centers = None
@@ -1040,6 +1042,8 @@ class Voronoi(Delaunay):
                         cell volume (or surface area in 2D); only 2D is supported for now.
 
         """
+        __slots__ = ('_vertices', '_vertex_adjacency', '_cell_vertices', '_cell_volume')
+
         __lazy__ = Delaunay.__lazy__ + \
                 ('vertices', 'cell_adjacency', 'cell_vertices', 'vertex_adjacency', 'cell_volume')
 
@@ -1098,7 +1102,7 @@ class Voronoi(Delaunay):
         def vertex_adjacency(self, matrix):
                 self.__lazysetter__(matrix)
 
-        def _postprocess(self):
+        def _postprocess(self, adjacency_label=False):
                 """Compute the Voronoi.
 
                 This private method may be called anytime by :attr:`vertices`, :attr:`vertex_adjacency`
@@ -1119,7 +1123,7 @@ class Voronoi(Delaunay):
                 ps = []
                 for r in voronoi.ridge_vertices:
                         pairs = np.c_[r, np.roll(r, 1)]
-                        pairs = pairs[:, ~np.any(pairs == -1, axis=0)]
+                        pairs = pairs[np.all(0 <= pairs, axis=1)]
                         ps.append(pairs)
                 ij = np.concatenate(ps)
                 n_vertices = self._vertices.shape[0]
@@ -1131,9 +1135,13 @@ class Voronoi(Delaunay):
                         ridge_points = voronoi.ridge_points
                         ridge_points = ridge_points[np.all(0 <= ridge_points, axis=1)]
                         n_ridges = ridge_points.shape[0]
-                        self._cell_adjacency = sparse.csr_matrix((\
-                                #np.tile(np.arange(0, n_ridges, dtype=int), 2), (\
-                                np.ones(n_ridges*2, dtype=bool), (\
+                        if adjacency_label:
+                                self._adjacency_label = np.ones(n_ridges, dtype=int)
+                        if self._adjacency_label is None:
+                                edges = np.ones(n_ridges*2, dtype=bool)
+                        else:
+                                edges = np.tile(np.arange(0, n_ridges, dtype=int), 2)
+                        self._cell_adjacency = sparse.csr_matrix((edges, ( \
                                 ridge_points.flatten('F'), \
                                 np.fliplr(ridge_points).flatten('F'))), \
                                 shape=(n_centers, n_centers))

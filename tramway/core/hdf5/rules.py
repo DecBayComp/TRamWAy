@@ -30,11 +30,11 @@ from tramway.tessellation.base import Tessellation, Delaunay, Voronoi
 # Delaunay
 tessellation_exposes = lazy_exposes + list(Tessellation.__slots__) # not a storable
 __all__.append('tessellation_exposes')
-delaunay_exposes = tessellation_exposes + ['_cell_centers']
+delaunay_exposes = tessellation_exposes + list(Delaunay.__slots__)#['_cell_centers']
 __all__.append('delaunay_exposes')
 hdf5_storable(default_storable(Delaunay, exposes=delaunay_exposes), agnostic=True)
 # Voronoi
-voronoi_exposes = delaunay_exposes + ['_vertices', '_vertex_adjacency', '_cell_vertices']
+voronoi_exposes = delaunay_exposes + list(Voronoi.__slots__)#['_vertices', '_vertex_adjacency', '_cell_vertices']
 __all__.append('voronoi_exposes')
 try:
         hdf5_storable(default_storable(Voronoi, exposes=voronoi_exposes), agnostic=True)

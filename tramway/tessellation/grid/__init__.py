@@ -89,7 +89,7 @@ class RegularMesh(Voronoi):
                         self.count_per_dim = pd.Series(self.count_per_dim, index=points.columns)
                 if isinstance(points, pd.DataFrame):
                         grid = pd.concat([self.lower_bound, self.upper_bound, self.count_per_dim + 1], axis=1).T
-                        self.grid = [ np.linspace(*col.values) for _, col in grid.items() ]
+                        self.grid = [ np.linspace(*grid[col].values) for col in grid ]
                 else:
                         grid = np.stack((self.lower_bound, self.upper_bound, self.count_per_dim + 1), axis=0)
                         self.grid = [ np.linspace(col[0], col[1], int(col[2])) for col in grid.T ]

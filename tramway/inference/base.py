@@ -1470,7 +1470,12 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         space_cols = np.ones(cells.points.shape[1], dtype=bool)
                         space_cols[time_col] = False
                         space_cols, = space_cols.nonzero()
-        if cells.tessellation.scaler is not None and cells.tessellation.scaler.columns:
+        def _bool(a):
+                try:
+                        return bool(a.size)
+                except AttributeError:
+                        return bool(a)
+        if cells.tessellation.scaler is not None and not _bool(cells.tessellation.scaler.columns):
                 space_cols = cells.tessellation.scaler.columns
 
         # pre-select cells
@@ -1512,7 +1517,11 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
                 # convex hull
                 _points = np.asarray(get_var(_points, space_cols))
-                if False:#_points.shape[1] < _points.shape[0]:
+                try:
+                        hull[j] = cells.tessellation.cell_volume[j]
+                except (KeyboardInterrupt, SystemExit):
+                        raise
+                except:
                         hull[j] = scipy.spatial.qhull.ConvexHull(_points)
 
                 if points.size == 0:
@@ -1545,9 +1554,22 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         span = cells.tessellation.cell_centers[adj] - center
 
                 # make cell object
-                _cells[j] = new_cell(j, data[j], center, span, hull.get(j, None), **new_cell_kwargs)
+                args = ()
+                _volume = None
+                try:
+                        _hull = hull[j]
+                        _hull.simplices
+                except AttributeError:
+                        _volume = _hull
+                except KeyError:
+                        pass
+                else:
+                        args = (_hull,)
+                _cells[j] = new_cell(j, data[j], center, span, *args, **new_cell_kwargs)
                 _cells[j].time_col = time_col
                 _cells[j].space_cols = space_cols
+                if _volume:
+                        _cells[j].volume = _volume
                 if are_translocations:
                         try:
                                 _cells[j].origins = extra[j][0]

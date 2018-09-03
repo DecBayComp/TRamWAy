@@ -45,7 +45,9 @@ class HexagonalMesh(Voronoi):
 
         """
 
-        __slots__ = ('tilt', 'hexagon_radius', 'hexagon_count')
+        __slots__ = ('tilt', 'hexagon_radius', 'hexagon_count',
+                'min_probability', 'avg_probability', 'max_probability',
+                'min_distance', 'avg_distance')
 
         def __init__(self, scaler=None, tilt=0., \
                 min_probability=None, max_probability=None, avg_probability=None, \
@@ -208,7 +210,7 @@ class HexagonalMesh(Voronoi):
                 rot = np.array([[c, -s], [s, c]])
                 s, c = sin(pi/6.), cos(pi/6.)
                 dr = np.array([[0., -1.], [-c, -s], [-c, s], [c, -s], [c, s], [0., 1.]])
-                dr = np.dot(dr, rot.T) * self.hexagon_radius
+                dr = np.dot(dr, rot.T) * (self.hexagon_radius / c)
                 #
                 n_cells = self._cell_centers.shape[0]
                 m, n = self.hexagon_count
@@ -337,6 +339,19 @@ class HexagonalMesh(Voronoi):
         @vertices.setter # copy/paste
         def vertices(self, vertices):
                 self.__lazysetter__(vertices)
+
+        # cell_volume property
+        @property
+        def cell_volume(self):
+                if self._cell_volume is None:
+                        n_cells = self._cell_centers.shape[0]
+                        cell_area = 3 * self.hexagon_radius ** 2 / cos(pi/6.)
+                        self._cell_volume = np.full(n_cells, cell_area, dtype=float)
+                return self._cell_volume
+
+        @cell_volume.setter
+        def cell_volume(self, area):
+                self.__setlazy__('cell_volume', area)
 
 
 
