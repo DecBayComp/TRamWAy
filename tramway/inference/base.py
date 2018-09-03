@@ -1403,6 +1403,8 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 new_group = new
         if not isinstance(cells, tessellation.CellStats):
                 raise TypeError('`cells` is not a `CellStats`')
+        if np.any(np.isnan(cells.points)):
+                raise ValueError('NaN in location data')
 
         # format (trans-)locations
         coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
@@ -1468,7 +1470,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         space_cols = np.ones(cells.points.shape[1], dtype=bool)
                         space_cols[time_col] = False
                         space_cols, = space_cols.nonzero()
-        if cells.tessellation.scaler is not None and cells.tessellation.scaler.columns is not None:
+        if cells.tessellation.scaler is not None and cells.tessellation.scaler.columns:
                 space_cols = cells.tessellation.scaler.columns
 
         # pre-select cells
@@ -1498,6 +1500,11 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         _destination = get_point(final_point, i)
                         __origin = _origin.copy() # make copy
                         __origin.index += 1
+                        _ok = np.array([i in _destination.index for i in __origin.index])
+                        _ok &= np.array([i in __origin.index for i in _destination.index])
+                        _origin = get_point(_origin, _ok)
+                        __origin = get_point(__origin, _ok)
+                        _destination = get_point(_destination, _ok)
                         _points = _origin # for convex hull; ideally not only origins
                         points = _destination - __origin # translocations
                 else:

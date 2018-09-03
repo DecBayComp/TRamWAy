@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -53,8 +53,14 @@ class KMeansMesh(Voronoi):
                 if init and self._min_distance is not None:
                         self._min_distance = self.scaler.scale_distance(self._min_distance)
                 if self.initial == 'grid':
+                        try:
+                                avg_distance = kwargs['avg_distance']
+                        except KeyError:
+                                avg_distance = None
+                        else:
+                                avg_distance = self.scaler.scale_distance(avg_distance)
                         grid = RegularMesh(avg_probability=self.avg_probability,
-                                min_distance=self._min_distance)
+                                min_distance=self._min_distance, avg_distance=avg_distance)
                         grid.tessellate(points)
                         self._cell_centers = grid._cell_centers
                         #self.lower_bound = grid.lower_bound
@@ -131,6 +137,7 @@ setup = {
         'make': KMeansMesh,
         'make_arguments': OrderedDict((
                 ('min_distance', ()),
+                ('avg_distance', ()),
                 ('avg_probability', ()),
                 ('avg_location_count', dict(args=('-c', '--location-count'), kwargs=dict(type=int, default=80, help='average number of locations per cell'), translate=True)),
                 ('metric', dict(parse=_metric)),

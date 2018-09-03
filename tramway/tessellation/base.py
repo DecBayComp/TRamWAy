@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -1106,36 +1106,38 @@ class Voronoi(Delaunay):
                 """
                 if self._cell_centers is None:
                         raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
+                points = np.asarray(self._cell_centers)
+                if False:#points.shape[1] == 2:
+                        voronoi = boxed_voronoi_2d(points)
                 else:
-                        points = np.asarray(self._cell_centers)
-                        if False:#points.shape[1] == 2:
-                                voronoi = boxed_voronoi_2d(points)
-                        else:
-                                voronoi = spatial.Voronoi(points)
-                        self._vertices = voronoi.vertices
-                        self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
-                                        for i, r in enumerate(voronoi.point_region) if 0 <= r }
-                        n_centers = self._cell_centers.shape[0]
-                        # decompose the ridges as valid pairs of vertices and build an adjacency matrix
-                        ps = []
-                        for r in voronoi.ridge_vertices:
-                                pairs = np.c_[r, np.roll(r, 1)]
-                                pairs = pairs[np.logical_not(np.any(pairs == -1, axis=1))]
-                                ps.append(pairs)
-                        ij = np.concatenate(ps)
-                        n_vertices = self._vertices.shape[0]
-                        self._vertex_adjacency = sparse.coo_matrix((np.ones(ij.size, dtype=bool),
-                                        (ij.ravel('F'), np.fliplr(ij).ravel('F'))),
-                                shape=(n_vertices, n_vertices))
-                        #
-                        if self._cell_adjacency is None:
-                                n_ridges = voronoi.ridge_points.shape[0]
-                                self._cell_adjacency = sparse.csr_matrix((\
-                                        np.tile(np.arange(0, n_ridges, dtype=int), 2), (\
-                                        voronoi.ridge_points.flatten('F'), \
-                                        np.fliplr(voronoi.ridge_points).flatten('F'))), \
-                                        shape=(n_centers, n_centers))
-                        return voronoi
+                        voronoi = spatial.Voronoi(points)
+                self._vertices = voronoi.vertices
+                self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
+                                for i, r in enumerate(voronoi.point_region) if 0 <= r }
+                n_centers = self._cell_centers.shape[0]
+                # decompose the ridges as valid pairs of vertices and build an adjacency matrix
+                ps = []
+                for r in voronoi.ridge_vertices:
+                        pairs = np.c_[r, np.roll(r, 1)]
+                        pairs = pairs[:, ~np.any(pairs == -1, axis=0)]
+                        ps.append(pairs)
+                ij = np.concatenate(ps)
+                n_vertices = self._vertices.shape[0]
+                self._vertex_adjacency = sparse.coo_matrix((np.ones(ij.size, dtype=bool),
+                                (ij.ravel('F'), np.fliplr(ij).ravel('F'))),
+                        shape=(n_vertices, n_vertices))
+                #
+                if self._cell_adjacency is None:
+                        ridge_points = voronoi.ridge_points
+                        ridge_points = ridge_points[np.all(0 <= ridge_points, axis=1)]
+                        n_ridges = ridge_points.shape[0]
+                        self._cell_adjacency = sparse.csr_matrix((\
+                                #np.tile(np.arange(0, n_ridges, dtype=int), 2), (\
+                                np.ones(n_ridges*2, dtype=bool), (\
+                                ridge_points.flatten('F'), \
+                                np.fliplr(ridge_points).flatten('F'))), \
+                                shape=(n_centers, n_centers))
+                return voronoi
 
         @property
         def cell_volume(self):
@@ -1226,7 +1228,12 @@ _Voronoi = namedtuple('BoxedVoronoi', (
 def boxed_voronoi_2d(points, bounding_box=None):
         voronoi = spatial.Voronoi(points)
         if bounding_box is None:
+                #x_min = np.minimum(np.min(points, axis=0), np.min(voronoi.vertices, axis=0))
+                #x_max = np.maximum(np.max(points, axis=0), np.max(voronoi.vertices, axis=0))
                 x_min, x_max = np.min(points, axis=0), np.max(points, axis=0)
+                dx = x_max - x_min
+                x_min -= 1e-4 * dx
+                x_max += 1e-4 * dx
                 bounding_box = (
                         x_min,
                         np.array([x_max[0], x_min[1]]),
@@ -1234,9 +1241,7 @@ def boxed_voronoi_2d(points, bounding_box=None):
                         np.array([x_min[0], x_max[1]]),
                         )
         t = (bounding_box[0] + bounding_box[2]) * .5
-        lstsq_kwargs = {}
-        if sys.version_info[0] < 3:
-                lstsq_kwargs['rcond'] = None
+        lstsq_kwargs = dict(rcond=None)
         region_point = np.full(len(voronoi.regions), -1, dtype=int)
         region_point[voronoi.point_region] = np.arange(voronoi.point_region.size)
         extra_vertices = []
@@ -1319,8 +1324,6 @@ def boxed_voronoi_2d(points, bounding_box=None):
                                 if prev_edge is None or prev_edge == l:
                                         h_prev = h
                                 else:
-                                        h_prev = vertex_index
-                                        vertex_index += 1
                                         # add the corner which the previous
                                         # and current edges intersect at
                                         e_max = len(bounding_box)-1
@@ -1331,11 +1334,17 @@ def boxed_voronoi_2d(points, bounding_box=None):
                                                 (l==e_max and prev_edge==0):
                                                 v_prev = b
                                         else:
-                                                raise RuntimeError
-                                        extra_vertices.append(v_prev)
-                                        extra_ridges.append([-1,c])
-                                        _ridge_vertices.append([h,h_prev])
-                                        _region.append(h_prev)
+                                                # two corners?
+                                                # better connect the intersection points and let the corners out
+                                                h_prev = h
+                                                v_prev = None
+                                        if v_prev is not None:
+                                                h_prev = vertex_index
+                                                vertex_index += 1
+                                                extra_vertices.append(v_prev)
+                                                extra_ridges.append([-1,c])
+                                                _ridge_vertices.append([h,h_prev])
+                                                _region.append(h_prev)
                                 prev_edge = l
                                 #
                                 h_next = vertex_index
@@ -1357,7 +1366,7 @@ def boxed_voronoi_2d(points, bounding_box=None):
         _points = voronoi.points
         _vertices = np.vstack([voronoi.vertices]+extra_vertices)
         _ridge_points = np.vstack([_ridge_points]+extra_ridges)
-        _point_region = voronoi.point_region
+        _point_region = np.arange(1, len(_regions))#voronoi.point_region
         return _Voronoi(_points, _vertices, _ridge_points, _ridge_vertices, _regions, _point_region)
 
 

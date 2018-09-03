@@ -227,21 +227,26 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 ok[np.logical_not(map_defined)] = False
                 ok[ok] = np.logical_not(np.isnan(values.loc[ix[ok]].values))
                 for i in ix[ok]:
-                        vs = cells.tessellation.cell_vertices[i]
+                        vs = cells.tessellation.cell_vertices[i].tolist()
                         # order the vertices so that they draw a polygon
                         v0 = v = vs[0]
-                        vs = set(list(vs))
+                        vs = set(vs)
                         vertices = []
+                        #vvs = [] # debug
                         while True:
                                 vertices.append(cells.tessellation.vertices[v])
+                                #vvs.append(v)
                                 vs.remove(v)
+                                if not vs:
+                                        break
                                 ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
                                 if not ws:
-                                        if vs:
-                                                ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
+                                        ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
                                         if ws:
                                                 vertices = vertices[::-1]
                                         else:
+                                                #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
+                                                warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
                                                 break
                                 v = ws.pop()
                         #
@@ -267,7 +272,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         try:
                 if np.any(np.isnan(scalar_map)):
                         #print(np.nonzero(np.isnan(scalar_map)))
-                        msg = 'NaNs ; changing them into 0s'
+                        msg = 'NaN found'
                         try:
                                 warn(msg, NaNWarning)
                         except:

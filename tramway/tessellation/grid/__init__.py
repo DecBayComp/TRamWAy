@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -79,6 +79,8 @@ class RegularMesh(Voronoi):
                                 if self.min_probability is not None:
                                         # TODO
                                         pass
+                        else:
+                                raise ValueError('both `avg_probability` and `avg_distance` undefined')
                         if isinstance(size, pd.Series):
                                 self.count_per_dim = pd.Series.round(size / increment)
                         else:
@@ -87,7 +89,7 @@ class RegularMesh(Voronoi):
                         self.count_per_dim = pd.Series(self.count_per_dim, index=points.columns)
                 if isinstance(points, pd.DataFrame):
                         grid = pd.concat([self.lower_bound, self.upper_bound, self.count_per_dim + 1], axis=1).T
-                        self.grid = [ np.linspace(*col.values) for _, col in grid.iteritems() ]
+                        self.grid = [ np.linspace(*col.values) for _, col in grid.items() ]
                 else:
                         grid = np.stack((self.lower_bound, self.upper_bound, self.count_per_dim + 1), axis=0)
                         self.grid = [ np.linspace(col[0], col[1], int(col[2])) for col in grid.T ]
