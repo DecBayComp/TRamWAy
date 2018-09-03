@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -276,9 +276,11 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
         if F:
                 F = pd.DataFrame(np.stack(F, axis=0), index=index_, \
                         columns=[ 'force ' + col for col in cells.space_cols ])
-                DVF = DVF.join(F)
         else:
                 warn('not any cell is suitable for evaluating the local force', RuntimeWarning)
+                F = pd.DataFrame(np.zeros((0, len(cells.space_cols)), dtype=V.dtype), \
+                        columns=[ 'force ' + col for col in cells.space_cols ])
+        DVF = DVF.join(F)
 
         # add extra information if required
         if export_centers:

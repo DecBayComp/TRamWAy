@@ -1475,7 +1475,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         return bool(a.size)
                 except AttributeError:
                         return bool(a)
-        if cells.tessellation.scaler is not None and not _bool(cells.tessellation.scaler.columns):
+        if cells.tessellation.scaler is not None and _bool(cells.tessellation.scaler.columns):
                 space_cols = cells.tessellation.scaler.columns
 
         # pre-select cells
