@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -27,7 +27,29 @@ import traceback
 from collections import defaultdict
 
 
-def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None, **kwargs):
+def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
+        """
+        Plot 2D points coloured by associated cell.
+
+        Arguments:
+
+                cells (CellStats):
+                        full partition
+
+                min_count (int):
+                        discard cells with less than this number of associated points
+
+                style (str):
+                        point marker style
+
+                size (int):
+                        point marker size
+
+                color (str or numpy.ndarray):
+                        cell colours
+
+        Extra keyword arguments are passed to *matplotlib* 's *scatter* or *plot*.
+        """
         if isinstance(cells, np.ndarray):
                 points = cells
                 label = None
@@ -92,6 +114,32 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, tess=None,
 
 def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
                 linewidth=1):
+        """
+        Voronoi plot.
+
+        Arguments:
+
+                cells (CellStats):
+                        full partition
+
+                labels (numpy.ndarray):
+                        numerical labels for cell adjacency relationship
+
+                color (str):
+                        single-character colours in a string, e.g. 'rrrbgy'
+
+                style (str):
+                        line style
+
+                centroid_style (str):
+                        marker style of the cell centers
+
+                negative (any):
+                        if ``None``, do not plot edges corresponding to negative adjacency labels
+
+                linewidth (int):
+                        line width
+        """
         vertices = cells.tessellation.vertices
         labels, color = _graph_theme(cells.tessellation, labels, color, negative)
         try:
@@ -168,6 +216,44 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 
 def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
                 axes=None, linewidth=1, individual=False):
+        """
+        Delaunay plot.
+
+        Arguments:
+
+                cells (CellStats):
+                        full partition
+
+                labels (numpy.ndarray):
+                        numerical labels for cell adjacency relationship
+
+                color (str):
+                        single-character colours in a string, e.g. 'rrrbgy'
+
+                style (str):
+                        line style
+
+                centroid_style (str):
+                        marker style of the cell centers
+
+                negative (any):
+                        if ``None``, do not plot edges corresponding to negative adjacency labels;
+                        if '*voronoi*', plot the corresponding Voronoi edge instead, for edges with
+                        negative labels
+
+                axes (matplotlib.axes.Axes):
+                        axes where to plot
+
+                linewidth (int):
+                        line width
+
+                individual (bool):
+                        plot each edge independently; this generates a lot of handles and takes time
+
+        Returns:
+
+                list: handles of the plotted edges
+        """
         if axes is None:
                 axes = plt
         try:
@@ -270,6 +356,28 @@ def _graph_theme(tess, labels, color, negative):
 
 def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
                 arrow_size=5, arrow_color='y', font_size=12, shift_indices=False):
+        """
+        Plot a :class:`~tramway.inference.base.Distributed` object as a mesh.
+
+        Arguments:
+
+                cells (tramway.inference.base.Distributed):
+                        mesh prepared for the inference
+
+                vertex_color (str): colour for the cell centers
+
+                vertex_style (str): marker style for the cell centers
+
+                edge_color (str): colour of the edge between adjacent cells
+
+                arrow_size (int): size of the arrows along the edges
+
+                arrow_color (str): colour of the arrows along the edges
+
+                font_size (int): font size of the cell indices
+
+                shift_indices (bool): make cell indices range from 1
+        """
         centers = np.vstack([ cells[i].center for i in cells ])
         _min, _max = np.min(centers), np.max(centers)
         arrow_size = float(arrow_size) * 1e-3 * (_max - _min)
@@ -291,4 +399,27 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
                         plt.plot([left[0], top[0], right[0]], [left[1], top[1], right[1]], arrow_color+'-')
                 plt.text(x[0], x[1], str(i+1 if shift_indices else i), fontsize=font_size)
         plt.plot(centers[:,0], centers[:,1], vertex_color+vertex_style)
+
+
+def plot_indices(cells, **kwargs):
+        """
+        Plot cell indices at the cell centers.
+
+        Arguments:
+
+                cells (CellStats or Tessellation):
+                        tessellation
+
+        Trailing keyword arguments are passed to :func:`~matplotlib.pyplot.text`.
+        """
+        try:
+                cells = cells.tessellation
+        except (KeyboardInterrupt, SystemExit):
+                raise
+        except:
+                pass
+        i = 0
+        for x,y in cells.cell_centers:
+                plt.text(x, y, str(i), **kwargs)
+                i += 1
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -20,14 +20,17 @@ from rwa import *
 from .store import *
 from . import store
 
-__all__ = ['HDF5Store', 'hdf5_storable', 'hdf5_not_storable', 'lazytype', 'lazyvalue'] # from rwa
-__all__ += store.__all__ + ['store'] # from .store
-
+_rwa_available = True
 try:
         hdf5_agnostic_modules += ['tramway.core.analyses', 'tramway.core.scaler', \
                 'tramway.tessellation', 'tramway.inference', 'tramway.feature']
-except TypeError: # rwa is Mock in rtd
-        pass
+except NameError: # rwa is Mock in rtd
+        _rwa_available = False
+        __all__ = []
+else:
+        __all__ = ['hdf5_storable', 'hdf5_not_storable', 'lazytype', 'lazyvalue'] # from rwa
+__all__ += store.__all__ + ['store'] # from .store
+
 
 if sys.version_info[0] < 3:
         from .rules import *
@@ -44,7 +47,8 @@ else:
         from ..lazy import Lazy
         cell_stats_expose = Lazy.__slots__ + CellStats.__slots__ + ('_tesselation',)
         __all__.append('cell_stats_expose')
-        hdf5_storable(default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
+        if _rwa_available:
+                hdf5_storable(default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
 
 try:
         from tramway.tessellation.kdtree.dichotomy import Dichotomy, ConnectedDichotomy
@@ -55,10 +59,12 @@ else:
                 'origin', 'lower_bound', 'upper_bound', \
                 'min_count', 'max_count', 'subset', 'cell']
         __all__.append('dichotomy_exposes')
-        hdf5_storable(generic.kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
+        if _rwa_available:
+                hdf5_storable(generic.kwarg_storable(Dichotomy, dichotomy_exposes), agnostic=True)
         connected_dichotomy_exposes = dichotomy_exposes + ['adjacency']
         __all__.append('connected_dichotomy_exposes')
-        hdf5_storable(generic.kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
+        if _rwa_available:
+                hdf5_storable(generic.kwarg_storable(ConnectedDichotomy, connected_dichotomy_exposes), agnostic=True)
 
 
 try:
@@ -103,8 +109,11 @@ else:
                 #print('peek_maps')
                 read = list(Maps.__lazy__) # do not read any lazy attribute;
                 # in principle no lazy attribute should be found in `container`
-                mode = store.peek('mode', container)
-                read.append('mode')
+                try:
+                        mode = store.peek('mode', container)
+                        read.append('mode')
+                except KeyError:
+                        mode = None
                 try:
                         maps = store.peek('maps', container)
                         read.append('maps')
@@ -114,6 +123,8 @@ else:
                                 maps = store.peek('result', container)
                                 read.append('result')
                                 mode = None
+                        elif mode is None:
+                                raise
                         else:
                                 maps = store.peek(mode, container)
                                 read.append(mode)
@@ -124,11 +135,14 @@ else:
                 return maps
 
         __all__ += ['poke_maps', 'peek_maps']
-        hdf5_storable(Storable(Maps, \
-                handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
+
+        if _rwa_available:
+                hdf5_storable(Storable(Maps, \
+                        handlers=StorableHandler(poke=poke_maps, peek=peek_maps)), agnostic=True)
 
 from ..analyses import Analyses, base
-_analyses_storable = default_storable(Analyses, exposes=base.Analyses.__slots__)
-_analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
-hdf5_storable(_analyses_storable)
+if _rwa_available:
+        _analyses_storable = default_storable(Analyses, exposes=base.Analyses.__slots__)
+        _analyses_storable.storable_type = 'tramway.core.analyses.Analyses'
+        hdf5_storable(_analyses_storable)
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -26,27 +26,44 @@ class TimeLattice(Tessellation):
         If `time_lattice` contains integers, these elements are regarded as frame indices,
         whereas if it contains floats, the elements represent time.
 
+        The `time_edge` attribute (`time_label` init argument) drives the encoding of temporal
+        adjacency.
+        It is a two-element sequence respectively representing *past* and *future* relationships.
+        If `time_label` is supplied as a single scalar value, *past* and *future* relationships
+        are encoded with this same label.
+        If a label is ``None`` or ``False``, then the corresponding relationship is not represented.
+        If a label is ``True``, then it is translated into an integer value that is not used yet.
+
+        The `omit_time` attribute (default value is ``False``) may be useful combined with
+        a defined `spatial_mesh` to omit time in the representation of cell centers and
+        the calculation of cell volumes.
+        If `spatial_mesh` is not defined, `omit_time` is ignored.
+
         Functional dependencies:
 
         * setting `time_lattice` unsets `cell_label`, `cell_adjacency` and `adjacency_label`
-        * setting `spatial_mesh` unsets `cell_centers`, `cell_label`, `cell_adjacency` and `adjacency_label`
-        * `cell_centers` and `split_frames` are available only when `spatial_mesh` is defined
+        * setting `spatial_mesh` unsets `cell_centers`, `cell_label`, `cell_adjacency` and `adjacency_label`, `cell_volume`
+        * `cell_centers`, `cell_volume` and `split_frames` are available only when `spatial_mesh`
+        is defined
 
         """
-        __slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers')
+        __slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers', '_cell_volume',
+                'omit_time')
 
         __lazy__ = Tessellation.__lazy__ + \
-                ('cell_centers', 'cell_adjacency', 'cell_label', 'adjacency_label')
+                ('cell_centers', 'cell_adjacency', 'cell_label', 'adjacency_label', 'cell_volume')
 
-        def __init__(self, scaler=None, segments=None, label=None, mesh=None):
+        def __init__(self, scaler=None, segments=None, time_label=None, mesh=None, omit_time=None):
                 Tessellation.__init__(self, scaler) # scaler is ignored
                 self._time_lattice = segments
-                self.time_edge = label
+                self.time_edge = time_label
                 self._cell_adjacency = None
                 self._cell_label = None
                 self._adjacency_label = None
                 self._spatial_mesh = mesh
+                self.omit_time = omit_time # None is treated as False
                 self._cell_centers = None
+                self._cell_volume = None
 
         @property
         def time_lattice(self):
@@ -70,6 +87,7 @@ class TimeLattice(Tessellation):
                 self.adjacency_label = None
                 self._spatial_mesh = tessellation
                 self.cell_centers = None
+                self.cell_volume = None
 
         def tessellate(self, points, **kwargs):
                 if self.spatial_mesh is not None:
@@ -95,12 +113,12 @@ class TimeLattice(Tessellation):
                         else:
                                 dt = dt[0]
                         time = (time * dt) + t0
-                # 
+                #
                 if self.spatial_mesh is None:
-                        spatial_index = None
+                        #spatial_index = None
                         count_shape = (nsegments,)
                 else:
-                        spatial_index = self.spatial_mesh.cell_index(points, *args, **kwargs)
+                        #spatial_index = self.spatial_mesh.cell_index(points, *args, **kwargs)
                         ncells = self.spatial_mesh.cell_adjacency.shape[0]
                         count_shape = (ncells, nsegments)
                 if exclude:
@@ -111,11 +129,19 @@ class TimeLattice(Tessellation):
                         segment = np.logical_and(t0 <= ts, ts < t1)
                         pts, = np.nonzero(segment)
                         if pts.size:
-                                if spatial_index is None:
+                                if self.spatial_mesh is None:
                                         ids = np.full_like(pts, t)
                                 else:
-                                        if isinstance(spatial_index, np.ndarray):
-                                                ids = spatial_index[segment]
+                                        if isinstance(points, pd.DataFrame):
+                                                points_t = points.iloc[segment]
+                                        else:
+                                                points_t = points[segment]
+                                        ids = self.spatial_mesh.cell_index(points_t, *args, **kwargs)
+                                        if isinstance(ids, np.ndarray):
+                                                pass
+                                        elif isinstance(ids, tuple):
+                                                _pts, ids = ids
+                                                pts = pts[_pts]
                                         else:
                                                 raise NotImplementedError
                                         if exclude:
@@ -168,25 +194,50 @@ class TimeLattice(Tessellation):
         def cell_adjacency(self):
                 if self._cell_adjacency is None:
                         nsegments = self.time_lattice.shape[0]
+
                         try:
                                 past_edge, future_edge = self.time_edge
-                        except TypeError:
+                        except (TypeError, ValueError):
                                 past_edge = future_edge = self.time_edge
-                                self.time_edge = (past_edge, future_edge)
+                        if past_edge is False:
+                                past_edge = None
+                        if future_edge is False:
+                                future_edge = None
+
                         if self.spatial_mesh is None:
                                 cell_ids = np.arange(nsegments)
                                 row, col, data = [], [], []
-                                labels = [min(past_edge, future_edge) - 1] # fake label at index 0
+
+                                # the first label in `labels` is fake (at index 0)
+                                if past_edge is True:
+                                        if future_edge is True:
+                                                past_edge, future_edge = -1, 1
+                                        elif future_edge is None:
+                                                past_edge = -1
+                                        else:
+                                                past_edge = future_edge - 1
+                                        labels = [past_edge - 1]
+                                elif future_edge is True:
+                                        if past_edge is None:
+                                                future_edge = 1
+                                        else:
+                                                future_edge = past_edge + 1
+                                        labels = [future_edge + 1]
+                                else:
+                                        labels = [min(past_edge, future_edge) - 1]
+
                                 if past_edge is not None:
                                         row.append(cell_ids[:-1])
                                         col.append(cell_ids[1:])
                                         data.append(np.full(nsegments - 1, len(labels), dtype=int))
                                         labels.append(past_edge)
+
                                 if future_edge is not None:
                                         row.append(cell_ids[1:])
                                         col.append(cell_ids[:-1])
                                         data.append(np.full(nsegments - 1, len(labels), dtype=int))
                                         labels.append(future_edge)
+
                                 if data:
                                         data = np.concatenate(data)
                                         row = np.concatenate(row)
@@ -198,13 +249,14 @@ class TimeLattice(Tessellation):
                                         self._cell_adjacency = sparse.coo_matrix((nsegments, nsegments),
                                                 dtype=bool)
                                         self._adjacency_label = []
+
                         else:
                                 if self.spatial_mesh.adjacency_label is None:
                                         A = sparse.triu(self.spatial_mesh.cell_adjacency, format='coo')
                                         ncells = A.shape[0]
                                         edge_max = int(A.data.max())
                                         if 1 < edge_max:
-                                                raise ValueError('non boolean values in the adjacency matrix are no reference to labels')
+                                                raise ValueError('non-boolean values in the adjacency matrix are not references to labels')
                                         n_spatial_edges = A.data.size
                                         A = sparse.coo_matrix((np.tile(np.arange(n_spatial_edges), 2), \
                                                         (np.r_[A.row, A.col], np.r_[A.col, A.row])), \
@@ -215,35 +267,60 @@ class TimeLattice(Tessellation):
                                         A = self.spatial_mesh.cell_adjacency.tocsr()
                                         edge_max = int(A.data.max())
                                         n_spatial_edges = int(self._adjacency_label.max())
+
                                 ncells = A.shape[0]
                                 active_cells, = np.where(0 < np.diff(A.indptr))
                                 edge_ptr = edge_max + 1
-                                past = sparse.coo_matrix( \
-                                        (np.arange(edge_ptr, edge_ptr + active_cells.size), \
-                                                (active_cells, active_cells)), \
-                                        shape=(ncells, ncells))
-                                edge_ptr += active_cells.size
-                                future = sparse.coo_matrix( \
-                                        (np.arange(edge_ptr, edge_ptr + active_cells.size), \
-                                                (active_cells, active_cells)), \
-                                        shape=(ncells, ncells))
-                                edge_ptr += active_cells.size
+
+                                if past_edge is None:
+                                        past = None
+                                else:
+                                        past = sparse.coo_matrix( \
+                                                (np.arange(edge_ptr, edge_ptr + active_cells.size), \
+                                                        (active_cells, active_cells)), \
+                                                shape=(ncells, ncells))
+                                        edge_ptr += active_cells.size
+                                if future_edge is None:
+                                        future = None
+                                else:
+                                        future = sparse.coo_matrix( \
+                                                (np.arange(edge_ptr, edge_ptr + active_cells.size), \
+                                                        (active_cells, active_cells)), \
+                                                shape=(ncells, ncells))
+                                        edge_ptr += active_cells.size
+
                                 blocks = [[A, future] + [None] * (nsegments - 2)]
                                 for k in range(1, nsegments - 1):
                                         blocks.append([None] * (k - 1) + [past, A, future] + \
                                                 [None] * (nsegments - 2 - k))
                                 blocks.append([None] * (nsegments - 2) + [past, A])
                                 self._cell_adjacency = sparse.bmat(blocks, format='csr')
-                                if past_edge is None:
-                                        past_edge = edge_max + 1
+
+                                if past_edge is True:
+                                        if future_edge in (True, None) or future_edge != edge_max + 1:
+                                                past_edge = edge_max + 1
+                                        else:
+                                                past_edge = max(edge_max, future_edge) + 1
                                         edge_max += 1
-                                if future_edge is None:
-                                        future_edge = edge_max + 1
+                                if future_edge is True:
+                                        if past_edge is None:
+                                                future_edge = edge_max + 1
+                                        else:
+                                                future_edge = max(edge_max, past_edge) + 1
                                         edge_max += 1
                                 dtype = self._adjacency_label.dtype
-                                self._adjacency_label = np.r_[self._adjacency_label, \
-                                        np.full(active_cells.size, past_edge, dtype=dtype), \
-                                        np.full(active_cells.size, future_edge, dtype=dtype)]
+                                if past_edge and future_edge:
+                                        self._adjacency_label = np.r_[self._adjacency_label, \
+                                                np.full(active_cells.size, past_edge, dtype=dtype), \
+                                                np.full(active_cells.size, future_edge, dtype=dtype)]
+                                elif past_edge:
+                                        self._adjacency_label = np.r_[self._adjacency_label, \
+                                                np.full(active_cells.size, past_edge, dtype=dtype)]
+                                elif future_edge:
+                                        self._adjacency_label = np.r_[self._adjacency_label, \
+                                                np.full(active_cells.size, future_edge, dtype=dtype)]
+
+                        self.time_edge = (past_edge, future_edge)
                 return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
 
         @cell_adjacency.setter
@@ -290,8 +367,8 @@ class TimeLattice(Tessellation):
         @property
         def cell_centers(self):
                 if self._cell_centers is None:
-                        if self.time_lattice.dtype == int:
-                                raise ValueError('cannot return timestamps')
+                        if not self.omit_time and self.time_lattice.dtype == int:
+                                raise ValueError('time is encoded as frame indices')
                         nsegments = self.time_lattice.shape[0]
                         if self.spatial_mesh is None:
                                 raise AttributeError('`cell_centers` is defined only for time lattices combined with spatial tessellations')
@@ -300,9 +377,10 @@ class TimeLattice(Tessellation):
                                 self._cell_centers = self.spatial_mesh.cell_centers
                                 ncells = self._cell_centers.shape[0]
                                 self._cell_centers = np.tile(self._cell_centers, (nsegments, 1))
-                                self._cell_centers = np.hstack((self._cell_centers, \
-                                        np.repeat(np.mean(self.time_lattice, axis=1), \
-                                                ncells)[:,np.newaxis]))
+                                if not self.omit_time:
+                                        self._cell_centers = np.hstack((self._cell_centers, \
+                                                np.repeat(np.mean(self.time_lattice, axis=1), \
+                                                        ncells)[:,np.newaxis]))
                 return self.__returnlazy__('cell_centers', self._cell_centers)
 
         @cell_centers.setter
@@ -315,8 +393,39 @@ class TimeLattice(Tessellation):
                         raise AttributeError('`cell_centers` is read-only')
 
 
+        # Voronoi properties and methods
+        @property
+        def cell_volume(self):
+                if self._cell_volume is None:
+                        if not self.omit_time and self.time_lattice.dtype == int:
+                                raise ValueError('time is encoded as frame indices')
+                        nsegments = self.time_lattice.shape[0]
+                        if self.spatial_mesh is None:
+                                raise AttributeError('`cell_volume` is defined only for time lattices combined with spatial tessellations')
+                                self._cell_volume = np.diff(self.time_lattice, axis=1)
+                        else:
+                                self._cell_volume = self.spatial_mesh.cell_volume
+                                ncells = self._cell_volume.shape[0]
+                                self._cell_volume = np.tile(self._cell_volume, nsegments)
+                                if not self.omit_time:
+                                        segment_duration = np.squeeze(np.diff(self.time_lattice, axis=1))
+                                        self._cell_volume *= \
+                                                np.repeat(segment_duration, ncells)
+                return self.__returnlazy__('cell_volume', self._cell_volume)
+
+        @cell_volume.setter
+        def cell_volume(self, v):
+                if v is None:
+                        self.__lazysetter__(v)
+                elif self.spatial_mesh is None:
+                        raise AttributeError('`cell_volume` is defined only for time lattices combined with spatial tessellations')
+                else:
+                        raise AttributeError('`cell_volume` is read-only')
+
+
+        # other methods
         def split_frames(self, df, return_times=False):
-                if not isinstance(df, pd.DataFrame):
+                if not isinstance(df, (pd.Series, pd.DataFrame)):
                         raise TypeError('implemented only for `pandas.DataFrame`s')
                 if self.spatial_mesh is None:
                         raise NotImplementedError('missing spatial tessellation')

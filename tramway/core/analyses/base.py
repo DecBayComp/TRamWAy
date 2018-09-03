@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -92,9 +92,9 @@ class Analyses(object):
         """
         Generic container with labels and comments for analyses on some data.
 
-        For example, the various sampling strategies (`instances`) explored 
+        For example, the various sampling strategies (`instances`) explored
         in relation with some molecule location data (`data` or equivalently `artefact`)
-        or the various dynamics parameter maps (`instances`) infered from a same sample (`data` or 
+        or the various dynamics parameter maps (`instances`) infered from a same sample (`data` or
         `artefact`).
 
         Instances and comments are addressable with keys refered to as "labels".
@@ -181,7 +181,7 @@ class Analyses(object):
                 """
                 Add an analysis.
 
-                Adding an analysis at an existing label overwrites the existing analysis 
+                Adding an analysis at an existing label overwrites the existing analysis
                 instance and deletes the associated comment if any.
 
                 Arguments:
@@ -270,9 +270,9 @@ def extract_analysis(analyses, labels):
         """
         Extract an analysis from a hierarchy of analyses.
 
-        The elements of an :class:`~tramway.core.analyses.base.Analyses` instance can be other 
-        :class:`~tramway.core.analyses.base.Analyses` objects. 
-        As such, analyses are structured in a tree that exhibits as many logically-consecutive 
+        The elements of an :class:`~tramway.core.analyses.base.Analyses` instance can be other
+        :class:`~tramway.core.analyses.base.Analyses` objects.
+        As such, analyses are structured in a tree that exhibits as many logically-consecutive
         layers as there are processing steps.
 
         Arguments:
@@ -282,13 +282,13 @@ def extract_analysis(analyses, labels):
                         other :class:`~tramway.core.analyses.base.Analyses` instances.
 
                 labels (int, str or sequence of int and str):
-                        analyses label(s); the first label addresses the first layer of 
-                        analyses instances, the second label addresses the second layer of 
+                        analyses label(s); the first label addresses the first layer of
+                        analyses instances, the second label addresses the second layer of
                         analyses and so on.
 
         Returns:
 
-                tramway.core.analyses.base.Analyses: copy of the analyses along the path defined by `labels`. 
+                tramway.core.analyses.base.Analyses: copy of the analyses along the path defined by `labels`.
         """
         if not labels:
                 raise ValueError('labels required')
@@ -371,7 +371,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
                 labels (list): label path.
 
                 quantifiers (str or tuple or list): list of quantifers, a quantifier for now being
-                        either '*first*', '*last*' or '*all*'; a quantifier should be defined for each 
+                        either '*first*', '*last*' or '*all*'; a quantifier should be defined for each
                         filter; default is '*last*' (admits value ``None``).
 
                 return_subtree (bool): return as extra output argument the analysis subtree corresponding
@@ -542,7 +542,7 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
         return '\n'.join(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
 
 
-def append_leaf(analysis_tree, augmented_branch):
+def append_leaf(analysis_tree, augmented_branch, overwrite=False):
         """
         Merge new analyses into an existing analysis tree.
 
@@ -558,7 +558,7 @@ def append_leaf(analysis_tree, augmented_branch):
         """
         if augmented_branch:
                 for label in augmented_branch:
-                        if label in analysis_tree:
+                        if label in analysis_tree and (not overwrite or augmented_branch[label]):
                                 append_leaf(analysis_tree[label], augmented_branch[label])
                         else:
                                 analysis_tree.add(augmented_branch[label], label=label)

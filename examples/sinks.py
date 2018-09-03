@@ -55,9 +55,8 @@ def main():
                 # simulate random walks
                 print('generating trajectories: {}'.format(xyt_file))
                 df = random_walk(diffusivity_map, force_map, \
-                        trajectory_mean_count = 100, turnover = .7, duration = 10, \
                         box = np.r_[map_lower_bound, map_upper_bound - map_lower_bound], \
-                        full = True, count_outside_trajectories = True)
+                        full = True)
                 #print(df)
                 df.to_csv(xyt_file, sep="\t", header=False)
                 ## mesh regularly to sample ground truth for illustrative purposes
@@ -104,10 +103,10 @@ def main():
         output_file = out('df', 'png')
 
         print('plotting DF maps: {}'.format(output_file))
-        map_plot(DF, output_file=output_file, show=True, aspect='equal')
+        map_plot(DF, output_file=output_file, show=True, aspect='equal', transform={'force': np.log})
         output_file = out('dv', 'png')
         print('plotting DV maps: {}'.format(output_file))
-        map_plot(DV, output_file=output_file, show=True, aspect='equal')
+        map_plot(DV, output_file=output_file, show=True, aspect='equal', transform={'force': np.log})
 
         sys.exit(0)
 

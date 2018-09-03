@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -23,18 +23,20 @@ import scipy.sparse as sparse
 class NestedTessellations(Tessellation):
         """Tessellation of tessellations.
 
-        When nesting, the parent tessellation should have been grown already. 
+        When nesting, the parent tessellation should have been grown already.
 
         `tessellation` grows all the nested tessellations.
 
-        In `__init__`, `tessellation` and `cell_index`, 
-        the `scaler` (if any), `args` (if any) and `kwargs` arguments 
+        In `__init__`, `tessellation` and `cell_index`,
+        the `scaler` (if any), `args` (if any) and `kwargs` arguments
         only apply to the nested tessellations.
         """
         __slots__ = ('_parent', '_children', 'child_factory', \
-                'parent_index_arguments', 'child_factory_arguments')
+                'parent_index_arguments', 'child_factory_arguments', \
+                '_cell_centers')
 
-        __lazy__ = Tessellation.__lazy__ + ('cell_label', 'cell_adjacency', 'adjacency_label')
+        __lazy__ = Tessellation.__lazy__ + ('cell_label', 'cell_adjacency', 'adjacency_label', \
+                'cell_centers')
 
         def __init__(self, scaler=None, parent=None, factory=None, parent_index_arguments={}, **kwargs):
                 Tessellation.__init__(self, scaler)
@@ -43,6 +45,7 @@ class NestedTessellations(Tessellation):
                 self.child_factory = factory
                 self.parent_index_arguments = parent_index_arguments
                 self.child_factory_arguments = kwargs
+                self._cell_centers = None
 
         @property
         def parent(self):
@@ -63,6 +66,7 @@ class NestedTessellations(Tessellation):
                 self.cell_label = None
                 self.cell_adjacency = None
                 self.adjacency_label = None
+                self.cell_centers = None
                 self._children = tessellations
 
         def _parent_index(self, points):
@@ -118,7 +122,7 @@ class NestedTessellations(Tessellation):
                                 child_partition = self.children[u].cell_index(
                                         rows(points, child_pt_ids), *args, **kwargs)
                                 # TODO: test cases such that not any cell-point association is found;
-                                # currently, ``continue`` is not an option but 
+                                # currently, ``continue`` is not an option but
                                 # _first_ is made False anyway
                                 if sparse.issparse(child_partition):
                                         if _first_:
@@ -282,6 +286,45 @@ class NestedTessellations(Tessellation):
         def freeze(self):
                 for child in self.children.values():
                         child.freeze()
+
+        @property
+        def cell_centers(self):
+                if self._cell_centers is None:
+                        try:
+                                centers = []
+                                for child in self.children.values():
+                                        centers.append(child.cell_centers)
+                        except AttributeError:
+                                raise AttributeError("'NestedTessellations' object has no attribute 'cell_centers'")
+                        else:
+                                # note that a dimension may not represent the same variable
+                                # from a child to another
+                                self._cell_centers = np.vstack(centers)
+                return self.__returnlazy__('cell_centers', self._cell_centers)
+
+        @cell_centers.setter
+        def cell_centers(self, centers):
+                self.__lazyassert__(centers)
+
+        def child_cell_indices(self, u):
+                """
+                Arguments:
+
+                        u (int): child index.
+
+                Returns:
+
+                        slice: child's cell indices.
+                """
+                cell_count = 0
+                for v in self.children:
+                        child = self.children[v]
+                        child_cell_count = child.cell_adjacency.shape[0]
+                        if u == v:
+                                return slice(cell_count, cell_count + child_cell_count)
+                        cell_count += child_cell_count
+                raise IndexError('no such child index: {}'.format(u))
+
 
 
 __all__ = ['NestedTessellations']

@@ -19,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
         name = 'tramway',
-        version = '0.3-rc7',
+        version = '0.3-rc8',
         description = 'TRamWAy',
         long_description = long_description,
         url = 'https://github.com/DecBayComp/TRamWAy',
@@ -35,8 +35,8 @@ setup(
                 'Programming Language :: Python :: 3.6',
         ],
         keywords = '',
-        package_dir = {'tramway': 'tramway'},# 'tramway.demo': 'examples'},
-        packages = ['tramway',# 'tramway.demo',
+        package_dir = {'tramway': 'tramway'},
+        packages = ['tramway',
                 'tramway.core',
                 'tramway.core.analyses',
                 'tramway.core.hdf5',
@@ -53,7 +53,7 @@ setup(
                 'tramway.helper',
                 'tramway.helper.simulation',
                 'tramway.utils'],
-        scripts = ['scripts/tramway'],# 'scripts/tramway-demo'],
+        scripts = ['scripts/tramway'],
         install_requires = install_requires,
         extras_require = extras_require,
         setup_requires = setup_requires,

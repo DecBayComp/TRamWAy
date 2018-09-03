@@ -10,6 +10,19 @@ Maps of these parameters are thus generated and additional tools such as curl ca
 
 |tramway| has been designed as a modular Python library that may accomodate additional plugins for the main processing steps, namely the tessellation and inference steps.
 
+The full code is distributed under :ref:`CeCILL license <license>` and is available at `github`_.
+
+
+--------
+Features
+--------
+
+* spatial :ref:`tessellation <tessellation>` and temporal segmentation
+* :ref:`inference <inference>` of diffusivity, drift, force and potential energy
+* analyses of the estimated force, such as curl calculation and `Bayes factor <https://github.com/DecBayComp/TRamWAy/tree/bayes_factor>`_ calculation to distinguish interactions and spurious forces
+* and more: generation of random trajectories, plotting utilities, etc
+
+
 
 -------------
 Quick example
@@ -36,13 +49,13 @@ Maps of diffusivity and potential energy estimates can be generated from molecul
 
 .. tabularcolumns:: |p{0.25\linewidth}|p{0.25\linewidth}|p{0.25\linewidth}|p{0.25\linewidth}|
 
-+-------------------------+-------------------------+---------------------------------------------------+
-|   molecule locations    |    tessellation (1)     |                     maps (2,3)                    |
-|                         |                         +-------------------------+-------------------------+
-|                         |                         |      diffusivity        |    potential energy     |
-+=========================+=========================+=========================+=========================+
-| .. image:: t0-0.*       | .. image:: t0-1.*       | .. image:: t0-2.*       | .. image:: t0-3.*       |
-+-------------------------+-------------------------+-------------------------+-------------------------+
++-------------------------+-------------------------+---------------------------------------------------+-------------------------+
+|   molecule locations    |    tessellation (1)     |                                  maps (2,3)                                 |
+|                         |                         +-------------------------+-------------------------+-------------------------+
+|                         |                         |      diffusivity        |    potential energy     |         force           |
++=========================+=========================+=========================+=========================+=========================+
+| .. image:: t0-0.*       | .. image:: t0-1.*       | .. image:: t0-2.*       | .. image:: t0-3.*       | .. image:: t0-4.*       |
++-------------------------+-------------------------+-------------------------+-------------------------+-------------------------+
 
 The equivalent Python code is:
 

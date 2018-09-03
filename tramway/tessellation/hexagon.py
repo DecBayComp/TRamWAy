@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -45,7 +45,9 @@ class HexagonalMesh(Voronoi):
 
         """
 
-        __slots__ = ('tilt', 'hexagon_radius', 'hexagon_count')
+        __slots__ = ('tilt', 'hexagon_radius', 'hexagon_count',
+                'min_probability', 'avg_probability', 'max_probability',
+                'min_distance', 'avg_distance')
 
         def __init__(self, scaler=None, tilt=0., \
                 min_probability=None, max_probability=None, avg_probability=None, \
@@ -83,10 +85,10 @@ class HexagonalMesh(Voronoi):
                 lower_bound = pts.min(axis=0)
                 upper_bound = pts.max(axis=0)
                 size = upper_bound - lower_bound
+                hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
                 if self.avg_probability:
                         desired_n_cells = n_cells = 1. / self.avg_probability
                         total_area = np.prod(size)
-                        hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
                         n_cells_prev, hex_radius_prev = [], []
                         while True:
                                 hex_radius = np.sqrt(total_area / (2. * sqrt(3.) * n_cells))
@@ -126,7 +128,7 @@ class HexagonalMesh(Voronoi):
                         dy = 1.5 * hex_side# * (2. - hex_sin)
                         m = int(ceil(size[0] / dx))
                         n = int(ceil((size[1] + 2. * (hex_side * hex_sin - hex_radius)) / dy) + 1)
-                        lower_center_x = -.5 * float(m - 1) * dx
+                        lower_center_x = -.5 * float(m) * dx
                         lower_center_y = -.5 * float(n - 1) * dy
                         centers = []
                         for k in range(n):
@@ -134,6 +136,8 @@ class HexagonalMesh(Voronoi):
                                 _centers_y = np.full_like(_centers_x, lower_center_y + float(k) * dy)
                                 centers.append(np.stack((_centers_x, _centers_y), axis=-1))
                         self._cell_centers = np.vstack(centers)
+                else:
+                        raise ValueError('both `avg_probability` and `avg_distance` undefined')
                 # rotate/center the centers back into the original space
                 s, c = sin(theta), cos(theta)
                 rot = np.array([[c, -s], [s, c]])
@@ -143,7 +147,13 @@ class HexagonalMesh(Voronoi):
 
         def _preprocess(self, points):
                 if points.shape[1] != 2:
-                        raise ValueError('the number of dimensions is not 2')
+                        msg = 'the number of dimensions is not 2'
+                        try:
+                                points = points[['x', 'y']]
+                        except:
+                                raise ValueError(msg)
+                        else:
+                                warn(msg, RuntimeWarning)
                 Voronoi._preprocess(self, points) # initialize `scaler`
                 return points # ... but do not scale
 
@@ -184,12 +194,165 @@ class HexagonalMesh(Voronoi):
                         for j in range(m - (k % 2)):
                                 A[i, i+1] = True
                                 i += 1
+                        assert A.shape == (n_cells, n_cells)
                         self._cell_adjacency = (A + A.T).tocsr()
                 return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
 
         @cell_adjacency.setter # copy/paste
         def cell_adjacency(self, matrix):
                 self.__lazysetter__(matrix)
+
+        def _postprocess(self):
+                if self._cell_centers is None:
+                        raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
+                theta = self.tilt * pi / 6.
+                s, c = sin(theta), cos(theta)
+                rot = np.array([[c, -s], [s, c]])
+                s, c = sin(pi/6.), cos(pi/6.)
+                dr = np.array([[0., -1.], [-c, -s], [-c, s], [c, -s], [c, s], [0., 1.]])
+                dr = np.dot(dr, rot.T) * (self.hexagon_radius / c)
+                #
+                n_cells = self._cell_centers.shape[0]
+                m, n = self.hexagon_count
+                C = self._cell_centers
+                _v = np.full((n_cells, 6), -1, dtype=int)
+                # bottom left hexagon
+                i = 0
+                V = [C[i]+dr] # full hexagon
+                _v[i] = np.arange(6)
+                A = [(0,1), (0,3), (1,2), (2,5), (3,4), (4,5)]
+                v = 6
+                # vertices are numbered the following way:
+                #
+                #     5
+                #  2     4
+                #  1     3
+                #     0
+                #
+                for j in range(1, m+1):
+                        i += 1
+                        V.append(C[i]+dr[[0,3,4,5]])
+                        _v[i, 1] = v - 3
+                        _v[i, 2] = v - 2
+                        _v[i, [0,3,4,5]] = np.arange(v, v+4)
+                        A += [(v-3,v), (v-2,v+3), (v,v+1), (v+1,v+2), (v+2,v+3)]
+                        v += 4
+                i_prev = -1 # index of the bottom right neighbour (should be 0 after first increment)
+                for k in range(1, n):
+                        m_plus = 1 - (k % 2)
+                        i += 1
+                        i_prev += 1
+                        # i_prev is the first (left-most) cell of the previous row
+                        if m_plus:
+                                # i_prev is already the bottom right neighbour
+                                V.append(C[i]+dr[[1,2,4,5]])
+                                _v[i, 0] = _v[i_prev, 2]
+                                _v[i, 3] = _v[i_prev, 5]
+                                _v[i, [1,2,4,5]] = np.arange(v, v+4)
+                                A += [
+                                        # bottom right 2 (=0) -> 1
+                                        (_v[i_prev,2],v),
+                                        # bottom right 5 (=3) -> 4
+                                        (_v[i_prev,5],v+2),
+                                        # 1 -> 2
+                                        (v,v+1),
+                                        # 2 -> 5
+                                        (v+1,v+3),
+                                        # 4 -> 5
+                                        (v+2,v+3),
+                                        ]
+                                v += 4
+                        else:
+                                # i_prev points to the bottom left neighbour
+                                i_prev += 1 # now bottom right
+                                V.append(C[i]+dr[[2,4,5]])
+                                _v[i, 0] = _v[i_prev, 2]
+                                _v[i, 1] = _v[i_prev-1, 5]
+                                _v[i, 3] = _v[i_prev, 5]
+                                _v[i, [2,4,5]] = np.arange(v, v+3)
+                                A += [
+                                        # bottom left 5 (=1) -> 2
+                                        (_v[i_prev-1,5],v),
+                                        # bottom right 5 (=3) -> 4
+                                        (_v[i_prev,5],v+1),
+                                        # 2 -> 5
+                                        (v,v+2),
+                                        # 4 -> 5
+                                        (v+1,v+2),
+                                        ]
+                                v += 3
+                        for j in range(1, m):
+                                i += 1
+                                i_prev += 1
+                                # j stops at m => there is always a bottom right neighbour => vertex 3 already exists
+                                V.append(C[i]+dr[[4,5]])
+                                _v[i, 0] = _v[i_prev, 2]
+                                _v[i, 1] = _v[i-1, 3] # =v-3
+                                _v[i, 2] = _v[i-1, 4] # =v-2
+                                _v[i, 3] = _v[i_prev, 5]
+                                _v[i, [4,5]] = np.arange(v, v+2)
+                                A += [
+                                        # bottom right 5 (=3) -> 4
+                                        (_v[i_prev,5],v),
+                                        # left 4 (=2) -> 5
+                                        (v-2,v+1),
+                                        # 4 -> 5
+                                        (v,v+1),
+                                        ]
+                                v += 2
+                        if m_plus:
+                                i += 1
+                                # there is no bottom right neighbour
+                                # let i_prev point to the bottom left neighbour
+                                V.append(C[i]+dr[[3,4,5]])
+                                _v[i, 0] = _v[i_prev, 4]
+                                _v[i, 1] = _v[i-1, 3] # =v-3
+                                _v[i, 2] = _v[i-1, 4] # =v-2
+                                _v[i, [3,4,5]] = np.arange(v, v+3)
+                                A += [
+                                        # bottom left 4 (=0) -> 3
+                                        (_v[i_prev,4],v),
+                                        # left 4 (=2) -> 5
+                                        (v-2,v+2),
+                                        # 3 -> 4
+                                        (v,v+1),
+                                        # 4 -> 5
+                                        (v+1,v+2),
+                                        ]
+                                v += 3
+                self._vertices = np.vstack(V)
+                n_vertices = self._vertices.shape[0]
+                i, j = zip(*A)
+                i, j = np.array(i+j), np.array(j+i)
+                self._vertex_adjacency = sparse.csr_matrix(
+                        (np.ones(i.size, dtype=bool), (i, j)),
+                        shape=(n_vertices, n_vertices))
+                self._cell_vertices = { i: v[0<=v] for i, v in enumerate(_v) }
+
+        # vertices property
+        @property
+        def vertices(self):
+                if self._vertices is None and self._cell_centers is not None:
+                        self._postprocess()
+                return self.__returnlazy__('vertices', self._vertices) # no scaling
+
+        @vertices.setter # copy/paste
+        def vertices(self, vertices):
+                self.__lazysetter__(vertices)
+
+        # cell_volume property
+        @property
+        def cell_volume(self):
+                if self._cell_volume is None:
+                        n_cells = self._cell_centers.shape[0]
+                        cell_area = 3 * self.hexagon_radius ** 2 / cos(pi/6.)
+                        self._cell_volume = np.full(n_cells, cell_area, dtype=float)
+                return self._cell_volume
+
+        @cell_volume.setter
+        def cell_volume(self, area):
+                self.__setlazy__('cell_volume', area)
+
 
 
 

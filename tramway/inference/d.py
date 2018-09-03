@@ -83,7 +83,9 @@ def infer_D(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivit
                 cell = cells
                 # sanity checks
                 if not bool(cell):
-                        raise ValueError('empty cells')
+                        raise ValueError('empty cell')
+                if cell.dr.shape[1] == 0:
+                        raise ValueError('translocation array has no column')
                 # ensure that translocations are properly oriented in time
                 if not np.all(0 < cell.dt):
                         warn('translocation dts are not all positive', RuntimeWarning)

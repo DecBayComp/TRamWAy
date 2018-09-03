@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -220,8 +220,9 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                 grad_kwargs['eps'] = epsilon
 
         # parametrize the optimization algorithm
-        default_BFGS_options = dict(maxcor=dv.combined.size, ftol=1e-8, maxiter=1e3,
-                disp=verbose)
+        default_BFGS_options = dict(maxiter=1e3, disp=verbose)
+        if min_diffusivity not in (False, None):
+                default_BFGS_options.update(dict(maxcor=dv.combined.size, ftol=1e-8))
         #default_BFGS_options = dict(maxiter=1e3, disp=verbose)
         options = kwargs.pop('options', default_BFGS_options)
         if max_iter:
@@ -275,9 +276,11 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
         if F:
                 F = pd.DataFrame(np.stack(F, axis=0), index=index_, \
                         columns=[ 'force ' + col for col in cells.space_cols ])
-                DVF = DVF.join(F)
         else:
                 warn('not any cell is suitable for evaluating the local force', RuntimeWarning)
+                F = pd.DataFrame(np.zeros((0, len(cells.space_cols)), dtype=V.dtype), \
+                        columns=[ 'force ' + col for col in cells.space_cols ])
+        DVF = DVF.join(F)
 
         # add extra information if required
         if export_centers:

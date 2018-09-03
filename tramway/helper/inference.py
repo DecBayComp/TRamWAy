@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -31,6 +31,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
         localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
         max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
         store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
+        merge_threshold_count=False, \
         grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
         return_cells=None, profile=None, force=False, **kwargs):
         """
@@ -45,12 +46,12 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                         :mod:`~tramway.inference.df` (``'df'``),
                         :mod:`~tramway.inference.dd` (``'dd'``),
                         :mod:`~tramway.inference.dv` (``'dv'``);
-                        can be also a function suitable for :meth:`Distributed.run`
+                        can be also a function suitable for :meth:`~tramway.helper.inference.base.Distributed.run`
 
                 output_file (str): desired path for the output map file
 
                 partition (dict): keyword arguments for :func:`~tramway.helper.tessellation.find_partition`
-                        if `cells` is a path; deprecated
+                        if `cells` is a path; **deprecated**
 
                 verbose (bool or int): verbosity level
 
@@ -77,11 +78,16 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
                 new_group (callable): see also :func:`~tramway.inference.base.distributed`
 
-                constructor (callable): *deprecated*; see also :func:`~tramway.inference.base.distributed`;
+                constructor (callable): **deprecated**; see also :func:`~tramway.inference.base.distributed`;
                         please use `new_group` instead
 
-                cell_sampling (str): either ``None``, ``'individual'`` or ``'group'``; may ignore
-                        `max_cell_count` and `dilation`
+                cell_sampling (str): either ``None``, ``'individual'``, ``'group'`` or
+                        ``'connected'``; may ignore `max_cell_count` and `dilation`
+
+                merge_threshold_count (int):
+                        Merge cells that are have a number of (trans-)locations lower than the
+                        number specified; each smaller cell is merged together with the nearest
+                        large-enough neighbour cell.
 
                 grad (callable or str): spatial gradient function; admits a callable (see
                         :meth:`~tramway.inference.base.Distributed.grad`) or any of '*grad1*',
@@ -118,7 +124,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
         if isinstance(cells, str):
                 try:
                         input_file = cells
-                        all_analyses = load_rwa(input_file)
+                        all_analyses = load_rwa(input_file, lazy=True)
                         if output_file and output_file == input_file:
                                 all_analyses = extract_analysis(all_analyses, input_label)
                         cells = None
@@ -178,9 +184,15 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                         raise ValueError('no cells found')
 
                 # prepare the data for the inference
+                distributed_kwargs = {}
                 if new_group is None:
                         if constructor is None:
-                                new_group = Distributed
+                                if merge_threshold_count:
+                                        new_group = DistributeMerge
+                                        distributed_kwargs['new_group_kwargs'] = \
+                                                {'min_location_count': merge_threshold_count}
+                                else:
+                                        new_group = Distributed
                         else:
                                 new_group = constructor
                 if grad is not None:
@@ -197,20 +209,24 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                                         def grad(self, *args, **kwargs):
                                                 return grad(self, *args, **kwargs)
                                 new_group = Distr
-                detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group)
+                detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group,
+                                **distributed_kwargs)
 
                 if cell_sampling is None:
                         try:
                                 cell_sampling = setup['cell_sampling']
                         except KeyError:
                                 pass
-                multiscale = cell_sampling in ['individual', 'group']
+                multiscale = cell_sampling in ['individual', 'group', 'connected']
                 if multiscale and max_cell_count is None:
                         if cell_sampling == 'individual':
                                 max_cell_count = 1
                         #else: # adaptive scaling is no longer default
                         #       max_cell_count = 20
-                if max_cell_count:
+                if cell_sampling == 'connected':
+                        multiscale_map = detailled_map.group(connected=True)
+                        _map = multiscale_map
+                elif max_cell_count:
                         if dilation is None:
                                 if cell_sampling == 'individual':
                                         dilation = 0
@@ -249,7 +265,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                 x = _map.run(getattr(module, setup['infer']), **kwargs)
 
         else:
-                raise ValueError('unknown ''{}'' mode'.format(mode))
+                raise ValueError("unknown '{}' mode".format(mode))
 
         maps = Maps(x, mode=mode)
         for p in kwargs:
@@ -282,9 +298,9 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
-        figsize=(24., 18.), dpi=None, aspect=None, show=None, verbose=False, \
-        alpha=None, point_style=None, \
-        label=None, input_label=None, mode=None, \
+        figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
+        alpha=None, point_style=None, variable=None, segment=None, \
+        label=None, input_label=None, mode=None, title=True, \
         **kwargs):
         """
         Plot scalar/vector 2D maps.
@@ -306,14 +322,19 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 fig_format (str): for example '*.png*'
 
-                figsize ((float, float)): figure size (width, height) in inches
+                figsize (bool or (float, float)): figure size (width, height) in inches;
+                        `figsize` is defined if multiple figures are drawn or the figures are printed
+                        to files, which opens a new figure for each plot;
+                        this can be prevented setting `figsize` to ``False``
 
                 dpi (int): dots per inch
 
                 aspect (float or str): aspect ratio or '*equal*'
 
                 show (bool or str): call :func:`~matplotlib.pyplot.show`; if ``show='draw'``, call
-                        :func:`~matplotlib.pyplot.draw` instead
+                        :func:`~matplotlib.pyplot.draw` instead.
+                        `show` is ``True`` if the figures are not printed to files; to maintain this
+                        default behaviour in future releases, set `show` to ``True`` from now on.
 
                 verbose (bool): verbosity level
 
@@ -322,13 +343,29 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
                 point_style (dict): if defined, points are overlaid
 
+                variable (str): variable name (e.g. 'diffusivity', 'force')
+
+                segment (int): segment index;
+                        if multiple time segments were defined, show only this segment
+
                 label/input_label (int or str): analysis instance label
 
                 mode (bool or str): inference mode; can be ``False`` so that mode information from
                         files, analysis trees and encapsulated maps are not displayed
 
+                title (bool or str): add titles to the figures, based on the variable name and
+                        inference mode
+
+                xlim (array-like): min and max values for the x-axis; this argument is keyworded only
+
+                ylim (array-like): min and max values for the y-axis; this argument is keyworded only
+
+                clim (array-like): min and max values for the colormap; this argument is keyworded only
+
         Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
         :func:`~tramway.plot.map.field_map_2d`.
+        They can be dictionnaries with variable names as keys and the corresponding values for the
+        parameters.
 
         """
         # get cells and maps objects from the first input argument
@@ -349,15 +386,16 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 if label is None:
                         label = input_label
                 try:
-                        analyses = load_rwa(input_file)
+                        analyses = load_rwa(input_file, lazy=True)
                         #if label:
                         #       analyses = extract_analysis(analyses, label)
                 except KeyError:
                         print(traceback.format_exc())
+                        from rwa import HDF5Store
+                        store = HDF5Store(input_file, 'r')
+                        store.lazy = False
                         try:
                                 # old format
-                                store = HDF5Store(input_file, 'r')
-                                store.lazy = False
                                 maps = peek_maps(store, store.store)
                         finally:
                                 store.close()
@@ -400,6 +438,26 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 columns=['x', 'y']),
                         cells.tessellation)
 
+        # identify time segments, if any
+        try:
+                import tramway.tessellation.time as lattice
+                with_segments = isinstance(cells.tessellation, lattice.TimeLattice) \
+                                and cells.tessellation.spatial_mesh is not None
+        except ImportError:
+                with_segments = False
+        if with_segments:
+                if segment is None:
+                        raise ValueError('`segment` is required')
+                elif isinstance(segment, (tuple, list)):
+                        if segment[1:]:
+                                warn('cannot plot multiple segments in a single `map_plot` call', RuntimeWarning)
+                        segment = segment.pop()
+                        print('plotting segment {}'.format(segment))
+                _mesh = cells.tessellation.spatial_mesh
+                _cells, cells = cells, CellStats(tessellation=_mesh, location_count=np.ones(_mesh.cell_centers.shape[0]))
+        elif segment is not None:
+                warn('cannot find time segments', RuntimeWarning)
+
         # `mode` type may be inadequate because of loading a Py2-generated rwa file in Py3 or conversely
         if mode and not isinstance(mode, str):
                 try: # Py2
@@ -407,9 +465,15 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 except AttributeError: # Py3
                         mode = mode.decode('utf-8')
 
-        # output filenames
+        # determine whether the figures should be printed to file or not
         print_figs = output_file or (input_file and fig_format)
 
+        # figure size
+        new_fig = bool(figsize) or (print_figs and figsize is not False)
+        if figsize in (None, True):
+                figsize = (16., 12.)
+
+        # output filenames
         if print_figs:
                 if output_file:
                         filename, figext = os.path.splitext(output_file)
@@ -439,6 +503,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         nfig = 0
 
         all_vars = splitcoord(maps.columns)
+        if isinstance(variable, (frozenset, set, tuple, list)):
+                all_vars = { v: all_vars[v] for v in variable }
+        elif variable is not None:
+                all_vars = { variable: all_vars[variable] }
         scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
         scalar_vars = [ (v, scalar_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 1 ]
 
@@ -451,7 +519,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         else:
                                 col_kwargs[a] = kwargs[a]
 
-                if figsize:
+                if new_fig or figs:
                         fig = mplt.figure(figsize=figsize, dpi=dpi)
                 else:
                         fig = mplt.gcf()
@@ -471,6 +539,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 if isinstance(maps, pd.DataFrame) and 'x' in maps.columns and col not in 'xyzt':
                         _map = maps[[ col for col in 'xyzt' if col in maps.columns ]].join(_map)
                 #
+
+                # split time segments, if any
+                if with_segments:
+                        if 'clim' not in col_kwargs:
+                                col_kwargs['clim'] = [_map.values.min(), _map.values.max()]
+                        _map = _cells.tessellation.split_frames(_map)[segment]
+
                 yplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
                 if point_style is not None:
@@ -479,16 +554,19 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 point_style['color'] = None
                         xplt.plot_points(points, **point_style)
 
-                if mode:
-                        if short_name:
-                                title = '{} ({} - {} mode)'.format(short_name, col, mode)
+                if title:
+                        if isinstance(title, str):
+                                _title = title
+                        elif mode:
+                                if short_name:
+                                        _title = '{} ({} - {} mode)'.format(short_name, col, mode)
+                                else:
+                                        _title = '{} ({} mode)'.format(col, mode)
+                        elif short_name:
+                                _title = '{} ({})'.format(short_name, col)
                         else:
-                                title = '{} ({} mode)'.format(col, mode)
-                elif short_name:
-                        title = '{} ({})'.format(short_name, col)
-                else:
-                        title = '{}'.format(col)
-                mplt.title(title)
+                                _title = '{}'.format(col)
+                        mplt.title(_title)
 
                 if print_figs:
                         if maps.shape[1] == 1:
@@ -504,6 +582,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
         vector_vars = {'force': 'F'}
         vector_vars = [ (v, vector_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 2 ]
+
         for name, short_name in vector_vars:
                 cols = all_vars[name]
 
@@ -514,7 +593,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         else:
                                 var_kwargs[a] = kwargs[a]
 
-                if figsize:
+                if new_fig or figs:
                         fig = mplt.figure(figsize=figsize, dpi=dpi)
                 else:
                         fig = mplt.gcf()
@@ -530,6 +609,14 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         __clip = clip
                 if __clip:
                         _vector_map = _clip(_vector_map, __clip)
+
+                # split time segments, if any
+                if with_segments:
+                        _vector_map = _cells.tessellation.split_frames(_vector_map)[segment]
+                        if 'clim' not in var_kwargs:
+                                _scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
+                                var_kwargs['clim'] = [_scalar_map.values.min(), _scalar_map.values.max()]
+
                 if point_style is None:
                         yplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
                 else:
@@ -547,16 +634,20 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                         extra = name
                 else:
                         main = name
-                if mode:
-                        if extra:
-                                extra += ' - {} mode'.format(mode)
+                if title:
+                        if isinstance(title, str):
+                                _title = title
                         else:
-                                extra = '{} mode'.format(mode)
-                if extra:
-                        title = '{} ({})'.format(main, extra)
-                else:
-                        title = main
-                mplt.title(title)
+                                if mode:
+                                        if extra:
+                                                extra += ' - {} mode'.format(mode)
+                                        else:
+                                                extra = '{} mode'.format(mode)
+                                if extra:
+                                        _title = '{} ({})'.format(main, extra)
+                                else:
+                                        _title = main
+                        mplt.title(_title)
 
                 if print_figs:
                         if maps.shape[1] == 1:
@@ -571,7 +662,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 print('writing file: {}'.format(figfile))
                         fig.savefig(figfile, dpi=dpi)
 
-        if show or not print_figs:
+        if show or not print_figs: # 'or' will be replaced by 'and'
                 if show == 'draw':
                         mplt.draw()
                 elif show is not False:

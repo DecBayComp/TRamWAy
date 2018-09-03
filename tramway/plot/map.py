@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -135,9 +135,43 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
                 **kwargs):
         """
-        Setting colorbar to 'nice' allows to produce a colorbar close to the figure of the same size as the figure
+        Plot a 2D scalar map as a colourful image.
+
+        Arguments:
+
+                cells (CellStats or Distributed): spatial description of the cells
+
+                values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
+
+                aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
+
+                clim (2-element sequence): passed to :func:`~matplotlib.cm.ScalarMappable.set_clim`
+
+                figure (matplotlib.figure.Figure): figure handle
+
+                axes (matplotlib.axes.Axes): axes handle
+
+                linewidth (int): cell border line width
+
+                delaunay (bool or dict): overlay the Delaunay graph; if ``dict``, options are passed
+                        to :func:`~tramway.core.plot.mesh.plot_delaunay`
+
+                colorbar (bool or str or dict): add a colour bar; if ``dict``, options are passed to
+                        :func:`~matplotlib.pyplot.colorbar`;
+                        setting colorbar to '*nice*' allows to produce a colorbar close to the figure
+                        of the same size as the figure
+
+                alpha (float): alpha value of the cells
+
+                colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
+
+                xlim (2-element sequence): lower and upper x-axis bounds
+
+                ylim (2-element sequence): lower and upper y-axis bounds
+
+        Extra keyword arguments are passed to :func:`~matplotlib.collections.PatchCollection`.
+
         """
-        #       colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
         coords = None
         if isinstance(values, pd.DataFrame):
                 if values.shape[1] != 1:
@@ -193,21 +227,26 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 ok[np.logical_not(map_defined)] = False
                 ok[ok] = np.logical_not(np.isnan(values.loc[ix[ok]].values))
                 for i in ix[ok]:
-                        vs = cells.tessellation.cell_vertices[i]
+                        vs = cells.tessellation.cell_vertices[i].tolist()
                         # order the vertices so that they draw a polygon
                         v0 = v = vs[0]
-                        vs = set(list(vs))
+                        vs = set(vs)
                         vertices = []
+                        #vvs = [] # debug
                         while True:
                                 vertices.append(cells.tessellation.vertices[v])
+                                #vvs.append(v)
                                 vs.remove(v)
+                                if not vs:
+                                        break
                                 ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
                                 if not ws:
-                                        if vs:
-                                                ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
+                                        ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
                                         if ws:
                                                 vertices = vertices[::-1]
                                         else:
+                                                #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
+                                                warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
                                                 break
                                 v = ws.pop()
                         #
@@ -233,7 +272,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         try:
                 if np.any(np.isnan(scalar_map)):
                         #print(np.nonzero(np.isnan(scalar_map)))
-                        msg = 'NaNs ; changing them into 0s'
+                        msg = 'NaN found'
                         try:
                                 warn(msg, NaNWarning)
                         except:
@@ -283,12 +322,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if aspect is not None:
                 axes.set_aspect(aspect)
 
-        if colorbar==True:
-                try:
-                        figure.colorbar(patches)
-                except AttributeError as e:
-                        warn(e.args[0], RuntimeWarning)
-        elif colorbar=='nice':
+        if colorbar=='nice':
                 # make the colorbar closer to the plot and same size
                 from mpl_toolkits.axes_grid1 import make_axes_locatable
                 try:
@@ -299,25 +333,90 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                         plt.sca(gca_bkp)
                 except AttributeError as e:
                         warn(e.args[0], RuntimeWarning)
+        elif colorbar:
+                if not isinstance(colorbar, dict):
+                        colorbar = {}
+                try:
+                        figure.colorbar(patches, **colorbar)
+                except AttributeError as e:
+                        warn(e.args[0], RuntimeWarning)
 
         return obj
 
 
 
-def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, figure=None, axes=None,
-                cell_arrow_ratio=0.4, markeralpha=0.8, markerlinewidth=None, transform=np.log,
+def field_map_2d(cells, values, angular_width=30.0, overlay=False,
+                aspect=None, figure=None, axes=None,
+                cell_arrow_ratio=0.4,
+                markercolor='y', markeredgecolor='k', markeralpha=0.8, markerlinewidth=None,
+                transform=None,
                 **kwargs):
-        force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
+        """
+        Plot a 2D field (vector) map as arrows.
+
+        Arguments:
+
+                cells (CellStats or Distributed): spatial description of the cells
+
+                values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
+
+                angular_width (float): angle of the tip of the arrows
+
+                overlay (bool): do not plot the amplitude as a scalar map
+
+                aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
+
+                figure (matplotlib.figure.Figure): figure handle
+
+                axes (matplotlib.axes.Axes): axes handle
+
+                cell_arrow_ratio (float): size of the largest arrow relative to the median
+                        inter-cell distance
+
+                markercolor (str): colour of the arrows
+
+                markeredgecolor (str): colour of the border of the arrows
+
+                markeralpha (float): alpha value of the arrows
+
+                markerlinewidth (float): line width of the border of the arrows
+
+                transform ('log' or callable): if `overlay` is ``False``,
+                        transform applied to the amplitudes as a NumPy array
+
+        Extra keyword arguments are passed to :func:`scalar_map_2d` if called.
+
+        If `overlay` is ``True``, the *marker*-prefixed arguments can be renamed without
+        the *marker* prefix.
+        These arguments can only be keyworded.
+
+        """
+        try:
+                force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
+        except (KeyboardInterrupt, SystemExit):
+                raise
+        except:
+                if not overlay:
+                        warn('cannot compute the amplitude; setting `overlay` to True', RuntimeWarning)
+                        overlay = True
         if figure is None:
                 figure = plt.gcf()
         if axes is None:
                 axes = figure.gca()
         if overlay:
+                if markercolor is None and 'color' in kwargs:
+                        markercolor = kwargs['color']
+                if markeredgecolor is None and 'edgecolor' in kwargs:
+                        markeredgecolor = kwargs['edgecolor']
+                if markeralpha is None and 'alpha' in kwargs:
+                        markeralpha = kwargs['alpha']
                 if markerlinewidth is None and 'linewidth' in kwargs:
                         markerlinewidth = kwargs['linewidth']
         else:
                 if transform is None:
                         transform = lambda a: a
+                elif transform == 'log':
+                        transform = np.log
                 obj = scalar_map_2d(cells, transform(force_amplitude),
                         figure=figure, axes=axes, **kwargs)
         if aspect is not None:
@@ -367,7 +466,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False, aspect=None, 
                 #vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
                 markers.append(Polygon(vertices, True))
 
-        patches = PatchCollection(markers, facecolor='y', edgecolor='k',
+        patches = PatchCollection(markers, facecolor=markercolor, edgecolor=markeredgecolor,
                 alpha=markeralpha, linewidth=markerlinewidth)
         axes.add_collection(patches)
 

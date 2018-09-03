@@ -31,6 +31,23 @@ tramway.helper.simulation module
     :show-inheritance:
 
 
+tramway.helper.simulation.categoricaltrap module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.helper.simulation.categoricaltrap
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.helper.simulation.functional module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.helper.simulation.functional
+    :members:
+    :show-inheritance:
+
+
 tramway.helper.tessellation module
 ----------------------------------
 
