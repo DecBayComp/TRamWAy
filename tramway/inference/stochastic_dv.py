@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -32,6 +32,7 @@ setup = {'name': 'stochastic.dv',
                 ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
                 ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
                 ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
+                ('time_prior',          ('-t', dict(type=float, help='prior on the time'))),
                 ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
                 ('max_iter',            dict(type=int, help='maximum number of iterations (~100)')),
                 ('compatibility',       ('-c', '--inferencemap', '--compatible',
@@ -65,6 +66,7 @@ class LocalDV(DV):
                 return np.concatenate((cell_ids, int(self.combined.size / 2) + cell_ids))
 
 
+
 def make_regions(cells, index, reverse_index, size=1):
         regions = []
         for i in index:
@@ -80,8 +82,8 @@ def make_regions(cells, index, reverse_index, size=1):
         return regions
 
 
-def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
-                index, reverse_index, grad_kwargs, y0, verbose):
+def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys_prior, \
+                time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, verbose):
         """
         """
 
@@ -146,7 +148,8 @@ def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys
         return result - y0
 
 
-def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, potential_prior=None, \
+def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, \
+        potential_prior=None, time_prior=None, \
         jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
         export_centers=False, verbose=True, compatibility=False, **kwargs):
 
@@ -196,7 +199,7 @@ def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, 
 
         # posterior function input arguments
         squared_localization_error = localization_error * localization_error
-        args = (dv, cells, squared_localization_error, jeffreys_prior, dt_mean,
+        args = (dv, cells, squared_localization_error, jeffreys_prior, time_prior, dt_mean,
                         index, reverse_index, grad_kwargs)
 
         # get the initial posterior value so that it is subtracted from the further evaluations
@@ -266,9 +269,11 @@ def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, 
         if F:
                 F = pd.DataFrame(np.stack(F, axis=0), index=index_, \
                         columns=[ 'force ' + col for col in cells.space_cols ])
-                DVF = DVF.join(F)
         else:
                 warn('not any cell is suitable for evaluating the local force', RuntimeWarning)
+                F = pd.DataFrame(np.zeros((0, len(cells.space_cols)), dtype=V.dtype), \
+                        columns=[ 'force ' + col for col in cells.space_cols ])
+        DVF = DVF.join(F)
 
         # add extra information if required
         if export_centers:
