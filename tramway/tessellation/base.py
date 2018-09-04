@@ -621,7 +621,7 @@ class Tessellation(Lazy):
                 if label:
                         edges_not_ok = np.zeros(row.size, dtype=bool)
                         for cell_label in label:
-                                cells_not_ok = cell_label < 1
+                                cells_not_ok = cell_label <= 0
                                 edges_not_ok[cells_not_ok[row]] = True
                                 edges_not_ok[cells_not_ok[col]] = True
                         edges_ok = np.logical_not(edges_not_ok)

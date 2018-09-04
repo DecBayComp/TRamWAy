@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -1537,9 +1537,9 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         except AttributeError:
                 _adjacency = None
         _adjacency = cells.tessellation.simplified_adjacency(adjacency=_adjacency, label=J, format='csr')
-        # reweight each row i as 1/n_i where n_i is the degree of cell i
-        n = np.diff(_adjacency.indptr)
-        _adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
+        ## reweight each row i as 1/n_i where n_i is the degree of cell i
+        #n = np.diff(_adjacency.indptr)
+        #_adjacency.data = np.repeat(1.0 / np.maximum(1, n), n)
 
         # build every cells
         J, = np.nonzero(J)
