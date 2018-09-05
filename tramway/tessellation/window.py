@@ -22,8 +22,9 @@ class SlidingWindow(TimeLattice):
 
         __slots__ = ('duration', 'shift')
 
-        def __init__(self, scaler=None, duration=None, shift=None, frames=False, time_label=(0, 1)):
-                TimeLattice.__init__(self, scaler, time_label=time_label)
+        def __init__(self, scaler=None, duration=None, shift=None, frames=False, time_label=None,
+                time_dimension=None):
+                TimeLattice.__init__(self, scaler, time_label=time_label, time_dimension=time_dimension)
                 if duration is None:
                         raise ValueError("'duration' is required")
                 elif np.isclose(max(0, duration), 0):
@@ -71,7 +72,7 @@ import sys
 if sys.version_info[0] < 3:
 
         import rwa
-        sliding_window_exposes = hdf5.time_lattice_exposes + ['duration', 'shift']
+        sliding_window_exposes = hdf5.time_lattice_exposes + list(SlidingWindow.__slots__)#['duration', 'shift']
         rwa.hdf5_storable(rwa.default_storable(SlidingWindow, exposes=sliding_window_exposes),
                 agnostic=True)
 
