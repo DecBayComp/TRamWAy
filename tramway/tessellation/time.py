@@ -447,6 +447,11 @@ class TimeLattice(Tessellation):
         # Voronoi properties and methods
         @property
         def cell_volume(self):
+                """
+                If `time_dimension` is ``True``, then the product of spatial volume and
+                segment duration is returned.
+                Otherwise, `cell_volume` is only the spatial volume.
+                """
                 if self._cell_volume is None:
                         if self.time_dimension and self.time_lattice.dtype == int:
                                 raise ValueError('time is encoded as frame indices')
@@ -458,7 +463,7 @@ class TimeLattice(Tessellation):
                                 self._cell_volume = self.spatial_mesh.cell_volume
                                 ncells = self._cell_volume.shape[0]
                                 self._cell_volume = np.tile(self._cell_volume, nsegments)
-                                if not self.time_dimension:
+                                if self.time_dimension:
                                         segment_duration = np.squeeze(np.diff(self.time_lattice, axis=1))
                                         self._cell_volume *= \
                                                 np.repeat(segment_duration, ncells)

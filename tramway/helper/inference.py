@@ -267,7 +267,13 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
         else:
                 raise ValueError("unknown '{}' mode".format(mode))
 
-        maps = Maps(x, mode=mode)
+        if isinstance(x, tuple):
+                maps = Maps(x[0], mode=mode, posteriors=x[1])
+                if x[2:]:
+                        maps.other = x[2:] # Python 3 only
+        else:
+                maps = Maps(x, mode=mode)
+
         for p in kwargs:
                 if p not in ['worker_count']:
                         setattr(maps, p, kwargs[p])

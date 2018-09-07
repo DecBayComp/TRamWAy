@@ -566,7 +566,8 @@ class Distributed(Local):
                         function (callable):
                                 the function to be called on each terminal :class:`Distributed`.
                                 Its first argument is the :class:`Distributed` object.
-                                It should return a :class:`~pandas.DataFrame`.
+                                It should return maps as a :class:`~pandas.DataFrame` and optionally
+                                posteriors as :class:`~pandas.Series` or :class:`~pandas.DataFrame`.
 
                         args (list):
                                 positional arguments for `function` after the first one.
@@ -586,7 +587,9 @@ class Distributed(Local):
                 Returns:
 
                         pandas.DataFrame:
-                                single merged array.
+                                single merged array of maps.
+                                If `function` returns two output arguments, :meth:`run` also
+                                returns a second merged array of posteriors.
 
                 """
                 # clear the caches
@@ -621,7 +624,15 @@ class Distributed(Local):
                         ys = [ y for y in ys if y is not None ]
                         if ys:
                                 if ys[1:]:
-                                        result = pd.concat(ys, axis=0).sort_index()
+                                        if isinstance(ys[0], tuple):
+                                                ys = zip(*ys)
+                                                result = tuple([
+                                                        pd.concat(_ys, axis=0).sort_index()
+                                                        for _ys in ys ])
+                                        else:
+                                                result = pd.concat(ys, axis=0).sort_index()
+                                else:
+                                        result = ys[0]
                         else:
                                 result = None
 
@@ -1685,7 +1696,8 @@ class DistributeMerge(Distributed):
 
 class Maps(Lazy):
         """
-        Basic container for maps and the associated parameters used to get the maps.
+        Basic container for maps, posteriors and the associated input parameters used to generate
+        the maps.
 
         Attributes `distributed_translocations`, `partition_file`, `tessellation_program`, `version`
         are deprecated and will be removed.
@@ -1697,7 +1709,7 @@ class Maps(Lazy):
         """
         __lazy__ = Lazy.__lazy__ + ('_variables',)
 
-        def __init__(self, maps, mode=None):
+        def __init__(self, maps, mode=None, posteriors=None):
                 Lazy.__init__(self)
                 self.maps = maps
                 self.mode = mode
@@ -1712,6 +1724,7 @@ class Maps(Lazy):
                 self.tessellation_param = None # legacy attribute
                 self.version = None # legacy attribute
                 self.runtime = None
+                self.posteriors = posteriors
 
         @property
         def maps(self):

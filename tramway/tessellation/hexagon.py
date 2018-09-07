@@ -82,8 +82,8 @@ class HexagonalMesh(Voronoi):
                 else:
                         points = pts = np.dot(points, rot.T)
                 #
-                lower_bound = pts.min(axis=0)
-                upper_bound = pts.max(axis=0)
+                lower_bound = kwargs.get('lower_bound', pts.min(axis=0))
+                upper_bound = kwargs.get('upper_bound', pts.max(axis=0))
                 size = upper_bound - lower_bound
                 hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
                 if self.avg_probability:
