@@ -13,6 +13,7 @@
 
 
 from .base import *
+import tramway.inference.base as base
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -65,7 +66,7 @@ class DynamicCells(Distributed):
                 self.adjacency = matrix
 
         def time_derivative(self, i, X, index_map=None, **kwargs):
-                cell = cells[i]
+                cell = self.cells[i]
                 # below, the measurement is renamed y and the coordinates are X
                 t0 = cell.center_t
 
@@ -75,7 +76,7 @@ class DynamicCells(Distributed):
                 try:
                         i, adjacent, t = cell.cache['time_derivative']
                 except KeyError:
-                        A = cells.temporal_adjacency
+                        A = self.temporal_adjacency
                         adjacent = _adjacent = A.indices[A.indptr[i]:A.indptr[i+1]]
                         if index_map is not None:
                                 adjacent = index_map[_adjacent]
@@ -83,11 +84,11 @@ class DynamicCells(Distributed):
                                 assert np.all(ok)
                                 #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
                         if _adjacent.size:
-                                t = np.vstack([ cells[j].center_t for j in _adjacent ])
+                                t = np.array([ self.cells[j].center_t for j in _adjacent ])
                                 before, after = t<t0, t0<t
 
                                 # pre-compute the "t" term
-                                u, v = below, above
+                                u, v = before, after
                                 if not np.any(u):
                                         u = None
                                 if not np.any(v):
@@ -103,20 +104,23 @@ class DynamicCells(Distributed):
                                 else:
                                         t = np.r_[t0, np.mean(t[u]), np.mean(t[v])]
 
+                                if t is not None:
+                                        t = (u, v, t)
 
                         else:
-                                t = []
+                                t = None
 
                         if index_map is not None:
                                 i = index_map[i]
                         cell.cache['time_derivative'] = (i, adjacent, t)
 
-                if not t:
+                if t is None:
                         return None
 
                 x0, x = X[i], X[adjacent]
 
                 # compute the derivative
+                u, v, t = t
                 #u, v, t= before, after, t term
                 if u is None:
                         if v is None:
@@ -127,9 +131,10 @@ class DynamicCells(Distributed):
                 elif v is None:
                         deriv = (x0 - np.mean(x[u])) * t
                 else:
-                        deriv = _vander(t, np.r_[x0, np.mean(x[u]), np.mean(x[v])])
+                        deriv = base._vander(t, np.r_[x0, np.mean(x[u]), np.mean(x[v])])
 
                 return np.asarray(deriv)
+
 
 __all__ = ['DynamicTranslocations', 'DynamicCells']
 

@@ -19,6 +19,7 @@ from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
+import scipy.sparse as sparse
 from collections import OrderedDict
 import time
 import numpy.ma as ma
@@ -41,29 +42,60 @@ setup = {'name': 'stochastic.dv',
                 ('grad',                dict(help="gradient; any of 'grad1', 'gradn'")),
                 ('export_centers',      dict(action='store_true')),
                 ('verbose',             ()),
-                ('region_size',                 ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
+                ('region_size',         ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
         'cell_sampling': 'group'}
 
 
 class LocalDV(DV):
-        __slots__ = ('regions',)
+        __slots__ = ('regions','prior_delay','_n_calls')
 
         def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None,
-                minimum_diffusivity=None, positive_diffusivity=None, prior_include=None, regions=None):
+                minimum_diffusivity=None, positive_diffusivity=None, prior_include=None,
+                regions=None, prior_delay=None):
                 # positive_diffusivity is for backward compatibility
                 DV.__init__(self, diffusivity, potential, diffusivity_prior, potential_prior,
                         minimum_diffusivity, positive_diffusivity, prior_include)
                 self.regions = regions
+                self.prior_delay = prior_delay
+                self._n_calls = 0.
 
         def region(self, i):
                 return self.regions[i]
 
         def indices(self, cell_ids):
-                if isinstance(cell_ids, int):
+                if isinstance(cell_ids, (int, np.int_)):
                         return np.array([ cell_ids, int(self.combined.size / 2) + cell_ids ])
                 cell_ids = np.array(cell_ids)
                 cell_ids.sort()
                 return np.concatenate((cell_ids, int(self.combined.size / 2) + cell_ids))
+
+        def potential_prior(self, i):
+                if self.prior_delay:
+                        if self._n_calls < self.prior_delay:
+                                prior = None
+                        else:
+                                prior = DV.potential_prior(self, i)
+                        if self._diffusivity_prior:
+                                self._n_calls += .5
+                        else:
+                                self._n_calls += 1.
+                else:
+                        prior = DV.potential_prior(self, i)
+                return prior
+
+        def diffusivity_prior(self, i):
+                if self.prior_delay:
+                        if self._n_calls < self.prior_delay:
+                                prior = None
+                        else:
+                                prior = DV.diffusivity_prior(self, i)
+                        if self._potential_prior:
+                                self._n_calls += .5
+                        else:
+                                self._n_calls += 1.
+                else:
+                        prior = DV.diffusivity_prior(self, i)
+                return prior
 
 
 
@@ -83,7 +115,8 @@ def make_regions(cells, index, reverse_index, size=1):
 
 
 def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys_prior, \
-                time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, verbose):
+                time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, verbose, \
+                posterior_info, iter_num=None):
         """
         """
 
@@ -121,16 +154,17 @@ def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys
         dr_minus_drift = cell.dr + np.outer(D_dt, gradV)
         # non-directional squared displacement
         ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
-        result = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
+        raw_posterior = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
 
-        if np.isnan(result):
+        if np.isnan(raw_posterior):
                 raise ValueError('undefined posterior')
                 #return np.inf
 
         # priors
+        priors = 0.
         potential_prior = dv.potential_prior(j)
         if potential_prior:
-                result += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
+                priors += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
         diffusivity_prior = dv.diffusivity_prior(j)
         if diffusivity_prior:
                 D = x[:int(x.size/2)]
@@ -138,25 +172,43 @@ def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys
                 gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
                 if gradD is not None:
                         # `grad_sum` memoizes and can be called several times at no extra cost
-                        result += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
+                        priors += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
         #print('{}\t{}\t{}'.format(i+1, D[j], result))
         if jeffreys_prior:
                 if Dj <= 0:
                         raise ValueError('non positive diffusivity')
-                result += 2. * np.log(Dj * dt_mean[j] + squared_localization_error) - np.log(Dj)
+                priors += 2. * np.log(Dj * dt_mean[j] + squared_localization_error) - np.log(Dj)
+
+        if time_prior:
+                dDdt = cells.time_derivative(i, D, reverse_index)
+                # assume fixed-duration time window
+                priors += diffusivity_prior * time_prior * dDdt * dDdt
+                dVdt = cells.time_derivative(i, V, reverse_index)
+                priors += potential_prior * time_prior * dVdt * dVdt
+
+        result = raw_posterior + priors
+
+        if iter_num is None:
+                info = [i, raw_posterior, result]
+        else:
+                info = [iter_num, i, raw_posterior, result]
+        posterior_info.append(info)
 
         return result - y0
 
 
 def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, \
-        potential_prior=None, time_prior=None, \
+        potential_prior=None, time_prior=None, prior_delay=None, \
         jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
-        export_centers=False, verbose=True, compatibility=False, **kwargs):
+        export_centers=False, verbose=True, compatibility=False, _stochastic=True, **kwargs):
 
         # initial values
+        if min_diffusivity is not None:
+                warn('constraints on diffusivity are not supported', RuntimeWarning)
+
         index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
                 smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
-        #min_diffusivity = None
+        min_diffusivity = None
         try:
                 if compatibility:
                         raise Exception # skip to the except block
@@ -167,7 +219,9 @@ def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, 
                 density = n / np.array([ np.inf if v is None else v for v in volume ])
                 density[density == 0] = np.min(density[0 < density])
                 V_initial = np.log(np.max(density)) - np.log(density)
-        dv = LocalDV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
+        dv = LocalDV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, \
+                ~border, prior_delay=prior_delay)
+        posterior_info = []
 
         # gradient options
         grad_kwargs = {}
@@ -183,56 +237,51 @@ def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, 
         #if max_iter:
         #        options['maxiter'] = max_iter
         #V_bounds = [(None, None)] * V_initial.size
-        if min_diffusivity is None: # currently, cannot be None
+        if min_diffusivity is None:
                 bounds = None
         else:
                 bounds = ma.array(np.full(dv.combined.size, min_diffusivity, dtype=float),
                         mask=np.r_[np.zeros(D_initial.size, dtype=bool),
                                 np.ones(V_initial.size, dtype=bool)])
-        #        bounds = D_bounds + V_bounds
-        #        options['maxfun'] = 1e10
-        #        # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
-        #        # function evaluations is much higher (~1e4-1e5);
-        #        # with maxfun defined, an iteration can stop anytime and the optimization may terminate
-        #        # with an error message
-        #options.update(kwargs)
 
         # posterior function input arguments
         squared_localization_error = localization_error * localization_error
         args = (dv, cells, squared_localization_error, jeffreys_prior, time_prior, dt_mean,
                         index, reverse_index, grad_kwargs)
 
-        # get the initial posterior value so that it is subtracted from the further evaluations
+        # get the initial posterior value so that it is subtracted from the further evaluations (NO)
+        # update: x0 may be removed in the future
         m = len(index)
-        x0 = np.sum( local_dv_neg_posterior(j, dv.combined, *(args + (0., False))) for j in range(m) )
-        if verbose:
-                print('At X0\tactual posterior= {}\n'.format(x0))
+        #x0 = np.sum( local_dv_neg_posterior(j, dv.combined, *(args + (0., False, []))) for j in range(m) )
+        #if verbose:
+        #        print('At X0\tactual posterior= {}\n'.format(x0))
         x0 = 0.
-        args = args + (x0 / float(m), 1 < int(verbose))
-
-        #def sample(_k, _x, _f):
-        #        i = np.random.randint(m)
-        #        return i, [i], [i, m + i]
+        args = args + (x0 / float(m), 1 < int(verbose), posterior_info)
 
         dv.regions = make_regions(cells, index, reverse_index)
-        def sample(_k, _x, _f):
-                i = np.random.randint(m)
-                j = dv.region(i)
-                return i, j, dv.indices(j)
-        def sample(_k, _x):
-                i = np.random.randint(m)
-                j = dv.region(i)
-                return j, dv.indices(i)
+
+        if _stochastic:
+                _permutation = np.arange(m)
+                def sample(_k, _x): # stochastic
+                        i = _k % m
+                        if i == 0:
+                                np.random.shuffle(_permutation) # in-place
+                        i = _permutation[i]
+                        j = dv.region(i)
+                        return j, dv.indices(i)
+        else:
+                def sample(_k, _x): # not stochastic
+                        return np.arange(m), np.arange(2*m)
 
         # run the optimization routine
         #result = sdfpmin(local_dv_neg_posterior, dv.combined, args, sample, m, verbose=verbose)
-        obfgs_kwargs = {}
+        obfgs_kwargs = dict(kwargs)
         if verbose:
                 obfgs_kwargs['verbose'] = verbose
         if max_iter:
                 obfgs_kwargs['maxiter'] = max_iter
-        if bounds is not None:
-                obfgs_kwargs['lower_bounds'] = bounds
+        #if bounds is not None:
+        #        obfgs_kwargs['lower_bounds'] = bounds
         rs = [ dv.indices(r) for r in range(len(dv.regions)) ]
         rs += list(rs)
         B = sparse.lil_matrix((dv.combined.size, dv.combined.size), dtype=bool)
@@ -240,22 +289,19 @@ def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, 
                 B[ np.ix_(r, r) ] = True
         B = B.tocsr()
         obfgs_kwargs['covariates'] = B
-        obfgs_kwargs['tau'] = 10. * float(D_initial.size)
+        #if 'tau' not in obfgs_kwargs:
+        #        obfgs_kwargs['tau'] = 10. * float(D_initial.size)
         #obfgs_kwargs['c'] = .1
-        result = minimize_sgbfgsb(sample, local_dv_neg_posterior, dv.combined, args, **obfgs_kwargs)
+        if 'ncomps' not in obfgs_kwargs:
+                obfgs_kwargs['ncomps'] = m
+        result = minimize_sgbfgs(sample, local_dv_neg_posterior, dv.combined, args, **obfgs_kwargs)
         #if not (result.success or verbose):
         #        warn('{}'.format(result.message), OptimizationWarning)
 
-        # collect the result
-        #import rwa
-        #fh = rwa.HDF5Store('sinks_sgbfgsb_v_1.h5', 'w')
-        #fh = rwa.HDF5Store('sDV0.h5', 'w')
-        #fh.poke('result', result)
-        #fh.close()
         dv.update(result.x)
         D, V = dv.D, dv.V
-        if np.any(V < 0):
-                V -= np.min(V)
+        #if np.any(V < 0):
+        #        V -= np.min(V)
         DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
                 columns=[ 'diffusivity', 'potential'])
 
@@ -282,5 +328,15 @@ def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, 
                         columns=cells.space_cols))
                 #DVF.to_csv('results.csv', sep='\t')
 
-        return DVF
+        # format the posteriors
+        if posterior_info:
+                cols = ['cell', 'fit', 'total']
+                if len(posterior_info[0]) == 4:
+                        cols = ['iter'] + cols
+                posterior_info = pd.DataFrame(np.array(posterior_info), columns=cols)
+
+        if result.err is not None:
+                return DVF, posterior_info, pd.DataFrame(result.err, columns=['error'])
+
+        return DVF, posterior_info
 
