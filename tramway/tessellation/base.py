@@ -433,15 +433,15 @@ class Tessellation(Lazy):
         Attributes:
                 scaler (tramway.core.scaler.Scaler): scaler.
 
-                _cell_adjacency (private):
+                cell_adjacency (sparse matrix):
                         square adjacency matrix for cells.
                         If :attr:`_adjacency_label` is defined, :attr:`_cell_adjacency` should be
                         sparse and the explicit elements should be indices in :attr:`_adjacency_label`.
 
-                _cell_label (numpy.ndarray, private):
+                cell_label (numpy.ndarray):
                         cell labels with as many elements as cells.
 
-                _adjacency_label (numpy.ndarray, private):
+                adjacency_label (numpy.ndarray):
                         inter-cell edge labels with as many elements as there are edges.
         """
         __slots__ = ('scaler', '_cell_adjacency', '_cell_label', '_adjacency_label')
@@ -699,7 +699,7 @@ class Delaunay(Tessellation):
         :class:`Delaunay` implements the nearest neighour feature and support for cell overlap.
 
         Attributes:
-                _cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
+                cell_centers (numpy.ndarray): coordinates of the cell centers.
         """
         __slots__ = ('_cell_centers',)
 
@@ -924,21 +924,32 @@ class Delaunay(Tessellation):
                                                 if D is None:
                                                         raise memory_error
                                                 # small and missing cells
-                                                I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
-                                                small, = small.nonzero()
-                                                J = np.tile(small, min_nn) # cell indices
-                                                # large-enough cells
-                                                #if min_location_count:
-                                                #        small = count < min_nn
-                                                point_in_small_cells = np.any(
-                                                        small[:,np.newaxis] == K[np.newaxis,:], axis=0)
-                                                Ic = np.logical_not(point_in_small_cells)
-                                                Jc = K[Ic]
-                                                Ic, = Ic.nonzero()
-                                                Ic = Ic[0 <= Jc]
-                                                Jc = Jc[0 <= Jc]
-                                                #
-                                                K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
+                                                if D.shape[0] <= min_nn:
+                                                        assert np.all(small)
+                                                        # the total number of points is lower than
+                                                        # the desired minimum number of points per
+                                                        # cell
+                                                        n = D.shape[0]
+                                                        I = np.repeat(np.arange(n), ncells)
+                                                        J = np.tile(np.arange(ncells), n)
+                                                        K = (I, J)
+                                                else:
+                                                        I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
+                                                        small, = small.nonzero()
+                                                        J = np.tile(small, min_nn) # cell indices
+                                                        assert I.size == J.size
+                                                        # large-enough cells
+                                                        #if min_location_count:
+                                                        #        small = count < min_nn
+                                                        point_in_small_cells = np.any(
+                                                                small[:,np.newaxis] == K[np.newaxis,:], axis=0)
+                                                        Ic = np.logical_not(point_in_small_cells)
+                                                        Jc = K[Ic]
+                                                        Ic, = Ic.nonzero()
+                                                        Ic = Ic[0 <= Jc]
+                                                        Jc = Jc[0 <= Jc]
+                                                        #
+                                                        K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
                         # min radius:
                         # switch to vector-pair representation
                         if min_r:
@@ -1028,18 +1039,21 @@ class Voronoi(Delaunay):
 
         Attributes:
 
-                _vertices (numpy.ndarray):
-                        scaled coordinates of the Voronoi vertices.
+                vertices (numpy.ndarray):
+                        coordinates of the Voronoi vertices.
 
-                _vertex_adjacency (scipy.sparse):
+                vertex_adjacency (scipy.sparse):
                         adjacency matrix for Voronoi vertices.
 
-                _cell_vertices (dict of array-like):
+                cell_vertices (dict of array-like):
                         mapping of cell indices to their associated vertices as indices in
                         :attr:`vertices`.
 
-                _cell_volume (numpy.ndarray):
+                cell_volume (numpy.ndarray):
                         cell volume (or surface area in 2D); only 2D is supported for now.
+                        Important note: if time is treated just as an extra dimension like
+                        in :class:`~tramway.tessellation.time.TimeLattice`, then cell volume
+                        may actually be spatial volume multiplied by segment duration.
 
         """
         __slots__ = ('_vertices', '_vertex_adjacency', '_cell_vertices', '_cell_volume')

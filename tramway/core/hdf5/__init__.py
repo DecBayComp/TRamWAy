@@ -96,6 +96,11 @@ else:
                         deprecated[a] = attrs.pop(a, None)
                 for a in attrs:
                         if not (a[0] == '_' or attrs[a] is None):
+                                try:
+                                        bool(attrs[a])
+                                except ValueError:
+                                        store.poke(a, attrs[a], sub_container, visited=visited)
+                                        continue
                                 if attrs[a] or attrs[a] == 0:
                                         #print("poke '{}'".format(a))
                                         store.poke(a, attrs[a], sub_container, visited=visited)

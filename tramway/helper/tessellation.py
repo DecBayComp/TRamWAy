@@ -858,7 +858,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                         raise e
         if dim == 2:
                 if figs or figsize is not None or num is not None:
-                        fig = mplt.figure(figsize=figsize, num = num)
+                        fig = mplt.figure(figsize=figsize, dpi=dpi, num = num)
                 else:
                         fig = mplt.gcf()
                 figs.append(fig)
