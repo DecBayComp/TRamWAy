@@ -53,7 +53,7 @@ def sdfunc(func, yy, ids, components, join, h, args=(), kwargs={}, per_component
                         except (KeyboardInterrupt, SystemExit):
                                 raise
                         except:
-                                traceback.print_exc()
+                                #traceback.print_exc()
                                 continue
                         if i == 0:
                                 continue
@@ -207,7 +207,8 @@ def minimize_sgbfgs(minibatch, fun, x0, args=(), join=np.sum, eta0=1., c=1., l=0
                         #
                         if g is None:
                                 x = x2
-                                print(msg2(t, 'GRADIENT CALCULATION FAILED (t)'))
+                                if verbose:
+                                        print(msg2(t, 'GRADIENT CALCULATION FAILED (t)'))
                                 continue
                                 resolution = 'GRADIENT CALCULATION FAILED (t)'
                                 break
@@ -247,7 +248,8 @@ def minimize_sgbfgs(minibatch, fun, x0, args=(), join=np.sum, eta0=1., c=1., l=0
                         eta = slnsrch(f, rows, cols, x, p, g, eta0, ls_maxiter, step_max)
                         if not eta:
                                 x = x2
-                                #print(msg2(t, 'LINE SEARCH FAILED'))
+                                #if verbose:
+                                #        print(msg2(t, 'LINE SEARCH FAILED'))
                                 #continue
                                 resolution = msg2(t, 'LINE SEARCH FAILED')
                                 break
@@ -266,9 +268,9 @@ def minimize_sgbfgs(minibatch, fun, x0, args=(), join=np.sum, eta0=1., c=1., l=0
 
                         #
                         if h is None:
-                                print(x-x2)
                                 x = x2
-                                print(msg2(t, 'GRADIENT CALCULATION FAILED (t+1)'))
+                                if verbose:
+                                        print(msg2(t, 'GRADIENT CALCULATION FAILED (t+1)'))
                                 continue
                                 resolution = 'GRADIENT CALCULATION FAILED (t+1)'
                                 break
