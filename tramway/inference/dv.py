@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -84,7 +84,7 @@ class DV(ChainArray):
 
 
 def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
-                index, reverse_index, grad_kwargs, y0, verbose):
+                index, reverse_index, grad_kwargs, y0, verbose, posteriors):
         """
         Adapted from InferenceMAP's *dvPosterior* procedure modified:
 
@@ -144,7 +144,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
         noise_dt = squared_localization_error
 
         # for all cell
-        result = 0.
+        raw_posterior = priors = 0.
         for j, i in enumerate(index):
                 cell = cells[i]
                 n = len(cell) # number of translocations
@@ -167,22 +167,25 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
                 if np.isnan(res):
                         #print('isnan')
                         continue
-                result += res
+                raw_posterior += res
 
                 # priors
                 potential_prior = dv.potential_prior(j)
                 if potential_prior:
-                        result += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
+                        priors += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
                 diffusivity_prior = dv.diffusivity_prior(j)
                 if diffusivity_prior:
                         # spatial gradient of the local diffusivity
                         gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
                         if gradD is not None:
                                 # `grad_sum` memoizes and can be called several times at no extra cost
-                                result += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
+                                priors += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
                 #print('{}\t{}\t{}'.format(i+1, D[j], result))
         if jeffreys_prior:
-                result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
+                priors += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
+
+        result = raw_posterior + priors
+        posteriors.append([raw_posterior, result])
 
         if verbose:
                 print('objective: {}\t time: {}ms'.format(result, int(round((time.time() - t) * 1e3))))
@@ -211,6 +214,7 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                         density[density == 0] = np.min(density[0 < density])
                 V_initial = np.log(np.max(density)) - np.log(density)
         dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
+        posteriors = []
 
         # gradient options
         grad_kwargs = {}
@@ -220,8 +224,9 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                 grad_kwargs['eps'] = epsilon
 
         # parametrize the optimization algorithm
-        default_BFGS_options = dict(maxcor=dv.combined.size, ftol=1e-8, maxiter=1e3,
-                disp=verbose)
+        default_BFGS_options = dict(maxiter=1e3, disp=verbose)
+        if min_diffusivity not in (False, None):
+                default_BFGS_options.update(dict(maxcor=dv.combined.size, ftol=1e-8))
         #default_BFGS_options = dict(maxiter=1e3, disp=verbose)
         options = kwargs.pop('options', default_BFGS_options)
         if max_iter:
@@ -244,11 +249,11 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                         index, reverse_index, grad_kwargs)
 
         # get the initial posterior value so that it is subtracted from the further evaluations
-        y0 = dv_neg_posterior(dv.combined, *(args + (0., False)))
+        y0 = dv_neg_posterior(dv.combined, *(args + (0., False, [])))
         if verbose:
                 print('At X0\tactual posterior= {}\n'.format(y0))
         #y0 = 0.
-        args = args + (y0, 1 < int(verbose))
+        args = args + (y0, 1 < int(verbose), posteriors)
 
         # run the optimization routine
         result = minimize(dv_neg_posterior, dv.combined, args=args, bounds=bounds, options=options)
@@ -275,9 +280,11 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
         if F:
                 F = pd.DataFrame(np.stack(F, axis=0), index=index_, \
                         columns=[ 'force ' + col for col in cells.space_cols ])
-                DVF = DVF.join(F)
         else:
                 warn('not any cell is suitable for evaluating the local force', RuntimeWarning)
+                F = pd.DataFrame(np.zeros((0, len(cells.space_cols)), dtype=V.dtype), \
+                        columns=[ 'force ' + col for col in cells.space_cols ])
+        DVF = DVF.join(F)
 
         # add extra information if required
         if export_centers:
@@ -286,5 +293,8 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
                         columns=cells.space_cols))
                 #DVF.to_csv('results.csv', sep='\t')
 
-        return DVF
+        # format the posteriors
+        posteriors = pd.DataFrame(np.array(posteriors), columns=['fit', 'total'])
+
+        return DVF, posteriors
 

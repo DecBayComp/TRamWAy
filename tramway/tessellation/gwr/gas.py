@@ -496,7 +496,15 @@ class Gas(Graph):
                                 # `m` has reached `max_n_units`
                                 radius[j] = rmax
                                 continue
-                        X = [ cell[tuple(_i)] for _i in I if tuple(_i) in cell ] # _i for PY2
+                        X = []
+                        for _i in I:
+                                try:
+                                        _x = cell[tuple(_i)]
+                                except KeyError:
+                                        pass
+                                else:
+                                        X.append(_x)
+                        #X = [ cell[tuple(_i)] for _i in I if tuple(_i) in cell ] # _i for PY2
                         X = np.concatenate(X, axis=0)
                         x = cell[i]
                         # dist with SciPy

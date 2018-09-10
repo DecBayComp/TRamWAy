@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -75,7 +75,7 @@ def _render_cells(args):
         if delaunay:
                 kwargs['xy_layer'] = 'delaunay'
         del kwargs['min_location_count']
-        cell_plot(input_file, output_file=output_file, fig_format=fig_format, \
+        cell_plot(input_file, output_file=output_file, fig_format=fig_format, figsize=True, \
                 location_count_hist='c' in hist, cell_dist_hist='d' in hist, \
                 location_dist_hist='p' in hist, **kwargs)
         sys.exit(0)
@@ -154,7 +154,7 @@ def _render_map(args):
                 kwargs['clip'] = 4.
         elif kwargs['clip'] == 0.:
                 del kwargs['clip']
-        map_plot(input_file[0], output_file=output_file, fig_format=fig_format, **kwargs)
+        map_plot(input_file[0], output_file=output_file, fig_format=fig_format, figsize=True, **kwargs)
         sys.exit(0)
 
 def _dump_rwa(args):
@@ -170,7 +170,7 @@ def _dump_rwa(args):
         else:
                 for input_file in input_files:
                         print('in {}:'.format(input_file))
-                        analyses = load_rwa(input_file)
+                        analyses = load_rwa(input_file, lazy=True)
                         print(format_analyses(analyses, global_prefix='\t', node=lazytype))
 
 def _curl(args):
@@ -181,7 +181,7 @@ def _curl(args):
         if input_file[1:]:
                 raise NotImplementedError('cannot handle multiple input files')
         input_file = input_file[0]
-        analyses = load_rwa(input_file)
+        analyses = load_rwa(input_file, lazy=True)
         cells, maps, leaf = find_artefacts(analyses, (CellStats, Maps), input_label, return_subtree=True)
         curl = tramway.feature.curl.Curl(cells, maps)
         vector_fields = { f: vs for f, vs in curl.variables.items() if len(vs) == 2 }
@@ -393,7 +393,7 @@ def main():
         cells_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
                 help='minimum number of locations per cell')
         cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
-        cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers)")
+        cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers); DEPRECATED")
         cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
         try:
                 cells_parser.add_argument('input_file', nargs='?', help='path to input file')

@@ -1,6 +1,7 @@
 
 .. |tramway| replace:: **TRamWAy**
 .. _InferenceMAP: https://research.pasteur.fr/en/software/inferencemap/
+.. _github: https://github.com/DecBayComp/TRamWAy
 
 .. |txt| replace:: *.txt*
 .. |xyt| replace:: *.xyt*

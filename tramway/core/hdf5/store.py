@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -14,7 +14,7 @@
 
 from rwa import HDF5Store, lazytype, lazyvalue
 from ..lazy import Lazy
-from ..analyses import Analyses, coerce_labels, format_analyses
+from ..analyses import Analyses, coerce_labels, format_analyses, append_leaf
 import tramway.core.analyses.base as ba
 #from copy import copy
 import os.path
@@ -65,11 +65,34 @@ class RWAStore(HDF5Store):
 
 
 
-def load_rwa(path, verbose=None):
+def load_rwa(path, verbose=None, lazy=False):
+        """
+        Load a .rwa file.
+
+        Note about laziness: the analysis tree uses an active handle to the opened file.
+        As a consequence, the file should be read only once.
+        It is safe to load, modify, save and then load again, but the first loaded data
+        should be terminated before loading the data again.
+
+        Arguments:
+
+                path (str): path to .rwa file
+
+                verbose (bool): verbosity level
+
+                lazy (bool): reads the file lazily
+
+        Returns:
+
+                tramway.core.analyses.base.Analyses:
+                        analysis tree;
+                        if `lazy` is ``True``, return type is
+                        :class:`tramway.core.analyses.lazy.Analyses` instead
+        """
         try:
                 hdf = RWAStore(path, 'r')
                 #hdf._default_lazy = PermissivePeek
-                hdf.lazy = True
+                hdf.lazy = lazy
                 try:
                         analyses = lazyvalue(hdf.peek('analyses'))
                 except (KeyboardInterrupt, SystemExit):
@@ -94,13 +117,32 @@ def load_rwa(path, verbose=None):
 
 
 def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=False):
+        """
+        Save an analysis tree into a .rwa file.
+
+        Arguments:
+
+                path (str): path to .rwa file
+
+                analyses (tramway.core.analyses.base.Analyses): analysis tree
+
+                verbose (bool): verbose mode
+
+                force (bool): do not ask whether to overwrite an existing file or not
+
+                compress (bool): delete the lazy attributes that can be computed again automatically
+
+                append (bool): do not overwrite; reload the file instead and append the analyses as
+                        a subtree
+
+        """
         if not isinstance(analyses, ba.Analyses):
                 raise TypeError('`analyses` is not an `Analyses` instance')
         if os.path.isfile(path):
                 if append:
                         extra_analyses = analyses
                         analyses = load_rwa(path)
-                        append_leaf(analyses, extra_analyses)
+                        append_leaf(analyses, extra_analyses, overwrite=force)
                 elif not force:
                         answer = input("overwrite file '{}': [N/y] ".format(path))
                         if not (answer and answer[0].lower() == 'y'):
