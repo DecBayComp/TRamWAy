@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -542,7 +542,7 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
         return '\n'.join(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
 
 
-def append_leaf(analysis_tree, augmented_branch):
+def append_leaf(analysis_tree, augmented_branch, overwrite=False):
         """
         Merge new analyses into an existing analysis tree.
 
@@ -558,7 +558,7 @@ def append_leaf(analysis_tree, augmented_branch):
         """
         if augmented_branch:
                 for label in augmented_branch:
-                        if label in analysis_tree:
+                        if label in analysis_tree and (not overwrite or augmented_branch[label]):
                                 append_leaf(analysis_tree[label], augmented_branch[label])
                         else:
                                 analysis_tree.add(augmented_branch[label], label=label)

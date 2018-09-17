@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -433,15 +433,15 @@ class Tessellation(Lazy):
         Attributes:
                 scaler (tramway.core.scaler.Scaler): scaler.
 
-                _cell_adjacency (private):
+                cell_adjacency (sparse matrix):
                         square adjacency matrix for cells.
                         If :attr:`_adjacency_label` is defined, :attr:`_cell_adjacency` should be
                         sparse and the explicit elements should be indices in :attr:`_adjacency_label`.
 
-                _cell_label (numpy.ndarray, private):
+                cell_label (numpy.ndarray):
                         cell labels with as many elements as cells.
 
-                _adjacency_label (numpy.ndarray, private):
+                adjacency_label (numpy.ndarray):
                         inter-cell edge labels with as many elements as there are edges.
         """
         __slots__ = ('scaler', '_cell_adjacency', '_cell_label', '_adjacency_label')
@@ -621,7 +621,7 @@ class Tessellation(Lazy):
                 if label:
                         edges_not_ok = np.zeros(row.size, dtype=bool)
                         for cell_label in label:
-                                cells_not_ok = cell_label < 1
+                                cells_not_ok = cell_label <= 0
                                 edges_not_ok[cells_not_ok[row]] = True
                                 edges_not_ok[cells_not_ok[col]] = True
                         edges_ok = np.logical_not(edges_not_ok)
@@ -699,8 +699,10 @@ class Delaunay(Tessellation):
         :class:`Delaunay` implements the nearest neighour feature and support for cell overlap.
 
         Attributes:
-                _cell_centers (numpy.ndarray, private): scaled coordinates of the cell centers.
+                cell_centers (numpy.ndarray): coordinates of the cell centers.
         """
+        __slots__ = ('_cell_centers',)
+
         def __init__(self, scaler=None):
                 Tessellation.__init__(self, scaler)
                 self._cell_centers = None
@@ -870,7 +872,7 @@ class Delaunay(Tessellation):
                         # max radius:
                         if max_r:
                                 excluded_cells = []
-                                for c in nonempty:
+                                for i, c in enumerate(nonempty):
                                         if callable(radius):
                                                 _, max_r = radius(c)
                                                 if max_r is None:
@@ -885,7 +887,7 @@ class Delaunay(Tessellation):
                                         discard = max_r < d
                                         K[cell[discard]] = -1
                                         if np.all(discard):
-                                                excluded_cells.append(c)
+                                                excluded_cells.append(i)
                                 if excluded_cells:
                                         # remove the excluded cells from nonempty and positive_count
                                         ok = np.ones(nonempty.size, dtype=bool)
@@ -922,21 +924,32 @@ class Delaunay(Tessellation):
                                                 if D is None:
                                                         raise memory_error
                                                 # small and missing cells
-                                                I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
-                                                small, = small.nonzero()
-                                                J = np.tile(small, min_nn) # cell indices
-                                                # large-enough cells
-                                                #if min_location_count:
-                                                #        small = count < min_nn
-                                                point_in_small_cells = np.any(
-                                                        small[:,np.newaxis] == K[np.newaxis,:], axis=0)
-                                                Ic = np.logical_not(point_in_small_cells)
-                                                Jc = K[Ic]
-                                                Ic, = Ic.nonzero()
-                                                Ic = Ic[0 <= Jc]
-                                                Jc = Jc[0 <= Jc]
-                                                #
-                                                K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
+                                                if D.shape[0] <= min_nn:
+                                                        assert np.all(small)
+                                                        # the total number of points is lower than
+                                                        # the desired minimum number of points per
+                                                        # cell
+                                                        n = D.shape[0]
+                                                        I = np.repeat(np.arange(n), ncells)
+                                                        J = np.tile(np.arange(ncells), n)
+                                                        K = (I, J)
+                                                else:
+                                                        I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
+                                                        small, = small.nonzero()
+                                                        J = np.tile(small, min_nn) # cell indices
+                                                        assert I.size == J.size
+                                                        # large-enough cells
+                                                        #if min_location_count:
+                                                        #        small = count < min_nn
+                                                        point_in_small_cells = np.any(
+                                                                small[:,np.newaxis] == K[np.newaxis,:], axis=0)
+                                                        Ic = np.logical_not(point_in_small_cells)
+                                                        Jc = K[Ic]
+                                                        Ic, = Ic.nonzero()
+                                                        Ic = Ic[0 <= Jc]
+                                                        Jc = Jc[0 <= Jc]
+                                                        #
+                                                        K = (np.concatenate((I, Ic)), np.concatenate((J, Jc)))
                         # min radius:
                         # switch to vector-pair representation
                         if min_r:
@@ -1026,20 +1039,25 @@ class Voronoi(Delaunay):
 
         Attributes:
 
-                _vertices (numpy.ndarray):
-                        scaled coordinates of the Voronoi vertices.
+                vertices (numpy.ndarray):
+                        coordinates of the Voronoi vertices.
 
-                _vertex_adjacency (scipy.sparse):
+                vertex_adjacency (scipy.sparse):
                         adjacency matrix for Voronoi vertices.
 
-                _cell_vertices (dict of array-like):
+                cell_vertices (dict of array-like):
                         mapping of cell indices to their associated vertices as indices in
                         :attr:`vertices`.
 
-                _cell_volume (numpy.ndarray):
+                cell_volume (numpy.ndarray):
                         cell volume (or surface area in 2D); only 2D is supported for now.
+                        Important note: if time is treated just as an extra dimension like
+                        in :class:`~tramway.tessellation.time.TimeLattice`, then cell volume
+                        may actually be spatial volume multiplied by segment duration.
 
         """
+        __slots__ = ('_vertices', '_vertex_adjacency', '_cell_vertices', '_cell_volume')
+
         __lazy__ = Delaunay.__lazy__ + \
                 ('vertices', 'cell_adjacency', 'cell_vertices', 'vertex_adjacency', 'cell_volume')
 
@@ -1098,7 +1116,7 @@ class Voronoi(Delaunay):
         def vertex_adjacency(self, matrix):
                 self.__lazysetter__(matrix)
 
-        def _postprocess(self):
+        def _postprocess(self, adjacency_label=False):
                 """Compute the Voronoi.
 
                 This private method may be called anytime by :attr:`vertices`, :attr:`vertex_adjacency`
@@ -1106,36 +1124,42 @@ class Voronoi(Delaunay):
                 """
                 if self._cell_centers is None:
                         raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
+                points = np.asarray(self._cell_centers)
+                if False:#points.shape[1] == 2:
+                        voronoi = boxed_voronoi_2d(points)
                 else:
-                        points = np.asarray(self._cell_centers)
-                        if False:#points.shape[1] == 2:
-                                voronoi = boxed_voronoi_2d(points)
+                        voronoi = spatial.Voronoi(points)
+                self._vertices = voronoi.vertices
+                self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
+                                for i, r in enumerate(voronoi.point_region) if 0 <= r }
+                n_centers = self._cell_centers.shape[0]
+                # decompose the ridges as valid pairs of vertices and build an adjacency matrix
+                ps = []
+                for r in voronoi.ridge_vertices:
+                        pairs = np.c_[r, np.roll(r, 1)]
+                        pairs = pairs[np.all(0 <= pairs, axis=1)]
+                        ps.append(pairs)
+                ij = np.concatenate(ps)
+                n_vertices = self._vertices.shape[0]
+                self._vertex_adjacency = sparse.coo_matrix((np.ones(ij.size, dtype=bool),
+                                (ij.ravel('F'), np.fliplr(ij).ravel('F'))),
+                        shape=(n_vertices, n_vertices))
+                #
+                if self._cell_adjacency is None:
+                        ridge_points = voronoi.ridge_points
+                        ridge_points = ridge_points[np.all(0 <= ridge_points, axis=1)]
+                        n_ridges = ridge_points.shape[0]
+                        if adjacency_label:
+                                self._adjacency_label = np.ones(n_ridges, dtype=int)
+                        if self._adjacency_label is None:
+                                edges = np.ones(n_ridges*2, dtype=bool)
                         else:
-                                voronoi = spatial.Voronoi(points)
-                        self._vertices = voronoi.vertices
-                        self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
-                                        for i, r in enumerate(voronoi.point_region) if 0 <= r }
-                        n_centers = self._cell_centers.shape[0]
-                        # decompose the ridges as valid pairs of vertices and build an adjacency matrix
-                        ps = []
-                        for r in voronoi.ridge_vertices:
-                                pairs = np.c_[r, np.roll(r, 1)]
-                                pairs = pairs[np.logical_not(np.any(pairs == -1, axis=1))]
-                                ps.append(pairs)
-                        ij = np.concatenate(ps)
-                        n_vertices = self._vertices.shape[0]
-                        self._vertex_adjacency = sparse.coo_matrix((np.ones(ij.size, dtype=bool),
-                                        (ij.ravel('F'), np.fliplr(ij).ravel('F'))),
-                                shape=(n_vertices, n_vertices))
-                        #
-                        if self._cell_adjacency is None:
-                                n_ridges = voronoi.ridge_points.shape[0]
-                                self._cell_adjacency = sparse.csr_matrix((\
-                                        np.tile(np.arange(0, n_ridges, dtype=int), 2), (\
-                                        voronoi.ridge_points.flatten('F'), \
-                                        np.fliplr(voronoi.ridge_points).flatten('F'))), \
-                                        shape=(n_centers, n_centers))
-                        return voronoi
+                                edges = np.tile(np.arange(0, n_ridges, dtype=int), 2)
+                        self._cell_adjacency = sparse.csr_matrix((edges, ( \
+                                ridge_points.flatten('F'), \
+                                np.fliplr(ridge_points).flatten('F'))), \
+                                shape=(n_centers, n_centers))
+                return voronoi
 
         @property
         def cell_volume(self):
@@ -1226,7 +1250,12 @@ _Voronoi = namedtuple('BoxedVoronoi', (
 def boxed_voronoi_2d(points, bounding_box=None):
         voronoi = spatial.Voronoi(points)
         if bounding_box is None:
+                #x_min = np.minimum(np.min(points, axis=0), np.min(voronoi.vertices, axis=0))
+                #x_max = np.maximum(np.max(points, axis=0), np.max(voronoi.vertices, axis=0))
                 x_min, x_max = np.min(points, axis=0), np.max(points, axis=0)
+                dx = x_max - x_min
+                x_min -= 1e-4 * dx
+                x_max += 1e-4 * dx
                 bounding_box = (
                         x_min,
                         np.array([x_max[0], x_min[1]]),
@@ -1234,9 +1263,7 @@ def boxed_voronoi_2d(points, bounding_box=None):
                         np.array([x_min[0], x_max[1]]),
                         )
         t = (bounding_box[0] + bounding_box[2]) * .5
-        lstsq_kwargs = {}
-        if sys.version_info[0] < 3:
-                lstsq_kwargs['rcond'] = None
+        lstsq_kwargs = dict(rcond=None)
         region_point = np.full(len(voronoi.regions), -1, dtype=int)
         region_point[voronoi.point_region] = np.arange(voronoi.point_region.size)
         extra_vertices = []
@@ -1319,8 +1346,6 @@ def boxed_voronoi_2d(points, bounding_box=None):
                                 if prev_edge is None or prev_edge == l:
                                         h_prev = h
                                 else:
-                                        h_prev = vertex_index
-                                        vertex_index += 1
                                         # add the corner which the previous
                                         # and current edges intersect at
                                         e_max = len(bounding_box)-1
@@ -1331,11 +1356,17 @@ def boxed_voronoi_2d(points, bounding_box=None):
                                                 (l==e_max and prev_edge==0):
                                                 v_prev = b
                                         else:
-                                                raise RuntimeError
-                                        extra_vertices.append(v_prev)
-                                        extra_ridges.append([-1,c])
-                                        _ridge_vertices.append([h,h_prev])
-                                        _region.append(h_prev)
+                                                # two corners?
+                                                # better connect the intersection points and let the corners out
+                                                h_prev = h
+                                                v_prev = None
+                                        if v_prev is not None:
+                                                h_prev = vertex_index
+                                                vertex_index += 1
+                                                extra_vertices.append(v_prev)
+                                                extra_ridges.append([-1,c])
+                                                _ridge_vertices.append([h,h_prev])
+                                                _region.append(h_prev)
                                 prev_edge = l
                                 #
                                 h_next = vertex_index
@@ -1357,7 +1388,7 @@ def boxed_voronoi_2d(points, bounding_box=None):
         _points = voronoi.points
         _vertices = np.vstack([voronoi.vertices]+extra_vertices)
         _ridge_points = np.vstack([_ridge_points]+extra_ridges)
-        _point_region = voronoi.point_region
+        _point_region = np.arange(1, len(_regions))#voronoi.point_region
         return _Voronoi(_points, _vertices, _ridge_points, _ridge_vertices, _regions, _point_region)
 
 

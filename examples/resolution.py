@@ -86,7 +86,7 @@ def main(**kwargs):
                 _label = label(_ref_distance)
                 if analyses is None and os.path.isfile(rwa_file):
                         try:
-                                analyses_or_file = analyses = load_rwa(rwa_file)
+                                analyses_or_file = analyses = load_rwa(rwa_file, lazy=True)
                         except (KeyboardInterrupt, SystemExit):
                                 raise
                         except:
@@ -110,7 +110,7 @@ def main(**kwargs):
                                 min_location_count=5, knn=min_location_count, strict_rel_max_size=10,
                                 output_file=rwa_file if analyses is None else None, verbose=True)
         if analyses is None:
-                analyses = load_rwa(rwa_file, verbose=True)
+                analyses = load_rwa(rwa_file, verbose=True, lazy=True)
         elif _modified:
                 save_rwa(rwa_file, analyses, force=True)
         #print(format_analyses(analyses, node=artefact_size))
@@ -160,8 +160,8 @@ def main(**kwargs):
                                 _modified = True
                                 DF = infer(analyses, mode='df', input_label=_label,
                                         output_label='DF', localization_error=localization_error)
-                        map_plot(DF, output_file=img('df', _ref_distance),
-                                cells=analyses[_label].data, **_map_plot_args)
+                        map_plot(DF, output_file=img('df', _ref_distance), cells=analyses[_label].data,
+                                transform={'force': np.log}, **_map_plot_args)
 
         if _dd:
                 for _ref_distance in default_ref_distances:
@@ -192,8 +192,8 @@ def main(**kwargs):
                                 DV = infer(analyses, mode='dv', input_label=_label,
                                         output_label='DV', localization_error=localization_error,
                                         priorD=priorD, priorV=priorV, output_file=rwa_file)
-                        map_plot(DV, output_file=img('dv', _ref_distance),
-                                cells=analyses[_label].data, **_map_plot_args)
+                        map_plot(DV, output_file=img('dv', _ref_distance), cells=analyses[_label].data,
+                                        transform={'force': np.log}, **_map_plot_args)
 
         if _modified:
                 #print(format_analyses(analyses, node=artefact_size))

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -164,7 +164,7 @@ class Distributed(Local):
         def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
                 boundary=None):
                 Local.__init__(self, index, OrderedDict(), center, span, boundary)
-                self.cells = cells # let's `cells` setter perform the necessary checks 
+                self.cells = cells # let's `cells` setter perform the necessary checks
                 self.adjacency = adjacency
                 self.central = central
 
@@ -173,8 +173,8 @@ class Distributed(Local):
                 """
                 `list` or `OrderedDict`, rw property for :attr:`data`
 
-                Collection of :class:`Local`. Indices may not match with the global 
-                :attr:`~Local.index` attribute of the elements, but match with attributes 
+                Collection of :class:`Local`. Indices may not match with the global
+                :attr:`~Local.index` attribute of the elements, but match with attributes
                 :attr:`central`, :attr:`adjacency` and :attr:`degree`.
                 """
                 return self.data
@@ -350,7 +350,7 @@ class Distributed(Local):
                                 local gradient.
 
                         index_map (array):
-                                index mapping, useful to convert cell indices to positional indices in 
+                                index mapping, useful to convert cell indices to positional indices in
                                 an optimization array for example.
 
                 Returns:
@@ -566,7 +566,8 @@ class Distributed(Local):
                         function (callable):
                                 the function to be called on each terminal :class:`Distributed`.
                                 Its first argument is the :class:`Distributed` object.
-                                It should return a :class:`~pandas.DataFrame`.
+                                It should return maps as a :class:`~pandas.DataFrame` and optionally
+                                posteriors as :class:`~pandas.Series` or :class:`~pandas.DataFrame`.
 
                         args (list):
                                 positional arguments for `function` after the first one.
@@ -586,7 +587,9 @@ class Distributed(Local):
                 Returns:
 
                         pandas.DataFrame:
-                                single merged array.
+                                single merged array of maps.
+                                If `function` returns two output arguments, :meth:`run` also
+                                returns a second merged array of posteriors.
 
                 """
                 # clear the caches
@@ -621,7 +624,15 @@ class Distributed(Local):
                         ys = [ y for y in ys if y is not None ]
                         if ys:
                                 if ys[1:]:
-                                        result = pd.concat(ys, axis=0).sort_index()
+                                        if isinstance(ys[0], tuple):
+                                                ys = zip(*ys)
+                                                result = tuple([
+                                                        pd.concat(_ys, axis=0).sort_index()
+                                                        for _ys in ys ])
+                                        else:
+                                                result = pd.concat(ys, axis=0).sort_index()
+                                else:
+                                        result = ys[0]
                         else:
                                 result = None
 
@@ -996,7 +1007,7 @@ class Translocations(Cell):
                 """
                 `array-like`, property
 
-                Translocations as a matrix of variations of coordinate and time with as many 
+                Translocations as a matrix of variations of coordinate and time with as many
                 columns as dimensions; this is an alias for :attr:`~Local.data`.
                 """
                 return self.data
@@ -1279,13 +1290,16 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 
                 _point, _cell = index
                 _unique = np.unique(_point)
+                loc_count = _unique[-1]+1 # should be enough
                 transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        _transloc = np.full_like(_point, -1)
+                        _transloc = np.full(loc_count, -1, dtype=int)
                         _ok = _unique[termination[_unique]]
                         _transloc[_ok] = np.arange(_ok.size)
                         _transloc = _transloc[_point]
+                        if np.all(_transloc==-1):
+                                raise ValueError('no translocations available')
                         def __associated__(cell):
                                 """
                                 Translocation-cell association.
@@ -1321,8 +1335,10 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                 transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        _transloc = np.full_like(loc_count, -1)
+                        _transloc = np.full_like(loc_count, -1, dtype=int)
                         _transloc[_termination] = np.arange(transloc_count)
+                        if np.all(_transloc==-1):
+                                raise ValueError('no translocations available')
                         def __association__(cell):
                                 """
                                 Translocation-cell association.
@@ -1398,6 +1414,8 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 new_group = new
         if not isinstance(cells, tessellation.CellStats):
                 raise TypeError('`cells` is not a `CellStats`')
+        if np.any(np.isnan(cells.points)):
+                raise ValueError('NaN in location data')
 
         # format (trans-)locations
         coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
@@ -1463,6 +1481,13 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         space_cols = np.ones(cells.points.shape[1], dtype=bool)
                         space_cols[time_col] = False
                         space_cols, = space_cols.nonzero()
+        def _bool(a):
+                try:
+                        return bool(a.size)
+                except AttributeError:
+                        return bool(a)
+        if cells.tessellation.scaler is not None and _bool(cells.tessellation.scaler.columns):
+                space_cols = cells.tessellation.scaler.columns
 
         # pre-select cells
         if cells.tessellation.cell_label is None:
@@ -1491,6 +1516,11 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         _destination = get_point(final_point, i)
                         __origin = _origin.copy() # make copy
                         __origin.index += 1
+                        _ok = np.array([i in _destination.index for i in __origin.index])
+                        _ok &= np.array([i in __origin.index for i in _destination.index])
+                        _origin = get_point(_origin, _ok)
+                        __origin = get_point(__origin, _ok)
+                        _destination = get_point(_destination, _ok)
                         _points = _origin # for convex hull; ideally not only origins
                         points = _destination - __origin # translocations
                 else:
@@ -1498,7 +1528,11 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
                 # convex hull
                 _points = np.asarray(get_var(_points, space_cols))
-                if _points.shape[1] < _points.shape[0]:
+                try:
+                        hull[j] = cells.tessellation.cell_volume[j]
+                except (KeyboardInterrupt, SystemExit):
+                        raise
+                except:
                         hull[j] = scipy.spatial.qhull.ConvexHull(_points)
 
                 if points.size == 0:
@@ -1514,9 +1548,9 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         except AttributeError:
                 _adjacency = None
         _adjacency = cells.tessellation.simplified_adjacency(adjacency=_adjacency, label=J, format='csr')
-        # reweight each row i as 1/n_i where n_i is the degree of cell i
-        n = np.diff(_adjacency.indptr)
-        _adjacency.data[...] = np.repeat(1.0 / np.maximum(1, n), n)
+        ## reweight each row i as 1/n_i where n_i is the degree of cell i
+        #n = np.diff(_adjacency.indptr)
+        #_adjacency.data = np.repeat(1.0 / np.maximum(1, n), n)
 
         # build every cells
         J, = np.nonzero(J)
@@ -1531,9 +1565,22 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         span = cells.tessellation.cell_centers[adj] - center
 
                 # make cell object
-                _cells[j] = new_cell(j, data[j], center, span, hull.get(j, None), **new_cell_kwargs)
+                args = ()
+                _volume = None
+                try:
+                        _hull = hull[j]
+                        _hull.simplices
+                except AttributeError:
+                        _volume = _hull
+                except KeyError:
+                        pass
+                else:
+                        args = (_hull,)
+                _cells[j] = new_cell(j, data[j], center, span, *args, **new_cell_kwargs)
                 _cells[j].time_col = time_col
                 _cells[j].space_cols = space_cols
+                if _volume:
+                        _cells[j].volume = _volume
                 if are_translocations:
                         try:
                                 _cells[j].origins = extra[j][0]
@@ -1566,9 +1613,91 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         return self
 
 
+
+class DistributeMerge(Distributed):
+
+        __slots__ = ('merged', )
+
+        def __init__(self, cells, adjacency, min_location_count=None):
+                if min_location_count is None:
+                        raise ValueError('`min_location_count` is not defined')
+                Distributed.__init__(self, cells, adjacency)
+                count = np.array([ len(cells[i]) for i in cells ])
+                index, = (count < min_location_count).nonzero()
+                ordered_index = np.argsort(count[index])
+                ordered_index = index[ordered_index]
+                index = set(index)
+                merged = dict()
+                for i in ordered_index[::-1]:
+                        js = [ j for j in self.neighbours(i).tolist() if j not in index ]
+                        if not js:
+                                warn('no large-enough neighbours for cell {:d}'.format(i), RuntimeWarning)
+                                continue
+                        dr = np.vstack([ cells[j].center for j in js ]) - cells[i].center#[np.newaxis,:]
+                        j = js[np.argmin(np.sum(dr * dr, axis=1))]
+                        j = merged.get(j, j)
+                        # merge cells i and j
+                        # attributes: center(?),time_data,space_data,span,boundary,fuzzy,origins,destinations
+                        cells[j].data = (np.vstack((cells[j].space_data, cells[i].space_data)),
+                                        np.r_[cells[j].time_data, cells[i].time_data])
+                        if cells[j].span is not None:
+                                try:
+                                        cells[j].span = np.vstack((cells[j].span, cells[i].span))
+                                except (AttributeError, TypeError):
+                                        pass
+                        if cells[j].boundary is not None:
+                                # cannot merge properly
+                                try:
+                                        cells[j].boundary = np.vstack((cells[j].boundary, cells[i].boundary))
+                                except (AttributeError, TypeError):
+                                        pass
+                        try:
+                                cells[j].fuzzy = np.r_[cells[j].fuzzy, cells[i].fuzzy]
+                        except (AttributeError, ValueError):
+                                pass
+                        try:
+                                cells[j].origins = np.vstack((cells[j].origins, cells[i].origins))
+                                cells[j].destinations = np.vstack((cells[j].destinations, cells[i].destinations))
+                        except AttributeError:
+                                pass
+                        #
+                        merged[i] = j
+                        index.remove(i)
+                # clear and register the merged cells
+                discarded = set(ordered_index)
+                self.cells = type(cells)([(i, cells[i]) for i in cells if i not in discarded])
+                self.merged = dict()
+                for i, j in merged.items():
+                        try:
+                                self.merged[j].add(i)
+                        except KeyError:
+                                self.merged[j] = set([i])
+                # modify the adjacency matrix
+                adjacency = sparse.lil_matrix(adjacency.shape, dtype=adjacency.dtype)
+                for i in range(adjacency.shape[0]):
+                        if i in discarded:
+                                continue
+                        js = set(self.neighbours(i).tolist())
+                        try:
+                                ks = self.merged[i]
+                        except KeyError:
+                                pass
+                        else:
+                                for k in ks:
+                                        js |= set(self.neighbours(k).tolist())
+                        js -= discarded
+                        for j in js:
+                                adjacency[i,j] = True
+                                adjacency[j,i] = True
+                self.adjacency = adjacency.tocsr()
+                assert set(self.cells.keys()) == set((self.adjacency.indptr[1:] - self.adjacency.indptr[:-1]).nonzero()[0].tolist())
+                assert set(self.cells.keys()) == set(self.adjacency.indices.tolist())
+
+
 class Maps(Lazy):
         """
-        Basic container for maps and the associated parameters used to get the maps.
+        Basic container for maps, posteriors and the associated input parameters used to generate
+        the maps.
 
         Attributes `distributed_translocations`, `partition_file`, `tessellation_program`, `version`
         are deprecated and will be removed.
@@ -1580,7 +1709,7 @@ class Maps(Lazy):
         """
         __lazy__ = Lazy.__lazy__ + ('_variables',)
 
-        def __init__(self, maps, mode=None):
+        def __init__(self, maps, mode=None, posteriors=None):
                 Lazy.__init__(self)
                 self.maps = maps
                 self.mode = mode
@@ -1595,6 +1724,7 @@ class Maps(Lazy):
                 self.tessellation_param = None # legacy attribute
                 self.version = None # legacy attribute
                 self.runtime = None
+                self.posteriors = posteriors
 
         @property
         def maps(self):
@@ -2108,6 +2238,7 @@ def _vander(x, y):
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
         'identify_columns', 'get_locations', 'get_translocations', 'distributed',
+        'DistributeMerge',
         'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init',
         'neighbours_per_axis', 'grad1', 'gradn']
 
