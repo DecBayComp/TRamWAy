@@ -41,5 +41,5 @@ If after following the above steps, launching |tramway| on Windows generates the
 
 	ImportError: HDFStore requires PyTables, "DLL load failed: The specified procedure could not be found." problem importing
 
-please remove the ``PyTables`` version installed by ``pip`` and manually download and install the appropriate version from the following `web page <https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytables>`_.
+please remove the ``PyTables`` version installed by ``pip`` and manually download and install the appropriate version from the following `web page <https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytables>`_. This may require an existing installation of `Visual C++ Build Tools 2015 <https://go.microsoft.com/fwlink/?LinkId=691126>`_.
 
