@@ -258,7 +258,7 @@ def tessellate(xyt_data, method='gwr', output_file=None, verbose=False, \
                         xyt_file = xyt_data
                 else:
                         try:
-                                analyses = load_rwa(xyt_data, lazy=True)
+                                analyses = load_rwa(xyt_data, lazy=True, verbose=False)
                         except (KeyboardInterrupt, SystemExit):
                                 raise
                         except:

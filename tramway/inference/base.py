@@ -1516,8 +1516,12 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                         _destination = get_point(final_point, i)
                         __origin = _origin.copy() # make copy
                         __origin.index += 1
-                        _ok = np.array([i in _destination.index for i in __origin.index])
-                        _ok &= np.array([i in __origin.index for i in _destination.index])
+                        try:
+                                _ok = np.array([i in _destination.index for i in __origin.index])
+                                _ok &= np.array([i in __origin.index for i in _destination.index])
+                        except TypeError:
+                                J[j] = False
+                                continue
                         _origin = get_point(_origin, _ok)
                         __origin = get_point(__origin, _ok)
                         _destination = get_point(_destination, _ok)

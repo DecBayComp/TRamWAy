@@ -12,12 +12,11 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import warnings
 import numpy as np
 import pandas as pd
 import random
-import pylab
-import math
+#import pylab
+#import math
 import collections
 
 
@@ -366,6 +365,7 @@ if __name__ == '__main__':
         #One imagine that some of those words were attached to actual meaning of some sort.
         #“””
 
+        import warnings
         warnings.filterwarnings('ignore')
 
         # check the parameters np and pandas for weird bug

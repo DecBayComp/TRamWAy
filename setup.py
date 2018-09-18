@@ -5,7 +5,7 @@ from codecs import open
 from os import path
 
 # requirements moved to requirements.txt
-install_requires = []#'six', 'numpy', 'scipy', 'pandas', 'tables', 'matplotlib', 'rwa-python>=0.7.1'
+install_requires = []#'six', 'numpy', 'scipy', 'pandas', 'tables', 'matplotlib', 'rwa-python>=0.7.1']
 extras_require = {}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']
@@ -19,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
         name = 'tramway',
-        version = '0.3-rc8',
+        version = '0.3-rc9',
         description = 'TRamWAy',
         long_description = long_description,
         url = 'https://github.com/DecBayComp/TRamWAy',

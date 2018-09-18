@@ -238,6 +238,14 @@ class CellStats(Lazy):
                 if self.tessellation is not None:
                         self.tessellation.freeze()
 
+        @property
+        def number_of_cells(self):
+                """
+                Proxy property for `Tessellation.number_of_cells`.
+                """
+                if self.tessellation is not None:
+                        return self.tessellation.number_of_cells
+
 
 
 def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwargs):
@@ -652,6 +660,15 @@ class Tessellation(Lazy):
                                 return np.asarray(points)
                         else:
                                 return points
+
+        @property
+        def number_of_cells(self):
+                """
+                Number of cells.
+
+                Read-only property.
+                """
+                return self.cell_adjacency.shape[0]
 
         def neighbours(self, i):
                 """

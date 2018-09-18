@@ -40,6 +40,11 @@ setup = {'arguments': OrderedDict((
 
 
 class DV(ChainArray):
+        """
+        Convenience class for handling the D+V parameter vector and related priors.
+
+        Objects of this class are not supposed to be serialized in .rwa files.
+        """
         __slots__ = ('_diffusivity_prior', '_potential_prior', 'minimum_diffusivity', 'prior_include')
 
         def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None, \
@@ -126,6 +131,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
 
         with ``dx-D*gradVx*dt`` and ``dy-D*gradVy*dt`` modified as ``dx+D*gradVx*dt`` and ``dy+D*gradVy*dt`` respectively.
 
+        See also :ref:`DV <inference_dv>`.
         """
         if verbose:
                 t = time.time()

@@ -57,7 +57,7 @@ def d_neg_posterior(diffusivity, cell, squared_localization_error, jeffreys_prio
                 cell.cache = np.sum(cell.dr * cell.dr, axis=1) # dx**2 + dy**2 + ..
         n = len(cell) # number of translocations
         D_dt = 4. * (diffusivity * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
-        if np.any(np.isclose(D_dt, 0)):
+        if np.any(D_dt <= 0) or np.any(np.isclose(D_dt, 0)):
                 raise RuntimeError('near-0 diffusivity; increase `localization_error`')
         d_neg_posterior = n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
         d_neg_posterior += np.sum(cell.cache / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))

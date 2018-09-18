@@ -414,6 +414,14 @@ class TimeLattice(Tessellation):
                         raise NotImplementedError('unsupported sparse matrix format')
                 return _adjacency
 
+        @property
+        def number_of_cells(self):
+                n_segments = self.time_lattice.shape[0]
+                if self.spatial_mesh is None:
+                        return n_segments
+                else:
+                        return n_segments * self.spatial_mesh.number_of_cells
+
         ## Delaunay properties and methods
         @property
         def cell_centers(self):

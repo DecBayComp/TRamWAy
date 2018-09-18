@@ -19,7 +19,8 @@ import tramway.inference as inference # inference.plugins
 from tramway.helper.tessellation import *
 from warnings import warn
 import os
-from time import time
+#from time import time
+import time
 import collections
 import traceback
 # no module-wide matplotlib import for head-less usage of `infer`
@@ -245,7 +246,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                         analysis = analysis[output_label]
                         output_label = None
 
-        runtime = time()
+        runtime = time.time()
 
         if mode in inference.plugins:
 
@@ -279,7 +280,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                         setattr(maps, p, kwargs[p])
         analysis.add(Analyses(maps), label=output_label, comment=comment)
 
-        runtime = time() - runtime
+        runtime = time.time() - runtime
         if verbose:
                 print('{} mode: elapsed time: {}ms'.format(mode, int(round(runtime*1e3))))
         maps.runtime = runtime
