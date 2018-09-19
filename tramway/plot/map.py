@@ -475,3 +475,6 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
 
         if not overlay and obj:
                 return obj
+
+__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d']
+

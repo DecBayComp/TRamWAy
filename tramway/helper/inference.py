@@ -502,8 +502,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 except:
                         pass
         import matplotlib.pyplot as mplt
-        import tramway.plot.mesh as xplt
-        import tramway.plot.map  as yplt
+        import tramway.plot      as tplt
 
         # identify and plot the possibly various maps
         figs = []
@@ -553,13 +552,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 col_kwargs['clim'] = [_map.values.min(), _map.values.max()]
                         _map = _cells.tessellation.split_frames(_map)[segment]
 
-                yplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
+                tplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
                 if point_style is not None:
                         points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
                         if 'color' not in point_style:
                                 point_style['color'] = None
-                        xplt.plot_points(points, **point_style)
+                        tplt.plot_points(points, **point_style)
 
                 if title:
                         if isinstance(title, str):
@@ -625,15 +624,15 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                                 var_kwargs['clim'] = [_scalar_map.values.min(), _scalar_map.values.max()]
 
                 if point_style is None:
-                        yplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
+                        tplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
                 else:
                         _scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
-                        yplt.scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
+                        tplt.scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
                         points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
                         if 'color' not in point_style:
                                 point_style['color'] = None
-                        xplt.plot_points(points, **point_style)
-                        yplt.field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
+                        tplt.plot_points(points, **point_style)
+                        tplt.field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
 
                 extra = None
                 if short_name:

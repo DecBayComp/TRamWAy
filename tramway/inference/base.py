@@ -1346,8 +1346,8 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                 transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        _transloc = np.full_like(loc_count, -1, dtype=int)
-                        _transloc[_termination] = np.arange(transloc_count)
+                        _transloc = np.full(loc_count, -1, dtype=int)
+                        _transloc[termination] = np.arange(transloc_count)
                         if np.all(_transloc==-1):
                                 raise ValueError('no translocations available')
                         def __association__(cell):
