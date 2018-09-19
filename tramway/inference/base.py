@@ -1294,11 +1294,15 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                 transloc_count = np.sum(initial)
 
                 def __f__(termination):
-                        _transloc = np.full(loc_count, -1, dtype=int)
-                        _ok = _unique[termination[_unique]]
-                        _transloc[_ok] = np.arange(_ok.size)
-                        _transloc = _transloc[_point]
-                        if np.all(_transloc==-1):
+                        _loc_ok = np.zeros(loc_count, dtype=bool)
+                        _loc_ok[_unique] = True
+                        _transloc_ok = _loc_ok[termination]
+                        _transloc = np.arange(transloc_count)
+                        _transloc[~_transloc_ok] = -1
+                        _loc = np.full(loc_count, -1, dtype=int)
+                        _loc[termination] = _transloc
+                        _loc = _loc[_point]
+                        if not np.any(_transloc_ok):
                                 raise ValueError('no translocations available')
                         def __associated__(cell):
                                 """
@@ -1316,13 +1320,20 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                                                 False otherwise.
                                 """
                                 _in = np.zeros(transloc_count, dtype=bool)
-                                _ok = _transloc[_cell == cell]
+                                _ok = _loc[_cell == cell]
                                 _in[_ok[0<=_ok]] = True
                                 return _in
                         return __associated__
 
                 initial_cell = __f__(initial)
                 final_cell = __f__(final)
+                # debug
+                #_c = 0
+                #pts = points[['x', 'y']].values
+                #_pts = pts[_point[_cell==_c]]
+                #print((_pts.min(axis=0), _pts.max(axis=0)))
+                #_pts = pts[initial][initial_cell(_c)]
+                #print((_pts.min(axis=0), _pts.max(axis=0)))
 
         else:#if sparse.issparse(index):
                 assert sparse.issparse(index)
