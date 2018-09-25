@@ -20,10 +20,10 @@ setup = {
 
 class SlidingWindow(TimeLattice):
 
-    __slots__ = ('duration', 'shift')
+    __slots__ = ('duration', 'shift', 'start_time')
 
     def __init__(self, scaler=None, duration=None, shift=None, frames=False, time_label=None,
-        time_dimension=None):
+        time_dimension=None, start_time=None):
         TimeLattice.__init__(self, scaler, time_label=time_label, time_dimension=time_dimension)
         if duration is None:
             raise ValueError("'duration' is required")
@@ -38,6 +38,7 @@ class SlidingWindow(TimeLattice):
             shift = int(shift)
         self.duration = duration
         self.shift = shift
+        self.start_time = start_time
 
     def cell_index(self, points, *args, **kwargs):
         time_col = kwargs.get('time_col', 't')
@@ -48,6 +49,8 @@ class SlidingWindow(TimeLattice):
         else:
             ts = points[:,time_col]
         t0, t1 = ts.min(), ts.max()
+        if self.start_time is not None:
+            t0 = self.start_time
         duration, shift = self.duration, self.shift
         if isinstance(duration, int):
             dt = np.unique(np.diff(np.sort(ts)))

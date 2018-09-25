@@ -251,7 +251,7 @@ def minimize_sgbfgs(minibatch, fun, x0, args=(), join=np.sum, eta0=1., c=1., l=0
                 #if verbose:
                 #    print(msg2(t, 'LINE SEARCH FAILED'))
                 #continue
-                resolution = 'LINE SEARCH FAILED'
+                resolution = msg2(t, 'LINE SEARCH FAILED')
                 break
 
             ## step (c) ##
@@ -346,11 +346,11 @@ def minimize_sgbfgs(minibatch, fun, x0, args=(), join=np.sum, eta0=1., c=1., l=0
             # some variables may not be valid, e.g. t0
             break
 
+    if not resolution:
+        resolution = 'MAXIMUM ITERATION REACHED'
     if verbose:
         cumt += time.time() - t0
-        if not resolution:
-            resolution = 'MAXIMUM ITERATION REACHED'
-        print('       * * *\n\n{}\n'.format(resolution))
+        print('           * * *\n\n{}\n'.format(resolution))
         minute = floor(cumt / 60.)
         second = cumt - minute * 60.
         if minute:
