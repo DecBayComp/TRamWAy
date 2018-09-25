@@ -38,7 +38,7 @@ class RWAStore(HDF5Store):
                 HDF5Store.__init__(self, resource, mode, verbose, **kwargs)
                 self.unload = unload
 
-        def poke(self, objname, obj, container=None, visited=None, unload=None):
+        def poke(self, objname, obj, container=None, visited=None, _stack=None, unload=None):
                 if unload is not None:
                         previous = self.unload
                         self.unload = unload
@@ -59,7 +59,7 @@ class RWAStore(HDF5Store):
                                 # if it is not, the object definition has changed
                                 if obj._lazy.get(name, True):
                                         setattr(obj, obj.__fromlazy__(name), None)
-                HDF5Store.poke(self, objname, obj, container, visited)
+                HDF5Store.poke(self, objname, obj, container, visited=visited, _stack=_stack)
                 if unload is not None:
                         self.unload = previous
 
@@ -78,7 +78,7 @@ def load_rwa(path, verbose=None, lazy=False):
 
                 path (str): path to .rwa file
 
-                verbose (bool): verbosity level
+                verbose (bool or int): verbosity level
 
                 lazy (bool): reads the file lazily
 
@@ -90,7 +90,7 @@ def load_rwa(path, verbose=None, lazy=False):
                         :class:`tramway.core.analyses.lazy.Analyses` instead
         """
         try:
-                hdf = RWAStore(path, 'r')
+                hdf = RWAStore(path, 'r', verbose=max(0, int(verbose) - 2) if verbose else False)
                 #hdf._default_lazy = PermissivePeek
                 hdf.lazy = lazy
                 try:
@@ -126,7 +126,7 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=F
 
                 analyses (tramway.core.analyses.base.Analyses): analysis tree
 
-                verbose (bool): verbose mode
+                verbose (bool or int): verbose mode
 
                 force (bool): do not ask whether to overwrite an existing file or not
 
@@ -151,7 +151,7 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=F
                 if verbose:
                         print('file not found; flushing all the analyses')
         try:
-                store = RWAStore(path, 'w', max(0, int(verbose) - 2))
+                store = RWAStore(path, 'w', verbose=max(0, int(verbose) - 2))
                 try:
                         store.unload = compress
                         if verbose:

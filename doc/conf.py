@@ -25,23 +25,23 @@ sys.path.insert(0, os.path.abspath('..'))
 # generate the doc
 mock_ok = True
 try:
-	from unittest.mock import MagicMock
+    from unittest.mock import MagicMock
 except ImportError as e: # Py2
-	try:
-		from mock import Mock as MagicMock
-	except ImportError:
-		print(e)
-		mock_ok = False
+    try:
+    from mock import Mock as MagicMock
+    except ImportError:
+    print(e)
+    mock_ok = False
 
 if mock_ok:
-	class Mock(MagicMock):
-		__all__ = []
-		@classmethod
-		def __getattr__(cls, name):
-			return MagicMock()
+    class Mock(MagicMock):
+    __all__ = []
+    @classmethod
+    def __getattr__(cls, name):
+        return MagicMock()
 
-	MOCK_MODULES = ['rwa', 'rwa.lazy']
-	sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+    MOCK_MODULES = ['rwa', 'rwa.lazy']
+    sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
 # -- General configuration ------------------------------------------------
@@ -132,11 +132,11 @@ pygments_style = 'sphinx'
 todo_include_todos = False
 
 try:
-	import codecs
-	with codecs.open('epilog.txt', 'r', encoding='utf-8') as f:
-		rst_epilog = f.read()
+    import codecs
+    with codecs.open('epilog.txt', 'r', encoding='utf-8') as f:
+        rst_epilog = f.read()
 except:
-	pass
+    pass
 
 # -- Options for HTML output ----------------------------------------------
 
