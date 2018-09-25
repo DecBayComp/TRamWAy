@@ -18,66 +18,66 @@ import re
 import collections
 
 def isstructured(x):
-        """
-        Check for named columns.
+    """
+    Check for named columns.
 
-        The adjective *structured* comes from NumPy structured array.
+    The adjective *structured* comes from NumPy structured array.
 
-        Arguments:
-                x (any): any datatype
+    Arguments:
+        x (any): any datatype
 
-        Returns:
-                bool: ``True`` if input argument ``x`` has named columns.
+    Returns:
+        bool: ``True`` if input argument ``x`` has named columns.
 
-        """
-        if isinstance(x, pd.DataFrame) or isinstance(x, pd.Series):
-                return True
-        else:
-                try:
-                        return bool(x.dtype.names)
-                except AttributeError:
-                        return False
+    """
+    if isinstance(x, pd.DataFrame) or isinstance(x, pd.Series):
+        return True
+    else:
+        try:
+            return bool(x.dtype.names)
+        except AttributeError:
+            return False
 
 def columns(x):
-        """
-        Get column names.
+    """
+    Get column names.
 
-        Arguments:
-                x (any): 
-                        datatype that satisfies :func:`isstructured`.
+    Arguments:
+        x (any):
+            datatype that satisfies :func:`isstructured`.
 
-        Returns:
-                iterable:
-                        column iterator.
+    Returns:
+        iterable:
+            column iterator.
 
-        Raises:
-                ValueError: if no named columns are found in `x`.
+    Raises:
+        ValueError: if no named columns are found in `x`.
 
-        """ 
-        if isinstance(x, pd.DataFrame):
-                return x.columns
-        elif isinstance(x, pd.Series):
-                return x.index
-        elif x.dtype.names:
-                return x.dtype.names
-        else:
-                raise ValueError('not structured')
+    """
+    if isinstance(x, pd.DataFrame):
+        return x.columns
+    elif isinstance(x, pd.Series):
+        return x.index
+    elif x.dtype.names:
+        return x.dtype.names
+    else:
+        raise ValueError('not structured')
 
 def splitcoord(varnames):
-        coord = re.compile('[a-z][0-9]*$')
-        vs = collections.defaultdict(list)
-        for v in varnames:
-                u = [ w[::-1] for w in v[::-1].split(None, 1) ]
-                if u[1:] and coord.match(u[0]):
-                        vs[u[1]].append(v)
-                else:
-                        vs[v].append(v)
-        return vs
+    coord = re.compile('[a-z][0-9]*$')
+    vs = collections.defaultdict(list)
+    for v in varnames:
+        u = [ w[::-1] for w in v[::-1].split(None, 1) ]
+        if u[1:] and coord.match(u[0]):
+            vs[u[1]].append(v)
+        else:
+            vs[v].append(v)
+    return vs
 
 
 __all__ = [
-        'isstructured',
-        'columns',
-        'splitcoord',
-        ]
+    'isstructured',
+    'columns',
+    'splitcoord',
+    ]
 

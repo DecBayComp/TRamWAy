@@ -73,7 +73,7 @@ except:
         pass
 else:
 
-        def poke_maps(store, objname, self, container, visited=None, legacy=False):
+        def poke_maps(store, objname, self, container, visited=None, _stack=None, legacy=False):
                 #print('poke_maps')
                 sub_container = store.newContainer(objname, self, container)
                 attrs = dict(self.__dict__) # dict
@@ -82,14 +82,14 @@ else:
                 if legacy:
                         # legacy format
                         if callable(self.mode):
-                                store.poke('mode', '(callable)', sub_container)
-                                store.poke('result', self.maps, sub_container)
+                                store.poke('mode', '(callable)', sub_container, visited=visited, _stack=_stack)
+                                store.poke('result', self.maps, sub_container, visited=visited, _stack=_stack)
                         else:
-                                store.poke('mode', self.mode, sub_container)
-                                store.poke(self.mode, self.maps, sub_container)
+                                store.poke('mode', self.mode, sub_container, visited=visited, _stack=_stack)
+                                store.poke(self.mode, self.maps, sub_container, visited=visited, _stack=_stack)
                 else:
                         #print("poke 'maps'")
-                        store.poke('maps', self.maps, sub_container, visited=visited)
+                        store.poke('maps', self.maps, sub_container, visited=visited, _stack=_stack)
                         del attrs['maps']
                 deprecated = {}
                 for a in ('distributed_translocations','partition_file','tessellation_param','version'):
@@ -99,44 +99,44 @@ else:
                                 try:
                                         bool(attrs[a])
                                 except ValueError:
-                                        store.poke(a, attrs[a], sub_container, visited=visited)
+                                        store.poke(a, attrs[a], sub_container, visited=visited, _stack=_stack)
                                         continue
                                 if attrs[a] or attrs[a] == 0:
                                         #print("poke '{}'".format(a))
-                                        store.poke(a, attrs[a], sub_container, visited=visited)
+                                        store.poke(a, attrs[a], sub_container, visited=visited, _stack=_stack)
                 for a in deprecated:
                         if deprecated[a]:
                                 warn('`{}` is deprecated'.format(a), DeprecationWarning)
                                 #print("poke '{}'".format(a))
-                                store.poke(a, deprecated[a], sub_container, visited=visited)
+                                store.poke(a, deprecated[a], sub_container, visited=visited, _stack=_stack)
 
-        def peek_maps(store, container):
+        def peek_maps(store, container, _stack=None):
                 #print('peek_maps')
                 read = list(Maps.__lazy__) # do not read any lazy attribute;
                 # in principle no lazy attribute should be found in `container`
                 try:
-                        mode = store.peek('mode', container)
+                        mode = store.peek('mode', container, _stack=_stack)
                         read.append('mode')
                 except KeyError:
                         mode = None
                 try:
-                        maps = store.peek('maps', container)
+                        maps = store.peek('maps', container, _stack=_stack)
                         read.append('maps')
                 except KeyError:
                         # former standalone files
                         if mode == '(callable)':
-                                maps = store.peek('result', container)
+                                maps = store.peek('result', container, _stack=_stack)
                                 read.append('result')
                                 mode = None
                         elif mode is None:
                                 raise
                         else:
-                                maps = store.peek(mode, container)
+                                maps = store.peek(mode, container, _stack=_stack)
                                 read.append(mode)
                 maps = Maps(maps, mode=mode)
                 for r in container:
                         if r not in read:
-                                setattr(maps, r, store.peek(r, container))
+                                setattr(maps, r, store.peek(r, container, _stack=_stack))
                 return maps
 
         __all__ += ['poke_maps', 'peek_maps']

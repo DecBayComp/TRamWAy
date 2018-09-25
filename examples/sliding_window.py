@@ -20,7 +20,7 @@ short_description = 'sliding time window with spatial mesh'
 name = 'sliding_window'
 
 method = 'hexagon'
-localization_error = 0.01
+localization_error = 0.1
 priorD = 0.
 #priorV = 1.
 minD = -localization_error
@@ -71,7 +71,7 @@ def main():
         time = np.arange(t0, t0 + duration + tessellation_dt * .1, tessellation_dt)
         nsegments = time.size - 1
 
-        new_xyt = new_tessellation = True
+        new_tessellation = True
 
         ## define the ground truth (xyt_file)
         if new_xyt:

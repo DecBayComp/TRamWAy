@@ -2,6 +2,5 @@ six
 numpy
 scipy
 pandas
-tables
 matplotlib
-rwa-python>=0.7.1
+rwa-python>=0.7.2

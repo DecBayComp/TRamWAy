@@ -20,11 +20,11 @@ import os.path
 
 
 try:
-        from .grid import RegularMesh
+    from .grid import RegularMesh
 except ImportError:
-        pass
+    pass
 
 
 plugins = Plugins(os.path.dirname(__file__), __package__, \
-        {'make': Tessellation}, require='setup')
+    {'make': Tessellation}, require='setup')
 

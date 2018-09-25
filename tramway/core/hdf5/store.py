@@ -38,7 +38,7 @@ class RWAStore(HDF5Store):
                 HDF5Store.__init__(self, resource, mode, verbose, **kwargs)
                 self.unload = unload
 
-        def poke(self, objname, obj, container=None, visited=None, unload=None):
+        def poke(self, objname, obj, container=None, visited=None, _stack=None, unload=None):
                 if unload is not None:
                         previous = self.unload
                         self.unload = unload
@@ -59,7 +59,7 @@ class RWAStore(HDF5Store):
                                 # if it is not, the object definition has changed
                                 if obj._lazy.get(name, True):
                                         setattr(obj, obj.__fromlazy__(name), None)
-                HDF5Store.poke(self, objname, obj, container, visited)
+                HDF5Store.poke(self, objname, obj, container, visited=visited, _stack=_stack)
                 if unload is not None:
                         self.unload = previous
 
