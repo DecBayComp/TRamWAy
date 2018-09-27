@@ -130,6 +130,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                 all_analyses = extract_analysis(all_analyses, input_label)
             cells = None
         except KeyError:
+            raise
             # legacy format
             input_file, cells = find_partition(cells, **partition)
             if cells is None:

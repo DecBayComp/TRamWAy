@@ -89,7 +89,6 @@ Where to start
 
 	installation
 	concepts
-	examples
 	commandline
 	license
 
