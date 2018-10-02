@@ -12,9 +12,42 @@ from tqdm import trange  # for graphical estimate of the progress
 from stopwatch import stopwatch
 
 from .calculate_marginalized_integral import calculate_marginalized_integral
-# from .calculate_minimal_n import calculate_minimal_n
 from .convenience_functions import n_pi_func
 from .convenience_functions import p as pow
+
+
+def calculate_bayes_factors_for_cells(cells, loc_error, dim=2, B_threshold=10, verbose=True):
+    """Calculate Bayes factors for an iterable ensemble of cells."""
+
+    check_dimensionality(dim)
+
+    M = len(cells)
+    lg_Bs, forces, min_ns = [], [], []
+    for i, cell in enumerate(cells):
+        lg_Bs[i], forces[i], min_ns[i] = calculate_bayes_factors_for_one_cell(
+            cell, loc_error, dim=dim, B_threshold=B_threshold, verbose=verbose)
+        cell.lg_B, cell.force, cell.min_n = lg_Bs[i], forces[i], min_ns[i]
+
+    return [lg_Bs, forces, min_ns]
+
+
+def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10, verbose=True):
+    """Calculate Bayes factors for one cell.
+    The results are saved to cell properties.
+    """
+
+    check_dimensionality(dim)
+
+    zeta_sp = cell.zeta_spurious
+    zeta_t = cell.zeta_total
+    n = cell.n
+    V = cell.V
+    V_pi = cell.V_prior
+
+    cell.lg_B, cell.force, cell.min_n = _calculate_one_bayes_factor(
+        zeta_t=zeta_t, zeta_sp=zeta_sp, n=n, V=V, V_pi=V_prior, loc_error=loc_error, dim=dim, bl_need_min_n=True)
+
+    return [cell.lg_B, cell.force, cell.min_n]
 
 
 def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, B_threshold=10, verbose=True):
@@ -32,19 +65,17 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
     B_threshold --- the values of Bayes factor for thresholding.
 
     Output:
-    Bs, forces
+    Bs, forces, min_ns
 
-    Bs --- Bayes factor values in the bins. Size: M x 1,
+    lg_Bs --- log_10 Bayes factor values in the bins. Size: M x 1,
     forces --- Returns 1 if there is strong evidence for the presence of a conservative forces,
-    -1 for strong evidence for 	a spurious force, and 0 if the is not enough evidence. Size: M x 1.
+    -1 for strong evidence for 	a spurious force, and 0 if the is not enough evidence. Size: M x 1;
+    min_ns --- minimum number of data points in a bin to support the currently favored model at the required evidence level. Size: M x 1.
 
     Notation:
     M --- number of bins.
     """
-
-    # Check dimensionality
-    if dim not in [1, 2]:
-        raise ValueError(f"Bayes factor calculations in {dim}D not supported yet.")
+    check_dimensionality(dim)
 
     # Convert to numpy
     vars = [zeta_ts, zeta_sps, Vs, Vs_pi, ns]
@@ -61,16 +92,13 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
     min_ns = np.zeros_like(ns, dtype=int) * np.nan
     with stopwatch("Bayes factor calculation", verbose):
         for i in trange(M):
-            lg_Bs[i], min_ns[i] = _calculate_one_bayes_factor(
+            lg_Bs[i], forces[i], min_ns[i] = _calculate_one_bayes_factor(
                 zeta_ts[i, :], zeta_sps[i, :], ns[i], Vs[i], Vs_pi[i], loc_error, dim)
 
-    # Threshold
-    forces = 1 * (lg_Bs >= np.log10(B_threshold)) - 1 * (lg_Bs <= -np.log10(B_threshold))
-
-    return (10.0 ** lg_Bs, forces, min_ns)
+        return [lg_Bs, forces, min_ns]
 
 
-def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, bl_need_min_n=True):
+def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_threshold=10, bl_need_min_n=True):
     """Calculate the Bayes factor for one bin."""
 
     # Parameter combinations
@@ -93,24 +121,27 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, bl_
 
     if bl_need_min_n:
         min_n = calculate_minimal_n(
-            zeta_t=zeta_t, zeta_sp=zeta_sp, n0=n, V=V, V_pi=V_pi, loc_error=loc_error)
+            zeta_t=zeta_t, zeta_sp=zeta_sp, n0=n, V=V, V_pi=V_pi, loc_error=loc_error, dim=dim, B_threshold=B_threshold)
     else:
         min_n = None
 
-    return [lg_B, min_n]
+    # Threshold
+    force = 1 * (lg_B >= np.log10(B_threshold)) - 1 * (lg_B <= -np.log10(B_threshold))
+
+    return [lg_B, force, min_n]
 
 
-def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_threshold=10.0):
+def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_threshold=10):
     """
     Calculate the minimal number of jumps per bin needed to obtain strong evidence for the active force or the spurious force model.
 
     Input:
-    zeta_t, zeta_sp --- vectors of length 2 for one bin
-    n0 --- initial number of jumps (evidence already available). This way the "next" strong evidence can be found, i.e. the minimal number of data points to support the current conclusion
+    zeta_t, zeta_sp - -- vectors of length 2 for one bin
+    n0 - -- initial number of jumps(evidence already available). This way the "next" strong evidence can be found, i.e. the minimal number of data points to support the current conclusion
 
     Output:
-    min_n --- minimal number of jumps to obtain strong evidence for the conservative force model.
-    Return -1 if unable to find the min_n
+    min_n - -- minimal number of jumps to obtain strong evidence for the conservative force model.
+    Return - 1 if unable to find the min_n
     """
 
     # Local constants
@@ -155,3 +186,8 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     min_n = np.int(np.ceil(min_n))
 
     return min_n
+
+    def check_dimensionality(dim):
+        # Check dimensionality
+        if dim not in [2]:
+            raise ValueError(f"Bayes factor calculations in {dim}D not supported yet.")
