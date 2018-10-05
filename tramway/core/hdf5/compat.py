@@ -68,7 +68,7 @@ def translate_types(translation_table):
                         _storable_handler = _storable.handlers[0]
                 else:
                         _storable_handler = copy.copy(_storable.asVersion())
-                _storable_handler.poke = None # peek only
+                _storable_handler._poke = None # peek only
                 _storable = rwa.Storable(_type, key=_former_type, handlers=_storable_handler)
                 rwa.hdf5_storable(_storable, agnostic=True)
 

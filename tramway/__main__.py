@@ -23,7 +23,7 @@ import tramway.tessellation as tessellation
 import tramway.inference as inference
 import tramway.feature as feature
 from .helper import *
-import tramway.core.hdf5.compat
+#import tramway.core.hdf5.compat
 import tramway.utils.inferencemap as inferencemap
 
 
