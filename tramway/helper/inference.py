@@ -47,7 +47,7 @@ class Infer(Helper):
             self.cells, self.input_maps = data
             data = self.input_maps
         else:
-            self.cells = data
+            self.cells, = data
             if self.input_label is not None and self.label_is_absolute(self.input_label):
                 analysis = self.analyses
                 for label in self.input_label:
@@ -94,7 +94,7 @@ class Infer(Helper):
 
             if cell_sampling is None:
                 try:
-                    cell_sampling = setup['cell_sampling']
+                    cell_sampling = self.setup['cell_sampling']
                 except KeyError:
                     pass
             multiscale = cell_sampling in ['individual', 'group', 'connected']
@@ -129,7 +129,7 @@ class Infer(Helper):
             output_variables = tuple(output_variables)
         else:
             output_variables = (output_variables,)
-        if self.input_variables or self.output_variables:
+        if input_variables or output_variables:
             cell_type = type(cells.any_cell())
             class OverloadedCell(cell_type):
                 __slot__ = input_variables + output_variables
@@ -160,7 +160,7 @@ class Infer(Helper):
             verbose = self.verbose
         runtime = time.time()
 
-        args = setup.get('arguments', {})
+        args = self.setup.get('arguments', {})
         for arg in ('localization_error', 'diffusivity_prior', 'potential_prior',
                 'jeffreys_prior', 'min_diffusivity', 'worker_count', 'verbose'):
             try:
@@ -175,14 +175,14 @@ class Infer(Helper):
             kwargs['returns'] = self.setup['returns']
         if profile:
             kwargs['profile'] = profile
-        x = cells.run(getattr(module, setup['infer']), **kwargs)
+        x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
 
         if isinstance(x, tuple):
             maps = Maps(x[0], mode=mode, posteriors=x[1])
             if x[2:]:
                 maps.other = x[2:] # Python 3 only
         else:
-            maps = Maps(x, mode=mode)
+            maps = Maps(x, mode=self.name)
 
         for p in kwargs:
             if p not in ['worker_count', 'profile', 'returns']:
@@ -318,12 +318,12 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
         return (maps, cells)
     elif return_cells == False:
         return maps
-    elif self.input_file:
+    elif helper.input_file:
         if not (return_cells is None or return_cells == 'first'):
             warn("3-element return value will no longer be the default; pass return_cells='first' to maintain this behavior", FutureWarning)
-        return (cells, mode, x)
+        return (cells, mode, maps)
     else:
-        return x
+        return maps
 
 
 def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
@@ -1033,5 +1033,5 @@ def box_crop(maps, bounding_box, tessellation):
             inside &= _in
     return maps[inside]
 
-infer = infer0
+infer = infer1
 
