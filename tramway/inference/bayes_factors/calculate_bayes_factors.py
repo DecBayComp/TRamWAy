@@ -9,9 +9,15 @@ import warnings
 import numpy as np
 import scipy
 from scipy.special import gammainc
-from tqdm import trange  # for graphical estimate of the progress
+try:
+    from tqdm import trange  # for graphical estimate of the progress
+except ImportError:
+    pass
 
-from stopwatch import stopwatch
+try:
+    from stopwatch import stopwatch
+except ImportError:
+    pass
 
 from .calculate_marginalized_integral import calculate_marginalized_integral
 from .convenience_functions import n_pi_func
@@ -47,7 +53,7 @@ def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10,
     V_pi = cell.V_prior
 
     cell.lg_B, cell.force, cell.min_n = _calculate_one_bayes_factor(
-        zeta_t=zeta_t, zeta_sp=zeta_sp, n=n, V=V, V_pi=V_prior, loc_error=loc_error, dim=dim, bl_need_min_n=True)
+        zeta_t=zeta_t, zeta_sp=zeta_sp, n=n, V=V, V_pi=V_pi, loc_error=loc_error, dim=dim, bl_need_min_n=True)
 
     return [cell.lg_B, cell.force, cell.min_n]
 
@@ -157,7 +163,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     # Define the Bayes factor
     def lg_B(n):
         """A wrapper for the Bayes factor as a function of n."""
-        lg_B, _ = _calculate_one_bayes_factor(
+        lg_B, _, _ = _calculate_one_bayes_factor(
             zeta_t=zeta_t, zeta_sp=zeta_sp, n=n, V=V, V_pi=V_pi, loc_error=loc_error, dim=dim, bl_need_min_n=False)
         return lg_B
 
@@ -189,7 +195,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
 
     return min_n
 
-    def check_dimensionality(dim):
-        # Check dimensionality
-        if dim not in [2]:
-            raise ValueError(f"Bayes factor calculations in {dim}D not supported yet.")
+def check_dimensionality(dim):
+    # Check dimensionality
+    if dim not in [2]:
+        raise ValueError("Bayes factor calculations in {}D not supported yet.".format(dim))

@@ -16,7 +16,7 @@ def _bayes_factor(cells, localization_error=None, B_threshold=None, **kwargs):
         loc_error = localization_error
     # B_threshold
     if B_threshold is not None:
-        kwargs['B_treshold'] = B_threshold
+        kwargs['B_threshold'] = B_threshold
     ## iterate over the cells
     for i in cells:
         calculate_bayes_factors_for_one_cell(cells[i], loc_error, **kwargs)

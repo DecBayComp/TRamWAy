@@ -215,4 +215,4 @@ class bayes_test(unittest.TestCase):
 # # A dirty fix for a weird bug in unittest
 # if __name__ == '__main__':
 #     freeze_support()
-unittest.main()
+#unittest.main()
