@@ -322,6 +322,9 @@ def main():
             mode_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
             mode_parser.add_argument('-l', '--output-label', help='output label')
             mode_parser.add_argument('--comment', help='description message for the output artefact')
+            # shouldn't `inplace` be optional?
+            mode_parser.add_argument('--inplace', action='store_true', \
+                help='replace the input maps by the output ones')
             try:
                 translations = add_arguments(mode_parser, setup['arguments'], name=mode)
             except KeyError:

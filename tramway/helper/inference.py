@@ -122,7 +122,7 @@ class Infer(Helper):
     def overload_cells(self, cells):
         input_variables = ()
         if self.input_maps is not None:
-            input_variables = self.input_maps.variables
+            input_variables = tuple(self.input_maps.variables)
             maps = { v: self.input_maps[v] for v in input_variables }
         output_variables = self.setup.get('returns', [])
         if isinstance(output_variables, (tuple, list, frozenset, set)):
@@ -130,11 +130,16 @@ class Infer(Helper):
         else:
             output_variables = (output_variables,)
         if input_variables or output_variables:
-            cell_type = type(cells.any_cell())
+            any_cell = cells.any_cell()
+            cell_type = type(any_cell)
+            try:
+                attrs = any_cell.__dict__
+            except AttributeError:
+                attrs = Lazy.__slots__ + Local.__slots__ + Cell.__slots__ + cell_type.__slots__
             class OverloadedCell(cell_type):
-                __slot__ = input_variables + output_variables
+                __slots__ = input_variables + output_variables
                 def __init__(self, cell, **kwargs):
-                    for attr in cell.__slot__:
+                    for attr in attrs:
                         setattr(self, attr, getattr(cell, attr))
                     for attr in input_variables:
                         setattr(self, attr, kwargs[attr])
@@ -158,6 +163,7 @@ class Infer(Helper):
             comment=None, verbose=None, **kwargs):
         if verbose is None:
             verbose = self.verbose
+        mode = self.name
         runtime = time.time()
 
         args = self.setup.get('arguments', {})
@@ -182,7 +188,7 @@ class Infer(Helper):
             if x[2:]:
                 maps.other = x[2:] # Python 3 only
         else:
-            maps = Maps(x, mode=self.name)
+            maps = Maps(x, mode=mode)
 
         for p in kwargs:
             if p not in ['worker_count', 'profile', 'returns']:
@@ -204,7 +210,7 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
     merge_threshold_count=False, \
     grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
-    return_cells=None, profile=None, force=False, inplace=False, **kwargs):
+    return_cells=None, profile=None, force=None, inplace=False, **kwargs):
     """
     Inference helper.
 
@@ -313,6 +319,8 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
         min_diffusivity=min_diffusivity, localization_error=localization_error, \
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
         jeffreys_prior=jeffreys_prior, **kwargs)
+
+    helper.save_analyses(output_file, force=force)
 
     if return_cells == True: # NOT `is`
         return (maps, cells)

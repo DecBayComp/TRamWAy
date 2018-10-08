@@ -46,6 +46,8 @@ class Tessellate(Helper):
         data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
 
         if nesting:
+            assert isinstance(data, tuple) and not data[1:]
+            data, = data
             if isinstance(data, pd.DataFrame):
                 raise ValueError('nesting tessellations does not apply to (trans-)location data')
             elif isinstance(data, CellStats):
@@ -53,6 +55,8 @@ class Tessellate(Helper):
                 self.xyt_data = data.points
             else:
                 raise TypeError('nesting tessellations does not apply to the loaded data: %s', type(data))
+        elif isinstance(data, Analyses):
+            self.xyt_data = data.data
         else:
             self.xyt_data = data
 
@@ -275,7 +279,10 @@ class Tessellate(Helper):
                 tess = self.constructor(self.scaler, **self.tessellation_kwargs)
 
         # grow the tessellation
-        data = self.xyt_data[self.colnames]
+        if nesting:
+            data = self.xyt_data
+        else:
+            data = self.xyt_data[self.colnames]
         tessellate_kwargs = self.tessellation_kwargs
         tess.tessellate(data, verbose=verbose, **tessellate_kwargs)
 
@@ -494,6 +501,8 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     helper.labels(label=label, input_label=input_label, output_label=output_label, inplace=inplace)
     if load_options is None:
         load_options = {}
+    if helper.are_multiple_files(xyt_data) and len(xyt_data) == 1:
+        xyt_data = next(iter(xyt_data))
     helper.prepare_data(xyt_data, scaling=scaling, time_scale=time_scale, **load_options)
     helper.plugin(method)
 

@@ -71,6 +71,8 @@ class Helper(object):
                     except:
                         raise e
                     else:
+                        if kwargs.get('return_paths', False):
+                            data, = data
                         self.analyses = Analyses(data)
                 else:
                     raise
@@ -245,10 +247,10 @@ class Helper(object):
                     input_analysis = input_analysis.instances[_label]
         if label is not None and label in input_analysis.labels:
             # `input_analysis[label]` already exists
-            if self.inplace and comment:
-                input_analysis.comments[label] = comment
-            input_analysis = input_analysis.instances[label]
             if self.inplace:
+                if comment:
+                    input_analysis.comments[label] = comment
+                input_analysis = input_analysis.instances[label]
                 input_analysis.artefact = artefact
             else:
                 input_analysis.add(analysis, label=label, comment=comment)

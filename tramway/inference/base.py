@@ -663,10 +663,13 @@ class Distributed(Local):
                             result[v].append(x)
             for v in result:
                 x = np.vstack(result[v])
-                result[v] = pd.DataFrame(x, index=index, \
+                result[v] = pd.DataFrame(x, index=index[v], \
                         columns=[v] if x.shape[1] == 1 \
                         else [ '{} {:d}'.format(v, i) for i in range(x.shape[1]) ])
-            result = pd.merge(result[v] for v in result)
+            _result = result
+            result = _result[returns[0]]
+            if returns[1:]:
+                result = result.join([ _result[v] for v in returns[1:] ])
 
         return result
 
