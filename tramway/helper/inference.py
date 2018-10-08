@@ -15,6 +15,7 @@
 from tramway.core import *
 from tramway.core.hdf5 import *
 from tramway.inference import *
+from .base import *
 import tramway.inference as inference # inference.plugins
 from tramway.helper.tessellation import *
 from warnings import warn
@@ -27,8 +28,313 @@ import traceback
 # in the case matplotlib's backend is interactive
 
 
+class Infer(Helper):
+    def __init__(self):
+        Helper.__init__(self)
+        self.plugins = inference.plugins
+        self.cells = None
+        self.input_maps = None
 
-def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
+    def prepare_data(self, input_data, types=None, labels=None, verbose=None, output_file=None, \
+            **kwargs):
+        if types is None:
+            if labels is None and self.inplace:
+                types = ((CellStats, Distributed), (Maps, ))
+            else:
+                types = ((CellStats, Distributed), )
+        data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
+        if types[1:]:
+            self.cells, self.input_maps = data
+            data = self.input_maps
+        else:
+            self.cells, = data
+            if self.input_label is not None and self.label_is_absolute(self.input_label):
+                analysis = self.analyses
+                for label in self.input_label:
+                    analysis = analysis[label]
+                if lazytype(analysis._data) is Maps:
+                    self.input_maps = data = analysis.data
+        if self.input_file and output_file and labels:
+            self.analyses = extract_analyses(self.analyses, labels)
+        return data
+
+    def distribute(self, new_cell=None, new_group=None, cell_sampling=None, \
+            merge_threshold_count=False, max_cell_count=None, dilation=None, grad=None):
+        cells = self.cells
+        if isinstance(cells, Distributed):
+            _map = cells
+        else:
+            if not isinstance(cells, CellStats) or cells.tessellation is None:
+                raise ValueError('no cells found')
+            # prepare the data for the inference
+            distributed_kwargs = {}
+            if new_group is None:
+                if merge_threshold_count:
+                    new_group = DistributeMerge
+                    distributed_kwargs['new_group_kwargs'] = \
+                        {'min_location_count': merge_threshold_count}
+                else:
+                    new_group = Distributed
+            if grad is not None:
+                if not callable(grad):
+                    if grad == 'grad1':
+                        grad = grad1
+                    elif grad == 'gradn':
+                        grad = gradn
+                    else:
+                        raise ValueError('unsupported gradient')
+                        grad = None
+                if grad is not None:
+                    class Distr(new_group):
+                        def grad(self, *args, **kwargs):
+                            return grad(self, *args, **kwargs)
+                    new_group = Distr
+            detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group,
+                    **distributed_kwargs)
+
+            if cell_sampling is None:
+                try:
+                    cell_sampling = self.setup['cell_sampling']
+                except KeyError:
+                    pass
+            multiscale = cell_sampling in ['individual', 'group', 'connected']
+            if multiscale and max_cell_count is None:
+                if cell_sampling == 'individual':
+                    max_cell_count = 1
+                #else: # adaptive scaling is no longer default
+                #       max_cell_count = 20
+            if cell_sampling == 'connected':
+                multiscale_map = detailled_map.group(connected=True)
+                _map = multiscale_map
+            elif max_cell_count:
+                if dilation is None:
+                    if cell_sampling == 'individual':
+                        dilation = 0
+                    else:
+                        dilation = 2
+                multiscale_map = detailled_map.group(max_cell_count=max_cell_count, \
+                    adjacency_margin=dilation)
+                _map = multiscale_map
+            else:
+                _map = detailled_map
+        return _map
+
+    def overload_cells(self, cells):
+        input_variables = ()
+        if self.input_maps is not None:
+            input_variables = tuple(self.input_maps.variables)
+            maps = { v: self.input_maps[v] for v in input_variables }
+        output_variables = self.setup.get('returns', [])
+        if isinstance(output_variables, (tuple, list, frozenset, set)):
+            output_variables = tuple(output_variables)
+        else:
+            output_variables = (output_variables,)
+        if input_variables or output_variables:
+            any_cell = cells.any_cell()
+            cell_type = type(any_cell)
+            try:
+                attrs = any_cell.__dict__
+            except AttributeError:
+                attrs = Lazy.__slots__ + Local.__slots__ + Cell.__slots__ + cell_type.__slots__
+            class OverloadedCell(cell_type):
+                __slots__ = input_variables + output_variables
+                def __init__(self, cell, **kwargs):
+                    for attr in attrs:
+                        setattr(self, attr, getattr(cell, attr))
+                    for attr in input_variables:
+                        setattr(self, attr, kwargs[attr])
+                    for attr in output_variables:
+                        setattr(self, attr, None)
+            kwargs = {}
+            overloaded_cells = {}
+            for i in cells:
+                cell = cells[i]
+                for k in maps:
+                    val = maps[k].loc[i].values
+                    if np.isscalar(val):
+                        val = val.tolist()
+                    kwargs[k] = val
+                overloaded_cells[i] = OverloadedCell(cell, **kwargs)
+            cells.cells = overloaded_cells
+        return cells
+
+    def infer(self, cells, worker_count=None, profile=None, min_diffusivity=None, \
+            localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
+            comment=None, verbose=None, **kwargs):
+        if verbose is None:
+            verbose = self.verbose
+        mode = self.name
+        runtime = time.time()
+
+        args = self.setup.get('arguments', {})
+        for arg in ('localization_error', 'diffusivity_prior', 'potential_prior',
+                'jeffreys_prior', 'min_diffusivity', 'worker_count', 'verbose'):
+            try:
+                args[arg]
+            except KeyError:
+                pass
+            else:
+                val = eval(arg)
+                if val is not None:
+                    kwargs[arg] = val
+        if 'returns' in self.setup:
+            kwargs['returns'] = self.setup['returns']
+        if profile:
+            kwargs['profile'] = profile
+        x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
+
+        if isinstance(x, tuple):
+            maps = Maps(x[0], mode=mode, posteriors=x[1])
+            if x[2:]:
+                maps.other = x[2:] # Python 3 only
+        else:
+            maps = Maps(x, mode=mode)
+
+        for p in kwargs:
+            if p not in ['worker_count', 'profile', 'returns']:
+                setattr(maps, p, kwargs[p])
+
+        runtime = time.time() - runtime
+        if verbose:
+            print('{} mode: elapsed time: {}ms'.format(mode, int(round(runtime*1e3))))
+        maps.runtime = runtime
+
+        self.insert_analysis(maps, comment=comment)
+
+        return maps
+
+
+def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
+    localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
+    max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
+    store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
+    merge_threshold_count=False, \
+    grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
+    return_cells=None, profile=None, force=None, inplace=False, **kwargs):
+    """
+    Inference helper.
+
+    Arguments:
+
+        cells (str or CellStats or Analyses): data partition or path to partition file
+
+        mode (str or callable): plugin name; see for example
+            :mod:`~tramway.inference.d` (``'d'``),
+            :mod:`~tramway.inference.df` (``'df'``),
+            :mod:`~tramway.inference.dd` (``'dd'``),
+            :mod:`~tramway.inference.dv` (``'dv'``);
+            can be also a function suitable for :meth:`~tramway.helper.inference.base.Distributed.run`
+
+        output_file (str): desired path for the output map file
+
+        partition (dict): keyword arguments for :func:`~tramway.helper.tessellation.find_partition`
+            if `cells` is a path; **deprecated**
+
+        verbose (bool or int): verbosity level
+
+        localization_error (float): localization error
+
+        diffusivity_prior (float): prior diffusivity
+
+        potential_prior (float): prior potential
+
+        jeffreys_prior (float): Jeffreys' prior
+
+        max_cell_count (int): if defined, divide the mesh into convex subsets of cells
+
+        dilation (int): overlap of side cells if `max_cell_count` is defined
+
+        worker_count (int): number of parallel processes to be spawned
+
+        min_diffusivity (float): (possibly negative) lower bound on local diffusivities
+
+        store_distributed (bool): store the :class:`~tramway.inference.base.Distributed` object
+            in the map file
+
+        new_cell (callable): see also :func:`~tramway.inference.base.distributed`
+
+        new_group (callable): see also :func:`~tramway.inference.base.distributed`
+
+        constructor (callable): **deprecated**; see also :func:`~tramway.inference.base.distributed`;
+            please use `new_group` instead
+
+        cell_sampling (str): either ``None``, ``'individual'``, ``'group'`` or
+            ``'connected'``; may ignore `max_cell_count` and `dilation`
+
+        merge_threshold_count (int):
+            Merge cells that are have a number of (trans-)locations lower than the
+            number specified; each smaller cell is merged together with the nearest
+            large-enough neighbour cell.
+
+        grad (callable or str): spatial gradient function; admits a callable (see
+            :meth:`~tramway.inference.base.Distributed.grad`) or any of '*grad1*',
+            '*gradn*'
+
+        input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
+            object in `cells` if the latter is an `Analyses` or filepath
+
+        output_label (str): label for the resulting analysis instance
+
+        comment (str): description message for the resulting analysis
+
+        return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.CellStats`
+            object as extra element
+
+        profile (bool or str): profile each child job if any;
+            if `str`, dump the output stats into *.prof* files;
+            if `tuple`, print a report with :func:`~pstats.Stats.print_stats` and
+            tuple elements as input arguments.
+
+        inplace (bool): replace the input analysis by the output one.
+
+    Returns:
+
+        Maps or pandas.DataFrame or tuple:
+
+    `priorD` and `priorV` are legacy arguments.
+    They are deprecated and `diffusivity_prior` and `potential_prior` should be used instead
+    respectively.
+    """
+    helper = Infer()
+    helper.verbose = verbose
+    helper.labels(input_label=input_label, output_label=output_label, inplace=inplace, comment=comment)
+    cells = helper.prepare_data(cells, labels=input_label)
+
+    if mode in ('D', 'DF', 'DD', 'DV'):
+        mode = mode.lower()
+    helper.plugin(mode)
+    _map = helper.distribute(new_cell=new_cell, \
+            new_group=constructor if new_group is None else new_group, cell_sampling=None, \
+            merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
+            dilation=dilation, grad=grad)
+    _map = helper.overload_cells(_map)
+    if store_distributed:
+        raise NotImplementedError('store_distributed is no longer supported')
+
+    if diffusivity_prior is None and priorD is not None:
+        diffusivity_prior = priorD
+    if potential_prior is None and priorV is not None:
+        potential_prior = priorV
+    maps = helper.infer(_map, worker_count=worker_count, profile=profile, \
+        min_diffusivity=min_diffusivity, localization_error=localization_error, \
+        diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
+        jeffreys_prior=jeffreys_prior, **kwargs)
+
+    helper.save_analyses(output_file, force=force)
+
+    if return_cells == True: # NOT `is`
+        return (maps, cells)
+    elif return_cells == False:
+        return maps
+    elif helper.input_file:
+        if not (return_cells is None or return_cells == 'first'):
+            warn("3-element return value will no longer be the default; pass return_cells='first' to maintain this behavior", FutureWarning)
+        return (cells, mode, maps)
+    else:
+        return maps
+
+
+def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
     localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
     max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
@@ -120,6 +426,11 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
     if verbose:
         inference.plugins.verbose = True
 
+    if diffusivity_prior is None and priorD is not None:
+        diffusivity_prior = priorD
+    if potential_prior is None and priorV is not None:
+        potential_prior = priorV
+
     input_file = None
     all_analyses = analysis = None
     if isinstance(cells, str):
@@ -130,6 +441,7 @@ def infer(cells, mode='D', output_file=None, partition={}, verbose=False, \
                 all_analyses = extract_analysis(all_analyses, input_label)
             cells = None
         except KeyError:
+            raise
             # legacy format
             input_file, cells = find_partition(cells, **partition)
             if cells is None:
@@ -728,4 +1040,6 @@ def box_crop(maps, bounding_box, tessellation):
         else:
             inside &= _in
     return maps[inside]
+
+infer = infer1
 
