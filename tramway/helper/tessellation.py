@@ -48,13 +48,17 @@ class Tessellate(Helper):
         if nesting:
             assert isinstance(data, tuple) and not data[1:]
             data, = data
-            if isinstance(data, pd.DataFrame):
-                raise ValueError('nesting tessellations does not apply to (trans-)location data')
-            elif isinstance(data, CellStats):
+            if isinstance(data, CellStats):
                 self.input_partition = data
                 self.xyt_data = data.points
             else:
-                raise TypeError('nesting tessellations does not apply to the loaded data: %s', type(data))
+                if isinstance(data, pd.DataFrame):
+                    msg = '(trans-)location data'
+                else:
+                    msg = 'the following datatype: {}'.format(type(data))
+                raise TypeError('nesting tessellations does not apply to {}'.format(msg))
+            if self.input_label is None:
+                self.input_label = self.find(data)
         elif isinstance(data, Analyses):
             self.xyt_data = data.data
         else:

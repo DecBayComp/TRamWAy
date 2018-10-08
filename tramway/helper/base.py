@@ -79,34 +79,44 @@ class Helper(object):
         if isinstance(data, Analyses):
             if not (labels is None and types is None):
                 data = find_artefacts(data, types, labels)
+                if self.input_label is None:
+                    self.input_label = self.find(data[-1])
         return data
 
-    def find(self, artefact, return_subtree=False):
+    def find(self, artefact, labels=None, return_subtree=False):
+        if labels is None:
+            labels = self.input_label
         found = False
+        _labels = []
         _label = None
         analysis = self.analyses
         if analysis._data is artefact:
             found = True
-        elif self.label_is_absolute(self.input_label):
-            for _label in self.input_label:
+        elif self.label_is_absolute(labels):
+            for _label in labels:
+                _labels.append(_label)
                 analysis = analysis[_label]
                 if analysis._data is artefact:
                     found = True
                     break
         else:
-            assert self.input_label is None
-            while analysis.labels and not analysis.labels[1:]:
-                analysis = analysis[analysis.labels[0]]
+            assert labels is None
+            available_labels = list(analysis.labels)
+            while analysis.labels and not available_labels[1:]:
+                _label = available_labels[0]
+                _labels.append(_label)
+                analysis = analysis[_label]
                 if analysis._data is artefact:
                     if return_subtree:
                         found = True
                         break
+                available_labels = list(analysis.labels)
         if not found:
             analysis = None
         if return_subtree:
-            return _label, analysis
+            return _labels, analysis
         else:
-            return _label
+            return _labels
 
     def output_file(self, output_file=None, suffix=None, extension=None):
         basename = None
@@ -221,7 +231,7 @@ class Helper(object):
             self.name = name
         return self.module, self.setup
 
-    def insert_analysis(self, analysis_or_artefact, comment=None):
+    def insert_analysis(self, analysis_or_artefact, comment=None, anchor=None):
         if isinstance(analysis_or_artefact, Analyses):
             artefact = analysis_or_artefact.data
             analysis = analysis_or_artefact
@@ -230,21 +240,33 @@ class Helper(object):
             analysis = Analyses(analysis_or_artefact)
         if self.analyses is None:
             raise RuntimeError('no root analysis')
-        input_analysis = self.analyses
-        if self.label_is_absolute(self.output_label):
-            # output_label is absolute path; forget input_label
-            prefix_labels = list(self.output_label)
-            label = prefix_labels.pop() # terminal label
-            for _label in prefix_labels:
-                input_analysis = input_analysis.instances[_label]
+        if anchor:
+            labels, input_analysis = self.find(anchor, return_subtree=True)
+            if input_analysis is None:
+                raise ValueError('anchor not found')
+            if self.label_is_absolute(self.output_label):
+                if labels == self.output_label[:-1]:
+                    label = self.output_label[-1]
+                else:
+                    raise ValueError('output labels do not match with anchor artefact')
+            else:
+                label = self.output_label
         else:
-            label = self.output_label
-            if self.input_label is not None:
-                # input_label is absolute path, even if it is not formatted correspondingly
-                if not self.label_is_absolute(self.input_label):
-                    self.input_label = [ self.input_label ]
-                for _label in self.input_label:
+            input_analysis = self.analyses
+            if self.label_is_absolute(self.output_label):
+                # output_label is absolute path; forget input_label
+                prefix_labels = list(self.output_label)
+                label = prefix_labels.pop() # terminal label
+                for _label in prefix_labels:
                     input_analysis = input_analysis.instances[_label]
+            else:
+                label = self.output_label
+                if self.input_label is not None:
+                    # input_label is absolute path, even if it is not formatted correspondingly
+                    if not self.label_is_absolute(self.input_label):
+                        self.input_label = [ self.input_label ]
+                    for _label in self.input_label:
+                        input_analysis = input_analysis.instances[_label]
         if label is not None and label in input_analysis.labels:
             # `input_analysis[label]` already exists
             if self.inplace:
