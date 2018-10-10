@@ -324,7 +324,7 @@ def random_walk_2d(*args, **kwargs):
         density (float):       effective density of the random walks
         D0 (float):     local diffusivity
         amplitude_D (float):   amplitude of diffusivity variation
-        amplitude_V (float):   ampltidue of the trap
+        amplitude_V (float):   ampltiude of the trap or slope
         mode_D (str):   any of '*linear*', '*gaussian_trap*', '*gaussian_bump*'
         mode_V (str):   any of '*potential_force*', '*potential_linear*'
         mode_gamma (str):       any of '*equilibrium*', '*fixed*'

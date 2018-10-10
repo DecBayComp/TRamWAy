@@ -575,6 +575,10 @@ class Distributed(Local):
             kwargs (dict):
                 keyword arguments for `function` from which are removed the ones below.
 
+            returns (list):
+                attributes to be collected from all the individual cells as return values;
+                if defined, the values returned by `function` are ignored.
+
             worker_count (int):
                 number of simultaneously working processing units.
 
@@ -594,6 +598,8 @@ class Distributed(Local):
         """
         # clear the caches
         self.clear_caches()
+
+        returns = kwargs.pop('returns', None)
 
         if all(isinstance(cell, Distributed) for cell in self.cells.values()):
             # parallel for-loop over the subsets of cells
@@ -621,24 +627,49 @@ class Distributed(Local):
                     _run = __run_star__
                 ys = pool.map(_run,
                     itertools.izip(itertools.repeat(fargs), cells))
-            ys = [ y for y in ys if y is not None ]
-            if ys:
-                if ys[1:]:
-                    if isinstance(ys[0], tuple):
-                        ys = zip(*ys)
-                        result = tuple([
-                            pd.concat(_ys, axis=0).sort_index()
-                            for _ys in ys ])
+            if returns is None:
+                ys = [ y for y in ys if y is not None ]
+                if ys:
+                    if ys[1:]:
+                        if isinstance(ys[0], tuple):
+                            ys = zip(*ys)
+                            result = tuple([
+                                pd.concat(_ys, axis=0).sort_index()
+                                for _ys in ys ])
+                        else:
+                            result = pd.concat(ys, axis=0).sort_index()
                     else:
-                        result = pd.concat(ys, axis=0).sort_index()
+                        result = ys[0]
                 else:
-                    result = ys[0]
-            else:
-                result = None
+                    result = None
 
         else:
             # direct function application
             result = function(self, *args, **kwargs)
+
+        if returns:
+            index = { v: [] for v in returns }
+            result = { v: [] for v in returns }
+            for i in self.cells:
+                cell = self.cells[i]
+                if cell:
+                    for v in returns:
+                        try:
+                            x = getattr(cell, v)
+                        except AttributeError:
+                            x = None
+                        if x is not None:
+                            index[v].append(i)
+                            result[v].append(x)
+            for v in result:
+                x = np.vstack(result[v])
+                result[v] = pd.DataFrame(x, index=index[v], \
+                        columns=[v] if x.shape[1] == 1 \
+                        else [ '{} {:d}'.format(v, i) for i in range(x.shape[1]) ])
+            _result = result
+            result = _result[returns[0]]
+            if returns[1:]:
+                result = result.join([ _result[v] for v in returns[1:] ])
 
         return result
 
