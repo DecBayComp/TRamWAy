@@ -4,7 +4,7 @@
 
 import numpy as np
 from scipy import integrate
-from scipy.special import gamma, gammainc, gammaincc
+from scipy.special import gammainc
 
 
 def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error):
@@ -37,7 +37,7 @@ def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error):
     def arg(l):
         """lambda-dependent argument of the gamma function and the second term."""
         diff = l * zeta_sp - zeta_t
-        return v + E * (matmul(diff, diff.T))
+        return v + E * (diff @ diff.T)
 
     def get_integrate_me():
         """Function to integrate with and without localization error."""

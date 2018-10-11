@@ -1,10 +1,13 @@
+# -*- coding: utf-8 -*-
 
+# Copyright © 2018, Alexander Serov
 
-from .calculate_marginalized_integral import calculate_marginalized_integral
-from .convenience_functions import *
 # from log_C import log_C as log_C_func
 import numpy as np
 from scipy import optimize
+
+from .calculate_marginalized_integral import calculate_marginalized_integral
+from .convenience_functions import p
 
 
 def find_marginalized_zeta_t_roots(zeta_sp_par, n, n_pi, B, u, dim, zeta_t_perp):
