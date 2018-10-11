@@ -161,12 +161,25 @@ def _dump_rwa(args):
     input_files, kwargs = _parse_args(args)
     verbose = kwargs.pop('verbose', False)
     label = kwargs.pop('label')
-    if label and input_files and not input_files[1:]:
-        label = kwargs.pop('input_label', None)
-        kwargs['cluster_file'] = kwargs.pop('cluster')
-        kwargs['vmesh_file'] = kwargs.pop('vmesh')
-        kwargs = { k: v for k, v in kwargs.items() if v is not None }
-        inferencemap.export_file(input_files[0], label=label, **kwargs)
+    if label and input_files:
+        labels = kwargs.pop('input_label', None)
+        export = False
+        if not input_files[1:]:
+            cluster = kwargs.pop('cluster')
+            vmesh = kwargs.pop('vmesh')
+            export = cluster or vmesh
+        if export:
+            kwargs['cluster_file'] = cluster
+            kwargs['vmesh_file'] = vmesh
+            kwargs = { k: v for k, v in kwargs.items() if v is not None }
+            inferencemap.export_file(input_files[0], label=labels, **kwargs)
+        else:
+            for input_file in input_files:
+                print(' -> '.join(['in '+input_file] + labels) + ':')
+                analyses = load_rwa(input_file, lazy=True)
+                for label in labels:
+                    analyses = analyses[label]
+                print('\t' + str(analyses.data).replace('\n', '\n\t'))
     else:
         for input_file in input_files:
             print('in {}:'.format(input_file))

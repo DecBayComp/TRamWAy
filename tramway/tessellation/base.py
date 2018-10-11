@@ -246,6 +246,47 @@ class CellStats(Lazy):
         if self.tessellation is not None:
             return self.tessellation.number_of_cells
 
+    def __str__(self):
+        def _str(obj, l0=0):
+            s = str(obj)
+            if l0:
+                s = s.replace('\n', '\n' + ' ' * l0)
+            return s
+        def print_kwargs(_dict, l0=0, l1=None):
+            if l1 is None:
+                l1 = max(len(k) for k in _dict)
+            sep = '\n'
+            if l0:
+                sep += ' ' * l0
+            return sep.join([ '{}:{} {}'.format(k, ' '*(l1-len(k)), _str(v, l0+l1))
+                    for k, v in _dict.items() ])
+        attrs = {}
+        for k in ('tessellation', 'points', 'cell_index', 'location_count'):
+            v = getattr(self, '_'+k)
+            attrs[k] = None if v is None else type(v)
+        attrs['number_of_cells'] = self.number_of_cells
+        l = max( max(len(k) for k in attrs), 1 + max(len(k) for k in self.param) ) + 1
+        l0 = l + 1
+        attrs['bounding_box'] = None if self._bounding_box is None \
+            else _str(self.bounding_box, l0)
+        l1 = max( max(len(k) for k in _attrs) for _attrs in self.param.values() \
+                if isinstance(_attrs, dict) )
+        for k, v in self.param.items():
+            if isinstance(v, dict):
+                v = print_kwargs(v, l0, l1)
+            else:
+                v = _str(v, l0)
+            attrs['@'+k] = v
+        try:
+            # handle child classes with __dict__ defined
+            for k, v in self.__dict__.items():
+                if k not in attrs:
+                    attrs[k] = _str(v, l0)
+        except AttributeError:
+            pass
+        s = '\n'.join([ '{}:{}{}'.format(k, ' '*(l-len(k)), v) for k, v in attrs.items() ])
+        return s
+
 
 
 def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwargs):

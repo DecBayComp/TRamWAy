@@ -1843,6 +1843,16 @@ class Maps(Lazy):
             sub_map.maps.index = np.arange(sub_map.maps.index.size)
         return sub_map
 
+    def __str__(self):
+        attrs = { k: v for k, v in self.__dict__.items() if not (k[0] == '_' or v is None) }
+        v = self.variables
+        if v is not None:
+            attrs['variables'] = v
+        attrs['maps'] = type(self.maps)
+        l = max(len(k) for k in attrs)
+        s = '\n'.join([ '{}:{} {}'.format(k, ' '*(l-len(k)), str(v)) for k, v in attrs.items() ])
+        return s
+
 
 
 class OptimizationWarning(RuntimeWarning):
