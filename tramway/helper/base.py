@@ -76,6 +76,8 @@ class Helper(object):
                         self.analyses = Analyses(data)
                 else:
                     raise
+        elif isinstance(data, Analyses):
+            self.analyses = data
         if isinstance(data, Analyses):
             if not (labels is None and types is None):
                 data = find_artefacts(data, types, labels)
@@ -284,6 +286,8 @@ class Helper(object):
         if verbose is None:
             verbose = self.verbose
         output_file = self.output_file(output_file)
+        if output_file is None:
+            return
         if force is None and bool(self.input_file):
             if self.are_multiple_files(self.input_file):
                 input_files = list(self.input_file)
