@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Copyright © 2018, Alexander Serov
 
 
@@ -5,30 +7,34 @@ import warnings
 
 # from multiprocessing import Pool
 import numpy as np
-import scipy
-from scipy.special import gammainc
-from tqdm import trange  # for graphical estimate of the progress
-
-from stopwatch import stopwatch
-
+import scipy.optimize
 from .calculate_marginalized_integral import calculate_marginalized_integral
 from .convenience_functions import n_pi_func
 from .convenience_functions import p as pow
+from .stopwatch import stopwatch
+
+# from scipy.special import gammainc
 
 
-def calculate_bayes_factors_for_cells(cells, loc_error, dim=2, B_threshold=10, verbose=True):
-    """Calculate Bayes factors for an iterable ensemble of cells."""
+try:
+    from tqdm import trange  # for graphical estimate of the progress
+except ImportError:
+    trange = range
 
-    check_dimensionality(dim)
 
-    M = len(cells)
-    lg_Bs, forces, min_ns = [], [], []
-    for i, cell in enumerate(cells):
-        lg_Bs[i], forces[i], min_ns[i] = calculate_bayes_factors_for_one_cell(
-            cell, loc_error, dim=dim, B_threshold=B_threshold, verbose=verbose)
-        cell.lg_B, cell.force, cell.min_n = lg_Bs[i], forces[i], min_ns[i]
-
-    return [lg_Bs, forces, min_ns]
+# def calculate_bayes_factors_for_cells(cells, loc_error, dim=2, B_threshold=10, verbose=True):
+#     """Calculate Bayes factors for an iterable ensemble of cells."""
+#
+#     check_dimensionality(dim)
+#
+#     # M = len(cells)
+#     lg_Bs, forces, min_ns = [], [], []
+#     for i, cell in enumerate(cells):
+#         lg_Bs[i], forces[i], min_ns[i] = calculate_bayes_factors_for_one_cell(
+#             cell, loc_error, dim=dim, B_threshold=B_threshold, verbose=verbose)
+#         cell.lg_B, cell.force, cell.min_n = lg_Bs[i], forces[i], min_ns[i]
+#
+#     return [lg_Bs, forces, min_ns]
 
 
 def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10, verbose=True):
@@ -38,14 +44,15 @@ def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10,
 
     check_dimensionality(dim)
 
-    zeta_sp = cell.zeta_spurious
-    zeta_t = cell.zeta_total
-    n = cell.n
-    V = cell.V
-    V_pi = cell.V_prior
-
     cell.lg_B, cell.force, cell.min_n = _calculate_one_bayes_factor(
-        zeta_t=zeta_t, zeta_sp=zeta_sp, n=n, V=V, V_pi=V_prior, loc_error=loc_error, dim=dim, bl_need_min_n=True)
+        zeta_t=cell.zeta_total,
+        zeta_sp=cell.zeta_spurious,
+        n=cell.n,
+        V=cell.V,
+        V_pi=cell.V_prior,
+        loc_error=loc_error,
+        dim=dim,
+        bl_need_min_n=True)
 
     return [cell.lg_B, cell.force, cell.min_n]
 
@@ -83,12 +90,13 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
 
     # Check that the 2nd dimension has size 2
     if np.shape(zeta_ts)[1] != 2 or np.shape(zeta_sps)[1] != 2:
-        raise VsalueError("zeta_ts and zeta_sps must be matrices of size (M x 2)")
+        raise ValueError("zeta_ts and zeta_sps must be matrices of size (M x 2)")
 
     M = len(ns)
 
     # Calculate
     lg_Bs = np.zeros_like(ns) * np.nan
+    forces = np.zeros_like(ns) * np.nan
     min_ns = np.zeros_like(ns, dtype=int) * np.nan
     with stopwatch("Bayes factor calculation", verbose):
         for i in trange(M):
@@ -147,15 +155,15 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     # Local constants
     increase_factor = 2  # initial search interval increase with each iteration
     max_attempts = 40
-    xtol = 0.1
-    rtol = 0.1
+    xtol = 1.0
+    rtol = 0.001
 
     lg_B_threshold = np.log10(B_threshold)
 
     # Define the Bayes factor
     def lg_B(n):
         """A wrapper for the Bayes factor as a function of n."""
-        lg_B, _ = _calculate_one_bayes_factor(
+        lg_B, _, _ = _calculate_one_bayes_factor(
             zeta_t=zeta_t, zeta_sp=zeta_sp, n=n, V=V, V_pi=V_pi, loc_error=loc_error, dim=dim, bl_need_min_n=False)
         return lg_B
 
@@ -182,12 +190,12 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     def solve_me(n):
         return lg_B(n) - sign * lg_B_threshold
 
-    min_n = scipy.optimize.brentq(solve_me, n_interval[0], n_interval[1], xtol=1.0, rtol=0.001)
+    min_n = scipy.optimize.brentq(solve_me, n_interval[0], n_interval[1], xtol=xtol, rtol=rtol)
     min_n = np.int(np.ceil(min_n))
 
     return min_n
 
-    def check_dimensionality(dim):
-        # Check dimensionality
-        if dim not in [2]:
-            raise ValueError(f"Bayes factor calculations in {dim}D not supported yet.")
+
+def check_dimensionality(dim):
+    if dim not in [2]:
+        raise ValueError("Bayes factor calculations in {dim}D not supported yet.".format(dim=dim))

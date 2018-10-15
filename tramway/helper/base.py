@@ -76,6 +76,8 @@ class Helper(object):
                         self.analyses = Analyses(data)
                 else:
                     raise
+        elif isinstance(data, Analyses):
+            self.analyses = data
         if isinstance(data, Analyses):
             if not (labels is None and types is None):
                 data = find_artefacts(data, types, labels)
@@ -102,16 +104,17 @@ class Helper(object):
         else:
             assert labels is None
             available_labels = list(analysis.labels)
-            while analysis.labels and not available_labels[1:]:
+            while available_labels and not available_labels[1:]:
                 _label = available_labels[0]
                 _labels.append(_label)
                 analysis = analysis[_label]
                 if analysis._data is artefact:
-                    if return_subtree:
-                        found = True
-                        break
+                    found = True
+                    break
                 available_labels = list(analysis.labels)
         if not found:
+            #raise RuntimeError('artefact not found')
+            _labels = []
             analysis = None
         if return_subtree:
             return _labels, analysis
@@ -182,8 +185,12 @@ class Helper(object):
                             raise exclusive_labels_error
             label = None
         # input labels necessarily form a path
-        if not (input_label is None or self.label_is_absolute(input_label)):
-            input_label = [input_label]
+        if input_label is None:
+            self.explicit_input_label = False
+        else:
+            self.explicit_input_label = True
+            if not self.label_is_absolute(input_label):
+                input_label = [input_label]
         # if inplace, all the defined labels should equal
         if inplace:
             if output_label is None:
@@ -284,6 +291,8 @@ class Helper(object):
         if verbose is None:
             verbose = self.verbose
         output_file = self.output_file(output_file)
+        if output_file is None:
+            return
         if force is None and bool(self.input_file):
             if self.are_multiple_files(self.input_file):
                 input_files = list(self.input_file)

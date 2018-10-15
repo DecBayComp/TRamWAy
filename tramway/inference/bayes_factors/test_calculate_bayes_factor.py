@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Copyright © 2018, Alexander Serov
 
 
@@ -7,8 +9,7 @@ from multiprocessing import freeze_support
 
 import numpy as np
 
-from .calculate_bayes_factors import (calculate_bayes_factors,
-                                      calculate_minimal_n)
+from .calculate_bayes_factors import calculate_bayes_factors
 from .calculate_marginalized_integral import calculate_marginalized_integral
 from .convenience_functions import n_pi_func, p
 
@@ -45,7 +46,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=0.0, rel_loc_error=rel_loc_error)
         true_res = 3.496167136E-23
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for E = 0")
 
         # >> Check result with 0 break points <<
@@ -62,7 +63,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 3.182820939E-23
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for 0 break points. The obtained value %.2g does not match the expected %.2g" % (res, true_res))
 
         # >> Check result with 1 break points <<
@@ -77,7 +78,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 1.457477573E-28
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for 1 break points. The obtained value %.2g does not match the expected %.2g" % (res, true_res))
 
         # >> Check result with 2 break points <<
@@ -92,7 +93,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 6.019713659E-14
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for 2 break points. The obtained value %.8g does not match the expected %.8g" % (res, true_res))
 
         # >> Check the result with zeta_sp = 0 <<
@@ -107,7 +108,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 1.145033778E-17
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for zeta_sp = 0. The obtained value %.8g does not match the expected %.8g" % (res, true_res))
 
     def test_bayes_factors(self):
@@ -120,13 +121,13 @@ class bayes_test(unittest.TestCase):
         us = np.asarray([[0.95]])
         loc_error = 0.1**2.0
         Vs_pi = us * Vs
-        Bs, forces, _ = calculate_bayes_factors(
+        lg_Bs, forces, _ = calculate_bayes_factors(
             zeta_ts=zeta_ts, zeta_sps=zeta_sps, ns=ns, Vs=Vs, Vs_pi=Vs_pi, loc_error=loc_error)
         true_B = 0.2974282533
 
         # Check value
-        self.assertTrue(math.isclose(Bs[0], true_B, rel_tol=self.rel_tol, abs_tol=self.tol),
-                        "Bayes factor calculation failed for one bin. The obtained B = %.8g does not match the expected B = %.8g" % (Bs[0, 0], true_B))
+        self.assertTrue(np.isclose(10**lg_Bs[0], true_B, rtol=self.rel_tol, atol=self.tol),
+                        "Bayes factor calculation failed for one bin. The obtained B = %.8g does not match the expected B = %.8g" % (10**lg_Bs[0, 0], true_B))
         # Check force presence
         self.assertTrue((true_B >= self.B_threshold) ==
                         forces[0], "Boolean conservative force return incorrect for the case of one bin")
@@ -139,13 +140,13 @@ class bayes_test(unittest.TestCase):
         us = np.asarray([[0.95]])
         loc_error = 0
         Vs_pi = us * Vs
-        Bs, forces, _ = calculate_bayes_factors(
+        lg_Bs, forces, _ = calculate_bayes_factors(
             zeta_ts=zeta_ts, zeta_sps=zeta_sps, ns=ns, Vs=Vs, Vs_pi=Vs_pi, loc_error=loc_error)
         true_B = 0.2974282533
 
         # Check value
-        self.assertTrue(math.isclose(Bs[0], true_B, rel_tol=self.rel_tol, abs_tol=self.tol),
-                        "Bayes factor calculation failed for one bin. The obtained B = %.8g does not match the expected B = %.8g" % (Bs[0, 0], true_B))
+        self.assertTrue(np.isclose(10**lg_Bs[0], true_B, rtol=self.rel_tol, atol=self.tol),
+                        "Bayes factor calculation failed for one bin. The obtained B = %.8g does not match the expected B = %.8g" % (10**lg_Bs[0, 0], true_B))
         # Check force presence
         self.assertTrue((true_B >= self.B_threshold) ==
                         forces[0], "Boolean conservative force return incorrect for the case of one bin")
@@ -162,7 +163,7 @@ class bayes_test(unittest.TestCase):
         us = us.T
         Vs_pi = us * Vs
         N = len(ns)
-        Bs, forces, _ = calculate_bayes_factors(
+        lg_Bs, forces, _ = calculate_bayes_factors(
             zeta_ts=zeta_ts, zeta_sps=zeta_sps, ns=ns, Vs=Vs, Vs_pi=Vs_pi, loc_error=loc_error)
         true_Bs = [0.05997370802, 3.666049402e49, 1.378104868]
         # print(Bs)
@@ -170,8 +171,8 @@ class bayes_test(unittest.TestCase):
 
         for i in range(N):
             # Check value
-            self.assertTrue(np.isclose(Bs[i], true_Bs[i], rtol=self.rel_tol, atol=self.tol),
-                            "Bayes factor calculation failed for one bin. For bin no. %i, the obtained B = %.8g does not match the expected B = %.8g" % (i + 1, Bs[i], true_Bs[i]))
+            self.assertTrue(np.isclose(10**lg_Bs[i], true_Bs[i], rtol=self.rel_tol, atol=self.tol),
+                            "Bayes factor calculation failed for one bin. For bin no. %i, the obtained B = %.8g does not match the expected B = %.8g" % (i + 1, 10**lg_Bs[i], true_Bs[i]))
             # Check force presence
             true_forces = (1 * (np.log10(true_Bs[i]) >= np.log10(self.B_threshold)) -
                            1 * (np.log10(true_Bs[i]) <= -np.log10(self.B_threshold)))
@@ -195,22 +196,22 @@ class bayes_test(unittest.TestCase):
         Vs = Vs.T
         us = us.T
         Vs_pi = us * Vs
-        N = len(ns)
+        # N = len(ns)
 
         # Calculate min_ns
-        Bs, _, min_ns = calculate_bayes_factors(
+        lg_Bs, _, min_ns = calculate_bayes_factors(
             zeta_ts=zeta_ts, zeta_sps=zeta_sps, ns=ns, Vs=Vs, Vs_pi=Vs_pi, loc_error=loc_error)
         # Calculate Bs for min_ns to check
-        Bs, _, _ = calculate_bayes_factors(
+        lg_Bs, _, _ = calculate_bayes_factors(
             zeta_ts=zeta_ts, zeta_sps=zeta_sps, ns=min_ns, Vs=Vs, Vs_pi=Vs_pi, loc_error=loc_error)
 
         # Perform check
-        self.assertTrue(np.all(np.abs(np.log10(Bs[0])) >= np.log10(B_threshold)),
-                        "Not all of the Bayes factors for the minimal ns returned strong evidence. Bs: %s" % (Bs))
+        self.assertTrue(np.all(np.abs(lg_Bs[0]) >= np.log10(B_threshold)),
+                        "Not all of the Bayes factors for the minimal ns returned strong evidence. lg_Bs: %s" % (lg_Bs))
         # print(Bs)
 
 
 # # A dirty fix for a weird bug in unittest
 # if __name__ == '__main__':
 #     freeze_support()
-unittest.main()
+# unittest.main()

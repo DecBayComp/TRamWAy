@@ -161,12 +161,25 @@ def _dump_rwa(args):
     input_files, kwargs = _parse_args(args)
     verbose = kwargs.pop('verbose', False)
     label = kwargs.pop('label')
-    if label and input_files and not input_files[1:]:
-        label = kwargs.pop('input_label', None)
-        kwargs['cluster_file'] = kwargs.pop('cluster')
-        kwargs['vmesh_file'] = kwargs.pop('vmesh')
-        kwargs = { k: v for k, v in kwargs.items() if v is not None }
-        inferencemap.export_file(input_files[0], label=label, **kwargs)
+    if label and input_files:
+        labels = kwargs.pop('input_label', None)
+        export = False
+        if not input_files[1:]:
+            cluster = kwargs.pop('cluster')
+            vmesh = kwargs.pop('vmesh')
+            export = cluster or vmesh
+        if export:
+            kwargs['cluster_file'] = cluster
+            kwargs['vmesh_file'] = vmesh
+            kwargs = { k: v for k, v in kwargs.items() if v is not None }
+            inferencemap.export_file(input_files[0], label=labels, **kwargs)
+        else:
+            for input_file in input_files:
+                print(' -> '.join(['in '+input_file] + [ str(l) for l in labels ]) + ':')
+                analyses = load_rwa(input_file, lazy=True)
+                for label in labels:
+                    analyses = analyses[label]
+                print('\t' + str(analyses.data).replace('\n', '\n\t'))
     else:
         for input_file in input_files:
             print('in {}:'.format(input_file))
@@ -409,6 +422,7 @@ def main():
     for arg1, arg2, kwargs in global_arguments:
         map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
     map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+    map_parser.add_argument('-V', '--variable', help='map variable name')
     map_parser.add_argument('-P', '--points', nargs='?', default=False, help='plot the points; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
     map_parser.add_argument('-D', '--delaunay', nargs='?', default=False, help='plot the Delaunay graph; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
     map_parser.add_argument('-cm', '--colormap', help='colormap name (see https://matplotlib.org/users/colormaps.html)')

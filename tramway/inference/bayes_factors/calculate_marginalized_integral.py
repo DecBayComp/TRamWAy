@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
+
 # Copyright © 2018, Alexander Serov
 
 import numpy as np
 from scipy import integrate
-from scipy.special import gamma, gammainc, gammaincc
+from scipy.special import gammainc
 
 
 def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error):
@@ -30,12 +32,12 @@ def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error):
 
     zeta_t, zeta_sp = map(np.asarray, [zeta_t, zeta_sp])
     if zeta_t.ndim > 1 or zeta_sp.ndim > 1:
-        raise ValueError(f"zeta_t and zeta_sp should be 1D vectors")
+        raise ValueError("zeta_t and zeta_sp should be 1D vectors")
 
     def arg(l):
         """lambda-dependent argument of the gamma function and the second term."""
         diff = l * zeta_sp - zeta_t
-        return v + E * (diff @ diff.T)
+        return v + E * np.matmul(diff, diff.T) # the @ operator raises a syntax error in Py2
 
     def get_integrate_me():
         """Function to integrate with and without localization error."""

@@ -24,7 +24,7 @@ import time
 
 
 setup = {'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, default=0.03, help='localization error'))),
+        ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
         ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
@@ -88,7 +88,7 @@ class DV(ChainArray):
 
 
 
-def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, dt_mean, \
+def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
         index, reverse_index, grad_kwargs, y0, verbose, posteriors):
     """
     Adapted from InferenceMAP's *dvPosterior* procedure modified:
@@ -147,7 +147,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
         if observed_min < dv.minimum_diffusivity and \
                 not np.isclose(observed_min, dv.minimum_diffusivity):
             warn(DiffusivityWarning(observed_min, dv.minimum_diffusivity))
-    noise_dt = squared_localization_error
+    noise_dt = sigma2
 
     # for all cell
     raw_posterior = priors = 0.
@@ -188,7 +188,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
                 priors += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
         #print('{}\t{}\t{}'.format(i+1, D[j], result))
     if jeffreys_prior:
-        priors += 2. * np.sum(np.log(D * dt_mean + squared_localization_error) - np.log(D))
+        priors += 2. * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
 
     result = raw_posterior + priors
     posteriors.append([raw_posterior, result])
@@ -199,7 +199,7 @@ def dv_neg_posterior(x, dv, cells, squared_localization_error, jeffreys_prior, d
     return result - y0
 
 
-def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_prior=None, \
+def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
     export_centers=False, verbose=True, compatibility=False, **kwargs):
 
@@ -250,8 +250,8 @@ def inferDV(cells, localization_error=0.03, diffusivity_prior=None, potential_pr
     options.update(kwargs)
 
     # posterior function input arguments
-    squared_localization_error = localization_error * localization_error
-    args = (dv, cells, squared_localization_error, jeffreys_prior, dt_mean,
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
+    args = (dv, cells, localization_error, jeffreys_prior, dt_mean,
             index, reverse_index, grad_kwargs)
 
     # get the initial posterior value so that it is subtracted from the further evaluations

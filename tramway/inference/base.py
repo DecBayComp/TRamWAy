@@ -13,6 +13,7 @@
 
 
 from tramway.core import *
+from tramway.core.exceptions import *
 from tramway.tessellation import format_cell_index, nearest_cell
 import tramway.tessellation as tessellation
 import numpy as np
@@ -147,6 +148,83 @@ class Local(Lazy):
     @tcount.setter
     def tcount(self, c):
         self.__assertlazy__('tcount', c, related_attribute='data')
+
+    def get_localization_error(self, _kwargs=None, _default_value=None, _localization_error_is_sigma=False, **kwargs):
+        """
+        Return the localization error as :math:`sigma^2`.
+
+        Arguments:
+
+            _kwargs (dict):
+                mutable keyword arguments;
+                '*localization_error*', '*sigma*' and '*sigma2*' are popped out.
+
+            _default_value (float):
+                default localization error (subject to `_localization_error_is_sigma`).
+
+            _localization_error_is_sigma (bool):
+                argument '*localization_error*' in `_kwargs` or `kwargs` is considered as
+                :math:`sigma`.
+
+        Returns:
+
+            float: :math:`sigma^2`.
+
+        """
+        if _localization_error_is_sigma:
+            _default_sigma2 = _default_value * _default_value
+        else:
+            _default_sigma2 = _default_value
+
+        if _kwargs:
+            args = {}
+            for arg in ('localization_error', 'sigma', 'sigma2'):
+                try:
+                    val = kwargs[arg]
+                except KeyError:
+                    try:
+                        val = _kwargs.pop(arg)
+                    except KeyError:
+                        val = None
+                args[arg] = val
+        elif kwargs:
+            args = kwargs
+        else:
+            return _default_sigma2
+
+        localization_error = args.get('localization_error', None)
+        sigma = args.get('sigma', None)
+        sigma2 = args.get('sigma2', None)
+
+        if localization_error is None:
+            _sigma2 = None
+        elif _localization_error_is_sigma:
+            _sigma2 = localization_error * localization_error
+        else:
+            _sigma2 = localization_error
+
+        if sigma2 is None:
+            if sigma is None:
+                if localization_error is None:
+                    sigma2 = _default_sigma2
+                else:
+                    if _localization_error_is_sigma:
+                        warn('`localization_error` may become sigma square in the coming 0.4 release, instead of sigma; please use `sigma` or `sigma2` to disambiguate', PendingDeprecationWarning)
+                    sigma2 = _sigma2
+            else:
+                sigma2 = sigma * sigma
+                if not (localization_error is None or np.isclose(_sigma2, sigma2)):
+                    raise MultipleArgumentError('localization_error', 'sigma')
+        else:
+            if not (sigma is None or np.isclose(sigma*sigma, sigma2)):
+                if localization_error is None:
+                    raise MultipleArgumentError('sigma', 'sigma2')
+                else:
+                    raise MultipleArgumentError('localization_error', 'sigma', 'sigma2')
+            if not (_sigma2 is None or np.isclose(_sigma2, sigma2)):
+                raise MultipleArgumentError('localization_error', 'sigma2')
+
+        return sigma2
 
 
 
@@ -1842,6 +1920,16 @@ class Maps(Lazy):
         if reindex:
             sub_map.maps.index = np.arange(sub_map.maps.index.size)
         return sub_map
+
+    def __str__(self):
+        attrs = { k: v for k, v in self.__dict__.items() if not (k[0] == '_' or v is None) }
+        v = self.variables
+        if v is not None:
+            attrs['variables'] = v
+        attrs['maps'] = type(self.maps)
+        l = max(len(k) for k in attrs)
+        s = '\n'.join([ '{}:{} {}'.format(k, ' '*(l-len(k)), str(v)) for k, v in attrs.items() ])
+        return s
 
 
 

@@ -24,7 +24,7 @@ from collections import OrderedDict
 setup = {'name': 'd.snr',
     'provides': 'snr',
     'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, default=0.03, help='localization error'))),
+        ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
@@ -32,7 +32,7 @@ setup = {'name': 'd.snr',
     'cell_sampling': 'group'}
 
 
-def infer_snr_d(cells, localization_error=0.03, diffusivity_prior=None, jeffreys_prior=None, \
+def infer_snr_d(cells, localization_error=None, diffusivity_prior=None, jeffreys_prior=None, \
     min_diffusivity=None, max_iter=None, **kwargs):
     '''
     Infer signal-to-noise ratio related variables useful for Bayes factor calculation.
@@ -44,7 +44,8 @@ def infer_snr_d(cells, localization_error=0.03, diffusivity_prior=None, jeffreys
         options['maxiter'] = max_iter
         kwargs['options'] = options
     # initial values and common calculations
-    sle = localization_error * localization_error # sle = squared localization error
+    localization_error = cells.get_localization_error(kwargs, 0.03, True, \
+            localization_error=localization_error)
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
     index = np.asarray(index)
@@ -55,7 +56,7 @@ def infer_snr_d(cells, localization_error=0.03, diffusivity_prior=None, jeffreys
         result = []
         for i, dt, D in zip(index, dt_mean, D_initial):
             r = minimize(d_neg_posterior, D,
-                args = (cells[i], sle, jeffreys_prior, dt, min_diffusivity),
+                args = (cells[i], localization_error, jeffreys_prior, dt, min_diffusivity),
                 **kwargs)
             result.append(r.x[0])
         D = np.array(result)
@@ -64,7 +65,7 @@ def infer_snr_d(cells, localization_error=0.03, diffusivity_prior=None, jeffreys
         if min_diffusivity is not None:
             kwargs['bounds'] = D_bounds
         result = minimize(smooth_d_neg_posterior, D_initial, \
-            args=(cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, reverse_index), \
+            args=(cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, reverse_index), \
             **kwargs)
         D = result.x
     # compute diffusivity gradient g (defined at cells `g_index`)

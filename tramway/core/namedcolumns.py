@@ -15,6 +15,7 @@
 import numpy as np
 import pandas as pd
 import re
+import sys
 import collections
 
 def isstructured(x):
@@ -63,15 +64,20 @@ def columns(x):
     else:
         raise ValueError('not structured')
 
-def splitcoord(varnames):
+def splitcoord(varnames, asstr=True):
+    if asstr and sys.version_info[0] < 3:
+        def _str(s):
+            return s.encode('utf-8') if isinstance(s, unicode) else s
+    else:
+        _str = lambda s: s
     coord = re.compile('[a-z]?[0-9]*$')
     vs = collections.defaultdict(list)
     for v in varnames:
         u = [ w[::-1] for w in v[::-1].split(None, 1) ]
         if u[1:] and coord.match(u[0]):
-            vs[u[1]].append(v)
+            vs[_str(u[1])].append(v)
         else:
-            vs[v].append(v)
+            vs[_str(v)].append(v)
     return vs
 
 
