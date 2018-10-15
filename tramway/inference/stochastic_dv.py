@@ -29,7 +29,7 @@ setup = {'name': 'stochastic.dv',
     'provides': 'dv',
     'infer': 'infer_stochastic_DV',
     'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, default=0.03, help='localization error'))),
+        ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
         ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
@@ -114,7 +114,7 @@ def make_regions(cells, index, reverse_index, size=1):
     return regions
 
 
-def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys_prior, \
+def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
     time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, verbose, \
     posterior_info, iter_num=None):
     """
@@ -132,7 +132,7 @@ def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys
         return 0.
     #
 
-    noise_dt = squared_localization_error
+    noise_dt = sigma2
 
     # for all cell
     i = index[j]
@@ -177,7 +177,7 @@ def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys
     if jeffreys_prior:
         if Dj <= 0:
             raise ValueError('non positive diffusivity')
-        priors += 2. * np.log(Dj * dt_mean[j] + squared_localization_error) - np.log(Dj)
+        priors += 2. * np.log(Dj * dt_mean[j] + sigma2) - np.log(Dj)
 
     if time_prior:
         dDdt = cells.time_derivative(i, D, reverse_index)
@@ -197,9 +197,8 @@ def local_dv_neg_posterior(j, x, dv, cells, squared_localization_error, jeffreys
     return result - y0
 
 
-def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, \
-    potential_prior=None, time_prior=None, prior_delay=None, \
-    jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
+def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None, \
+    prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
     export_centers=False, verbose=True, compatibility=False, _stochastic=True, **kwargs):
 
     # initial values
@@ -245,8 +244,8 @@ def infer_stochastic_DV(cells, localization_error=0.03, diffusivity_prior=None, 
                 np.ones(V_initial.size, dtype=bool)])
 
     # posterior function input arguments
-    squared_localization_error = localization_error * localization_error
-    args = (dv, cells, squared_localization_error, jeffreys_prior, time_prior, dt_mean,
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
+    args = (dv, cells, localization_error, jeffreys_prior, time_prior, dt_mean,
         index, reverse_index, grad_kwargs)
 
     # get the initial posterior value so that it is subtracted from the further evaluations (NO)
