@@ -19,7 +19,7 @@ class stopwatch:
         self.end = time.time()
         delta = self.end - self.start
         if self.verbose:
-            print(f'\n{self.name} completed in {round(delta, 1)} s.\n')
+            print('\n{name} completed in {t} s.\n'.format(name=self.name, t=round(delta, 1)))
 
 
 # def stopwatch_dec(func):
