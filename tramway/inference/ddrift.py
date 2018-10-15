@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -24,17 +24,17 @@ from collections import OrderedDict
 
 setup = {'name': ('dd', 'ddrift'),
     'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, default=0.03, help='localization error'))),
+        ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed'))))}
 
 
-def dd_neg_posterior(x, dd, cell, squared_localization_error, jeffreys_prior, dt_mean, min_diffusivity):
+def dd_neg_posterior(x, dd, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivity):
     dd.update(x)
     D, drift = dd['D'], dd['drift']
     if D < min_diffusivity:
         warn(DiffusivityWarning(D, min_diffusivity))
-    noise_dt = squared_localization_error
+    noise_dt = sigma2
     n = len(cell) # number of translocations
     denominator = 4. * (D * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
     dr_minus_drift_dt = cell.dr - np.outer(cell.dt, drift)
@@ -42,12 +42,14 @@ def dd_neg_posterior(x, dd, cell, squared_localization_error, jeffreys_prior, dt
     ndsd = np.sum(dr_minus_drift_dt * dr_minus_drift_dt, axis=1)
     neg_posterior = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
     if jeffreys_prior:
-        neg_posterior += 2. * log(D * dt_mean + squared_localization_error)
+        neg_posterior += 2. * log(D * dt_mean + sigma2)
     return neg_posterior
 
 
-def infer_DD(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivity=None, **kwargs):
+def infer_DD(cells, localization_error=None, jeffreys_prior=False, min_diffusivity=None, **kwargs):
     if isinstance(cells, Distributed): # multiple cells
+        localization_error = cells.get_localization_error(kwargs, 0.03, True, \
+                localization_error=localization_error)
         if min_diffusivity is None:
             if jeffreys_prior:
                 min_diffusivity = 0.01
@@ -84,9 +86,8 @@ def infer_DD(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivi
                 print(kwargs['bounds'])
             kwargs['bounds'] = [(min_diffusivity, None)] + [(None, None)] * cell.dim
         #cell.cache = None # no cache needed
-        sle = localization_error * localization_error # sle = squared localization error
         result = minimize(dd_neg_posterior, dd.combined, \
-            args=(dd, cell, sle, jeffreys_prior, dt_mean, min_diffusivity), \
+            args=(dd, cell, localization_error, jeffreys_prior, dt_mean, min_diffusivity), \
             **kwargs)
         #dd.update(result.x)
         #return (dd['D'], dd['drift'])

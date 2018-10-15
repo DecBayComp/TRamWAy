@@ -25,7 +25,7 @@ from collections import OrderedDict
 setup = {'name': ('smooth.dd', 'smooth.ddrift'),
     'provides': ('dd', 'ddrift'),
     'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, default=0.03, help='localization error'))),
+        ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, default=1., help='prior on the diffusivity'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
@@ -34,7 +34,7 @@ setup = {'name': ('smooth.dd', 'smooth.ddrift'),
     'cell_sampling': 'group'}
 
 
-def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivity_prior,
+def smooth_dd_neg_posterior(x, dd, cells, sigma2, diffusivity_prior,
         jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs):
     # extract `D` and `drift`
     dd.update(x)
@@ -44,7 +44,7 @@ def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivit
         observed_min = np.min(D)
         if observed_min < min_diffusivity and not np.isclose(observed_min, min_diffusivity):
             warn(DiffusivityWarning(observed_min, min_diffusivity))
-    noise_dt = squared_localization_error
+    noise_dt = sigma2
     # for all cell
     result = 0.
     for j, i in enumerate(index):
@@ -62,11 +62,11 @@ def smooth_dd_neg_posterior(x, dd, cells, squared_localization_error, diffusivit
             # `grad_sum` memoizes and can be called several times at no extra cost
             result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
     if jeffreys_prior:
-        result += 2. * np.sum(np.log(D * dt_mean + squared_localization_error))
+        result += 2. * np.sum(np.log(D * dt_mean + sigma2))
     return result
 
 
-def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffreys_prior=False,
+def infer_smooth_DD(cells, diffusivity_prior=1., jeffreys_prior=False,
     min_diffusivity=None, max_iter=None, epsilon=None, **kwargs):
 
     # initial values
@@ -93,8 +93,8 @@ def infer_smooth_DD(cells, localization_error=0.03, diffusivity_prior=1., jeffre
 
     # run the optimization
     #cell.cache = None # no cache needed
-    sle = localization_error * localization_error # sle = squared localization error
-    args = (dd, cells, sle, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
+    args = (dd, cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
     result = minimize(smooth_dd_neg_posterior, dd.combined, args=args, **kwargs)
 
     # collect the result

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -23,13 +23,13 @@ from collections import OrderedDict
 
 
 setup = {'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, default=0.03, help='localization error'))),
+        ('localization_error',  ('-e', dict(type=float, help='localization precision (see sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('debug',       dict(action='store_true'))))}
 
 
-def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, dt_mean, min_diffusivity):
+def df_neg_posterior(x, df, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivity):
     """
     Adapted from InferenceMAP's *dfPosterior* procedure:
 
@@ -55,7 +55,7 @@ def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, dt
     D, F = df['D'], df['F']
     if D < min_diffusivity:
         warn(DiffusivityWarning(D, min_diffusivity))
-    noise_dt = squared_localization_error
+    noise_dt = sigma2
     n = len(cell) # number of translocations
     D_dt = D * cell.dt
     denominator = 4. * (D_dt + noise_dt) # 4*(D+Dnoise)*dt
@@ -65,15 +65,17 @@ def df_neg_posterior(x, df, cell, squared_localization_error, jeffreys_prior, dt
     neg_posterior = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
     if jeffreys_prior:
         try:
-            neg_posterior += 2. * (log(D * dt_mean + squared_localization_error) - log(D))
+            neg_posterior += 2. * (log(D * dt_mean + sigma2) - log(D))
         except ValueError as e: # math domain error
             warn(DiffusivityWarning(e))
     return neg_posterior
 
 
-def infer_DF(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivity=None, debug=False,
+def infer_DF(cells, localization_error=None, jeffreys_prior=False, min_diffusivity=None, debug=False, \
         **kwargs):
     if isinstance(cells, Distributed): # multiple cells
+        localization_error = cells.get_localization_error(kwargs, 0.03, True, \
+                localization_error=localization_error)
         if min_diffusivity is None:
             if jeffreys_prior:
                 min_diffusivity = 0.01
@@ -123,9 +125,8 @@ def infer_DF(cells, localization_error=0.03, jeffreys_prior=False, min_diffusivi
                 print(kwargs['bounds'])
             kwargs['bounds'] = [(min_diffusivity, None)] + [(None, None)] * cell.dim
         #cell.cache = None # no cache needed
-        sle = localization_error * localization_error # sle = squared localization error
         result = minimize(df_neg_posterior, df.combined, \
-            args=(df, cell, sle, jeffreys_prior, dt_mean, min_diffusivity), \
+            args=(df, cell, localization_error, jeffreys_prior, dt_mean, min_diffusivity), \
             **kwargs)
         #df.update(result.x)
         #return (df['D'], df['F'])

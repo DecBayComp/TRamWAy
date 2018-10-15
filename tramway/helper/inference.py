@@ -48,7 +48,7 @@ class Infer(Helper):
             data = self.input_maps
         else:
             self.cells, = data
-            if self.input_label is not None and self.label_is_absolute(self.input_label):
+            if self.explicit_input_label and self.label_is_absolute(self.input_label):
                 analysis = self.analyses
                 for label in self.input_label:
                     analysis = analysis[label]
@@ -150,16 +150,21 @@ class Infer(Helper):
             for i in cells:
                 cell = cells[i]
                 for k in maps:
-                    val = maps[k].loc[i].values
-                    if np.isscalar(val):
-                        val = val.tolist()
+                    try:
+                        val = maps[k].loc[i].values
+                    except KeyError:
+                        val = None
+                    else:
+                        if np.isscalar(val):
+                            val = val.tolist()
                     kwargs[k] = val
                 overloaded_cells[i] = OverloadedCell(cell, **kwargs)
             cells.cells = overloaded_cells
         return cells
 
     def infer(self, cells, worker_count=None, profile=None, min_diffusivity=None, \
-            localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
+            localization_error=None, sigma=None, sigma2=None, \
+            diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
             comment=None, verbose=None, **kwargs):
         if verbose is None:
             verbose = self.verbose
@@ -167,7 +172,7 @@ class Infer(Helper):
         runtime = time.time()
 
         args = self.setup.get('arguments', {})
-        for arg in ('localization_error', 'diffusivity_prior', 'potential_prior',
+        for arg in ('localization_error', 'sigma', 'sigma2', 'diffusivity_prior', 'potential_prior',
                 'jeffreys_prior', 'min_diffusivity', 'worker_count', 'verbose'):
             try:
                 args[arg]

@@ -46,7 +46,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=0.0, rel_loc_error=rel_loc_error)
         true_res = 3.496167136E-23
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for E = 0")
 
         # >> Check result with 0 break points <<
@@ -63,7 +63,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 3.182820939E-23
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for 0 break points. The obtained value %.2g does not match the expected %.2g" % (res, true_res))
 
         # >> Check result with 1 break points <<
@@ -78,7 +78,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 1.457477573E-28
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for 1 break points. The obtained value %.2g does not match the expected %.2g" % (res, true_res))
 
         # >> Check result with 2 break points <<
@@ -93,7 +93,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 6.019713659E-14
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for 2 break points. The obtained value %.8g does not match the expected %.8g" % (res, true_res))
 
         # >> Check the result with zeta_sp = 0 <<
@@ -108,7 +108,7 @@ class bayes_test(unittest.TestCase):
         res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
                                               p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error)
         true_res = 1.145033778E-17
-        self.assertTrue(math.isclose(res, true_res, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for zeta_sp = 0. The obtained value %.8g does not match the expected %.8g" % (res, true_res))
 
     def test_bayes_factors(self):
@@ -126,7 +126,7 @@ class bayes_test(unittest.TestCase):
         true_B = 0.2974282533
 
         # Check value
-        self.assertTrue(math.isclose(10**lg_Bs[0], true_B, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(10**lg_Bs[0], true_B, rtol=self.rel_tol, atol=self.tol),
                         "Bayes factor calculation failed for one bin. The obtained B = %.8g does not match the expected B = %.8g" % (10**lg_Bs[0, 0], true_B))
         # Check force presence
         self.assertTrue((true_B >= self.B_threshold) ==
@@ -145,7 +145,7 @@ class bayes_test(unittest.TestCase):
         true_B = 0.2974282533
 
         # Check value
-        self.assertTrue(math.isclose(10**lg_Bs[0], true_B, rel_tol=self.rel_tol, abs_tol=self.tol),
+        self.assertTrue(np.isclose(10**lg_Bs[0], true_B, rtol=self.rel_tol, atol=self.tol),
                         "Bayes factor calculation failed for one bin. The obtained B = %.8g does not match the expected B = %.8g" % (10**lg_Bs[0, 0], true_B))
         # Check force presence
         self.assertTrue((true_B >= self.B_threshold) ==

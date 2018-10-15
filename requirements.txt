@@ -3,4 +3,4 @@ numpy
 scipy
 pandas
 matplotlib
-rwa-python>=0.7.5
+rwa-python>=0.8

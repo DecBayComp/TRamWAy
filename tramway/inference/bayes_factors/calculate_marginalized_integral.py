@@ -37,7 +37,7 @@ def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error):
     def arg(l):
         """lambda-dependent argument of the gamma function and the second term."""
         diff = l * zeta_sp - zeta_t
-        return v + E * (diff @ diff.T)
+        return v + E * np.matmul(diff, diff.T) # the @ operator raises a syntax error in Py2
 
     def get_integrate_me():
         """Function to integrate with and without localization error."""

@@ -7,8 +7,7 @@ import warnings
 
 # from multiprocessing import Pool
 import numpy as np
-import scipy
-
+import scipy.optimize
 from .calculate_marginalized_integral import calculate_marginalized_integral
 from .convenience_functions import n_pi_func
 from .convenience_functions import p as pow

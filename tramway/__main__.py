@@ -175,7 +175,7 @@ def _dump_rwa(args):
             inferencemap.export_file(input_files[0], label=labels, **kwargs)
         else:
             for input_file in input_files:
-                print(' -> '.join(['in '+input_file] + labels) + ':')
+                print(' -> '.join(['in '+input_file] + [ str(l) for l in labels ]) + ':')
                 analyses = load_rwa(input_file, lazy=True)
                 for label in labels:
                     analyses = analyses[label]
@@ -422,6 +422,7 @@ def main():
     for arg1, arg2, kwargs in global_arguments:
         map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
     map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+    map_parser.add_argument('-V', '--variable', help='map variable name')
     map_parser.add_argument('-P', '--points', nargs='?', default=False, help='plot the points; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
     map_parser.add_argument('-D', '--delaunay', nargs='?', default=False, help='plot the Delaunay graph; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
     map_parser.add_argument('-cm', '--colormap', help='colormap name (see https://matplotlib.org/users/colormaps.html)')
