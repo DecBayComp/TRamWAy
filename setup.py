@@ -47,6 +47,7 @@ setup(
         'tramway.tessellation.kdtree',
         'tramway.tessellation.kmeans',
         'tramway.inference',
+        'tramway.inference.bayes_factors',
         'tramway.feature',
         'tramway.plot',
         'tramway.plot.tk',
