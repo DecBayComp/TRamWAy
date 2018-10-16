@@ -208,7 +208,8 @@ class Infer(Helper):
             print('{} mode: elapsed time: {}ms'.format(mode, int(round(runtime*1e3))))
         maps.runtime = runtime
 
-        self.insert_analysis(maps, comment=comment)
+        if self.analyses is not None:
+            self.insert_analysis(maps, comment=comment)
 
         return maps
 
@@ -338,9 +339,9 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
     elif helper.input_file:
         if not (return_cells is None or return_cells == 'first'):
             warn("3-element return value will no longer be the default; pass return_cells='first' to maintain this behavior", FutureWarning)
-        return (cells, mode, maps)
+        return (cells, mode, maps.maps)
     else:
-        return maps
+        return maps.maps
 
 
 def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
