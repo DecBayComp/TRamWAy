@@ -333,15 +333,15 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
     helper.save_analyses(output_file, force=force)
 
     if return_cells == True: # NOT `is`
-        return (maps, cells)
+        return maps, cells
     elif return_cells == False:
-        return maps
+        return maps.maps # old
     elif helper.input_file:
         if not (return_cells is None or return_cells == 'first'):
             warn("3-element return value will no longer be the default; pass return_cells='first' to maintain this behavior", FutureWarning)
-        return (cells, mode, maps.maps)
+        return cells, mode, maps.maps # old
     else:
-        return maps.maps
+        return maps # new
 
 
 def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \

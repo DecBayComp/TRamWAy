@@ -203,6 +203,8 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
     export_centers=False, verbose=True, compatibility=False, **kwargs):
 
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
+
     # initial values
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
@@ -250,7 +252,6 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     options.update(kwargs)
 
     # posterior function input arguments
-    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     args = (dv, cells, localization_error, jeffreys_prior, dt_mean,
             index, reverse_index, grad_kwargs)
 
