@@ -37,16 +37,20 @@ class Infer(Helper):
 
     def prepare_data(self, input_data, types=None, labels=None, verbose=None, output_file=None, \
             **kwargs):
+        Cells = (CellStats, Distributed)
         if types is None:
             if labels is None and self.inplace:
-                types = ((CellStats, Distributed), (Maps, ))
+                types = (Cells, (Maps, ))
             else:
-                types = ((CellStats, Distributed), )
+                types = (Cells, )
         data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
         if types[1:]:
             self.cells, self.input_maps = data
             data = self.input_maps
+        elif isinstance(input_data, Cells):
+            self.cells = data
         else:
+            assert isinstance(data, tuple)
             self.cells, = data
             if self.explicit_input_label and self.label_is_absolute(self.input_label):
                 analysis = self.analyses

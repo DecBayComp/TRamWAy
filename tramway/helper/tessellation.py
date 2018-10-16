@@ -312,7 +312,8 @@ class Tessellate(Helper):
             cells.param['partition'] = self.partition_kwargs
 
         # insert the resulting analysis in the analysis tree
-        self.insert_analysis(cells, comment)
+        if self.analyses is not None:
+            self.insert_analysis(cells, comment)
 
         return cells
 
