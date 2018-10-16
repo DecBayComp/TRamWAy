@@ -20,7 +20,6 @@ import tramway.inference as inference # inference.plugins
 from tramway.helper.tessellation import *
 from warnings import warn
 import os
-#from time import time
 import time
 import collections
 import traceback
@@ -165,6 +164,19 @@ class Infer(Helper):
                 overloaded_cells[i] = OverloadedCell(cell, **kwargs)
             cells.cells = overloaded_cells
         return cells
+
+    def insert_mappable_cells(self, cells, label=None, comment=None, anchor=None):
+        if anchor is None:
+            anchor = self.cells
+        # backup output_label
+        output_label = self.output_label
+        if self.label_is_absolute(output_label):
+            raise NotImplementedError('absolute output paths are not supported in combination with store_distributed')
+        self.output_label = None
+        # insert the mappable cells
+        self.input_label = self.insert_analysis(cells, anchor=anchor, label=label, comment=comment)
+        # restore output_label
+        self.output_label = output_label
 
     def infer(self, cells, worker_count=None, profile=None, min_diffusivity=None, \
             localization_error=None, sigma=None, sigma2=None, \
@@ -318,8 +330,10 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
             merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
             dilation=dilation, grad=grad)
     _map = helper.overload_cells(_map)
+
     if store_distributed:
-        raise NotImplementedError('store_distributed is no longer supported')
+        helper.insert_mappable_cells(_map, anchor=cells, \
+            label=None if isinstance(store_distributed, bool) else store_distributed)
 
     if diffusivity_prior is None and priorD is not None:
         diffusivity_prior = priorD
@@ -336,9 +350,7 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
         return maps, cells
     elif return_cells == False:
         return maps.maps # old
-    elif helper.input_file:
-        if not (return_cells is None or return_cells == 'first'):
-            warn("3-element return value will no longer be the default; pass return_cells='first' to maintain this behavior", FutureWarning)
+    elif helper.input_file and return_cells == 'first':
         return cells, mode, maps.maps # old
     else:
         return maps # new
