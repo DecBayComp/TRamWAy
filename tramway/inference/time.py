@@ -133,7 +133,7 @@ class DynamicCells(Distributed):
         else:
             deriv = base._vander(t, np.r_[x0, np.mean(x[u]), np.mean(x[v])])
 
-        return np.asarray(deriv)
+        return deriv
 
 
 __all__ = ['DynamicTranslocations', 'DynamicCells']

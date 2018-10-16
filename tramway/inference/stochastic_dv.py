@@ -161,10 +161,10 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
         #return np.inf
 
     # priors
-    priors = 0.
+    standard_priors, time_priors = 0., 0.
     potential_prior = dv.potential_prior(j)
     if potential_prior:
-        priors += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
+        standard_priors += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
     diffusivity_prior = dv.diffusivity_prior(j)
     if diffusivity_prior:
         D = x[:int(x.size/2)]
@@ -172,20 +172,22 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
         gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
         if gradD is not None:
             # `grad_sum` memoizes and can be called several times at no extra cost
-            priors += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
+            standard_priors += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
     #print('{}\t{}\t{}'.format(i+1, D[j], result))
     if jeffreys_prior:
         if Dj <= 0:
             raise ValueError('non positive diffusivity')
-        priors += 2. * np.log(Dj * dt_mean[j] + sigma2) - np.log(Dj)
+        standard_priors += 2. * np.log(Dj * dt_mean[j] + sigma2) - np.log(Dj)
 
     if time_prior:
         dDdt = cells.time_derivative(i, D, reverse_index)
         # assume fixed-duration time window
-        priors += diffusivity_prior * time_prior * dDdt * dDdt
+        time_priors += diffusivity_prior * time_prior * dDdt * dDdt
         dVdt = cells.time_derivative(i, V, reverse_index)
-        priors += potential_prior * time_prior * dVdt * dVdt
+        time_priors += potential_prior * time_prior * dVdt * dVdt
 
+    priors = standard_priors + time_priors
+    #print((raw_posterior, standard_priors, time_priors, dDdt, dVdt))
     result = raw_posterior + priors
 
     if iter_num is None:
