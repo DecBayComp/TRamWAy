@@ -1,9 +1,9 @@
+# import datetime
 import sys
 from collections import OrderedDict
 
 from .calculate_bayes_factors import (calculate_bayes_factors,
                                       calculate_bayes_factors_for_one_cell)
-
 
 # The package can be imported by just `import bayes_factors`.
 __all__ = ['calculate_bayes_factors', 'calculate_bayes_factors_for_one_cell', 'setup']
@@ -34,8 +34,10 @@ def _bayes_factor(cells, B_threshold=None, **kwargs):
         kwargs['B_threshold'] = B_threshold
 
     # iterate over the cells
-    for i in tqdm(cells):
-        calculate_bayes_factors_for_one_cell(cells[i], localization_error, **kwargs)
+    # print(tqdm)
+    # print('Actually calculating', datetime.datetime.now().time())
+    for key in tqdm(cells):
+        calculate_bayes_factors_for_one_cell(cells[key], localization_error, **kwargs)
 
 
 setup = {
