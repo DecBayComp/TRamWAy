@@ -812,7 +812,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     # figure size
     new_fig = bool(figsize) or (print_figs and figsize is not False)
     if figsize in (None, True):
-        figsize = (16., 12.)
+        figsize = (12., 9.)
 
     # output filenames
     if print_figs:
@@ -952,10 +952,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
         # split time segments, if any
         if with_segments:
-            _vector_map = _cells.tessellation.split_frames(_vector_map)[segment]
             if 'clim' not in var_kwargs:
                 _scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
                 var_kwargs['clim'] = [_scalar_map.values.min(), _scalar_map.values.max()]
+            _vector_map = _cells.tessellation.split_frames(_vector_map)[segment]
 
         if point_style is None:
             tplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)

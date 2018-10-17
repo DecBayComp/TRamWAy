@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -216,7 +216,7 @@ class Gas(Graph):
             self.del_node(node)
 
 
-    def batch_train(self, sample, eta_square=None, radius=None):
+    def batch_train(self, sample, eta_square=None, radius=None, grab=None, max_frames=None, **grab_kwargs):
         """This method grows the gas for a batch of data and implements the core GWR algorithm.
         :meth:`train` should be called instead."""
         if eta_square is None:
@@ -259,12 +259,56 @@ class Gas(Graph):
                         self.habituation(i, 1) * (eta - w))
             # update habituation counters
             self.habituate(nearest) # also habituates neighbors
+            #
+            if grab is not None:
+                if max_frames is None or k < max_frames:
+                    self.grab_frame(grab, **grab_kwargs)
         return errors
 
+    def grab_frame(self, grab, axes=None, color='r', **kwargs):
+        assert axes is not None
+        xlim = axes.get_xlim()
+        ylim = axes.get_ylim()
+        # draw the graph
+        lines = []
+        for n1 in self.iter_nodes():
+            w1 = self.get_weight(n1)
+            for n2 in self.iter_neighbors(n1):
+                w2 = self.get_weight(n2)
+                lines.append(axes.plot([w1[0], w2[0]], [w1[1], w2[1]], color+'-', linewidth=1))
+        #
+        axes.set_xlim(xlim)
+        axes.set_ylim(ylim)
+        axes.set_axis_off()
+        # grab
+        grab.grab_frame()
+        # clear the graph
+        while lines:
+            lines.pop().pop()
+
+    def grab_batch_init(self, grab, sample, i, batch, axes=None, max_frames=None, **kwargs):
+        assert axes is not None
+        n = sample.shape[0]
+        _batch = np.zeros(n, dtype=bool)
+        _batch[batch] = True
+        axes.clear()
+        axes.plot(sample[~_batch,0], sample[~_batch,1], '.', color='lightgray', markersize=1)
+        axes.plot(sample[_batch,0], sample[_batch,1], 'k.', markersize=1)
+        kwargs = dict(axes=axes)
+        if max_frames is not None:
+            kwargs['max_frames'] = max_frames - (i-1)*self.batch_size
+        self.grab_frame(grab, **kwargs)
+        return kwargs
+
+    def grab_completion(self, grab, sample, axes=None, **kwargs):
+        assert axes is not None
+        axes.clear()
+        axes.plot(sample[:,0], sample[:,1], '.', color='lightgray', markersize=1)
+        self.grab_frame(grab, axes, 'k')
 
     def train(self, sample, pass_count=None, residual_max=None, error_count_tol=1e-6, \
         min_growth=None, collapse_tol=None, stopping_criterion=2, verbose=False, \
-        plot=False, **kwargs):
+        plot=False, grab=None, **kwargs):
         """
         Grow the gas.
 
@@ -327,6 +371,14 @@ class Gas(Graph):
             eta_square = np.sum(sample * sample, axis=1)
             radius = self.boxed_radius(sample, self.knn, self.insertion_threshold[0], \
                 self.insertion_threshold[1], verbose, plot)
+        # grab
+        batch_kwargs = {}
+        if grab is not None:
+            batch_kwargs['grab'] = grab
+            if sample.shape[1] != 2:
+                raise ValueError('cannot grab data that are not 2D')
+            max_frames = kwargs.get('max_frames', None)
+            max_batches = kwargs.get('max_batches', None)
         # loop
         t = []
         i = 0
@@ -336,10 +388,22 @@ class Gas(Graph):
             if verbose:
                 t0 = time.time()
             batch = np.random.choice(n, size=self.batch_size)
+            # grab
+            if grab is not None:
+                if max_batches is None or i <= max_batches:
+                    batch_kwargs.update(self.grab_batch_init(grab, sample, i, batch, **kwargs))
+                    if 1 < i and \
+                            (max_frames is None or \
+                                (max_batches is not None and \
+                                    max_frames <= (i-1)*self.batch_size)):
+                        batch_kwargs = {}
+                else:
+                    batch_kwargs = {}
+            #
             if self.knn:
-                r = self.batch_train(sample[batch], eta_square[batch], radius[batch])
+                r = self.batch_train(sample[batch], eta_square[batch], radius[batch], **batch_kwargs)
             else:
-                r = self.batch_train(sample[batch])
+                r = self.batch_train(sample[batch], **batch_kwargs)
             residuals += r
             l_prev = l
             l = self.size
@@ -405,6 +469,8 @@ class Gas(Graph):
             t = np.asarray(t)
             print('Elapsed:  mean: {:.0f} ms  std: {:.0f} ms'.format(np.mean(t) * 1e3, \
                                     np.std(t) * 1e3))
+        if grab is not None and (max_frames is None or max_frames < sample.shape[0]):
+            self.grab_completion(grab, sample, **kwargs)
         return residuals
 
 
