@@ -1657,7 +1657,12 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            hull[j] = scipy.spatial.qhull.ConvexHull(_points)
+            try:
+                hull[j] = scipy.spatial.qhull.ConvexHull(_points)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as e:
+                warn(str(e), RuntimeWarning)
 
         if points.size == 0:
             J[j] = False
