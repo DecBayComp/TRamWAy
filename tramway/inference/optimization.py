@@ -307,7 +307,10 @@ def minimize_sgbfgs(minibatch, fun, x0, args=(), join=np.sum, eta0=1., c=1., l=0
             if verbose:
                 cumt += time.time() - t0
                 try:
-                    f1 = f(x, np.arange(ncomps))#rows)
+                    fkwargs['verbose'] = True
+                    f1 = f(x, rows)
+                    del fkwargs['verbose']
+                    #f1 = f(x, np.arange(ncomps))#rows)
                 except ValueError as e:
                     print(msg2(t, 'ValueError', e.args[0]))
                 else:

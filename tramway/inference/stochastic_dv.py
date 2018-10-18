@@ -115,8 +115,8 @@ def make_regions(cells, index, reverse_index, size=1):
 
 
 def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
-    time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, verbose, \
-    posterior_info, iter_num=None):
+    time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, \
+    posterior_info, iter_num=None, verbose=False):
     """
     """
 
@@ -187,9 +187,10 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
         time_priors += potential_prior * time_prior * dVdt * dVdt
 
     priors = standard_priors + time_priors
-    #print((raw_posterior, standard_priors, time_priors, dDdt, dVdt))
     result = raw_posterior + priors
 
+    if verbose:
+        print((i, raw_posterior, standard_priors, time_priors))
     if iter_num is None:
         info = [i, raw_posterior, result]
     else:
@@ -257,7 +258,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     #if verbose:
     #    print('At X0\tactual posterior= {}\n'.format(x0))
     x0 = 0.
-    args = args + (x0 / float(m), 1 < int(verbose), posterior_info)
+    args = args + (x0 / float(m), posterior_info) #1 < int(verbose),
 
     dv.regions = make_regions(cells, index, reverse_index)
 
