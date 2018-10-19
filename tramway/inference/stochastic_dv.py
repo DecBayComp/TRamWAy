@@ -114,6 +114,13 @@ def make_regions(cells, index, reverse_index, size=1):
     return regions
 
 
+def verbose_local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
+    time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, \
+    posterior_info, iter_num=None):
+    return local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
+        time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, \
+        posterior_info, iter_num, True)
+
 def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
     time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, \
     posterior_info, iter_num=None, verbose=False):
@@ -294,9 +301,11 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     #if 'tau' not in obfgs_kwargs:
     #    obfgs_kwargs['tau'] = 10. * float(D_initial.size)
     #obfgs_kwargs['c'] = .1
-    if 'ncomps' not in obfgs_kwargs:
-        obfgs_kwargs['ncomps'] = m
-    result = minimize_sgbfgs(sample, local_dv_neg_posterior, dv.combined, args, **obfgs_kwargs)
+    #if 'ncomps' not in obfgs_kwargs:
+    #    obfgs_kwargs['ncomps'] = m
+    if verbose:
+        obfgs_kwargs['alt_fun'] = verbose_local_dv_neg_posterior
+    result = minimize_sbfgs(sample, local_dv_neg_posterior, dv.combined, args, **obfgs_kwargs)
     #if not (result.success or verbose):
     #    warn('{}'.format(result.message), OptimizationWarning)
 
