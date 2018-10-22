@@ -104,6 +104,8 @@ class Helper(object):
         else:
             assert labels is None
             available_labels = list(analysis.labels)
+            # TODO: recursive search
+            # for now, `labels` is required
             while available_labels and not available_labels[1:]:
                 _label = available_labels[0]
                 _labels.append(_label)
@@ -238,7 +240,8 @@ class Helper(object):
             self.name = name
         return self.module, self.setup
 
-    def insert_analysis(self, analysis_or_artefact, comment=None, anchor=None):
+    def insert_analysis(self, analysis_or_artefact, label=None, comment=None, anchor=None):
+        labels = None
         if isinstance(analysis_or_artefact, Analyses):
             artefact = analysis_or_artefact.data
             analysis = analysis_or_artefact
@@ -248,44 +251,53 @@ class Helper(object):
         if self.analyses is None:
             raise RuntimeError('no root analysis')
         if anchor:
-            labels, input_analysis = self.find(anchor, return_subtree=True)
+            labels, input_analysis = self.find(anchor, return_subtree=True,
+                labels=label if self.label_is_absolute(label) else None)
             if input_analysis is None:
                 raise ValueError('anchor not found')
-            if self.label_is_absolute(self.output_label):
-                if labels == self.output_label[:-1]:
-                    label = self.output_label[-1]
+            if label is None:
+                label = self.output_label
+            if self.label_is_absolute(label):
+                if labels == label[:-1]:
+                    label = label[-1]
                 else:
                     raise ValueError('output labels do not match with anchor artefact')
-            else:
-                label = self.output_label
         else:
             input_analysis = self.analyses
-            if self.label_is_absolute(self.output_label):
+            if label is None:
+                label = self.output_label
+            if self.label_is_absolute(label):
                 # output_label is absolute path; forget input_label
-                prefix_labels = list(self.output_label)
-                label = prefix_labels.pop() # terminal label
-                for _label in prefix_labels:
+                labels = list(label)
+                label = labels.pop() # terminal label
+                for _label in labels:
                     input_analysis = input_analysis.instances[_label]
             else:
-                label = self.output_label
-                if self.input_label is not None:
+                labels = self.input_label
+                if labels is not None:
                     # input_label is absolute path, even if it is not formatted correspondingly
-                    if not self.label_is_absolute(self.input_label):
-                        self.input_label = [ self.input_label ]
-                    for _label in self.input_label:
+                    if self.label_is_absolute(labels):
+                        labels = list(labels)
+                    else:
+                        self.input_label = labels = [ labels ]
+                    #
+                    for _label in labels:
                         input_analysis = input_analysis.instances[_label]
-        if label is not None and label in input_analysis.labels:
+        if label is not None and label in input_analysis.labels and self.inplace:
             # `input_analysis[label]` already exists
-            if self.inplace:
-                if comment:
-                    input_analysis.comments[label] = comment
-                input_analysis = input_analysis.instances[label]
-                input_analysis.artefact = artefact
-            else:
-                input_analysis.add(analysis, label=label, comment=comment)
+            if comment:
+                input_analysis.comments[label] = comment
+            input_analysis = input_analysis.instances[label]
+            input_analysis.artefact = artefact
         else:
+            label = input_analysis.autoindex(label)
             input_analysis.add(analysis, label=label, comment=comment)
         # self.analyses is implicitly updated
+        if labels is None:
+            return [label]
+        else:
+            labels.append(label)
+            return labels
 
     def save_analyses(self, output_file=None, verbose=None, force=None, **kwargs):
         if verbose is None:

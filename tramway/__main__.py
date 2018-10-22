@@ -74,7 +74,7 @@ def _render_cells(args):
     if hist is None: hist = ''
     if delaunay:
         kwargs['xy_layer'] = 'delaunay'
-    del kwargs['min_location_count']
+    #del kwargs['min_location_count']
     cell_plot(input_file, output_file=output_file, fig_format=fig_format, figsize=True, \
         location_count_hist='c' in hist, cell_dist_hist='d' in hist, \
         location_dist_hist='p' in hist, **kwargs)
@@ -406,10 +406,14 @@ def main():
     for arg1, arg2, kwargs in global_arguments:
         cells_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
     cells_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
-    cells_parser.add_argument('-s', '--min-location-count', type=int, default=20, \
+    cells_parser.add_argument('-s', '--min-location-count', type=int, \
         help='minimum number of locations per cell')
+    cells_parser.add_argument('--min-distance', type=float, \
+        help='minimum distance between neighbour cells (for histograms)')
+    cells_parser.add_argument('--avg-distance', type=float, \
+        help='average distance between neighbour cells (for histograms)')
     cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
-    cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighboring centers) and 'p' (distance between any pair of locations from distinct neighboring centers); DEPRECATED")
+    cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighbouring centers) and 'p' (distance between any pair of locations from distinct neighbouring centers)")
     cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
     try:
         cells_parser.add_argument('input_file', nargs='?', help='path to input file')

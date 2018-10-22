@@ -1122,7 +1122,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
     show=None, verbose=False, figsize=None, dpi=None, \
     location_count_hist=False, cell_dist_hist=False, location_dist_hist=False, \
     aspect=None, delaunay=None, locations={}, voronoi=None, colors=None, title=None, \
-    cell_indices=None, segment=None, label=None, input_label=None, num = None):
+    cell_indices=None, segment=None, label=None, input_label=None, num = None, \
+    **kwargs):
     """
     Partition plots.
 
@@ -1356,16 +1357,25 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
     if complementary_plots:
         warn('complementary plots will be removed in a future release', DeprecationWarning)
-        min_distance = cells.param.get('min_distance', 0)
-        avg_distance = cells.param.get('avg_distance', None)
+        try:
+            min_distance = kwargs['min_distance']
+        except KeyError:
+            min_distance = cells.param['tessellation'].get('min_distance', 0)
+        try:
+            avg_distance = kwargs['avg_distance']
+        except KeyError:
+            avg_distance = cells.param['tessellation'].get('avg_distance', None)
     try:
-        min_location_count = cells.param['min_location_count']
-    except (KeyError, AttributeError):
-        min_location_count = 0
+        min_location_count = kwargs['min_location_count']
+    except KeyError:
+        try:
+            min_location_count = cells.param['tessellation']['min_location_count']
+        except (KeyError, AttributeError):
+            min_location_count = 0
 
     print_figs = output_file or (input_file and fig_format)
     if (print_figs and figsize is None) or figsize is True:
-        figsize = (16., 12.)
+        figsize = (12., 9.)
 
     # import graphics libraries with adequate backend
     if print_figs:
@@ -1386,7 +1396,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             dim = cells.dim
         except AttributeError:
             raise e
-    if dim == 2:
+    fig = None
+    if dim == 2 and not complementary_plots:
         if figs or figsize is not None or num is not None:
             fig = mplt.figure(figsize=figsize, dpi=dpi, num = num)
         else:
@@ -1443,7 +1454,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         subname, subext = os.path.splitext(filename)
         if subext and subext[1:] in ['imt']: # very old file format
             filename = subname
-        if dim == 2:
+        if fig is not None:
             vor_file = '{}.{}'.format(filename, figext)
             if verbose:
                 print('writing file: {}'.format(vor_file))
@@ -1483,8 +1494,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         if avg_distance:
             dmin = np.log(min_distance)
             dmax = np.log(avg_distance)
-            mplt.plot((dmin, dmin), mplt.ylim(), 'r-')
-            mplt.plot((dmax, dmax), mplt.ylim(), 'r-')
+            ylim = mplt.ylim()
+            mplt.plot((dmin, dmin), ylim, 'r-')
+            mplt.plot((dmax, dmax), ylim, 'r-')
         mplt.title(method_title)
         mplt.xlabel('inter-centroid distance (log)')
         if print_figs:
@@ -1502,8 +1514,9 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         if avg_distance:
             dmin = np.log(min_distance)
             dmax = np.log(avg_distance)
-            mplt.plot((dmin, dmin), mplt.ylim(), 'r-')
-            mplt.plot((dmax, dmax), mplt.ylim(), 'r-')
+            ylim = mplt.ylim()
+            mplt.plot((dmin, dmin), ylim, 'r-')
+            mplt.plot((dmax, dmax), ylim, 'r-')
         mplt.title(method_title)
         mplt.xlabel('inter-point distance (log)')
         if print_figs:

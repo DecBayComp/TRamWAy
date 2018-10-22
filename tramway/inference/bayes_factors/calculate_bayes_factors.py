@@ -3,11 +3,13 @@
 # Copyright © 2018, Alexander Serov
 
 
+import logging
 import warnings
 
 # from multiprocessing import Pool
 import numpy as np
 import scipy.optimize
+
 from .calculate_marginalized_integral import calculate_marginalized_integral
 from .convenience_functions import n_pi_func
 from .convenience_functions import p as pow
@@ -52,7 +54,8 @@ def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10,
         V_pi=cell.V_prior,
         loc_error=loc_error,
         dim=dim,
-        bl_need_min_n=True)
+        bl_need_min_n=True,
+        B_threshold=B_threshold)
 
     return [cell.lg_B, cell.force, cell.min_n]
 
@@ -108,6 +111,11 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
 
 def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_threshold=10, bl_need_min_n=True):
     """Calculate the Bayes factor for one bin."""
+
+    # Check if None is present
+    if any(var is None for var in [zeta_t, zeta_sp, n, V, V_pi, loc_error]):
+        logging.info('None values encountered in cell. Skipping cell.')
+        return [np.nan] * 3
 
     # Parameter combinations
     n_pi = n_pi_func(dim)
@@ -180,7 +188,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
             break
 
     if not bl_found:
-        warnings.warn("Unable to find the minimal number of data points to provide strong evidence.")
+        logging.warn("Unable to find the minimal number of data points to provide strong evidence.")
         return -1
 
     # Find a more accurate location

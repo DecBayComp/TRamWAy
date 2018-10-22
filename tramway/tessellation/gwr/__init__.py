@@ -93,7 +93,8 @@ class GasMesh(Voronoi):
 
     def tessellate(self, points, pass_count=(), residual_factor=.7, error_count_tol=5e-3, \
         min_growth=1e-4, collapse_tol=.01, stopping_criterion=0, verbose=False, \
-        plot=False, alpha_risk=1e-15, **kwargs):
+        plot=False, alpha_risk=1e-15, grab=None, max_frames=None, max_batches=None, axes=None, \
+        **kwargs):
         """Grow the tessellation.
 
         Arguments:
@@ -149,7 +150,8 @@ class GasMesh(Voronoi):
             min_growth=min_growth, \
             collapse_tol=collapse_tol, \
             stopping_criterion=stopping_criterion, \
-            verbose=verbose, plot=plot)
+            verbose=verbose, plot=plot, \
+            grab=grab, max_frames=max_frames, max_batches=max_batches, axes=axes)
         # build alternative representation of the gas (or Delaunay graph)
         [self._cell_adjacency, V, _] = self.gas.export()
         self._cell_centers = V['weight']
