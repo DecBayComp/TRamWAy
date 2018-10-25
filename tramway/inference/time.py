@@ -44,26 +44,33 @@ class DynamicTranslocations(Translocations):
 class DynamicCells(Distributed):
 
     def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None,
-        boundary=None, temporal_adjacency=None):
+        boundary=None, spatial_adjacency=None, temporal_adjacency=None):
         Distributed.__init__(self, cells, adjacency, index, center, span, central, boundary)
-        if temporal_adjacency is None and adjacency.dtype not in (bool, np.bool_):
+        if temporal_adjacency is None and spatial_adjacency is None and \
+                adjacency.dtype not in (bool, np.bool_):
             # separate spatial adjacency and temporal adjacency
             A = adjacency.tocoo()
             ok = 1 < A.data
             temporal_adjacency = sparse.csr_matrix((np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape)
-            spatial_adjacency = adjacency
-            spatial_adjacency.data = spatial_adjacency.data == 1
-            spatial_adjacency.eliminate_zeros()
-            self.spatial_adjacency = spatial_adjacency
+            ok = A.data == 1
+            spatial_adjacency = sparse.csr_matrix((np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape)
+        self.spatial_adjacency = spatial_adjacency
         self.temporal_adjacency = temporal_adjacency
 
-    @property
-    def spatial_adjacency(self):
-        return self.adjacency
+    def neighbours(self, i):
+        """
+        Indices of spatially-neighbour cells.
 
-    @spatial_adjacency.setter
-    def spatial_adjacency(self, matrix):
-        self.adjacency = matrix
+        Argument:
+
+            i (int): cell index.
+
+        Returns:
+
+            numpy.ndarray: indices of the neighbour cells of cell *i*.
+
+        """
+        return self.spatial_adjacency.indices[self.spatial_adjacency.indptr[i]:self.spatial_adjacency.indptr[i+1]]
 
     def time_derivative(self, i, X, index_map=None, **kwargs):
         cell = self.cells[i]

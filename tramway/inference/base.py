@@ -2195,6 +2195,11 @@ def _poly2_deriv_eval(W, X):
 def neighbours_per_axis(i, cells, eps=None, centers=None):
     """
     """
+    try:
+        A = cells.spatial_adjacency
+    except AttributeError:
+        A = cells.adjacency
+
     if centers is None:
         centers = np.vstack([ cells[j].center for j in cells.neighbours(i) ])
 
@@ -2206,7 +2211,7 @@ def neighbours_per_axis(i, cells, eps=None, centers=None):
     if eps is None:
         # InferenceMAP-compatible gradient
 
-        if cells.adjacency.dtype == bool:
+        if A.dtype == bool:
             # divide the space in non-overlapping region and
             # assign each neighbour to a single region;
             # assign each pair of symmetric regions to a single
@@ -2218,17 +2223,17 @@ def neighbours_per_axis(i, cells, eps=None, centers=None):
                 below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
                 above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
 
-        elif cells.adjacency.dtype == int:
+        elif A.dtype == int:
             # neighbour cells are already classified
             # as left (-1), right (1), top (2) or bottom (-2), etc
             # in the adjacency matrix
-            code = cells.adjacency.data[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] - 1
+            code = A.data[A.indptr[i]:A.indptr[i+1]] - 1
             for j in range(cell.dim):
                 below[ j, code == -j ] = True
                 above[ j, code ==  j ] = True
 
         else:
-            raise TypeError('{} adjacency labels are not supported'.format(cells.adjacency.dtype))
+            raise TypeError('{} adjacency labels are not supported'.format(A.dtype))
 
     else:
         # along each dimension, divide the space in half-spaces

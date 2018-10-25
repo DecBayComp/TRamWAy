@@ -277,7 +277,7 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
                 g = df(x, rows)
 
             #
-            if g is None:
+            if g is None or np.all(g == 0):
                 x = x2
                 if verbose:
                     print(msg2(t, 'GRADIENT CALCULATION FAILED (t)'))

@@ -100,6 +100,7 @@ class LocalDV(DV):
 
 
 def make_regions(cells, index, reverse_index, size=1):
+    A = cells.adjacency
     regions = []
     for i in index:
         j = set([i.tolist()])
@@ -108,7 +109,8 @@ def make_regions(cells, index, reverse_index, size=1):
             j_outer = j - j_inner
             j_inner = j
             for l in j_outer:
-                j |= set(cells.neighbours(l).tolist())
+                neighbours = A.indices[A.indptr[l]:A.indptr[l+1]] # NOT cells.neighbours(l)
+                j |= set(neighbours.tolist())
         j = reverse_index[list(j)]
         regions.append(j)
     return regions

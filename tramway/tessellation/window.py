@@ -66,7 +66,7 @@ class SlidingWindow(TimeLattice):
         nsegments = np.round((t1 - t0 - duration) / shift) + 1.
         t1 = t0 + (nsegments - 1.) * shift + duration
         t0s = np.arange(t0, t1 - duration + dt, shift)
-        t1s = t0s + duration + dt
+        t1s = t0s + duration
         self.time_lattice = np.stack((t0s, t1s), axis=-1)
         return TimeLattice.cell_index(self, points, *args, **kwargs)
 
