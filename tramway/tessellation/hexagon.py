@@ -84,6 +84,7 @@ class HexagonalMesh(Voronoi):
         #
         lower_bound = kwargs.get('lower_bound', pts.min(axis=0))
         upper_bound = kwargs.get('upper_bound', pts.max(axis=0))
+        x0, y0 = (lower_bound + upper_bound) * .5
         size = upper_bound - lower_bound
         hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
         if self.avg_probability:
@@ -101,8 +102,8 @@ class HexagonalMesh(Voronoi):
                 dy = 1.5 * hex_side# * (2. - hex_sin)
                 m = int(ceil(size[0] / dx))
                 n = int(ceil((size[1] + 2. * (hex_side * hex_sin - hex_radius)) / dy) + 1)
-                lower_center_x = -.5 * float(m - 1) * dx
-                lower_center_y = -.5 * float(n - 1) * dy
+                lower_center_x = x0 -.5 * float(m - 1) * dx
+                lower_center_y = y0 -.5 * float(n - 1) * dy
                 centers = []
                 for k in range(n):
                     _centers_x = lower_center_x + float(k % 2) * hex_radius + dx * np.arange(m + 1 - (k % 2))
@@ -128,8 +129,8 @@ class HexagonalMesh(Voronoi):
             dy = 1.5 * hex_side# * (2. - hex_sin)
             m = int(ceil(size[0] / dx))
             n = int(ceil((size[1] + 2. * (hex_side * hex_sin - hex_radius)) / dy) + 1)
-            lower_center_x = -.5 * float(m) * dx
-            lower_center_y = -.5 * float(n - 1) * dy
+            lower_center_x = x0 -.5 * float(m) * dx
+            lower_center_y = y0 -.5 * float(n - 1) * dy
             centers = []
             for k in range(n):
                 _centers_x = lower_center_x + float(k % 2) * hex_radius + dx * np.arange(m + 1 - (k % 2))
