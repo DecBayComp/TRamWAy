@@ -28,17 +28,17 @@ try:
     from unittest.mock import MagicMock
 except ImportError as e: # Py2
     try:
-    from mock import Mock as MagicMock
+        from mock import Mock as MagicMock
     except ImportError:
-    print(e)
-    mock_ok = False
+        print(e)
+        mock_ok = False
 
 if mock_ok:
     class Mock(MagicMock):
-    __all__ = []
-    @classmethod
-    def __getattr__(cls, name):
-        return MagicMock()
+        __all__ = []
+        @classmethod
+        def __getattr__(cls, name):
+            return MagicMock()
 
     MOCK_MODULES = ['rwa', 'rwa.lazy']
     sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)

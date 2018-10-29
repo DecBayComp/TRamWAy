@@ -36,10 +36,12 @@ The first step consists of tessellating the space and partitioning the data poin
 
 ``-i`` takes the input data file, the ``kmeans`` subcommand is the tessellation method and ``-l`` specifies a label to attach to the analysis for further reference.
 
-The available methods are:
+Some of the available spatial methods are:
 
+* ``random``: Voronoi tessellation based on random cell centers.
 * ``grid``: regular grid with equally sized square or cubic areas.
 * ``kdtree``: kd-tree tessellation with midpoint splits.
+* ``hexagon``: hexagonal grid with equally sized hexagons (2D only).
 * ``kmeans``: tessellation based on the k-means clustering algorithm.
 * ``gwr`` (or ``gas``): tessellation based on the Growing-When-Required self-organizing gas.
 
@@ -116,6 +118,10 @@ To overlay the Delaunay graph instead of the Voronoi graph::
 
 	> tramway draw cells -i example.rwa -L gwr1 -D
 
+The parameters used to build a tessellation can be listed with the *dump* subcommand::
+
+    > tramway dump -i example.rwa -L gwr0
+
 
 .. _commandline_inference:
 
@@ -151,6 +157,10 @@ Visualizing maps
 One can overlay the locations as white dots with high transparency over maps colored with one of the *matplotlib* supported colormaps (see also https://matplotlib.org/users/colormaps.html)::
 
 	> tramway draw map -i example.rwa -L kmeans,df-map0 -cm jet -P size=1,color='w',alpha=.05
+
+The parameters used to infer a set of maps can be listed with the *dump* subcommand::
+
+    > tramway dump -i example.rwa -L kmeans,df-map0
 
 
 Extracting features
