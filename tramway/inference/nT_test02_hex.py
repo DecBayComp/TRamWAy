@@ -82,9 +82,9 @@ def estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times):
     frames_out = rt_to_frames(r_out,t_out,dt,times)
     N_out=[len(frame) for frame in frames_out]
     poss_links_out=sum([min([N_out[n],N_out[n+1]]) for n in range(len(N_out)-1)])
-    print "Cell no.:", i, "; sum(N):", np.sum(N_in), ", possible links:", poss_links_in
-    print "Outer cells: sum(N):", np.sum(N_out), ", possible links:", poss_links_out
-    print "All cells: sum(N):", np.sum(N_t), ", possible links:", poss_links_total
+    print "Cell no.:", i, "; sum(N):", np.sum(N_in), ", possible links:", poss_links_in, ", avg(N):", np.average(N_in)
+    print "Outer cells: sum(N):", np.sum(N_out), ", possible links:", poss_links_out, ", avg(N):", np.average(N_out)
+    print "All cells: sum(N):", np.sum(N_t), ", possible links:", poss_links_total, ", avg(N):", np.average(N_t)
     print N_in 
     print N_t
     # List of distance matrices:
