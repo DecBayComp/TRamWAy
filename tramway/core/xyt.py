@@ -47,7 +47,8 @@ def translocations(df, sort=False):
     return jump#np.sqrt(np.sum(jump * jump, axis=1))
 
 
-def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False, verbose=False):
+def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False, verbose=False,
+        reset_origin=False):
     """
     Load trajectory files.
 
@@ -64,6 +65,10 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
         return_paths (bool): paths to files are returned as second output argument.
 
         verbose (bool): print extra messages.
+
+        reset_origin (bool or sequence): the lowest coordinate is translated to 0.
+            Apply to time and space columns. Default column names are 'x', 'y', 'z'
+            and 't'. A sequence overrides the default.
 
     Returns:
 
@@ -119,6 +124,14 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
                     dff['n'] += index_max
                     index_max = dff['n'].max()
             df.append(dff)
+    if reset_origin:
+        if reset_origin == True:
+            reset_origin = [ col for col in ['x', 'y', 'z', 't'] if col in columns ]
+        origin = dff[reset_origin].min().values
+        for dff in df[:-1]:
+            origin = np.minimum(origin, dff[reset_origin].min().values)
+        for dff in df:
+            dff[reset_origin] -= origin
     if concat:
         df = pd.concat(df)
     if return_paths:
