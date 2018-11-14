@@ -12,12 +12,11 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import warnings
 import numpy as np
 import pandas as pd
 import random
-import pylab
-import math
+#import pylab
+#import math
 import collections
 
 
@@ -309,51 +308,51 @@ class generate_trajectories:
 
 
 def random_walk_2d(*args, **kwargs):
-        """
-        Generate 2D trajectories.
+    """
+    Generate 2D trajectories.
 
-        Arguments:
+    Arguments:
 
-                lambda (float): stochastic integral lambda = 0 ito, 1/2 stratonovich, 1 klimintovitch(?)
-                sigma (float):  width of the trap
-                sigma_noise (float):   positioning noise
-                dt (float):     time between frames
-                n_short (int):  number of small time steps between the returned time steps
-                N_mean (int):   mean duration of the trajectories in number of points
-                n_trajs (int):  number of individual trajectories
-                L (float):      size of the trap in microns (half)
-                density (float):       effective density of the random walks
-                D0 (float):     local diffusivity
-                amplitude_D (float):   amplitude of diffusivity variation
-                amplitude_V (float):   ampltidue of the trap
-                mode_D (str):   any of '*linear*', '*gaussian_trap*', '*gaussian_bump*'
-                mode_V (str):   any of '*potential_force*', '*potential_linear*'
-                mode_gamma (str):       any of '*equilibrium*', '*fixed*'
-                verbose (bool): print trajectory index (default is False)
+        lambda (float): stochastic integral lambda = 0 ito, 1/2 stratonovich, 1 klimintovitch(?)
+        sigma (float):  width of the trap
+        sigma_noise (float):   positioning noise
+        dt (float):     time between frames
+        n_short (int):  number of small time steps between the returned time steps
+        N_mean (int):   mean duration of the trajectories in number of points
+        n_trajs (int):  number of individual trajectories
+        L (float):      size of the trap in microns (half)
+        density (float):       effective density of the random walks
+        D0 (float):     local diffusivity
+        amplitude_D (float):   amplitude of diffusivity variation
+        amplitude_V (float):   ampltiude of the trap or slope
+        mode_D (str):   any of '*linear*', '*gaussian_trap*', '*gaussian_bump*'
+        mode_V (str):   any of '*potential_force*', '*potential_linear*'
+        mode_gamma (str):       any of '*equilibrium*', '*fixed*'
+        verbose (bool): print trajectory index (default is False)
 
-        Returns:
+    Returns:
 
-                pandas.DataFrame:
-                        column '*n*' is trajectory index, columns '*x*' and '*y*' are spatial
-                        coordinates (in micrometers) and column '*t*' is time (in seconds).
+        pandas.DataFrame:
+            column '*n*' is trajectory index, columns '*x*' and '*y*' are spatial
+            coordinates (in micrometers) and column '*t*' is time (in seconds).
 
-        See also :class:`generate_trajectories` for default values.
+    See also :class:`generate_trajectories` for default values.
 
-        """
-        # rename the arguments with a trailing underscore
-        for arg in list(kwargs.keys()):
-                if arg in ('lambda', 'sigma', 'sigma_noise', 'dt', 'n_short', 'N_mean', 'n_trajs',
-                                'L', 'density', 'D0', 'amplitude_D', 'amplitude_V'):
-                        kwargs[arg+'_'] = kwargs.pop(arg)
-        # turn verbosity off by default
-        kwargs['verbose'] = kwargs.get('verbose', False)
-        # generate trajectories
-        gen = generate_trajectories(*args, **kwargs)
-        gen.generate_the_actual_trajectories()
-        gen.noisify()
-        # return a DataFrame
-        gen.create_traj()
-        return gen.traj
+    """
+    # rename the arguments with a trailing underscore
+    for arg in list(kwargs.keys()):
+        if arg in ('lambda', 'sigma', 'sigma_noise', 'dt', 'n_short', 'N_mean', 'n_trajs',
+                'L', 'density', 'D0', 'amplitude_D', 'amplitude_V'):
+            kwargs[arg+'_'] = kwargs.pop(arg)
+    # turn verbosity off by default
+    kwargs['verbose'] = kwargs.get('verbose', False)
+    # generate trajectories
+    gen = generate_trajectories(*args, **kwargs)
+    gen.generate_the_actual_trajectories()
+    gen.noisify()
+    # return a DataFrame
+    gen.create_traj()
+    return gen.traj
 
 
 ############################################################
@@ -362,67 +361,68 @@ def random_walk_2d(*args, **kwargs):
 
 if __name__ == '__main__':
 
-        #“”””
-        #One imagine that some of those words were attached to actual meaning of some sort.
-        #“””
+    #“”””
+    #One imagine that some of those words were attached to actual meaning of some sort.
+    #“””
 
-        warnings.filterwarnings('ignore')
+    import warnings
+    warnings.filterwarnings('ignore')
 
-        # check the parameters np and pandas for weird bug
-        print(np.__version__)
-        print(pd.__version__)
+    # check the parameters np and pandas for weird bug
+    print(np.__version__)
+    print(pd.__version__)
 
-        # parameters to be changed to generate
-        lambda_         = 1 # stochastic integral lambda = 0 ito, 1/2 strato , 1 klimintovitvh
-        sigma_          = 0.4 # width of the trap
-        sigma_noise_    = 0.010 # positioning noise
-        dt_             = 25e-3 # time between frames
-        dt_space_       = 10 * dt_ # time between trajectories
-        n_short_        = 1000 # number of small time steps between the time stepds oututed
-        N_mean_         = 5 # mean duration of the traj in number of poitns
-        n_trajs_        = 200 # number of individual trajs
-        L_              = 0.5 # size of the trap in microns (half)
-        dt_short_       = dt_ /n_short_ # short time between steps in the generation trajs
-        density_        = 2. # effective desnity of RW
-        Nb_tot_loc_     = density_*L_*L_ #nombre tot
-        N_duration_tot_ = np.round(n_trajs_ /Nb_tot_loc_) # estimate duration
-        #############################################
-        D0_             = 0.1 # local diffusivity
-        amplitude_D_    = 0.02 # amplitude of diffusivity variation
-        amplitude_V_    = 5 # ampltidue of the trap
-        #############################################
-        mode_D          ="gaussian_bump"
-        mode_V          ="potential_force"
-        mode_gamma      = "equilibrium"
-        name_file_out   ="trajectories.txt"
+    # parameters to be changed to generate
+    lambda_         = 1 # stochastic integral lambda = 0 ito, 1/2 strato , 1 klimintovitvh
+    sigma_          = 0.4 # width of the trap
+    sigma_noise_    = 0.010 # positioning noise
+    dt_             = 25e-3 # time between frames
+    dt_space_       = 10 * dt_ # time between trajectories
+    n_short_        = 1000 # number of small time steps between the time stepds oututed
+    N_mean_         = 5 # mean duration of the traj in number of poitns
+    n_trajs_        = 200 # number of individual trajs
+    L_              = 0.5 # size of the trap in microns (half)
+    dt_short_       = dt_ /n_short_ # short time between steps in the generation trajs
+    density_        = 2. # effective desnity of RW
+    Nb_tot_loc_     = density_*L_*L_ #nombre tot
+    N_duration_tot_ = np.round(n_trajs_ /Nb_tot_loc_) # estimate duration
+    #############################################
+    D0_             = 0.1 # local diffusivity
+    amplitude_D_    = 0.02 # amplitude of diffusivity variation
+    amplitude_V_    = 5 # ampltidue of the trap
+    #############################################
+    mode_D          ="gaussian_bump"
+    mode_V          ="potential_force"
+    mode_gamma      = "equilibrium"
+    name_file_out   ="trajectories.txt"
 
-        gen = generate_trajectories(lambda_ = lambda_,
-                sigma_ = sigma_,
-                sigma_noise_ = sigma_noise_,
-                dt_ = dt_,
-                #dt_space_ = dt_space_,
-                n_short_ = n_short_,
-                N_mean_ = N_mean_,
-                n_trajs_ = n_trajs_,
-                L_ = L_,
-                #dt_short_ = dt_short_,
-                density_ = density_,
-                #Nb_tot_loc_ = Nb_tot_loc_,
-                #N_duration_tot_ = N_duration_tot_,
-                D0_ = D0_,
-                amplitude_D_ = amplitude_D_,
-                amplitude_V_ = amplitude_V_,
-                mode_D = mode_D,
-                mode_V = mode_V,
-                mode_gamma = mode_gamma,
-                name_file_out = name_file_out )
-        gen.generate_the_actual_trajectories()
-        gen.noisify()
-        gen.create_traj()
-        gen.print_traj()
+    gen = generate_trajectories(lambda_ = lambda_,
+        sigma_ = sigma_,
+        sigma_noise_ = sigma_noise_,
+        dt_ = dt_,
+        #dt_space_ = dt_space_,
+        n_short_ = n_short_,
+        N_mean_ = N_mean_,
+        n_trajs_ = n_trajs_,
+        L_ = L_,
+        #dt_short_ = dt_short_,
+        density_ = density_,
+        #Nb_tot_loc_ = Nb_tot_loc_,
+        #N_duration_tot_ = N_duration_tot_,
+        D0_ = D0_,
+        amplitude_D_ = amplitude_D_,
+        amplitude_V_ = amplitude_V_,
+        mode_D = mode_D,
+        mode_V = mode_V,
+        mode_gamma = mode_gamma,
+        name_file_out = name_file_out )
+    gen.generate_the_actual_trajectories()
+    gen.noisify()
+    gen.create_traj()
+    gen.print_traj()
 
-        #print(gen.nb_.size)
-        #print(gen.x_.size)
-        #print(gen.y_.size)
-        #print(gen.t_.size)
+    #print(gen.nb_.size)
+    #print(gen.x_.size)
+    #print(gen.y_.size)
+    #print(gen.t_.size)
 
