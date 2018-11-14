@@ -1706,13 +1706,13 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             hull[j] = cells.tessellation.cell_volume[j]
         except (KeyboardInterrupt, SystemExit):
             raise
-        except:
-            try:
-                hull[j] = scipy.spatial.qhull.ConvexHull(_points)
-            except (KeyboardInterrupt, SystemExit):
-                raise
-            except Exception as e:
-                warn(str(e), RuntimeWarning)
+        except Exception as e:
+            #try:
+            #    hull[j] = scipy.spatial.qhull.ConvexHull(_points)
+            #except (KeyboardInterrupt, SystemExit):
+            #    raise
+            #except Exception as e:
+            warn(str(e), RuntimeWarning)
 
         if points.size == 0:
             J[j] = False
