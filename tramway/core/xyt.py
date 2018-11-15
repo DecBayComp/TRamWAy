@@ -48,13 +48,15 @@ def translocations(df, sort=False):
     return jump#np.sqrt(np.sum(jump * jump, axis=1))
 
 
-def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False, verbose=False,
+def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
         reset_origin=False, header=None, **kwargs):
     """
     Load trajectory files.
 
     Files are loaded with :func:`~pandas.read_table` and should have the same number of columns
     and either none or all files should exhibit a single-line header.
+
+    Default column names are 'n', 'x', 'y' and 't'.
 
     Arguments:
 
@@ -85,6 +87,8 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
 
     Extra keyword arguments are passed to :func:`~pandas.read_table`.
     """
+    if columns is not None and header is True:
+        raise ValueError('both column names and header are defined')
     #if 'n' not in columns:
     #    raise ValueError("trajectory index should be denoted 'n'")
     if not isinstance(path, list):
@@ -109,7 +113,8 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
                 with open(f, 'r') as fd:
                     first_line = fd.readline()
                 if re.search(r'[a-df-zA-DF-Z_]', first_line):
-                    columns = first_line.split()
+                    if columns is None:
+                        columns = first_line.split()
                     kwargs['names'] = columns
                     dff = pd.read_table(f, header=0, **kwargs)
                 elif header is True:
@@ -132,7 +137,7 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
                             print(sample.loc[conflicting])
                         except:
                             pass
-                        raise ValueError("some indices refer to multiple simultaneous trajectories in table: '{}'".format(f))
+                        raise ValueError("some simultaneous locations are associated to a same trajectory: '{}'".format(f))
                     else:
                         warnings.warn(EfficiencyWarning("table '{}' is not properly ordered".format(f)))
                     # faster sort
