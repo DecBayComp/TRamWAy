@@ -1191,6 +1191,9 @@ def identify_columns(points, trajectory_col=True):
         tuple: (*coord_cols*, *trajectory_col*, *get_var*, *get_point*)
 
     *coord_cols* is an array of column indices/names other than the trajectory column.
+    If the data contains typical translocation column names such as 'dx', 'dy', 'dt',
+    *coord_cols* is a tuple with, as first element, an array of location column names,
+    and as second element an array of translocation column names.
 
     *trajectory_col* is the column index/name that contains tracking information.
 
@@ -1203,6 +1206,7 @@ def identify_columns(points, trajectory_col=True):
     """
     _has_trajectory = trajectory_col not in [False, None]
     _traj_undefined = trajectory_col is True
+    _has_delta_columns = False
 
     if isstructured(points):
         coord_cols = columns(points)
@@ -1221,6 +1225,10 @@ def identify_columns(points, trajectory_col=True):
                     _has_trajectory = False
                 else:
                     raise
+        delta_cols = [ col for col in coord_cols if col[0] == 'd' and col[1:] ]
+        if delta_cols and delta_cols[1:] and all(col[1:].lstrip() in coord_cols for col in delta_cols):
+            coord_cols = [ col for col in coord_cols if col not in delta_cols ]
+            coord_cols = (coord_cols, delta_cols)
     else:
         if not _has_trajectory:
             coord_cols = np.arange(points.shape[1])
@@ -1354,7 +1362,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         points (array-like):
             location coordinates and trajectory index.
 
-        index (ndarray or pair of ndarrrays or sparse matrix):
+        index (ndarray or pair of ndarrays or sparse matrix):
             point-cell association (see :class:`~tramway.tessellation.base.CellStats`
             documentation or :meth:`~tramway.tessellation.base.Tessellation.cell_index`).
 
@@ -1374,17 +1382,31 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
     """
     if coord_cols is None:
         coord_cols, trajectory_col, get_var, get_point = identify_columns(points, trajectory_col)
-    if trajectory_col is None:
-        raise ValueError('cannot find trajectory indices')
+    if isinstance(coord_cols, tuple):
+        coord_cols, delta_cols = coord_cols
+    else:
+        delta_cols = []
 
-    # trajectory index
-    n = np.asarray(get_var(points, trajectory_col))
-    # point coordinates
-    points = get_var(points, coord_cols)
+    if delta_cols:
+        # translocation "coordinates"
+        deltas = get_var(points, delta_cols)
+        # location coordinates
+        points = get_var(points, coord_cols)
+        # fake `final`
+        initial = final = np.ones(points.shape[0], dtype=bool)
+        # note: the destination cell will be undefined
+    else:
+        if trajectory_col is None:
+            raise ValueError('cannot find trajectory indices')
 
-    initial = np.diff(n, axis=0) == 0
-    final = np.r_[False, initial]
-    initial = np.r_[initial, False]
+        # trajectory index
+        n = np.asarray(get_var(points, trajectory_col))
+        # point coordinates
+        points = get_var(points, coord_cols)
+
+        initial = np.diff(n, axis=0) == 0
+        final = np.r_[False, initial]
+        initial = np.r_[initial, False]
 
     if index is None:
 
@@ -1485,7 +1507,22 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         final_cell = __f__(final)
 
     initial_point = get_point(points, initial)
-    final_point = get_point(points, final)
+    assert not np.any(np.isnan(initial_point))
+
+    if delta_cols:
+        # if deltas are available, the destination cell is undefined
+        if callable(final_cell):
+            final_cell = lambda cell: []
+        elif final_cell is not None:
+            final_cell[...] = -1
+
+        deltas = get_point(deltas, initial)
+        deltas.columns = [ col[1:].lstrip() for col in deltas.columns ]
+        final_point = initial_point + deltas
+    else:
+        final_point = get_point(points, final)
+    assert not np.any(np.isnan(final_point))
+    assert initial_point.shape == final_point.shape
 
     return initial_point, final_point, initial_cell, final_cell, get_point
 
@@ -1539,13 +1576,14 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
     # format (trans-)locations
     coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
+    has_precomputed_deltas = isinstance(coord_cols, tuple)
     precomputed = ()
     if new_cell is Locations:
         are_translocations = False
     elif new_cell is Translocations:
         are_translocations = True
     else:
-        are_translocations = trajectory_col is not None
+        are_translocations = trajectory_col is not None or has_precomputed_deltas
     if are_translocations:
         precomputed = (coord_cols, trajectory_col, get_var, get_point)
     else:
@@ -1582,8 +1620,22 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         fuzzy = f
 
     # time and space columns in (trans-)locations array
+    def _bool(a):
+        try:
+            return bool(a.size)
+        except AttributeError:
+            return bool(a)
     if isstructured(cells.points):
         time_col = 't'
+    else:
+        time_col = cells.points.shape[1] - 1
+    if cells.tessellation.scaler is not None and _bool(cells.tessellation.scaler.columns):
+        space_cols = cells.tessellation.scaler.columns
+        # remove delta columns
+        if has_precomputed_deltas:
+            _, delta_cols = coord_cols
+            space_cols = [ col for col in space_cols if col not in delta_cols ]
+    elif isstructured(cells.points):
         space_cols = columns(cells.points)
         if 'n' in space_cols:
             not_space = ['n', time_col]
@@ -1594,20 +1646,12 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         else:
             space_cols = [ c for c in space_cols if c not in not_space ]
     else:
-        time_col = cells.points.shape[1] - 1
         if time_col == cells.points.shape[1] - 1:
             space_cols = np.arange(time_col)
         else:
             space_cols = np.ones(cells.points.shape[1], dtype=bool)
             space_cols[time_col] = False
             space_cols, = space_cols.nonzero()
-    def _bool(a):
-        try:
-            return bool(a.size)
-        except AttributeError:
-            return bool(a)
-    if cells.tessellation.scaler is not None and _bool(cells.tessellation.scaler.columns):
-        space_cols = cells.tessellation.scaler.columns
 
     # pre-select cells
     if cells.tessellation.cell_label is None:
@@ -1634,21 +1678,27 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         if are_translocations:
             _origin = get_point(initial_point, i)
             _destination = get_point(final_point, i)
-            __origin = _origin.copy() # make copy
-            __origin.index += 1
-            try:
-                _ok = np.array([i in _destination.index for i in __origin.index])
-                _ok &= np.array([i in __origin.index for i in _destination.index])
-            except TypeError:
-                J[j] = False
-                continue
-            _origin = get_point(_origin, _ok)
-            __origin = get_point(__origin, _ok)
-            _destination = get_point(_destination, _ok)
+            if has_precomputed_deltas:
+                assert np.all(_origin.index == _destination.index)
+                __origin = _origin
+            else:
+                __origin = _origin.copy() # make copy
+                __origin.index += 1
+                try:
+                    _ok = np.array([i in _destination.index for i in __origin.index])
+                    _ok &= np.array([i in __origin.index for i in _destination.index])
+                except TypeError:
+                    J[j] = False
+                    continue
+                _origin = get_point(_origin, _ok)
+                __origin = get_point(__origin, _ok)
+                _destination = get_point(_destination, _ok)
             _points = _origin # for convex hull; ideally not only origins
             points = _destination - __origin # translocations
         else:
             points = _points = get_point(locations, i) # locations
+
+        assert not np.any(np.isnan(points))
 
         # convex hull
         _points = np.asarray(get_var(_points, space_cols))
@@ -1656,13 +1706,13 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             hull[j] = cells.tessellation.cell_volume[j]
         except (KeyboardInterrupt, SystemExit):
             raise
-        except:
-            try:
-                hull[j] = scipy.spatial.qhull.ConvexHull(_points)
-            except (KeyboardInterrupt, SystemExit):
-                raise
-            except Exception as e:
-                warn(str(e), RuntimeWarning)
+        except Exception as e:
+            #try:
+            #    hull[j] = scipy.spatial.qhull.ConvexHull(_points)
+            #except (KeyboardInterrupt, SystemExit):
+            #    raise
+            #except Exception as e:
+            warn(str(e), RuntimeWarning)
 
         if points.size == 0:
             J[j] = False
@@ -2008,6 +2058,8 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
             raise ValueError('empty cells')
 
         # ensure that translocations are properly oriented in time
+        if np.any(np.isnan(cell.dt)):
+            raise ValueError('time delta is nan')
         if not np.all(0 < cell.dt):
             warn('translocation dts are not all positive', RuntimeWarning)
             cell.dr[cell.dt < 0] *= -1.

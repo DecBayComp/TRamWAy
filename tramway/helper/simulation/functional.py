@@ -22,7 +22,7 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         trajectory_mean_count=100, trajectory_count_sd=0, turnover=None,
         lifetime_tau=None, lifetime=None, single=False,
         box=(0., 0., 1., 1.), duration=10., time_step=.05, minor_step_count=99,
-        full=False, count_outside_trajectories=None):
+        reflect=False, full=False, count_outside_trajectories=None):
     """
     Generate random walks.
 
@@ -73,6 +73,8 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         time_step (float): duration between two consecutive observations
 
         minor_step_count (int): number of intermediate unobserved steps
+
+        reflect (bool): reflect the minor steps that would otherwise leave the bounding box
 
         full (bool): include locations that are outside the bounding box and times that are
             posterior to `duration`
@@ -190,19 +192,45 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
             X[i] = x = x0
             T[i] = t = t0
             i += 1
-            for j in range(1,_lifetime):
-                for _ in range(minor_step_count+1):
-                    D = diffusivity(x, t)
-                    A = drift(x, t, D)
-                    dx = actual_time_step * A + \
-                        np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
-                    x = x + dx
-                    t = t + actual_time_step
-                t = t0 + j * time_step # moderate numerical precision errors
-                N[i] = n
-                X[i] = x
-                T[i] = t
-                i += 1
+            # from here the main code (``not reflect``) is duplicated to reduce the number of if-tests
+            if reflect:
+                # duplicated code
+                for j in range(1,_lifetime):
+                    for _ in range(minor_step_count+1):
+                        D = diffusivity(x, t)
+                        A = drift(x, t, D)
+                        dx = actual_time_step * A + \
+                            np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
+                        x = x + dx
+                        # additional code
+                        above = support_upper_bound < x
+                        x[above] = 2*support_upper_bound[above] - x[above]
+                        below = x < support_lower_bound
+                        if np.any(below & above):
+                            raise NotImplementedError('the jump is so large that its reflection also exceeds the opposite bound')
+                        x[below] = 2*support_lower_bound[below] - x[below]
+                        #
+                        t = t + actual_time_step
+                    t = t0 + j * time_step # moderate numerical precision errors
+                    N[i] = n
+                    X[i] = x
+                    T[i] = t
+                    i += 1
+            else:
+                # reference code
+                for j in range(1,_lifetime):
+                    for _ in range(minor_step_count+1):
+                        D = diffusivity(x, t)
+                        A = drift(x, t, D)
+                        dx = actual_time_step * A + \
+                            np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
+                        x = x + dx
+                        t = t + actual_time_step
+                    t = t0 + j * time_step # moderate numerical precision errors
+                    N[i] = n
+                    X[i] = x
+                    T[i] = t
+                    i += 1
     # format the data as a dataframe
     columns = 'xyz'
     if dim <= 3:
