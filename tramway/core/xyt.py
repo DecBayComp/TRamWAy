@@ -107,6 +107,8 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
             if verbose:
                 print('loading file: {}'.format(f))
             if header is False:
+                if columns is None:
+                    columns = ['n', 'x', 'y', 't']
                 kwargs['names'] = columns
                 dff = pd.read_table(f, header=0, **kwargs)
             else:
@@ -121,6 +123,8 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
                     dff = pd.read_table(f, header=0, **kwargs)
                     columns = dff.columns
                 else:
+                    if columns is None:
+                        columns = ['n', 'x', 'y', 't']
                     kwargs['names'] = columns
                     dff = pd.read_table(f, **kwargs)
         except OSError:
