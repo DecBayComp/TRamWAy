@@ -943,6 +943,10 @@ class Cell(Local):
 
     @time_col.setter
     def time_col(self, col):
+        if isinstance(col, (tuple, list)):
+            if not col or col[1:]:
+                raise ValueError('a single time column is supported')
+            col = col[0]
         # space_cols is left unchanged
         self.__lazysetter__(col)
 
@@ -1578,12 +1582,15 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
     coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
     has_precomputed_deltas = isinstance(coord_cols, tuple)
     precomputed = ()
-    if new_cell is Locations:
-        are_translocations = False
-    elif new_cell is Translocations:
-        are_translocations = True
-    else:
+    if new_cell is None:
         are_translocations = trajectory_col is not None or has_precomputed_deltas
+    else:
+        if issubclass(new_cell, Locations):
+            are_translocations = False
+        elif issubclass(new_cell, Translocations):
+            are_translocations = True
+        else:
+            raise TypeError('`new_cell` is neither `Locations` nor `Translocations`')
     if are_translocations:
         precomputed = (coord_cols, trajectory_col, get_var, get_point)
     else:
@@ -2057,9 +2064,14 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
         if not bool(cell):
             raise ValueError('empty cells')
 
-        # ensure that translocations are properly oriented in time
+        # sanity checks
+        if cell.dr.shape[1] == 0:
+            raise ValueError('translocation array has no column')
+        if cell.dt.shape[1:]:
+            raise ValueError('time deltas are structured in multiple dimensions')
         if np.any(np.isnan(cell.dt)):
             raise ValueError('time delta is nan')
+        # ensure that translocations are properly oriented in time
         if not np.all(0 < cell.dt):
             warn('translocation dts are not all positive', RuntimeWarning)
             cell.dr[cell.dt < 0] *= -1.
