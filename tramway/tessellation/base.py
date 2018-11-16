@@ -845,7 +845,8 @@ class Delaunay(Tessellation):
         Y = self._cell_centers
         try:
             D = cdist(X, Y, metric, **kwargs)
-        except MemoryError as memory_error:
+        except MemoryError as e:
+            memory_error = e # make it available outside the except block
             # slice X to process less rows at a time
             if metric != 'euclidean':
                 raise #NotImplementedError
