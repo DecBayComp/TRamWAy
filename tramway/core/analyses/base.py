@@ -90,14 +90,50 @@ class CommentsView(AnalysesView):
 
 class Analyses(object):
     """
-    Generic container with labels and comments for analyses on some data.
+    Analysis tree - Generic container with labels and comments to structure the analyses
+    that derive from the same data.
 
-    For example, the various sampling strategies (`instances`) explored
-    in relation with some molecule location data (`data` or equivalently `artefact`)
-    or the various dynamics parameter maps (`instances`) infered from a same sample (`data` or
-    `artefact`).
+    An :class:`Analyses` object is a node of a tree.
+    In attribute `data` (or equivalently `artefact`)
+    it contains the input data for the children analyses,
+    and these children analyses can be accessed as subtrees using a dict-like interface.
 
-    Instances and comments are addressable with keys refered to as "labels".
+    Labels of the children analyses can be listed with property `labels`.
+    A label is a key in the dict-like interface.
+
+    Comments associated to children analyses are also addressable with labels.
+
+    Example:
+
+    .. code-block:: python
+
+        ## let `my_input_data` and `my_output_data` be dataframes:
+        #my_output_data = my_analysis(my_input_data)
+
+        ## build the tree
+        tree = Analyses(my_input_data) # root node
+
+        tree.add(my_output_data, label='my analysis', comment='description of my analysis')
+        # or equivalently (order matters):
+        tree['my analysis'] = my_output_data
+        tree.comments['my analysis'] = 'description of my analysis'
+
+        ## print
+        print(tree)
+        #<class 'pandas.core.frame.DataFrame'>
+        #        'my analysis' <class 'pandas.core.frame.DataFrame'>:    "description of my analysis"
+
+        assert tree.data is my_input_data
+        # note that `my_output_data` has been automatically wrapped into an `Analysis` object:
+        assert isinstance(tree['my analysis'], Analyses)
+        assert tree['my analysis'].data is my_output_data
+
+        print(tree.labels) # or print(tree.keys())
+        #dict_keys(['my analysis'])
+
+        print(tree.comments['my analysis'])
+        #description of my analysis
+
 
     Attributes:
 
@@ -144,6 +180,9 @@ class Analyses(object):
 
     @property
     def labels(self):
+        return self.instances.keys()
+
+    def keys(self):
         return self.instances.keys()
 
     def autoindex(self, pattern=None):
@@ -501,7 +540,9 @@ def coerce_labels(analyses):
     return analyses
 
 
-def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
+def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None):
+    if format_standalone_root is None:
+        format_standalone_root = lambda r: '<Analyses {}>'.format(r)
     def _format(data, label=None, comment=None, depth=0):
         s = [global_prefix + prefix * depth]
         t = []
@@ -539,7 +580,11 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix=''):
         else:
             assert isinstance(_node, str)
             return itertools.chain([_node], *[_flatten(c) for c in _children])
-    return '\n'.join(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
+    lines = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
+    if lines[1:]:
+        return '\n'.join(lines)
+    else:
+        return format_standalone_root(lines[0])
 
 
 def append_leaf(analysis_tree, augmented_branch, overwrite=False):
