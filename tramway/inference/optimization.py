@@ -77,7 +77,7 @@ def sdfunc(func, yy, ids, components, _sum, h, args=(), kwargs={}, per_component
 
 
 def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
-    gtol=1e-10, gcount=10, maxiter=None, maxcor=50,
+    gtol=1e-10, gcount=10, maxiter=None, maxcor=50, tau=None, epoch=None,
     covariates=None, _sum=np.sum, per_component_diff=None,
     iter_kwarg=None, alt_fun=None, error=None, verbose=False):
     """
@@ -326,7 +326,14 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
             #else:
             #    eta = tau / (tau + float(t)) * eta0
             eta = slnsrch(f, rows, cols, x, p, g, eta0, ls_maxiter, step_max)
-            if not eta:
+            if eta:
+                if tau:
+                    if epoch:
+                        eta *= 1. - fmod(t, epoch) / (.9 * epoch)
+                        #eta *= tau / (tau + float(t / epoch))
+                    else:
+                        eta *= tau / (tau + float(t))
+            else:
                 x = x2
                 #if verbose:
                 #    print(msg2(t, 'LINE SEARCH FAILED'))

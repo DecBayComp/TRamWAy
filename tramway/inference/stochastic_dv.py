@@ -303,8 +303,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     #if 'tau' not in obfgs_kwargs:
     #    obfgs_kwargs['tau'] = 10. * float(D_initial.size)
     #obfgs_kwargs['c'] = .1
-    #if 'ncomps' not in obfgs_kwargs:
-    #    obfgs_kwargs['ncomps'] = m
+    if 'epoch' not in obfgs_kwargs:
+        obfgs_kwargs['epoch'] = m
     if verbose:
         obfgs_kwargs['alt_fun'] = verbose_local_dv_neg_posterior
     result = minimize_sbfgs(sample, local_dv_neg_posterior, dv.combined, args, **obfgs_kwargs)
