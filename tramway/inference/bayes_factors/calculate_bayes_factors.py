@@ -87,6 +87,9 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
     """
     check_dimensionality(dim)
 
+    if not verbose:
+        trange = range
+
     # Convert to numpy
     vars = [zeta_ts, zeta_sps, Vs, Vs_pi, ns]
     vars = map(np.asarray, vars)
