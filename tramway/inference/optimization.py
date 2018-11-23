@@ -6,6 +6,7 @@ import time
 import scipy.sparse as sparse
 from collections import namedtuple
 import traceback
+import warnings
 
 
 BFGSResult = namedtuple('BFGSResult', ('x', 'B', 'err', 'f', 'projg', 'cumtime'))
@@ -79,7 +80,7 @@ def sdfunc(func, yy, ids, components, _sum, h, args=(), kwargs={}, per_component
 def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
     gtol=1e-10, gcount=10, maxiter=None, maxcor=50, tau=None, epoch=None,
     covariates=None, _sum=np.sum, per_component_diff=None,
-    iter_kwarg=None, alt_fun=None, error=None, verbose=False):
+    iter_kwarg=None, epoch_kwarg=None, alt_fun=None, error=None, verbose=False):
     """
     Sparse variant of the BFGS minimization algorithm.
 
@@ -101,7 +102,7 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
 
         args (tuple): extra positional arguments for :func:`fun`.
 
-        eta0 (float):
+        eta0 (float): see `eta_max` in :func:`slnsrch`.
 
         c (float):
 
@@ -117,6 +118,10 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
 
         maxcor (int):
 
+        tau (float):
+
+        epoch (int):
+
         covariates (2-element tuple or scipy.sparse.csr_matrix):
             parameter association matrix;
             either a (`indices`, `indptr`) couple
@@ -130,8 +135,11 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
 
         iter_kwarg (str): keyword for passing the iteration number to :func:`fun`.
 
+        epoch_kwarg (str): keyword for passing the epoch-wise baseline parameter vector.
+
         alt_fun (callable): alternative function for :func:`fun` that is evaluated on a minibatch
-            at the beginning and end of each iteration.
+            at the beginning and end of each iteration;
+            :func:`alt_fun` does not admit `iter_kwarg` and `epoch_kwarg`.
 
         error (callable): takes the parameter vector and returns a scalar error measurement.
 
@@ -168,11 +176,12 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
     fkwargs = {}
     if iter_kwarg:
         fkwargs[iter_kwarg] = 0
-        def f(_x, _rows):
-            return _sum( fun(_j, _x, *fargs, **fkwargs) for _j in _rows )
-    else:
-        def f(_x, _rows):
-            return _sum( fun(_j, _x, *fargs) for _j in _rows )
+    if epoch_kwarg:
+        if not epoch:
+            raise ValueError('`epoch` undefined')
+        fkwargs[epoch_kwarg] = x0
+    def f(_x, _rows):
+        return _sum( fun(_j, _x, *fargs, **fkwargs) for _j in _rows )
     if alt_fun:
         def alt_f(_x, _rows):
             return _sum( alt_fun(_j, _x, *fargs) for _j in _rows )
@@ -254,6 +263,7 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
         B = np.diag(np.full(x.size, proj / np.dot(y, y)))
     x2 = x0
     k1 = k2 = 0
+    s2 = s
     resolution = None
     #for t in range(1, int(maxiter)):
     t = 0
@@ -264,6 +274,9 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
         try:
             if iter_kwarg:
                 fkwargs[iter_kwarg] = t
+            if epoch_kwarg and t % epoch == 0:
+                print('new epoch')
+                fkwargs[epoch_kwarg] = x
 
             ## step (pre-a) ##
             if twoways:
@@ -329,7 +342,7 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
             if eta:
                 if tau:
                     if epoch:
-                        eta *= 1. - fmod(t, epoch) / (.9 * epoch)
+                        eta *= 1. - tau * fmod(t, epoch) / epoch
                         #eta *= tau / (tau + float(t / epoch))
                     else:
                         eta *= tau / (tau + float(t))
@@ -352,6 +365,13 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
             else:
                 x1 = x + s
                 h = df(x1, rows)
+            if np.all(g == h):
+                if np.all(s == 0):
+                    raise RuntimeError('null update')
+                else:
+                    if not l:
+                        warnings.warn('no change in the gradient; setting `l` greater than 0')
+                        l = .1
 
             #
             if h is None:
@@ -361,7 +381,7 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
                 continue
                 resolution = 'GRADIENT CALCULATION FAILED (t+1)'
                 break
-            x2, x = x, x1
+            x2, x, s2 = x, x1, s
 
             if error is not None:
                 errs.append(error(x))
@@ -372,6 +392,7 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), eta0=1., c=1., l=0., eps=1.,
 
             #
             proj = np.dot(s, y)
+            assert proj != 0
             projs.append(proj)
             if gtol is not None and abs(proj) < gtol:
                 k1 += 1

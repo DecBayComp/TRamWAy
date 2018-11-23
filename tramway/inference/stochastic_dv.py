@@ -125,7 +125,7 @@ def verbose_local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
 
 def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
     time_prior, dt_mean, index, reverse_index, grad_kwargs, y0, \
-    posterior_info, iter_num=None, verbose=False):
+    posterior_info, x_grad=None, iter_num=None, verbose=False):
     """
     """
 
@@ -135,10 +135,13 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
     #V = dv.V
     #Dj = D[j]
     Dj = x[j]
-    V = x[int(x.size/2):]
     if np.isnan(Dj):
         raise ValueError('D is nan')
         return 0.
+    if x_grad is None:
+        V = x[int(x.size/2):]
+    else:
+        V = x_grad[int(x.size/2):]
     #
 
     noise_dt = sigma2
@@ -176,7 +179,10 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
         standard_priors += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
     diffusivity_prior = dv.diffusivity_prior(j)
     if diffusivity_prior:
-        D = x[:int(x.size/2)]
+        if x_grad:
+            D = x_grad[:int(x.size/2)]
+        else:
+            D = x[:int(x.size/2)]
         # spatial gradient of the local diffusivity
         gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
         if gradD is not None:
@@ -305,6 +311,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     #obfgs_kwargs['c'] = .1
     if 'epoch' not in obfgs_kwargs:
         obfgs_kwargs['epoch'] = m
+    #if True:
+    #    obfgs_kwargs['epoch_kwarg'] = 'x_grad'
     if verbose:
         obfgs_kwargs['alt_fun'] = verbose_local_dv_neg_posterior
     result = minimize_sbfgs(sample, local_dv_neg_posterior, dv.combined, args, **obfgs_kwargs)
