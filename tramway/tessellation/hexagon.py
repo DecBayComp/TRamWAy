@@ -17,6 +17,7 @@ from .base import Voronoi
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
+from scipy.optimize import minimize_scalar
 from collections import OrderedDict
 from warnings import warn
 
@@ -61,64 +62,69 @@ class HexagonalMesh(Voronoi):
         self.avg_distance = avg_distance
 
     def tessellate(self, points, **kwargs):
-        # center
         if isinstance(points, pd.DataFrame):
             points = points.copy()
         points = self._preprocess(points)
-        #points = self.descriptors(points, asarray=True)
+        #lower_bound = kwargs.get('lower_bound', points.min(axis=0))
+        #upper_bound = kwargs.get('upper_bound', points.max(axis=0))
+        # center
         mean_kwargs = {}
         if not isinstance(points, pd.DataFrame):
             mean_kwargs['keepdims'] = True
         center = self.descriptors(points).mean(axis=0, **mean_kwargs)
         points -= center
-        # rotate
-        theta = self.tilt * pi / 6.
-        s, c = sin(-theta), cos(-theta)
-        rot = np.array([[c, -s], [s, c]])
         if isinstance(points, pd.DataFrame):
-            pts = np.dot(points[self.scaler.columns].values, rot.T)
-            points.loc[:,self.scaler.columns] = pts
+            #lower_bound -= center[self.scaler.columns]
+            #upper_bound -= center[self.scaler.columns]
             center = center.values
+            pts = points[self.scaler.columns].values
         else:
-            points = pts = np.dot(points, rot.T)
+            #lower_bound -= center
+            #upper_bound -= center
+            pts = points
+        lower_bound, upper_bound = points.min(axis=0), points.max(axis=0)
+        # rotate
+        if self.tilt:
+            theta = self.tilt * pi / 6.
+            s, c = sin(-theta), cos(-theta)
+            rot = np.array([[c, -s], [s, c]])
+            if isinstance(points, pd.DataFrame):
+                pts = np.dot(pts, rot.T)
+                points.loc[:,self.scaler.columns] = pts
+            else:
+                points = pts = np.dot(points, rot.T)
         #
-        lower_bound = kwargs.get('lower_bound', pts.min(axis=0))
-        upper_bound = kwargs.get('upper_bound', pts.max(axis=0))
         x0, y0 = (lower_bound + upper_bound) * .5
         size = upper_bound - lower_bound
         hex_sin, hex_cos = sin(pi/6.), cos(pi/6.)
         if self.avg_probability:
             desired_n_cells = n_cells = 1. / self.avg_probability
-            total_area = np.prod(size)
-            n_cells_prev, hex_radius_prev = [], []
-            while True:
-                hex_radius = np.sqrt(total_area / (2. * sqrt(3.) * n_cells))
-                if self.min_distance is not None:
-                    hex_radius = max(hex_radius, .5 * self.min_distance)
-                if any(np.isclose(hex_radius, r) for r in hex_radius_prev):
-                    break
-                hex_side = hex_radius / hex_cos
-                dx = 2. * hex_radius
-                dy = 1.5 * hex_side# * (2. - hex_sin)
-                m = int(ceil(size[0] / dx))
-                n = int(ceil((size[1] + 2. * (hex_side * hex_sin - hex_radius)) / dy) + 1)
-                lower_center_x = x0 -.5 * float(m - 1) * dx
-                lower_center_y = y0 -.5 * float(n - 1) * dy
-                centers = []
-                for k in range(n):
-                    _centers_x = lower_center_x + float(k % 2) * hex_radius + dx * np.arange(m + 1 - (k % 2))
-                    _centers_y = np.full_like(_centers_x, lower_center_y + float(k) * dy)
-                    centers.append(np.stack((_centers_x, _centers_y), axis=-1))
-                self._cell_centers = np.vstack(centers)
-                I = np.unique(self.cell_index(points))
-                assert np.all(0 <= I)
-                nc, n_cells = n_cells, I.size
-                if n_cells in n_cells_prev:
-                    break
-                #print((hex_radius, nc, m*n, n_cells, n_cells_prev))
-                n_cells_prev.append(n_cells)
-                hex_radius_prev.append(hex_radius)
-                n_cells = round(desired_n_cells * nc / float(n_cells))
+            def err(r):
+                if r == 0:
+                    return desired_n_cells * desired_n_cells
+                dx, dy = 2 * r, 1.5 * r / hex_cos
+                m, n = ceil(size[0] / dx), ceil(size[1] / dy) + 1
+                e = m * n + ceil(n / 2) - desired_n_cells
+                return e * e + r * r
+            hex_radius = minimize_scalar(err).x
+            if self.min_distance is not None:
+                hex_radius = max(hex_radius, .5 * self.min_distance)
+            hex_side = hex_radius / hex_cos
+            dx = 2. * hex_radius
+            dy = 1.5 * hex_side# * (2. - hex_sin)
+            m = int(ceil(size[0] / dx))
+            n = int(ceil((size[1] + 2. * (hex_side * hex_sin - hex_radius)) / dy) + 1)
+            lower_center_x = x0 -.5 * float(m) * dx
+            lower_center_y = y0 -.5 * float(n - 1) * dy
+            centers = []
+            for k in range(n):
+                _centers_x = lower_center_x + float(k % 2) * hex_radius + dx * np.arange(m + 1 - (k % 2))
+                _centers_y = np.full_like(_centers_x, lower_center_y + float(k) * dy)
+                centers.append(np.stack((_centers_x, _centers_y), axis=-1))
+            self._cell_centers = np.vstack(centers)
+            I = np.unique(self.cell_index(points))
+            assert np.all(0 <= I)
+            n_cells = I.size
         elif self.avg_distance:
             hex_radius = .5 * self.avg_distance
             if self.min_probability is not None:
@@ -140,9 +146,11 @@ class HexagonalMesh(Voronoi):
         else:
             raise ValueError('both `avg_probability` and `avg_distance` undefined')
         # rotate/center the centers back into the original space
-        s, c = sin(theta), cos(theta)
-        rot = np.array([[c, -s], [s, c]])
-        self._cell_centers = np.dot(self._cell_centers, rot.T) + center
+        if self.tilt:
+            s, c = sin(theta), cos(theta)
+            rot = np.array([[c, -s], [s, c]])
+            self._cell_centers = np.dot(self._cell_centers, rot.T)
+        self._cell_centers += center
         self.hexagon_radius = hex_radius
         self.hexagon_count = (m, n)
 
@@ -174,7 +182,7 @@ class HexagonalMesh(Voronoi):
             n_cells = self._cell_centers.shape[0]
             m, n = self.hexagon_count
             A = sparse.dok_matrix((n_cells, n_cells), dtype=bool)
-            i = 0
+            k = i = 0
             for k in range(n-1):
                 m_no_more = k % 2
                 A[i, i+1] = True
@@ -206,12 +214,14 @@ class HexagonalMesh(Voronoi):
     def _postprocess(self):
         if self._cell_centers is None:
             raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
-        theta = self.tilt * pi / 6.
-        s, c = sin(theta), cos(theta)
-        rot = np.array([[c, -s], [s, c]])
         s, c = sin(pi/6.), cos(pi/6.)
         dr = np.array([[0., -1.], [-c, -s], [-c, s], [c, -s], [c, s], [0., 1.]])
-        dr = np.dot(dr, rot.T) * (self.hexagon_radius / c)
+        if self.tilt:
+            theta = self.tilt * pi / 6.
+            _s, _c = sin(theta), cos(theta)
+            rot = np.array([[_c, -_s], [_s, _c]])
+            dr = np.dot(dr, rot.T)
+        dr *= self.hexagon_radius / c
         #
         n_cells = self._cell_centers.shape[0]
         m, n = self.hexagon_count
