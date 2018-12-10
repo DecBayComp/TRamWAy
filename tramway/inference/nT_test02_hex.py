@@ -32,7 +32,7 @@ def nT_test02_hex(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=np.array([0.
     for i in index:
         D.append(estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times))
     D_out=pd.DataFrame(np.array(D), index=index, columns=['D'])
-    print D_out
+    print(D_out)
     return D_out
 
 def estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times):
@@ -49,7 +49,7 @@ def estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times):
     r_out=[] 
     t_out=[] 
     S_out=0.
-    print "\nS:", i,S_in,
+    print("\nS:", i,S_in,)
     for j in cells.neighbours(i):
         cell = cells[j]
         r = cell.r
@@ -58,7 +58,7 @@ def estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times):
         r_out.extend(r) 
         t_out.extend(t) 
         S_out += S
-        print j, S_out,
+        print(j, S_out,)
     r_out=np.array(r_out)
     t_out=np.array(t_out)
     # Positions in cell i and neighbors:
@@ -69,7 +69,7 @@ def estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times):
     r_total=np.array(r_total)
     t_total=np.array(t_total)
     S_total=S_in+S_out
-    print "; total:", S_total, "mu^2"
+    print("; total:", S_total, "mu^2")
     # List of times corresponding to frames:
     times=np.arange(min(t_total),max(t_total+dt/100.),dt)
     # Build lists of frames:
@@ -82,11 +82,11 @@ def estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times):
     frames_out = rt_to_frames(r_out,t_out,dt,times)
     N_out=[len(frame) for frame in frames_out]
     poss_links_out=sum([min([N_out[n],N_out[n+1]]) for n in range(len(N_out)-1)])
-    print "Cell no.:", i, "; sum(N):", np.sum(N_in), ", possible links:", poss_links_in, ", avg(N):", np.average(N_in)
-    print "Outer cells: sum(N):", np.sum(N_out), ", possible links:", poss_links_out, ", avg(N):", np.average(N_out)
-    print "All cells: sum(N):", np.sum(N_t), ", possible links:", poss_links_total, ", avg(N):", np.average(N_t)
-    print N_in 
-    print N_t
+    print("Cell no.:", i, "; sum(N):", np.sum(N_in), ", possible links:", poss_links_in, ", avg(N):", np.average(N_in))
+    print("Outer cells: sum(N):", np.sum(N_out), ", possible links:", poss_links_out, ", avg(N):", np.average(N_out))
+    print("All cells: sum(N):", np.sum(N_t), ", possible links:", poss_links_total, ", avg(N):", np.average(N_t))
+    print(N_in) 
+    print(N_t)
     # List of distance matrices:
     drs_ij=frame_stack_to_distance_matrices(frames) 
     # Average number of particles disappearing per frame:
@@ -97,10 +97,10 @@ def estimate_D_2zones(i,cells,dt,p_off,mu_on,s2,D0,method,tol,times):
         fit = minimize(marginal_minusLogLikelihood_multiFrame,x0=D0,args=(drs_ij,dt,S_total,mu_off,mu_on,N_t,N_in),\
                        method='Nelder-Mead',tol=tol)        
     D_i=abs((fit.x)[0])
-    print fit,
+    print(fit,)
     D_i_ub=max([1.5*(D_i-s2/dt),0.])
-    print "D corrected for motion blur and localization error:", D_i_ub
-    print time()-fittime, "s"
+    print("D corrected for motion blur and localization error:", D_i_ub)
+    print(time()-fittime, "s")
     return D_i_ub
 
 #-----------------------------------------------------------------------------
