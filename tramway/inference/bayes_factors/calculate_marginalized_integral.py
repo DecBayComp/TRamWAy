@@ -10,7 +10,9 @@ from scipy import integrate
 from scipy.special import gamma, gammainc, gammaln
 
 # Constants
-atol = 1e-8
+
+# prec = 1e-32
+# max_terms = int(1e5)
 
 
 def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error, zeta_a=[0, 0], factor_za=0, lamb='int'):
@@ -33,6 +35,7 @@ def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error, zet
     abs_tol --- absolute tolerance for integral calculations.
     lamb = float in [0, 1] or 'int'. If a float is given, the integrated function is just evaluated at the given value of lambda, without integrating.
     """
+    atol = 1e-16
 
     zeta_t, zeta_sp, zeta_a = map(np.asarray, [zeta_t, zeta_sp, zeta_a])
     if zeta_t.ndim > 1 or zeta_sp.ndim > 1:
@@ -133,10 +136,13 @@ def calculate_any_lambda_integral(func, break_points=[]):
     return result[0]
 
 
-def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, rel_loc_error, break_points=[], lamb='marg'):
+def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, rel_loc_error, break_points=[], lamb='marg', rtol=1e-6, atol=1e-32):
     """
     Calculate the ratio of two similar lambda integrals, each of which has the form
     \int_0^1 d\lambda arg_func(\lambda)**(-pow) * gammainc(pow, rel_loc_error * arg_func(\lambda))
+
+    Input:
+    v --- zeta-independent term inside the argument functions. Must be the same upstairs and downstairs. In Bayes factor calculations, this is v := (1 + n_pi * V_pi / n / V).
 
     Return:
     Natural logarithm of the integral ratio
@@ -145,56 +151,90 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
     Calculations are performed differently for the case with and without localization error. This avoids overflow errors. In these cases, both the integrated equations and prefactors are different.
     The integrals are taken over lambda if lamb == 'marg', otherwise they are evaluated at the given lambda.
     """
-    # %% loc_error != 0 case
-    def one_term_with_loc_error(l, arg_func, pow, i):
-        log_res = gammaln(pow) - gammaln(pow + 1 + i)
-        log_res += - rel_loc_error * arg_func(l) + i * log(rel_loc_error * arg_func(l))
-        return exp(log_res)
 
-    def one_term_integral_with_loc_error(arg_func, pow, i):
-        def f(l):
-            return one_term_with_loc_error(l, arg_func, pow, i)
-        if lamb is 'marg':
-            return integrate.quad(f, 0, 1, points=break_points)[0]
+    x0u = arg_func_up(lamb) if lamb is not 'marg' else arg_func_up(0.5)
+    x0d = arg_func_down(lamb) if lamb is not 'marg' else arg_func_down(0.5)
+
+    # %% loc_error > 0
+    def get_f_with_loc_error(arg_func, pow, x0):
+        """Prepare the function for lambda integration.
+        Switch summation algorithm based on the argument value at lambda = lamb or 1/2 for marginalized.
+
+        Return:
+        f --- a function to integrate,
+        lg_prefactor --- a scaling prefactor
+        """
+
+        def term(i, l):
+            res = gammaln(pow) - gammaln(pow + 1 + i) + i * log(arg_func(l)) - arg_func(l)
+            return exp(res)
+
+        q_eval = arg_func(lamb) if lamb is not 'marg' else arg_func(0.5)
+        if q_eval < pow + 1:
+            # print('Low x regime')
+
+            def f(l):
+                def t(i):
+                    return term(i, l)
+                return sum_series(term, rtol, l)
+            lg_prefactor = 0
+            return f, lg_prefactor
         else:
-            return f(lamb)
+            def f(l):
+                q = arg_func(l)
+                res = -pow * (log(q) - log(x0)) + log(gammainc(pow, q))
+                return exp(res)
+            lg_prefactor = gammaln(pow) - pow * log(x0)
+            return f, lg_prefactor
 
-    def sum_series_with_loc_error(arg_func, pow):
+    def lg_integral_with_loc_error(arg_func, pow, x0):
+        """Calculate the following expression for a marginalized or fixed lambda:
+        v**k / Gamma[k] * \int_0^1 d l q(l)**(-k) gammainc(k, q(l)),
+        with q(l) = arg_func(l)
         """
-        Sums series of the form
-        \sum_{i=0}^\infty one_term_integral_with_loc_error(arg_func, pow, i)
-        """
-        rtol = 1e-5
-        max_terms = int(1e5)
-
-        sum = term = one_term_integral_with_loc_error(arg_func, pow, 0)
-        for i in range(1, max_terms + 1):
-            term = one_term_integral_with_loc_error(arg_func, pow, i)
-            sum += term
-            if abs(term) <= rtol * abs(sum):  # and i >= min_terms:
-                return sum
-        logging.warning(
-            'Gamma function series did not converge to the required precision. Achieved precision: {}'.format(abs(term / sum)))
-        return sum
+        f, lg_prefactor = get_f_with_loc_error(arg_func, pow, x0)
+        if lamb is 'marg':
+            lg_res = log(integrate.quad(f, 0, 1, points=break_points, epsresl=rtol)[0])
+        else:
+            lg_res = log(f(lamb))
+        return lg_res + lg_prefactor
 
     # %% loc_error == 0
-    def integral_no_error(arg_func, pow):
+    def lg_integral_no_error(arg_func, pow):
+        def lg_f(l):
+            return -pow * log(arg_func(l) / v)
+
         def f(l):
-            return exp(-pow * log(arg_func(l) / v))
+            return exp(lg_f(l))
         if lamb is 'marg':
-            sum = integrate.quad(f, 0, 1, points=break_points)[0]
+            sum = integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0]
+            sum = log(sum)
         else:
-            sum = f(lamb)
+            sum = lg_f(lamb)
         return sum
 
     # %% Compile the ratio
     if ~np.isinf(rel_loc_error):
-        log_res = (log(sum_series_with_loc_error(arg_func_up, pow_up))
-                   - log(sum_series_with_loc_error(arg_func_down, pow_down)))
-        log_res += log(rel_loc_error) / 2
+        log_res = (lg_integral_with_loc_error(arg_func_up, pow_up, x0u)
+                   - lg_integral_with_loc_error(arg_func_down, pow_down, x0d))
     else:
-        log_res = (log(integral_no_error(arg_func_up, pow_up)) -
-                   log(integral_no_error(arg_func_down, pow_down)))
+        log_res = (lg_integral_no_error(arg_func_up, pow_up) -
+                   lg_integral_no_error(arg_func_down, pow_down))
         log_res += gammaln(pow_up) - gammaln(pow_down) - log(v) / 2
-
     return log_res
+
+
+def sum_series(term_func, rtol, *args):
+    """Sum any series with the first argument of the term_func being the term number.
+    Input: function, return - float
+    """
+    max_terms = int(1e5)
+    sum = term = term_func(0, *args)
+    for i in range(1, max_terms + 1):
+        term = term_func(i, *args)
+        sum += term
+        if abs(term) <= rtol * abs(sum):
+            return sum
+    logging.warning(
+        'Gamma function series did not converge to the required precision. Achieved precision: {}'.format(abs(term / sum)))
+    return sum

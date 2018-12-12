@@ -112,6 +112,37 @@ def calculate_one_1D_posterior_in_2D(zeta_a, zeta_t, zeta_sp, n, V, V_pi, loc_er
     return exp(log_prefactor + log_ratio)
 
 
+def calculate_one_1D_prior_in_2D(zeta_a, V_pi, loc_error):
+    """
+    Calculate the prior for a projection of zeta_a for any convention for one bin in 2D
+
+    Input:
+    zeta_a: float; `a` projection on the selected axis
+    """
+    dim = 2
+
+    zeta_a = np.asarray(zeta_a)
+    n_pi = n_pi_func(dim)
+    rel_loc_error = n_pi * V_pi / (2 * dim * loc_error) if loc_error > 0 else np.inf
+
+    # Parameter combinations
+    p = n_pi - 2
+    p_upstairs = p + 1 / 2
+    log_prefactor = - log(pi) / 2
+
+    def upstairs(l):
+        return 1 + zeta_a**2
+
+    def downstairs(l):
+        return 1
+
+    log_ratio = calculate_integral_ratio(arg_func_up=upstairs, arg_func_down=downstairs,
+                                         pow_up=p_upstairs, pow_down=p, v=1,
+                                         rel_loc_error=rel_loc_error, break_points=[], lamb=0)
+    r = log_prefactor + log_ratio
+    return exp(r)
+
+
 def get_lambda_MAP(zeta_t, zeta_sp):
     """
     Calculate the maximum a posteriori value of lambda for given zetas in 1D and 2D

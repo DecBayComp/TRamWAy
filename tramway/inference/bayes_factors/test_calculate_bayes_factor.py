@@ -8,9 +8,13 @@ import unittest
 from multiprocessing import freeze_support
 
 import numpy as np
+from scipy.integrate import dblquad, quad
 
 from .calculate_bayes_factors import calculate_bayes_factors
 from .calculate_marginalized_integral import calculate_marginalized_integral
+from .calculate_posteriors import (calculate_one_1D_posterior_in_2D,
+                                   calculate_one_1D_prior_in_2D,
+                                   calculate_one_2D_posterior)
 from .convenience_functions import n_pi_func, p
 
 
@@ -19,8 +23,9 @@ class bayes_test(unittest.TestCase):
 
     def setUp(self):
         """Initialize data for different tests"""
-        self.tol = 1e-6
-        self.rel_tol = 1e-3
+        self.long = True
+        self.tol = 1e-32
+        self.rel_tol = 1e-2
         self.B_threshold = 10.0
         self.t1_zeta_sps = np.asarray([[1.0, 1.0], [2.0, 3.0]])
         self.t1_zeta_ts = np.asarray([[2.0, 1.54], [-4.0, 0.0]])
@@ -110,6 +115,22 @@ class bayes_test(unittest.TestCase):
         true_res = 1.145033778E-17
         self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
                         "Marginalized integral calculation test failed for zeta_sp = 0. The obtained value %.8g does not match the expected %.8g" % (res, true_res))
+
+        # >> Check the result with zeta_a <<
+        zeta_t = [0.7, 0.4]
+        zeta_sp = [0.8, 0.6]
+        zeta_a = [-0.1, -0.1]
+        n = 20
+        u = 0.95
+        rel_loc_error = 1.47
+        eta = np.sqrt(n_pi / (n + n_pi))
+        pow = p(n, dim)
+        v0 = 1 + n_pi / n * u
+        res = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
+                                              p=pow, v=v0, E=eta ** 2.0, rel_loc_error=rel_loc_error, zeta_a=zeta_a)
+        true_res = 1.225618999E-17
+        self.assertTrue(np.isclose(res, true_res, rtol=self.rel_tol, atol=self.tol),
+                        "Marginalized integral calculation test failed with zeta_a. The obtained value %.8g does not match the expected %.8g" % (res, true_res))
 
     def test_bayes_factors(self):
 
@@ -209,6 +230,117 @@ class bayes_test(unittest.TestCase):
         self.assertTrue(np.all(np.abs(lg_Bs[0]) >= np.log10(B_threshold)),
                         "Not all of the Bayes factors for the minimal ns returned strong evidence. lg_Bs: %s" % (lg_Bs))
         # print(Bs)
+
+    def test_posteriors_and_priors(self):
+
+        # >> Test that the 2D zeta_a posterior is normalized <<
+        zeta_t = np.asarray([0.7, 0.4])
+        zeta_sp = np.asarray([0.8, 0.6])
+        n = np.asarray(20)
+        V = np.asarray(0.8 ** 2.0)
+        u = np.asarray(0.95)
+        loc_error = 0.1**2.0
+        V_pi = u * V
+        lamb = 'marg'
+        tol = 1e-4
+
+        # Wrapper to get just a function of zeta_ax, zeta_ay
+        def integrate_me(zay, zax):
+            return calculate_one_2D_posterior(zeta_t=zeta_t, zeta_sp=zeta_sp, zeta_a=[zax, zay], n=n, V=V, V_pi=V_pi, loc_error=loc_error, dim=2, lamb=lamb)
+
+        lims = np.array([-1, 1]) * 10
+
+        if self.long:
+            norm = dblquad(integrate_me, lims[0], lims[1],
+                           lims[0], lims[1], epsabs=tol, epsrel=tol)[0]
+            true_norm = 1
+
+            # Check value
+            self.assertTrue(np.isclose(norm, true_norm, rtol=self.rel_tol, atol=self.tol),
+                            "Active force posterior normalization test failed. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
+
+        # >> Test that 1D zeta_ax posterior is normalized in 2D with localization error <<
+        zeta_t = np.asarray([0.7, 0.4])
+        zeta_sp = np.asarray([0.8, 0.6])
+        n = np.asarray(20)
+        V = np.asarray(0.8 ** 2.0)
+        u = np.asarray(0.95)
+        loc_error = 0.1**2.0
+        V_pi = u * V
+        lamb = 0  # 'marg'
+        tol = 1e-4
+
+        # Wrapper to get just a function of zeta_ax, zeta_ay
+        def integrate_me(zax):
+            return calculate_one_1D_posterior_in_2D(zeta_t=zeta_t, zeta_sp=zeta_sp, zeta_a=zax, n=n, V=V, V_pi=V_pi, loc_error=loc_error, lamb=lamb)
+
+        lims = np.array([-1, 1]) * 10
+
+        if 1 or self.long:
+            norm = quad(integrate_me, lims[0], lims[1], epsabs=tol, epsrel=tol)[0]
+            true_norm = 1
+
+            # Check value
+            self.assertTrue(np.isclose(norm, true_norm, rtol=self.rel_tol, atol=self.tol),
+                            "Active force posterior normalization test failed for 1D posteriors in 2D. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
+
+        # >> Test that 1D zeta_ax posterior is normalized in 2D without localization error <<
+        zeta_t = np.asarray([0.7, 0.4])
+        zeta_sp = np.asarray([0.8, 0.6])
+        n = np.asarray(20)
+        V = np.asarray(0.8 ** 2.0)
+        u = np.asarray(0.95)
+        loc_error = 0
+        V_pi = u * V
+        lamb = 'marg'
+        tol = 1e-4
+
+        # Wrapper to get just a function of zeta_ax, zeta_ay
+        def integrate_me(zax):
+            return calculate_one_1D_posterior_in_2D(zeta_t=zeta_t, zeta_sp=zeta_sp, zeta_a=zax, n=n, V=V, V_pi=V_pi, loc_error=loc_error, lamb=lamb)
+
+        lims = np.array([-1, 1]) * 10
+
+        norm = quad(integrate_me, lims[0], lims[1], epsabs=tol, epsrel=tol)[0]
+        true_norm = 1
+
+        # Check value
+        self.assertTrue(np.isclose(norm, true_norm, rtol=self.rel_tol, atol=self.tol),
+                        "Active force posterior normalization test failed for 1D posteriors in 2D. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
+
+        # >> Test that 1D zeta_ax PRIOR is normalized in 2D with localization error <<
+        V = np.asarray(0.8 ** 2.0)
+        u = np.asarray(0.95)
+        loc_error = 0.1**2.0
+        V_pi = u * V
+        rtol = 1e-6
+        atol = 1e-4
+
+        def integrate_me(zax):
+            return calculate_one_1D_prior_in_2D(
+                zeta_a=zax, V_pi=V_pi, loc_error=loc_error)
+
+        norm = quad(integrate_me, -np.inf, np.inf, epsrel=rtol)[0]
+        true_norm = 1
+        self.assertTrue(np.isclose(norm, true_norm, rtol=rtol, atol=atol),
+                        "Active force prior normalization test failed for 1D posteriors in 2D. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
+
+        # >> Test that 1D zeta_ax PRIOR is normalized in 2D without localization error <<
+        V = np.asarray(0.8 ** 2.0)
+        u = np.asarray(0.95)
+        loc_error = 0
+        V_pi = u * V
+        rtol = 1e-6
+        atol = 1e-4
+
+        def integrate_me(zax):
+            return calculate_one_1D_prior_in_2D(
+                zeta_a=zax, V_pi=V_pi, loc_error=loc_error)
+
+        norm = quad(integrate_me, -np.inf, np.inf, epsrel=rtol)[0]
+        true_norm = 1
+        self.assertTrue(np.isclose(norm, true_norm, rtol=rtol, atol=atol),
+                        "Active force prior normalization test failed for 1D posteriors in 2D. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
 
 
 # # A dirty fix for a weird bug in unittest
