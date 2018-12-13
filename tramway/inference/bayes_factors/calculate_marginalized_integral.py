@@ -155,6 +155,11 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
     x0u = arg_func_up(lamb) if lamb is not 'marg' else arg_func_up(0.5)
     x0d = arg_func_down(lamb) if lamb is not 'marg' else arg_func_down(0.5)
 
+    if np.any(np.array([pow_up, pow_down]) <= 0) or np.any(np.isnan([pow_up, pow_down])):
+        logging.error(
+            'Incorrect powers supplied for integral ratio calculations: {}'.format([pow_up, pow_down]))
+        return np.nan
+
     # %% loc_error > 0
     def get_f_with_loc_error(arg_func, pow, x0):
         """Prepare the function for lambda integration.
@@ -162,65 +167,67 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
 
         Return:
         f --- a function to integrate,
-        lg_prefactor --- a scaling prefactor
+        ln_prefactor --- a scaling prefactor
         """
 
         def term(i, l):
-            res = gammaln(pow) - gammaln(pow + 1 + i) + i * log(arg_func(l)) - arg_func(l)
+            q = arg_func(l)
+            res = gammaln(pow) - gammaln(pow + 1 + i) + i * \
+                log(q * rel_loc_error) - q * rel_loc_error
             return exp(res)
 
         q_eval = arg_func(lamb) if lamb is not 'marg' else arg_func(0.5)
+        q_eval *= rel_loc_error
         if q_eval < pow + 1:
-            # print('Low x regime')
+            # print('Low x regime', pow, q_eval)
 
             def f(l):
-                def t(i):
-                    return term(i, l)
                 return sum_series(term, rtol, l)
-            lg_prefactor = 0
-            return f, lg_prefactor
+            ln_prefactor = pow * log(rel_loc_error)
+            return f, ln_prefactor
         else:
             def f(l):
                 q = arg_func(l)
-                res = -pow * (log(q) - log(x0)) + log(gammainc(pow, q))
+                res = -pow * (log(q) - log(x0)) + log(gammainc(pow, q * rel_loc_error))
                 return exp(res)
-            lg_prefactor = gammaln(pow) - pow * log(x0)
-            return f, lg_prefactor
+            ln_prefactor = gammaln(pow) - pow * log(x0)
+            return f, ln_prefactor
 
-    def lg_integral_with_loc_error(arg_func, pow, x0):
+    def ln_integral_with_loc_error(arg_func, pow, x0):
         """Calculate the following expression for a marginalized or fixed lambda:
-        v**k / Gamma[k] * \int_0^1 d l q(l)**(-k) gammainc(k, q(l)),
+        v**k / Gamma[k] * \int_0^1 d l q(l)**(-k) gammainc(k, q(l) * rel_loc_error),
         with q(l) = arg_func(l)
         """
-        f, lg_prefactor = get_f_with_loc_error(arg_func, pow, x0)
+        f, ln_prefactor = get_f_with_loc_error(arg_func, pow, x0)
         if lamb is 'marg':
-            lg_res = log(integrate.quad(f, 0, 1, points=break_points, epsresl=rtol)[0])
+            ln_res = log(integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0])
         else:
-            lg_res = log(f(lamb))
-        return lg_res + lg_prefactor
+            ln_res = log(f(lamb))
+        return ln_res + ln_prefactor
 
     # %% loc_error == 0
-    def lg_integral_no_error(arg_func, pow):
-        def lg_f(l):
-            return -pow * log(arg_func(l) / v)
+    def ln_integral_no_error(arg_func, pow, x0):
+        ln_prefactor = gammaln(pow) - pow * log(x0)
+
+        def ln_f(l):
+            return -pow * log(arg_func(l) / x0)
 
         def f(l):
-            return exp(lg_f(l))
+            return exp(ln_f(l))
         if lamb is 'marg':
-            sum = integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0]
-            sum = log(sum)
+            ln_res = integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0]
+            ln_res = log(ln_res)
         else:
-            sum = lg_f(lamb)
-        return sum
+            ln_res = ln_f(lamb)
+        return ln_res + ln_prefactor
 
     # %% Compile the ratio
     if ~np.isinf(rel_loc_error):
-        log_res = (lg_integral_with_loc_error(arg_func_up, pow_up, x0u)
-                   - lg_integral_with_loc_error(arg_func_down, pow_down, x0d))
+        log_res = (ln_integral_with_loc_error(arg_func_up, pow_up, x0u)
+                   - ln_integral_with_loc_error(arg_func_down, pow_down, x0d))
     else:
-        log_res = (lg_integral_no_error(arg_func_up, pow_up) -
-                   lg_integral_no_error(arg_func_down, pow_down))
-        log_res += gammaln(pow_up) - gammaln(pow_down) - log(v) / 2
+        log_res = (ln_integral_no_error(arg_func_up, pow_up, x0u) -
+                   ln_integral_no_error(arg_func_down, pow_down, x0d))
     return log_res
 
 
