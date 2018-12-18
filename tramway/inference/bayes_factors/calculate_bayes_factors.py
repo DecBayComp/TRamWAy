@@ -13,6 +13,7 @@ from numpy.linalg import norm
 
 from .calculate_marginalized_integral import (calculate_integral_ratio,
                                               calculate_marginalized_integral)
+from .calculate_posteriors import get_lambda_MAP
 from .convenience_functions import n_pi_func
 from .convenience_functions import p as pow
 from .stopwatch import stopwatch
