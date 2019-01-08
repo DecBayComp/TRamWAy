@@ -56,7 +56,7 @@ class RandomMesh(Voronoi):
     def cell_centers(self, centers):
         self._cell_centers = centers
 
-    def tessellate(self, points, **kwargs):
+    def tessellate(self, points, allow_empty_cells=False, **kwargs):
         points = self._preprocess(points)
         # find the bounding box
         if self.lower_bound is None:
@@ -75,6 +75,13 @@ class RandomMesh(Voronoi):
         centroids += self.lower_bound
         # make the Voronoi tessellation
         Voronoi.tessellate(self, centroids)
+        #
+        if not allow_empty_cells:
+            cells = CellStats(points, self)
+            #cells.cell_index = cells.cell_index(centroids, **kwargs)
+            ok = 0 < cells.location_count
+            self.cell_centers = None
+            Voronoi.tessellate(self, centroids[ok])
 
 
 __all__ = ['setup', 'RandomMesh']

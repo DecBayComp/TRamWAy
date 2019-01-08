@@ -231,26 +231,36 @@ Both can be used to implemented such a use case:
 
 	# assemble the analysis tree
 	analyses = Analyses(translocations)
-	analyses.add(Analyses(cells), label='random centroids')
+	analyses.add(cells, label='random centroids')
 
 	# save it to a file
 	save_rwa('example.rwa', analyses)
 
 
-Custom time segments
-^^^^^^^^^^^^^^^^^^^^
-
-The :class:`~tramway.tessellation.time.TimeLattice` class is far more flexible than the :class:`~tramway.tessellation.window.SlidingWindow` class in that it admits arbitrary time segments.
-
-It is especially useful for slicing the time axis and still consider a same spatial tessellation.
-
-The following example use case makes contiguous segments such that the total location count per segment is exceeds a defined constant by minimal amount:
+The above example illustrates how to explicitly define cell centers.
+The specific case of random cell centers can be implemented using the '*random*' plugin instead:
 
 .. code-block:: python
 
-	from tramway.core import *
-	from tramway.core.hdf5 import *
-	from tramway.tessellation import *
+    from tramway.helper import *
+
+    n_centroids = 100
+    n_nearest_neighbours = 50
+
+    tessellate('example. trxyt', 'random', cell_count=n_centroids,
+        knn=(n_nearest_neighbours, n_nearest_neighbours), label='random centroids')
+
+
+
+Custom time segments
+^^^^^^^^^^^^^^^^^^^^
+
+The :class:`~tramway.tessellation.time.TimeLattice` class is more flexible than the :class:`~tramway.tessellation.window.SlidingWindow` class in that it admits arbitrary time segments.
+
+The following example makes contiguous segments such that the total location count per segment is at least equal to a defined amount:
+
+.. code-block:: python
+
 	from tramway.helper import *
 	import numpy
 
@@ -290,7 +300,7 @@ The following example use case makes contiguous segments such that the total loc
 
 The same example with different spatial tessellations for each segment can be implemented with the help of tessellation nesting.
 
-If inference is performed on such a tessellation, a map will be generated for each segment.
+If maps are inferred on such a tessellation, separate maps will be generated for each segment.
 These maps can be individualized as follows:
 
 .. code-block:: python

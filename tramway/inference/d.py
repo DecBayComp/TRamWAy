@@ -88,6 +88,8 @@ def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivit
             raise ValueError('empty cell')
         if cell.dr.shape[1] == 0:
             raise ValueError('translocation array has no column')
+        if cell.dt.shape[1:]:
+            raise ValueError('time deltas are structured in multiple dimensions')
         # ensure that translocations are properly oriented in time
         if not np.all(0 < cell.dt):
             warn('translocation dts are not all positive', RuntimeWarning)

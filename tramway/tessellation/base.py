@@ -837,12 +837,16 @@ class Delaunay(Tessellation):
                 raise ValueError('min_radius > max_radius')
         else:
             min_r = max_r = radius
+            if radius and not(min_nn or max_nn or min_location_count or filter):
+                return cell_index_by_radius(self, points, radius,
+                        format=format, select=select, metric=metric, **kwargs)
         points = self.scaler.scale_point(points, inplace=False)
         X = self.descriptors(points, asarray=True)
         Y = self._cell_centers
         try:
             D = cdist(X, Y, metric, **kwargs)
-        except MemoryError as memory_error:
+        except MemoryError as e:
+            memory_error = e # make it available outside the except block
             # slice X to process less rows at a time
             if metric != 'euclidean':
                 raise #NotImplementedError
@@ -1223,14 +1227,16 @@ class Voronoi(Delaunay):
     def cell_volume(self):
         if self._cell_volume is None:
             adjacency = self.vertex_adjacency.tocsr()
-            cell_volume = np.zeros(self._cell_centers.shape[0])
+            cell_volume = np.full(self._cell_centers.shape[0], np.NaN)
             for i, u in enumerate(self._cell_centers):
                 js = _js = self.cell_vertices[i] # vertex indices
 
                 if u.size != 2:
                     # use Qhull to estimate the volume
-                    hull = spatial.ConvexHull(self._vertices[js])
-                    cell_volume[i] = hull.volume
+                    pts = self._vertices[js]
+                    if pts.shape[1] < pts.shape[0]: # if enough points
+                        hull = spatial.ConvexHull(pts)
+                        cell_volume[i] = hull.volume
                     continue
 
                 js = set(js.tolist())
@@ -1247,8 +1253,10 @@ class Voronoi(Delaunay):
                     # missing vertices are at infinite distance;
                     # take instead the convex hull of the local vertices plus
                     # the center of the cell (ideally all the points in the cell)
-                    hull = spatial.ConvexHull(np.r_[self._vertices[_js], u[np.newaxis,:]])
-                    cell_volume[i] = hull.volume
+                    pts = np.r_[self._vertices[_js], u[np.newaxis,:]]
+                    if pts.shape[1] < pts.shape[0]: # if enough points
+                        hull = spatial.ConvexHull(pts)
+                        cell_volume[i] = hull.volume
                     continue
 
                 for j, k in simplices:
@@ -1450,10 +1458,59 @@ def boxed_voronoi_2d(points, bounding_box=None):
     return _Voronoi(_points, _vertices, _ridge_points, _ridge_vertices, _regions, _point_region)
 
 
+def cell_index_by_radius(tessellation, points, radius, format=None, select=None, metric='euclidean',
+        **kwargs):
+    """
+    See :meth:`Delaunay.cell_index`.
+
+    Specialized routine to assign locations to cells which center is no further than `radius`.
+    """
+    #if metric != 'euclidean':
+    #    raise NotImplementedError('%s metric not supported', metric)
+    r2 = radius * radius
+    points = tessellation.scaler.scale_point(points, inplace=False)
+    X = tessellation.descriptors(points, asarray=True)
+    Y = tessellation._cell_centers
+    ncells = Y.shape[0]
+    shape = (X.shape[0], ncells)
+    try:
+        D = cdist(X, Y, metric, **kwargs)
+    except MemoryError:
+        # slice X to process less rows at a time
+        if metric != 'euclidean':
+            raise #NotImplementedError
+        X2 = np.sum(X * X, axis=1, keepdims=True).astype(np.float32)
+        Y2 = np.sum(Y * Y, axis=1, keepdims=True).astype(np.float32)
+        X, Y = X.astype(np.float32), Y.astype(np.float32)
+        n = 0
+        while True:
+            n += 1
+            block = int(ceil(X.shape[0] * 2**(-n)))
+            try:
+                np.empty((block, Y.shape[0]), dtype=X.dtype)
+            except MemoryError:
+                pass # continue
+            else:
+                break
+        n += 2 # safer
+        block = int(ceil(X.shape[0] * 2**(-n)))
+        P, C = [], []
+        for i in range(0, X.shape[0], block):
+            j = min(i+block, X2.size)
+            Di = np.dot(np.float32(-2.) * X[i:j], Y.T)
+            Di += X2[i:j]
+            Di += Y2.T
+            Pi, Ci = (Di <= r2).nonzero()
+            P.append(i+Pi)
+            C.append(Ci)
+        associations = (np.concatenate(P), np.concatenate(C))
+    else:
+        associations = (D <= r2).nonzero()
+    return format_cell_index(associations, format=format, select=select, shape=shape)
 
 
 __all__ = ['CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
     'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict', \
-    '_Voronoi', 'boxed_voronoi_2d']
+    '_Voronoi', 'boxed_voronoi_2d', 'cell_index_by_radius']
 
 
