@@ -25,7 +25,7 @@ import time
 import numpy.ma as ma
 
 
-setup = {'name': 'stochastic.dv1',
+setup = {'name': 'stochastic.dv0',
     'provides': 'dv',
     'infer': 'infer_stochastic_DV',
     'arguments': OrderedDict((
@@ -68,14 +68,6 @@ class LocalDV(DV):
         cell_ids = np.array(cell_ids)
         cell_ids.sort()
         return np.concatenate((cell_ids, int(self.combined.size / 2) + cell_ids))
-    def diffusivity_indices(self, cell_ids):
-        if isinstance(cell_ids, (int, np.int_)):
-            cell_ids = [cell_ids]
-        return np.array(cell_ids)
-    def potential_indices(self, cell_ids):
-        if isinstance(cell_ids, (int, np.int_)):
-            cell_ids = [cell_ids]
-        return int(self.combined.size / 2) + np.array(cell_ids)
 
     def potential_prior(self, i):
         if self.prior_delay:
@@ -219,13 +211,11 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
         standard_priors += jeffreys_prior * 2. * np.log(Dj * dt_mean[j] + sigma2) - np.log(Dj)
 
     if time_prior:
-        if diffusivity_prior:
-            dDdt = cells.time_derivative(i, D, reverse_index)
-            # assume fixed-duration time window
-            time_priors += diffusivity_prior * time_prior * dDdt * dDdt
-        if potential_prior:
-            dVdt = cells.time_derivative(i, V, reverse_index)
-            time_priors += potential_prior * time_prior * dVdt * dVdt
+        dDdt = cells.time_derivative(i, D, reverse_index)
+        # assume fixed-duration time window
+        time_priors += diffusivity_prior * time_prior * dDdt * dDdt
+        dVdt = cells.time_derivative(i, V, reverse_index)
+        time_priors += potential_prior * time_prior * dVdt * dVdt
 
     priors = standard_priors + time_priors
     result = raw_posterior + priors
@@ -245,11 +235,9 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior, \
 
 def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None, \
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
-    export_centers=False, verbose=True, compatibility=False, limited=False, _stochastic=True, **kwargs):
+    export_centers=False, verbose=True, compatibility=False, _stochastic=True, **kwargs):
 
     # initial values
-    if not potential_prior:
-        raise ValueError('regularization is required for the potential energy')
     _min_diffusivity = min_diffusivity
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
@@ -282,7 +270,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     #options = kwargs.pop('options', default_BFGS_options)
     #if max_iter:
     #    options['maxiter'] = max_iter
-    V_bounds = [(0., None)] * V_initial.size
+    V_bounds = [(None, None)] * V_initial.size
     if min_diffusivity is None:
         bounds = None
     else:
@@ -313,67 +301,38 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     dv.regions = make_regions(cells, index, reverse_index)
 
     if _stochastic:
-        components = np.arange(m)
-        def component(k):
-            _i = k % m
-            if _i == 0:
-                np.random.shuffle(components)
-            return components[_i]
-        covariate = dv.region
-        #covariate = lambda i: np.unique(np.concatenate([ dv.region(_i) for _i in dv.region(i) ]))
-        descent_subspace = None
-        if limited:
-            def gradient_subspace(i):
-                return dv.indices(i)
-        else:
-            def gradient_subspace(i):
-                return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
-        #def gradient_subspace(i):
-        #    return np.r_[dv.diffusivity_indices(dv.region(i)), dv.potential_indices(covariate(i))]
+        def sample(i, x):
+            I = dv.region(i)
+            assert i in I
+            J = np.concatenate([dv.indices(_i) for _i in I])
+            return I, (dv.indices(i), J)
     else:
-        component = lambda k: 0
-        covariate = lambda i: np.arange(m)
-        descent_subspace = None
-        gradient_subspace = None
+        sample = None
         def col2rows(j):
             i = j % m
             return dv.region(i)
-        obfgs_kwargs['gradient_covariate'] = col2rows
+        obfgs_kwargs['col2rows'] = col2rows
 
     # run the optimization routine
     #result = sdfpmin(local_dv_neg_posterior, dv.combined, args, sample, m, verbose=verbose)
     if verbose:
         obfgs_kwargs['verbose'] = verbose
     if max_iter:
-        obfgs_kwargs['max_iter'] = max_iter
+        obfgs_kwargs['maxiter'] = max_iter
     if bounds is not None:
         obfgs_kwargs['bounds'] = bounds
-    if 'eps' not in obfgs_kwargs:
-        obfgs_kwargs['eps'] = 1.
-    obfgs_kwargs['newton'] = newton = obfgs_kwargs.get('newton', False)
-    if newton:
-        default_step_max = 1.
-        default_wolfe = (.5, None)
-    else:
-        default_step_max = .5
-        default_wolfe = (.1, None)
-        if 'ls_armijo_max' not in obfgs_kwargs:
-            obfgs_kwargs['ls_armijo_max'] = 5
-    obfgs_kwargs['ls_step_max'] = obfgs_kwargs.get('ls_step_max', default_step_max)
-    obfgs_kwargs['ls_wolfe'] = obfgs_kwargs.get('ls_wolfe', default_wolfe)
     #rs = [ dv.indices(r) for r in range(len(dv.regions)) ]
     #B = sparse.lil_matrix((dv.combined.size, dv.combined.size), dtype=bool)
     #for r in rs:
     #    B[ np.ix_(r, r) ] = True
     #B = B.tocsr()
     #obfgs_kwargs['covariates'] = B
-    #obfgs_kwargs['c'] = 1.
+    obfgs_kwargs['c'] = 1.
     #if verbose:
     #    #obfgs_kwargs['alt_fun'] = verbose_local_dv_neg_posterior
     #    if _stochastic:
     #        obfgs_kwargs['diagnosis'] = local_dv_neg_posterior_diagnosis
-    result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
-            gradient_subspace, descent_subspace, args, **obfgs_kwargs)
+    result = minimize_range_sbfgs(m, sample, local_dv_neg_posterior, dv.combined, args, **obfgs_kwargs)
     #if not (result.success or verbose):
     #    warn('{}'.format(result.message), OptimizationWarning)
 
