@@ -32,12 +32,12 @@ def locations_in_cell(cells, cell_index=0, show_N_t=False, dt=0.04, show_possibl
     if show_N_t:
         frames = rt_to_frames(r,t,dt)
         N_t=[len(frame) for frame in frames]
-        print 'N_t =', N_t, np.sum(N_t)
+        print('N_t =', N_t, np.sum(N_t))
     if show_possible_links:
         frames = rt_to_frames(r,t,dt)
         N_t=[len(frame) for frame in frames]
         poss_links=sum([min([N_t[n],N_t[n+1]]) for n in range(len(N_t)-1)])
-        print 'Total number of possible links:', poss_links
+        print('Total number of possible links:', poss_links)
     index=[i]
     D=0.
     return pd.DataFrame(np.array(D), index=index, columns=['D'])
