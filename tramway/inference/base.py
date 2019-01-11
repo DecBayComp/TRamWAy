@@ -16,6 +16,7 @@ from tramway.core import *
 from tramway.core.exceptions import *
 from tramway.tessellation import format_cell_index, nearest_cell
 import tramway.tessellation as tessellation
+import math
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -1719,6 +1720,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             #except (KeyboardInterrupt, SystemExit):
             #    raise
             #except Exception as e:
+            raise
             warn(str(e), RuntimeWarning)
 
         if points.size == 0:
@@ -2256,8 +2258,9 @@ def _poly2_deriv_eval(W, X):
     return np.hstack(Q)
 
 
-def neighbours_per_axis(i, cells, eps=None, centers=None):
+def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
     """
+    See also :func:`grad1`.
     """
     try:
         A = cells.spatial_adjacency
@@ -2273,31 +2276,40 @@ def neighbours_per_axis(i, cells, eps=None, centers=None):
     above = np.zeros_like(below)
 
     if eps is None:
-        # InferenceMAP-compatible gradient
+        if selection_angle is None or (selection_angle == .5 and centers.shape[1] == 2):
+            # InferenceMAP-compatible gradient
 
-        if A.dtype == bool:
-            # divide the space in non-overlapping region and
-            # assign each neighbour to a single region;
-            # assign each pair of symmetric regions to a single
-            # dimension (gradient calculation)
-            proj = centers - center[np.newaxis, :]
-            assigned_dim = np.argmax(np.abs(proj), axis=1)
-            proj_dist = proj[ np.arange(proj.shape[0]), assigned_dim ]
-            for j in range(cell.dim):
-                below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
-                above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
+            if A.dtype == bool:
+                # divide the space in non-overlapping region and
+                # assign each neighbour to a single region;
+                # assign each pair of symmetric regions to a single
+                # dimension (gradient calculation)
+                proj = centers - center[np.newaxis, :]
+                assigned_dim = np.argmax(np.abs(proj), axis=1)
+                proj_dist = proj[ np.arange(proj.shape[0]), assigned_dim ]
+                for j in range(cell.dim):
+                    below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
+                    above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
 
-        elif A.dtype == int:
-            # neighbour cells are already classified
-            # as left (-1), right (1), top (2) or bottom (-2), etc
-            # in the adjacency matrix
-            code = A.data[A.indptr[i]:A.indptr[i+1]] - 1
-            for j in range(cell.dim):
-                below[ j, code == -j ] = True
-                above[ j, code ==  j ] = True
+            elif A.dtype == int:
+                # neighbour cells are already classified
+                # as left (-1), right (1), top (2) or bottom (-2), etc
+                # in the adjacency matrix
+                code = A.data[A.indptr[i]:A.indptr[i+1]] - 1
+                for j in range(cell.dim):
+                    below[ j, code == -j ] = True
+                    above[ j, code ==  j ] = True
+
+            else:
+                raise TypeError('{} adjacency labels are not supported'.format(A.dtype))
 
         else:
-            raise TypeError('{} adjacency labels are not supported'.format(A.dtype))
+            proj = centers - center[np.newaxis, :]
+            proj /= np.sqrt(np.sum(proj * proj, axis=1, keepdims=True))
+            angle = 1. - 2. * np.arccos(proj) / math.pi
+            for j in range(cell.dim):
+                below[ j, angle[:,j] < selection_angle - 1. ] = True
+                above[ j, 1. - selection_angle < angle[:,j] ] = True
 
     else:
         # along each dimension, divide the space in half-spaces
@@ -2310,7 +2322,7 @@ def neighbours_per_axis(i, cells, eps=None, centers=None):
     return below, above
 
 
-def grad1(cells, i, X, index_map=None, eps=None):
+def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
     """
     Local gradient by 2 degree polynomial interpolation along each dimension independently.
 
@@ -2326,6 +2338,11 @@ def grad1(cells, i, X, index_map=None, eps=None):
 
     If `eps` is defined, the calculation of a gradient component may recruit all the points
     minus those at a projected distance smaller than this value.
+
+    If `selection_angle` is defined, neighbours are selected in two symmetric hypercones which
+    top angle is `selection_angle` times pi radians.
+
+    The default selection behaviour is equal to `selection_angle=.5` in 2D but not in higher dimensions.
 
     See also:
 
@@ -2351,7 +2368,13 @@ def grad1(cells, i, X, index_map=None, eps=None):
             in the calculation of the gradient;
             if `eps` is ``None``, the space is instead divided in twice as many
             non-overlapping regions as dimensions, and each neighbour is assigned to
-            a single region (counts against a single dimension)
+            a single region (counts against a single dimension).
+            Incompatible with `selection_angle`.
+
+        selection_angle (float):
+            top angle of the neighbour selection hypercones;
+            should be in the [0.5, 1.0[ range.
+            Incompatible with `eps`.
 
     Returns:
 
@@ -2378,7 +2401,7 @@ def grad1(cells, i, X, index_map=None, eps=None):
             #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
         if _adjacent.size:
             X = np.vstack([ cells[j].center for j in _adjacent ])
-            below, above = neighbours_per_axis(i, cells, eps, X)
+            below, above = neighbours_per_axis(i, cells, X, eps, selection_angle)
 
             # pre-compute the X terms for each dimension
             X_neighbours = []

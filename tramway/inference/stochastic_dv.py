@@ -44,7 +44,7 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('grad_selection_angle',('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; if not -c, default is: {})'.format(_default_selection_angle)))),
         ('grad',                dict(help="spatial gradient implementation; any of 'grad1', 'gradn'")),
         ('export_centers',      dict(action='store_true')),
-        ('verbose',             ()),
+        ('verbose',             ()))),
         #('region_size',         ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
     'cell_sampling': 'group'}
 
@@ -154,7 +154,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     gradV = cells.grad(i, V, reverse_index, **grad_kwargs)
     #print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
     #print('{}\t{}\t{}'.format(i+1, *gradV))
-    if gradV is None:
+    if gradV is None or np.any(np.isnan(gradV)):
         raise ValueError('gradV is not defined')
 
     # various posterior terms
@@ -219,7 +219,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
 def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None,
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     epsilon=None, grad_selection_angle=None, compatibility=False,
-    export_centers=False, verbose=True, superlocal=False, stochastic=True,
+    export_centers=False, verbose=True, superlocal=False, stochastic=True, x0=None,
     **kwargs):
     """
     See also :func:`~tramway.inference.optimization.minimize_sparse_bfgs`.
@@ -236,16 +236,21 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     elif min_diffusivity is None:
         D_bounds = [(None, None)] * D_initial.size
     # V initial values
-    try:
-        if compatibility:
-            raise Exception # skip to the except block
-        volume = [ cells[i].volume for i in index ]
-    except:
-        V_initial = -np.log(n / np.max(n))
+    if x0 is None:
+        try:
+            if compatibility:
+                raise Exception # skip to the except block
+            volume = [ cells[i].volume for i in index ]
+        except:
+            V_initial = -np.log(n / np.max(n))
+        else:
+            density = n / np.array([ np.inf if v is None else v for v in volume ])
+            density[density == 0] = np.min(density[0 < density])
+            V_initial = np.log(np.max(density)) - np.log(density)
     else:
-        density = n / np.array([ np.inf if v is None else v for v in volume ])
-        density[density == 0] = np.min(density[0 < density])
-        V_initial = np.log(np.max(density)) - np.log(density)
+        if x0.size != 2 * D_initial.size:
+            raise ValueError('wrong size for x0')
+        D_initial, V_initial = x0[:int(x0.size/2)], x0[int(x0.size/2):]
 
     dv = LocalDV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity,
         prior_delay=prior_delay)
