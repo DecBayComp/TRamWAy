@@ -46,5 +46,5 @@ setup = {
         ('B_threshold', ('-b', dict(type=float, help='values of Bayes factor for thresholding'))),
     )),
     # List of variables that the module returns as cell properties, e.g. cell.lg_B
-    'returns': ['lg_B', 'force', 'min_n', 'lamb_MAP'],
+    'returns': ['lg_B', 'force', 'min_n'],
 }

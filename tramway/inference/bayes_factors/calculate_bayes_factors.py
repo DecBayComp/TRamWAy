@@ -59,8 +59,7 @@ def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10,
         bl_need_min_n=True,
         B_threshold=B_threshold)
 
-    cell.lamb_MAP = get_lambda_MAP(zeta_t=cell.zeta_total, zeta_sp=cell.zeta_spurious)
-
+    # cell.lamb_MAP = get_lambda_MAP(zeta_t=cell.zeta_total, zeta_sp=cell.zeta_spurious)
     return [cell.lg_B, cell.force, cell.min_n]
 
 
