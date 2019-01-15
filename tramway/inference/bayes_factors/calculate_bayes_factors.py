@@ -9,8 +9,10 @@ import warnings
 # from multiprocessing import Pool
 import numpy as np
 import scipy.optimize
+from numpy.linalg import norm
 
-from .calculate_marginalized_integral import calculate_marginalized_integral
+from .calculate_marginalized_integral import (calculate_integral_ratio,
+                                              calculate_marginalized_integral)
 from .convenience_functions import n_pi_func
 from .convenience_functions import p as pow
 from .stopwatch import stopwatch
@@ -57,6 +59,8 @@ def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10,
         bl_need_min_n=True,
         B_threshold=B_threshold)
 
+    cell.lamb_MAP = get_lambda_MAP(zeta_t=cell.zeta_total, zeta_sp=cell.zeta_spurious)
+
     return [cell.lg_B, cell.force, cell.min_n]
 
 
@@ -87,6 +91,11 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
     """
     check_dimensionality(dim)
 
+    if verbose:
+        def _trange(x): return trange(x, desc='Bayes factor calculation')
+    else:
+        _trange = range
+
     # Convert to numpy
     vars = [zeta_ts, zeta_sps, Vs, Vs_pi, ns]
     vars = map(np.asarray, vars)
@@ -102,7 +111,7 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
     forces = np.zeros_like(ns) * np.nan
     min_ns = np.zeros_like(ns, dtype=int) * np.nan
     with stopwatch("Bayes factor calculation", verbose):
-        for i in trange(M):
+        for i in _trange(M):
             lg_Bs[i], forces[i], min_ns[i] = _calculate_one_bayes_factor(
                 zeta_ts[i, :], zeta_sps[i, :], ns[i], Vs[i], Vs_pi[i], loc_error, dim)
 
@@ -129,17 +138,28 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_t
     else:
         rel_loc_error = np.inf
 
-    upstairs = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
-                                               p=p, v=v, E=eta**2, rel_loc_error=rel_loc_error)
-    downstairs = calculate_marginalized_integral(zeta_t=zeta_t, zeta_sp=zeta_sp,
-                                                 p=p, v=v, E=1.0, rel_loc_error=rel_loc_error)
-    lg_B = (dim * np.log10(eta) + np.log10(upstairs) - np.log10(downstairs))
+    def upstairs(l):
+        return v + eta**2 * norm(zeta_t - l * zeta_sp)**2
+
+    def downstairs(l):
+        return v + norm(zeta_t - l * zeta_sp)**2
+
+    # Identify break points
+    with np.errstate(invalid='ignore', divide='ignore'):
+        bps = set(zeta_t / zeta_sp)
+        bps = [bp for bp in bps if bp >= 0 and bp <= 1]
+
+    ln_B = calculate_integral_ratio(arg_func_up=upstairs, arg_func_down=downstairs,
+                                    pow_up=p, pow_down=p, v=v,
+                                    rel_loc_error=rel_loc_error,
+                                    break_points=bps, lamb='marg')
+    lg_B = ln_B / np.log(10) + dim * np.log10(eta)
 
     if bl_need_min_n:
         min_n = calculate_minimal_n(
             zeta_t=zeta_t, zeta_sp=zeta_sp, n0=n, V=V, V_pi=V_pi, loc_error=loc_error, dim=dim, B_threshold=B_threshold)
     else:
-        min_n = None
+        min_n = np.nan
 
     # Threshold
     force = 1 * (lg_B >= np.log10(B_threshold)) - 1 * (lg_B <= -np.log10(B_threshold))
@@ -160,6 +180,10 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     Return - 1 if unable to find the min_n
     """
 
+    if np.isnan(n0):
+        logging.error(
+            'Invalid initial jumps number supplied for minimal n calculation: {}'.format(n0))
+        return np.nan
     # Local constants
     increase_factor = 2  # initial search interval increase with each iteration
     max_attempts = 40
@@ -175,7 +199,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
             zeta_t=zeta_t, zeta_sp=zeta_sp, n=n, V=V, V_pi=V_pi, loc_error=loc_error, dim=dim, bl_need_min_n=False)
         return lg_B
 
-    if lg_B(n0) >= lg_B_threshold:
+    if abs(lg_B(n0)) >= abs(lg_B_threshold):
         return n0
 
     # Find the initial search interval
@@ -183,13 +207,14 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     n = n0
     for attempt in range(max_attempts):
         n = n0 - 1 + increase_factor ** attempt
-        if lg_B(n) >= lg_B_threshold:
+        if abs(lg_B(n)) >= abs(lg_B_threshold):
             bl_found = True
             break
 
     if not bl_found:
-        logging.warn("Unable to find the minimal number of data points to provide strong evidence.")
-        return -1
+        logging.warning(
+            "Unable to find the minimal number of data points to provide strong evidence.")
+        return np.nan
 
     # Find a more accurate location
     n_interval = [n0, n]
