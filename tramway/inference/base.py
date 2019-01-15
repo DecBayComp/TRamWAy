@@ -1995,6 +1995,24 @@ class Maps(Lazy):
         s = '\n'.join([ '{}:{} {}'.format(k, ' '*(l-len(k)), str(v)) for k, v in attrs.items() ])
         return s
 
+    def defattr(self, attr, val):
+        count = 0
+        while True:
+            try:
+                getattr(self, attr)
+            except AttributeError:
+                break
+            else:
+                if count:
+                    attr = attr[:-1] + str(count)
+                else:
+                    if attr[-1] in '0123456789' or '_' in attr:
+                        attr = attr + '_0'
+                    else:
+                        attr = attr + '0'
+                count += 1
+        setattr(self, attr, val)
+
 
 
 class OptimizationWarning(RuntimeWarning):

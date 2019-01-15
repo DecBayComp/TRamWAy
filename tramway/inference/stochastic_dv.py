@@ -22,7 +22,7 @@ import pandas as pd
 import scipy.sparse as sparse
 from collections import OrderedDict
 import time
-import numpy.ma as ma
+from scipy.stats import trim_mean
 
 _default_epsilon = 1e-3 # is no longer default; recommended value instead
 _default_selection_angle = .9
@@ -220,6 +220,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     epsilon=None, grad_selection_angle=None, compatibility=False,
     export_centers=False, verbose=True, superlocal=False, stochastic=True, x0=None,
+    return_struct=False,
     **kwargs):
     """
     See also :func:`~tramway.inference.optimization.minimize_sparse_bfgs`.
@@ -293,7 +294,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         args = args + (y0,)
 
     # keyword arguments to `minimize_sparse_bfgs`
-    obfgs_kwargs = dict(kwargs)
+    sbfgs_kwargs = dict(kwargs)
 
     # cell groups (a given cell + its neighbours)
     dv.regions = make_regions(cells, index, reverse_index)
@@ -311,9 +312,19 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         descent_subspace = None
         if superlocal:
             gradient_subspace = dv.indices
+            if 'ls_failure_rate' not in sbfgs_kwargs:
+                sbfgs_kwargs['ls_failure_rate'] = .9
         else:
             def gradient_subspace(i):
                 return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
+        def fix_linesearch(i, x):
+            _r = dv.region(i)
+            x[dv.diffusivity_indices(i)] = min(x[dv.diffusivity_indices(i)], trim_mean(x[dv.diffusivity_indices(_r)], .25))
+            x[dv.potential_indices(i)] = min(x[dv.potential_indices(i)], trim_mean(x[dv.potential_indices(_r)], .25))
+        sbfgs_kwargs['fix_ls'] = fix_linesearch
+        if 'fix_ls_trigger' not in sbfgs_kwargs:
+            sbfgs_kwargs['fix_ls_trigger'] = 3
+
         #def gradient_subspace(i):
         #    return np.r_[dv.diffusivity_indices(dv.region(i)), dv.potential_indices(covariate(i))]
     else:
@@ -326,32 +337,35 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         def col2rows(j):
             i = j % m
             return dv.region(i)
-        obfgs_kwargs['gradient_covariate'] = col2rows
+        sbfgs_kwargs['gradient_covariate'] = col2rows
 
     # other arguments
     if verbose:
-        obfgs_kwargs['verbose'] = verbose
+        sbfgs_kwargs['verbose'] = verbose
     if max_iter:
-        obfgs_kwargs['max_iter'] = max_iter
+        sbfgs_kwargs['max_iter'] = max_iter
     if bounds is not None:
-        obfgs_kwargs['bounds'] = bounds
-    if 'eps' not in obfgs_kwargs:
-        obfgs_kwargs['eps'] = 1. # beware: not the `tramway.inference.grad` option
-    obfgs_kwargs['newton'] = newton = obfgs_kwargs.get('newton', not stochastic or not superlocal)
+        sbfgs_kwargs['bounds'] = bounds
+    if 'eps' not in sbfgs_kwargs:
+        sbfgs_kwargs['eps'] = 1. # beware: not the `tramway.inference.grad` option
+    # TODO: superlocal may work better in pure gradient descent
+    sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', not stochastic or superlocal)
     if newton:
-        default_step_max = 1.
+        default_step_max = .5
         default_wolfe = (.5, None)
     else:
-        default_step_max = .5
+        default_step_max = .25
         default_wolfe = (.1, None)
-        if 'ls_armijo_max' not in obfgs_kwargs:
-            obfgs_kwargs['ls_armijo_max'] = 5
-    obfgs_kwargs['ls_step_max'] = obfgs_kwargs.get('ls_step_max', default_step_max)
-    obfgs_kwargs['ls_wolfe'] = obfgs_kwargs.get('ls_wolfe', default_wolfe)
+    if 'ls_armijo_max' not in sbfgs_kwargs:
+        sbfgs_kwargs['ls_armijo_max'] = 5
+    sbfgs_kwargs['ls_step_max'] = sbfgs_kwargs.get('ls_step_max', default_step_max)
+    sbfgs_kwargs['ls_wolfe'] = sbfgs_kwargs.get('ls_wolfe', default_wolfe)
+    if 'ftol' not in sbfgs_kwargs:
+        sbfgs_kwargs['ftol'] = 1e-3
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
-            gradient_subspace, descent_subspace, args, **obfgs_kwargs)
+            gradient_subspace, descent_subspace, args, **sbfgs_kwargs)
     #if not (result.success or verbose):
     #    warn('{}'.format(result.message), OptimizationWarning)
 
@@ -393,8 +407,12 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
             cols = ['iter'] + cols
         posterior_info = pd.DataFrame(np.array(posterior_info), columns=cols)
 
-    if result.err is not None:
-        return DVF, posterior_info, pd.DataFrame(result.err, columns=['error'])
+    if return_struct:
+        return DVF, dict(posterior_info=posterior_info, result=result)
+    elif result.err is not None:
+        return DVF, dict(posterior_info=posterior_info, resolution=result.resolution, error=result.err)
+    else:
+        return DVF, dict(posterior_info=posterior_info, resolution=result.resolution)
 
     return DVF, posterior_info
 

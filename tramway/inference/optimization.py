@@ -9,7 +9,7 @@ import traceback
 import warnings
 
 
-BFGSResult = namedtuple('BFGSResult', ('x', 'H', 'err', 'f', 'projg', 'cumtime', 'diagnosis'))
+BFGSResult = namedtuple('BFGSResult', ('x', 'H', 'resolution', 'f', 'projg', 'cumtime', 'err', 'diagnosis'))
 
 
 def sdfunc(func, yy, ids, components, _sum, h, args=(), kwargs={}, per_component_diff=None):
@@ -237,49 +237,7 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), bounds=None, eta0=1., c=1., l=0.
             if available, uses :func:`alt_fun` instead of :func:`fun`.
     """
     if verbose:
-        component_strlen = [0]
-        def format_component(_c, _f=True):
-            if _c is None:
-                return 'f' if _f else ''
-            _c = str(_c)
-            _strlen = len(_c)
-            if component_strlen[0] <= _strlen:
-                component_strlen[0] = _strlen
-                _sp = ''
-            else:
-                _sp = ' ' * (component_strlen[0] - _strlen)
-            return 'f({}{})'.format(_sp, _c)
-        def msg0(_i, _c, _f, _dg):
-            _i = str(_i)
-            return 'At iterate {}{}\t{}= {}{:E} \tproj g = {:E}\n'.format(
-                ' ' * max(0, 3 - len(_i)), _i,
-                format_component(_c),
-                ' ' if 0 <= _f else '', _f, _dg)
-        def msg1(_i, _c, _f0, _f1, _dg):
-            _i = str(_i)
-            _df = _f1 - _f0
-            return 'At iterate {}{}\t{}= {}{:E} \tdf= {}{:E} \tproj g = {:E}\n'.format(
-                ' ' * max(0, 3 - len(_i)), _i,
-                format_component(_c),
-                ' ' if 0 <= _f1 else '', _f1,
-                ' ' if 0 <= _df else '', _df, _dg)
-        def msg2(_i, _c, *_args):
-            _c = format_component(_c)
-            if len(_args) == 3 and isinstance(_args[1], str) and isinstance(_args[-1], (tuple, list)):
-                _exc_type, _exc_msg, _exc_args = _args
-                try:
-                    _exc_msg = _exc_msg.replace('%s', '{}').format(*_exc_args)
-                except (SystemExit, KeyboardInterrupt):
-                    raise
-                except:
-                    pass
-                else:
-                    _args = (_exc_type, _exc_msg)
-            if _c:
-                _args = (_c,) + _args
-            msg = ''.join(('At iterate {}{}\t', ':  '.join(['{}'] * len(_args)), '\n'))
-            _i = str(_i)
-            return msg.format(' ' * max(0, 3 - len(_i)), _i, *_args)
+        msg0, msg1, msg2 = define_pprint()
         cumt = 0.
         fx_history = []
         t0 = time.time()
@@ -401,7 +359,6 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), bounds=None, eta0=1., c=1., l=0.
             bounds = None
         if bounds and c < 1:
             warnings.warn('c < 1; bounds may be violated')
-    _sanity_check(x0, bounds)
     #
     eta, p = subspace_search(f, rows_f, cols_f, x0, p, g, df, rows_df, bounds=bounds, eps=eps,
             eta0=eta0, c=c, ls_maxiter=ls_maxiter, step_max=step_max, f0=eval_f_and_update)
@@ -414,7 +371,6 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), bounds=None, eta0=1., c=1., l=0.
         x = np.array(x0) # copy
         x[cols_f] += s
         h = df(x, rows_df, cols_df)
-    _sanity_check(x, bounds)
     if h is None:
         raise RuntimeError('gradient calculation failed')
     y = h - g
@@ -637,7 +593,6 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), bounds=None, eta0=1., c=1., l=0.
             else:
                 x1 = np.array(x)
                 x1[cols_f] += s
-            _sanity_check(x1, bounds)
             #if _fobj and _fobj(x1):
             #    resolution = 'CONVERGENCE: F* <= FOBJ  (f*= approximated total)'
             #    break
@@ -812,19 +767,17 @@ def minimize_sbfgs(minibatch, fun, x0, args=(), bounds=None, eta0=1., c=1., l=0.
             print('Elapsed time = {:d}m{:.3f}s\n'.format(minute, second))
         else:
             print('Elapsed time = {:.3f}s\n'.format(second))
-        args = [fx_history, proj_history, cumt]
     else:
-        args = [None, proj_history, None]
+        fx_history = cumt = None
     if not (diagnosis and diagnoses):
         diagnoses = None
-    return BFGSResult(x, B, errs, diagnoses, *args)
-
+    return BFGSResult(x, B, resolution, fx_history, proj_history, cumt, errs, diagnoses)
 
 
 def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=None, f0=None, g0=None,
         bounds=None, weight_regul=None, step_regul=None,
         eta_max=1., iter_max=10, step_max=None, c0=.5, c1=1e-4, c2=.9, c3=.9, c4=.1, c5=1e-10,
-        armijo_max=None):
+        armijo_max=None, return_resolution=False):
     """
     Wolfe line search along direction `p` possibly restricted to a subspace.
 
@@ -870,7 +823,10 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
     #
     slope = np.dot(p, g0)
     if 0 <= slope:
-        return None#raise ValueError('not a descent direction')
+        if return_resolution:
+            return None, 'not a descent direction'
+        else:
+            return None#raise ValueError('not a descent direction')
     if step_max:
         norm = np.max(np.abs(p))
         if step_max < norm * eta_max:
@@ -901,7 +857,8 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
     while True:
         #eta_hist.append(eta)
         if eta < eta_min:
-            print('eta < eta_min={}'.format(eta_min))
+            #print('eta < eta_min={}'.format(eta_min))
+            res = 'eta < eta_min={}'.format(eta_min)
             break
         _x = x0 + eta * p
         if bounds:
@@ -941,7 +898,10 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
                     if c2 is None and c3 is None:
                         # do not test Wolfe condition; stop here
                         p = _x - x0
-                        return p
+                        if return_resolution:
+                            return p, 'Armijo criterion met'
+                        else:
+                            return p
                     try:
                         gx = g(x, *args_g)
                     except ValueError:
@@ -957,7 +917,10 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
                         #print((_slope, new_slope, curvature_condition))
                         if curvature_condition:
                             p = _x - x0
-                            return p
+                            if return_resolution:
+                                return p, 'Wolfe criterion met'
+                            else:
+                                return p
             if eta == eta_max:
                 eta1 = -slope / (2. * (df - slope))
             else:
@@ -984,10 +947,15 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
         i += 1
         if iter_max and i == iter_max:
             #print('iter_max reached')
+            res = 'iter_max reached'
             break
     #if True:
     #    print((eta_hist, norm_p_hist, f_hist, df_hist, armijo_hist))
-    return None # line search failed
+    if return_resolution:
+        return None, res
+    else:
+        return None # line search failed
+
 
 def slnsrch(f, rows, cols, x, p, g, eta_max=1., iter_max=10, step_max=None, bounds=None, c=1.,
         fold=None, active_set=False):
@@ -1034,10 +1002,6 @@ def slnsrch(f, rows, cols, x, p, g, eta_max=1., iter_max=10, step_max=None, boun
     last_valid_x = np.array(x)
     i = 0
     while True:
-        #if i == 0:
-        #    eta = _update(xold, eta, p, bounds, c)
-        #    if eta == 0:
-        #        return eta
         _x = xold + eta * p
         _x = _proj(_x, lb, ub)
         if cols is None:
@@ -1102,59 +1066,12 @@ def slnsrch(f, rows, cols, x, p, g, eta_max=1., iter_max=10, step_max=None, boun
         else:
             return None
 
-def _update(x, eta0, p, bounds, c):
-    """Deprecated!"""
-    if bounds:
-        lower_bound, upper_bound = bounds
-        eta_lb = eta_ub = None
-        ok = []
-        if lower_bound:
-            bound = [ (i, b) for i, b in enumerate(lower_bound) if b is not None ]
-            if bound:
-                bounded, bound = zip(*bound)
-                bounded, bound = np.array(bounded), np.array(bound)
-                eta = (bound - x[bounded]) / p[bounded]
-                ok = bounded[0 <= eta].tolist() # in the case `upper_bound` is defined
-                if ok:
-                    eta_lb = np.min(eta[0 <= eta]) * c
-                else:
-                    ok = []
-        if upper_bound:
-            bounded, bound = [], []
-            for i, b in enumerate(upper_bound):
-                if not (b is None or i in ok): # here `ok` must be a sequence
-                    bounded.append(i)
-                    bound.append(b)
-            if bound:
-                bounded, bound = np.array(bounded), np.array(bound)
-                eta = (bound - x[bounded]) / p[bounded]
-                eta = eta[0 <= eta]
-                if eta.size:
-                    eta_ub = np.min(eta) * c
-                    ok = True
-        if ok:
-            if eta_lb is None:
-                eta = eta_ub
-            elif eta_ub is None:
-                eta = eta_lb
-            else:
-                eta = min(eta_lb, eta_ub)
-            #if eta < eta0:
-            #    print('bound met at eta= {}'.format(eta))
-            return min(eta0, eta)
-        else:
-            return eta0
-    else:
-        return eta0
-
-
 def _proj(x, lb, ub):
     if lb is not None:
         x = np.maximum(lb, x)
     if ub is not None:
         x = np.minimum(x, ub)
     return x
-
 
 def _active_set(x, lb, ub, cols=None):
     """Deprecated!"""
@@ -1190,25 +1107,558 @@ def subspace_search(f, rows_f, cols, x, p, g, df, rows_df=None, B=None,
     #        eta_max=1., iter_max=ls_maxiter, **kwargs)
     return 1., pnew
 
-def _sanity_check(x, bounds):
-    """Deprecated!"""
-    if bounds:
-        lb, ub = bounds
-        if lb is not None:
-            fail, = np.nonzero(x < lb - 1e-8)
-            if fail.size:
-                for i in fail:
-                    print('at column {}: {} < {}'.format(i, x[i], lb[i]))
-                raise ValueError
-        assert ub is None
 
+def define_pprint():
+    component_strlen = [0]
+    def format_component(_c, _f=True):
+        if _c is None:
+            return 'f' if _f else ''
+        _c = str(_c)
+        _strlen = len(_c)
+        if component_strlen[0] <= _strlen:
+            component_strlen[0] = _strlen
+            _sp = ''
+        else:
+            _sp = ' ' * (component_strlen[0] - _strlen)
+        return 'f({}{})'.format(_sp, _c)
+    def msg0(_i, _c, _f, _dg):
+        _i = str(_i)
+        return 'At iterate {}{}\t{}= {}{:E} \tproj g = {:E}\n'.format(
+            ' ' * max(0, 3 - len(_i)), _i,
+            format_component(_c),
+            ' ' if 0 <= _f else '', _f, _dg)
+    def msg1(_i, _c, _f0, _f1, _dg=None):
+        _i = str(_i)
+        _df = _f1 - _f0
+        return 'At iterate {}{}\t{}= {}{:E} \tdf= {}{:E}{}\n'.format(
+            ' ' * max(0, 3 - len(_i)), _i,
+            format_component(_c),
+            ' ' if 0 <= _f1 else '', _f1,
+            ' ' if 0 <= _df else '', _df,
+            '' if _dg is None else ' \tproj g = {:E}'.format(_dg))
+    def msg2(_i, _c, *_args):
+        _c = format_component(_c)
+        if len(_args) == 3 and isinstance(_args[1], str) and isinstance(_args[-1], (tuple, list)):
+            _exc_type, _exc_msg, _exc_args = _args
+            try:
+                _exc_msg = _exc_msg.replace('%s', '{}').format(*_exc_args)
+            except (SystemExit, KeyboardInterrupt):
+                raise
+            except:
+                pass
+            else:
+                _args = (_exc_type, _exc_msg)
+        if _c:
+            _args = (_c,) + _args
+        msg = ''.join(('At iterate {}{}\t', ':  '.join(['{}'] * len(_args)), '\n'))
+        _i = str(_i)
+        return msg.format(' ' * max(0, 3 - len(_i)), _i, *_args)
+    return msg0, msg1, msg2
+
+
+class _defaultdict(object):
+    """
+    defaultdict that passes the key as first positional argument to the factory function.
+    """
+    __slots__ = ('_dict', 'arg', 'factory', 'args', 'kwargs')
+    def __init__(self, factory, *args, **kwargs):
+        """
+        Arguments:
+
+            factory (callable): factory function; takes a key as first positional argument.
+
+            init_argument (map or callable): function or table that hashes the key before the latter
+                is passed to `factory`; `init_argument` must be keyworded!
+
+        Other positional and keyword arguments are passed to `factory`.
+        """
+        self._dict = {}
+        self.factory = factory
+        self.arg = kwargs.pop('init_argument', None)
+        self.args = args
+        self.kwargs = kwargs
+    def __make__(self, arg):
+        return self.factory(arg, *self.args, **self.kwargs)
+    def __nonzero__(self):
+        return bool(self._dict)
+    def __getitem__(self, i):
+        try:
+            item = self._dict[i]
+        except KeyError:
+            if self.arg is None:
+                arg = i
+            elif callable(self.arg):
+                arg = self.arg(i)
+            else:
+                arg = self.arg[i]
+            item = self.__make__(arg)
+            self._dict[i] = item
+        return item
+    def __setitem__(self, i, item):
+        self._dict[i] = item
+    def __len__(self):
+        return len(self._dict)
+    def __iter__(self):
+        return iter(self._dict)
+
+
+class SparseFunction(object):
+    """ Parameter singleton.
+
+    Attributes:
+
+        x (numpy.ndarray): working copy of the parameter vector.
+
+        covariate (callable): returns the components that covary with the input component (all indices).
+
+        gradient_subspace (callable): takes a component index and returns the indices of the related
+            parameters.
+
+        descent_subspace (callable): takes a component index and returns the indices of the related
+            parameters.
+
+        eps (float): initial scaling of the descent direction when no curvature information is available.
+
+        fun (callable): local cost function (takes a component index before the parameter vector).
+
+        _sum (callable): mixture function for local costs.
+
+        args (sequence): positional input arguments to `fun`.
+
+        regul (float): regularization coefficient on the parameters.
+
+    See also :func:`minimize_sparse_bfgs`.
+    """
+    def __init__(self, x, covariate, gradient_subspace, descent_subspace,
+            eps, fun, _sum, args, regul):
+        self.x = x
+        self.covariate = covariate
+        self.gradient_subspace = gradient_subspace
+        self.descent_subspace = descent_subspace
+        self.eps = eps
+        self.fun = fun
+        self.sum = _sum
+        self.args = args
+        self.regul = regul
+
+
+def define_component(__global__, independent_components, memory, newton, gradient_covariate):
+    """ Generate base classes.
+
+    Arguments:
+
+        __global__ (SparseFunction): parameter singleton.
+
+        independent_components (bool): whether the curvature information is maintained for each
+            component independently.
+
+        memory (int): number of update pairs for inverse Hessian approximation.
+
+        newton (bool): whether to operate as a quasi-Newton algorithm with Cauchy point estimation.
+
+        gradient_covariate (callable): same as `SparseFunction.covariate`, for gradient calculation.
+
+    Returns:
+
+        type: Component class.
+    """
+    class LocalSubspace(object):
+        """
+        Requires `x`, `covariate`, `gradient_subspace` and `descent_subspace`.
+        """
+        __slots__ = ('_i', '_subspace_map', '_gradient_subspace_size', '_descent_subspace_size')
+        def __init__(self, i=None):
+            self._i = i
+            self._subspace_map = None
+            self._gradient_subspace_size = None
+            self._descent_subspace_size = None
+        @property
+        def _size_error(self):
+            return ValueError('vector size does not match any (sub)space')
+        @property
+        def n(self):
+            return __global__.x.size
+        @property
+        def i(self):
+            if self._i is None:
+                raise ValueError('component attribute `i` is not set')
+            return self._i
+        @i.setter
+        def i(self, i):
+            if (self._i is None) != (i != self._i): # _i is None xor i != _i
+                self._i = i
+                self._subspace_map = None
+                self._gradient_subspace_size = None
+                self._descent_subspace_size = None
+        @property
+        def covariate(self):
+            return __global__.covariate(self.i)
+        @property
+        def gradient_subspace(self):
+            return __global__.gradient_subspace(self.i)
+        @property
+        def gradient_subspace_size(self):
+            if self._gradient_subspace_size is None:
+                try:
+                    g = self.g
+                except AttributeError:
+                    g = None
+                if g is None:
+                    j = self.gradient_subspace
+                    if j is None: # full space
+                        self._gradient_subspace_size = self.n
+                    else:
+                        self._gradient_subspace_size = len(j)
+                else:
+                    self._gradient_subspace_size = len(g)
+            return self._gradient_subspace_size
+        @property
+        def descent_subspace(self):
+            j = __global__.descent_subspace(self.i)
+            if j is None: # falls back onto gradient subspace
+                j = self.gradient_subspace
+            return j
+        @property
+        def descent_subspace_size(self):
+            if self._descent_subspace_size is None:
+                j = self.descent_subspace
+                if j is None: # full space
+                    self._descent_subspace_size = self.n
+                else:
+                    self._descent_subspace_size = len(j)
+            return self._descent_subspace_size
+        def in_full_space(self, vec, copy=False):#, working_copy=x
+            if vec is None:
+                return None
+            if vec.size == self.n:
+                if copy:
+                    vec = np.array(vec)
+                return vec
+            if vec.size == self.gradient_subspace_size:
+                j = self.gradient_subspace
+            elif vec.size == self.descent_subspace_size:
+                j = self.descent_subspace
+            else:
+                raise self._size_error
+            working_copy = __global__.x
+            if copy:
+                working_copy = np.array(working_copy)
+            working_copy[j] = vec
+            return working_copy
+        def in_gradient_subspace(self, vec, copy=False):
+            if vec is None:
+                return None
+            if vec.size == self.n:
+                j = self.gradient_subspace
+                if j is not None:
+                    vec = vec[j]
+                elif copy:
+                    vec = np.array(vec)
+            elif vec.size == self.gradient_subspace_size:
+                if copy:
+                    vec = np.array(vec)
+            elif vec.size == self.descent_subspace_size:
+                _vec = np.zeros(self.gradient_subspace_size, dtype=vec.dtype)
+                _vec[self.subspace_map] = vec
+                vec = _vec
+            else:
+                raise self._size_error
+            return vec
+        def in_descent_subspace(self, vec, copy=False):
+            if vec is None:
+                return None
+            if vec.size == self.n:
+                j = self.descent_subspace
+                if j is not None:
+                    vec = vec[j]
+                elif copy:
+                    vec = np.array(vec)
+            elif vec.size == self.descent_subspace_size:
+                if copy:
+                    vec = np.array(vec)
+            elif vec.size == self.gradient_subspace_size:
+                vec = vec[self.subspace_map]
+            else:
+                raise self._size_error
+            return vec
+        @property
+        def subspace_map(self):
+            if self._subspace_map is None:
+                jg = self.gradient_subspace
+                assert jg is not None
+                jd = self.descent_subspace
+                assert jd is not None
+                self._subspace_map = [ (jg==j).nonzero()[0][0] for j in jd ]
+            return self._subspace_map
+    class LocalSubspaceProxy(object):
+        __slots__ = ('__proxied__',)
+        def __init__(self, i):
+            if isinstance(i, LocalSubspaceProxy):
+                self.__proxied__ = i.__proxied__
+            elif isinstance(i, LocalSubspace):
+                self.__proxied__ = i
+            else:
+                self.__proxied__ = LocalSubspace(i)
+        @property
+        def n(self):
+            return self.__proxied__.n
+        @property
+        def i(self):
+            return self.__proxied__.i
+        @i.setter
+        def i(self, i):
+            raise AttributeError('the `i` property is read-only')
+            self.__proxied__.i = i
+        @property
+        def covariate(self):
+            return self.__proxied__.covariate
+        @property
+        def gradient_subspace(self):
+            return self.__proxied__.gradient_subspace
+        @property
+        def gradient_subspace_size(self):
+            return self.__proxied__.gradient_subspace_size
+        @property
+        def descent_subspace(self):
+            return self.__proxied__.descent_subspace
+        @property
+        def descent_subspace_size(self):
+            return self.__proxied__.descent_subspace_size
+        @property
+        def subspace_map(self):
+            return self.__proxied__.subspace_map
+        def in_full_space(self, *args, **kwargs):
+            return self.__proxied__.in_full_space(*args, **kwargs)
+        def in_gradient_subspace(self, *args, **kwargs):
+            return self.__proxied__.in_gradient_subspace(*args, **kwargs)
+        def in_descent_subspace(self, *args, **kwargs):
+            return self.__proxied__.in_descent_subspace(*args, **kwargs)
+    # inverse Hessian matrix
+    Pair = namedtuple('Pair', ('s', 'y', 'rho', 'gamma'))
+    class AbstractInverseHessianBlock(LocalSubspaceProxy):
+        """ Base class for local inverse Hessian.
+
+        Requires `eps`.
+
+        May also expose the internal representation of a block as attribute or property `block`.
+        """
+        __slots__ = ()
+        @property
+        def eps(self):
+            return __global__.eps
+        def dot(self, g):
+            return self.block.dot(g)
+        def update(self, s, y, proj):
+            if proj is None:
+                proj = np.dot(s, self.in_descent_subspace(y))
+            Hy = self.dot(y)
+            yHy = np.dot(y, Hy)
+            assert 0 <= yHy
+            self.block = self.block + (\
+                    (1 + yHy) / proj * np.outer(s, s) - np.outer(Hy, s) - np.outer(s, Hy)
+                ) / proj
+        def drop(self):
+            raise NotImplementedError('abstract method')
+    class GradientDescent(AbstractInverseHessianBlock):
+        """Does not use Cauchy points."""
+        def dot(self, g):
+            return self.eps * g
+        def update(self, *args):
+            pass
+        def drop(self):
+            pass
+    class InverseHessianBlockView(AbstractInverseHessianBlock):
+        __slots__ = ('fresh', 'slice')
+        def __init__(self, component):
+            AbstractInverseHessianBlock.__init__(self, component)
+            self.fresh = True
+            self.slice = np.ix_(self.gradient_subspace, self.gradient_subspace)
+        def drop(self):
+            self.fresh = True
+        @property
+        def block(self):
+            block = __global__.H[self.slice]
+            if self.fresh:
+                block = self.eps * (block + sparse.identity(self.gradient_subspace_size, format='lil'))
+            return block
+        @block.setter
+        def block(self, block):
+            #if self.fresh:
+            #    _block = __global__.H[self.slice]
+            #    i, j, k = sparse.find(_block)
+            #    block[np.ix_(i,j)] += k
+            #    block[np.ix_(i,j)] /= 2
+            __global__.H[self.slice] = block
+            self.fresh = False
+    class IndependentInverseHessianBlock(AbstractInverseHessianBlock):
+        __slots__ = ('block',)
+        def __init__(self, component):
+            AbstractInverseHessianBlock.__init__(self, component)
+            self.drop()
+        def drop(self):
+            self.block = self.eps * np.identity(self.gradient_subspace_size)
+    class LimitedMemoryInverseHessianBlock(AbstractInverseHessianBlock):
+        """Requires `memory`."""
+        __slots__ = ('block',)
+        def __init__(self, component):
+            AbstractInverseHessianBlock.__init__(self, component)
+            self.drop()
+        def drop(self):
+            self.block = deque([], __global__.memory)
+        def dot(self, g):
+            if self.block:
+                # `block` is nonempty
+                p = np.array(g) # copy
+                U = []
+                for u in self.block: # for each past block from k-1 to k-m
+                    if self.gradient_subspace is None or len(u.s) == self.gradient_subspace_size:
+                        alpha = u.rho * np.dot(u.s, p)
+                    else:
+                        alpha = u.rho * np.dot(u.s, self.in_descent_subspace(p))
+                    p -= alpha * u.y
+                    U.append((u.s, u.y, u.rho, alpha))
+                p *= -self.last.gamma # gamma_{k-1}
+                for s, y, rho, alpha in U[::-1]: # from k-m to k-1
+                    beta = rho * np.dot(y, p)
+                    if len(s) == len(p):
+                        p += (alpha - beta) * s
+                    else:
+                        assert self.subspace_map is not None
+                        p[self.subspace_map] += (alpha - beta) * s
+            else:
+                p = -self.eps * g
+            return -p
+        def update(self, s, y, proj):
+            rho = 1. / proj
+            gamma = proj / np.dot(y, y)
+            self.block.appendleft(Pair(s, y, rho, gamma))
+        @property
+        def last(self):
+            return self.block[0]
+    # choose an implementation
+    if not newton:
+        InverseHessianBlock = GradientDescent
+    elif independent_components:
+        if memory:
+            __global__.memory = memory
+            InverseHessianBlock = LimitedMemoryInverseHessianBlock
+        else:
+            InverseHessianBlock = IndependentInverseHessianBlock
+    else:
+        # just ignore
+        #if memory:
+        #    raise NotImplementedError('`memory` requires `indepdendent_components`')
+        __global__.H = sparse.lil_matrix((x.size, x.size))
+        InverseHessianBlock = InverseHessianBlockView
+    # component
+    class Component(LocalSubspaceProxy):
+        """
+        Requires `fun`, `_sum` and `args`.
+        """
+        __slots__ = ('_x', '_f', '_g', '_H')
+        def __init__(self, i):
+            LocalSubspaceProxy.__init__(self, i)
+            self._x = None # gradient-active components only
+            self._f = None
+            self._g = None # gradient-active components only
+            self._H = None
+        @property
+        def x(self):
+            return self._x
+        @x.setter
+        def x(self, _x):
+            assert _x is None
+            self._x = self.in_gradient_subspace(_x)
+            self.f = None
+            self.g = None
+            self.H = None
+        def pull(self, _x):
+            self._x = self.in_gradient_subspace(_x)
+            #assert self._x is not _x # fails if not _stochastic
+            self._f = self.__f__(_x)
+            assert self._f is not None
+            self._g = self.__g__(_x, update=True)
+            assert self._g is not None
+        def __f__(self, _x):
+            #assert _x is x # check there is a single working copy
+            return __global__.fun(self.i, _x, *__global__.args)
+        @property
+        def f(self):
+            if self._f is None:
+                self._f = self.__f__(self.in_full_space(self.x))
+            return self._f
+        @f.setter
+        def f(self, f):
+            self._f = f
+        def __g__(self, _x, subspace=None, covariate=None, update=False):
+            #assert _x is x # check there is a single working copy
+            if subspace is None:
+                subspace = self.gradient_subspace
+            if covariate is None:
+                covariate = self.covariate
+            _total_g, _partial_g = sparse_grad(__global__.fun, _x, covariate,
+                    subspace, __global__.args, __global__.sum, __global__.regul)
+            return _total_g
+        @property
+        def g(self):
+            if self._g is None:
+                self._g = self.__g__(self.in_full_space(self.x), update=True)
+            return self._g
+        @g.setter
+        def g(self, g):
+            self._g = self.in_gradient_subspace(g)
+        @property
+        def H(self):
+            if self._H is None:
+                self._H = InverseHessianBlock(self)
+            return self._H
+        @H.setter
+        def H(self, H):
+            self._H = H
+        def commit(self, s):
+            c = Component(self) # fails if `i` is not set
+            if self.x is None:
+                raise ValueError('parameter vector `x` not defined')
+            #if self.s is None:
+            #    raise ValueError('parameter update `s` not defined')
+            c._x = np.array(self.x)
+            if c.descent_subspace is None:
+                if len(s) != self.n:
+                    raise ValueError('wrong size for parameter update `s`')
+                c._x += s
+            else:
+                if len(s) != c.descent_subspace_size:
+                    raise ValueError('parameter update `s` is not in descent subspace')
+                c._x[c.subspace_map] += s
+            return c
+        def push(self, _x=None):
+            if _x is None:
+                _x = __global__.x
+            __x = self.x
+            if __x is None:
+                raise RuntimeError('no parameters are defined')
+            if __x.size == _x.size:
+                if __x is not _x:
+                    _x[...] = __x
+            elif __x.size == self.gradient_subspace_size:
+                _x[self.gradient_subspace] = __x
+            else:
+                raise self._size_error
+    if gradient_covariate is None:
+        return Component
+    else:
+        class Component1(Component):
+            __slots__ = ()
+            def __g__(self, x, subspace=None, update=False):
+                return Component.__g__(self, x, subspace, gradient_covariate, update)
+        return Component1
 
 
 def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, descent_subspace,
         args=(), bounds=None, _sum=np.sum, gradient_sum=None, gradient_covariate=None,
-        memory=10, eps=1e-6, ftol=1e-6, gtol=1e-10, s_scale=1.,
+        memory=10, eps=1e-6, ftol=1e-6, gtol=1e-10, low_df_rate=.9, low_dg_rate=.9, step_scale=1.,
         max_iter=None, regul=None, regul_decay=1e-5, ls_regul=None, ls_step_max=None, ls_iter_max=None,
-        ls_armijo_max=None, ls_wolfe=None,
+        ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.5, fix_ls=None, fix_ls_trigger=5,
         independent_components=True, newton=True, verbose=False):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
@@ -1242,7 +1692,92 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
     The inverse Hessian matrix must also be updated twice: before and after the update.
 
-    x0 is modified inplace.
+    Arguments:
+
+        fun (callable): takes a component index (`int`) and the parameter vector (`numpy.ndarray`)
+            and returns a scalar `float`.
+
+        x0 (numpy.ndarray): initial parameter vector.
+
+        component (callable): takes an iteration index (`int`) and returns a component index (`int`);
+            all the components are expected to be drawn exactly once per epoch.
+
+        covariate (callable): takes a component index `i` (`int`) and returns a sequence of
+            indices of the components that covary with `i`, including `i`.
+
+        gradient_subspace (callable): takes a component index (`int`) and returns a sequence of
+            indices of the parameters spanning the gradient subspace;
+            if `None`, the gradient 'subspace' is the full space.
+
+        descent_subspace (callable): takes a component index (`int`) and returns a sequence of
+            indices of the parameters spanning the descent subspace;
+            if `None`, the descent subspace equals to the gradient subspace.
+
+        args (tuple or list): sequence of positional arguments to `fun`.
+
+        bounds (tuple or list): sequence of pairs of (lower, upper) bounds on the parameters.
+
+        _sum (callable): takes a `list` of `float` values and returns a `float`.
+
+        gradient_sum (callable): replacement for `_sum` in the calculation of the gradient.
+
+        gradient_covariate (callable): replacement for `covariate` in the calculation of the gradient.
+
+        memory (int): number of memorized pairs of `H` updates in quasi-Newton mode.
+
+        eps (float): initial scaling of the descent direction.
+
+        ftol (float): maximum decrease in the local objective.
+
+        gtol (float): maximum decrease in the projected gradient.
+
+        low_df_rate (float): epoch-wise rate of low decrease in local objective (below `ftol`);
+            at the end of an epoch, if this rate has been reached, then the iteration stops.
+
+        low_dg_rate (float): epoch-wise rate of low decrease in the projected gradient (below `gtol`);
+            at the end of an epoch, if this rate has been reached, then the iteration stops.
+
+        step_scale (float): reduction factor on the line-searched step.
+
+        max_iter (int): maximum number of iterations.
+
+        regul (float): regularization trade-off coefficient for the L2-norm of the parameter vector.
+
+        regul_decay (float): decay parameter for `regul`.
+
+        ls_regul (float): regularization trade-off coefficient for the L2-norm of the parameter vector
+            update.
+
+        ls_step_max (float): maximum L-infinite norm of the parameter vector update.
+
+        ls_iter_max (int): maximum number of linesearch iterations.
+
+        ls_armijo_max (float): maximum expected decrease in the local objective; throttles the
+            Armijo threshold.
+
+        ls_wolfe (tuple): (`c2`, `c3`) pair for :func:`wolfe_line_search`.
+
+        ls_failure_rate (float): epoch-wise rate of linesearch failure;
+            at the end of an epoch, if this rate has been reached, then the iteration stops.
+
+        fix_ls (callable): takes a component index (`int`) and the parameter vector (`numpy.ndarray`)
+            to be modified inplace in the case of recurrent linesearch failures for this component.
+
+        fix_ls_trigger (int): minimum number of iterations with successive linesearch failures on a
+            given component for `fix_ls` to be triggered.
+
+        independent_components (bool): whether to represent the local inverse Hessian submatrix
+            for a component independently of the other components.
+
+        newton (bool): quasi-Newton (BFGS) mode; if `False`, use vanilla gradient descent instead.
+
+        verbose (bool): verbose mode.
+
+    Returns:
+
+        BFGSResult: final parameter vector.
+
+    See also :class:`SparseFunction` and :func:`wolfe_line_search`.
     """
     _all = None
     if not callable(fun):
@@ -1269,50 +1804,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         raise TypeError('gradient_sum is not callable')
     # logging
     if verbose:
-        component_strlen = [0]
-        def format_component(_c, _f=True):
-            if _c is None:
-                return 'f' if _f else ''
-            _c = str(_c)
-            _strlen = len(_c)
-            if component_strlen[0] <= _strlen:
-                component_strlen[0] = _strlen
-                _sp = ''
-            else:
-                _sp = ' ' * (component_strlen[0] - _strlen)
-            return 'f({}{})'.format(_sp, _c)
-        def msg0(_i, _c, _f, _dg):
-            _i = str(_i)
-            return 'At iterate {}{}\t{}= {}{:E} \tproj g = {:E}\n'.format(
-                ' ' * max(0, 3 - len(_i)), _i,
-                format_component(_c),
-                ' ' if 0 <= _f else '', _f, _dg)
-        def msg1(_i, _c, _f0, _f1, _dg=None):
-            _i = str(_i)
-            _df = _f1 - _f0
-            return 'At iterate {}{}\t{}= {}{:E} \tdf= {}{:E}{}\n'.format(
-                ' ' * max(0, 3 - len(_i)), _i,
-                format_component(_c),
-                ' ' if 0 <= _f1 else '', _f1,
-                ' ' if 0 <= _df else '', _df,
-                '' if _dg is None else ' \tproj g = {:E}'.format(_dg))
-        def msg2(_i, _c, *_args):
-            _c = format_component(_c)
-            if len(_args) == 3 and isinstance(_args[1], str) and isinstance(_args[-1], (tuple, list)):
-                _exc_type, _exc_msg, _exc_args = _args
-                try:
-                    _exc_msg = _exc_msg.replace('%s', '{}').format(*_exc_args)
-                except (SystemExit, KeyboardInterrupt):
-                    raise
-                except:
-                    pass
-                else:
-                    _args = (_exc_type, _exc_msg)
-            if _c:
-                _args = (_c,) + _args
-            msg = ''.join(('At iterate {}{}\t', ':  '.join(['{}'] * len(_args)), '\n'))
-            _i = str(_i)
-            return msg.format(' ' * max(0, 3 - len(_i)), _i, *_args)
+        msg0, msg1, msg2 = define_pprint()
         cumt = 0.
         t0 = time.time()
     #
@@ -1343,443 +1835,8 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         #if bounds and c < 1:
         #    warnings.warn('c < 1; bounds may be violated')
     # component
-    class _defaultdict(object):
-        __slots__ = ('_dict', 'arg', 'factory', 'args', 'kwargs')
-        def __init__(self, factory, *args, **kwargs):
-            self._dict = {}
-            self.factory = factory
-            self.arg = kwargs.pop('init_argument', None)
-            self.args = args
-            self.kwargs = kwargs
-        def __make__(self, arg):
-            return self.factory(arg, *self.args, **self.kwargs)
-        def __nonzero__(self):
-            return bool(self._dict)
-        def __getitem__(self, i):
-            try:
-                item = self._dict[i]
-            except KeyError:
-                if self.arg is None:
-                    arg = i
-                elif callable(self.arg):
-                    arg = self.arg(i)
-                else:
-                    arg = self.arg[i]
-                item = self.__make__(arg)
-                self._dict[i] = item
-            return item
-        def __setitem__(self, i, item):
-            self._dict[i] = item
-        def __len__(self):
-            return len(self._dict)
-        def __iter__(self):
-            return iter(self._dict)
 
-    # parameter singleton
-    class Parameters(object):
-        def __init__(self, x, covariate, gradient_subspace, descent_subspace,
-                eps, fun, _sum, args, regul):
-            self.x = x
-            self.covariate = covariate
-            self.gradient_subspace = gradient_subspace
-            self.descent_subspace = descent_subspace
-            self.eps = eps
-            self.fun = fun
-            self.sum = _sum
-            self.args = args
-            self.regul = regul
-    def define_component(__global__, independent_components, memory, newton, gradient_covariate):
-        # base classes
-        class LocalSubspace(object):
-            """
-            Requires `x`, `covariate`, `gradient_subspace` and `descent_subspace`.
-            """
-            __slots__ = ('_i', '_subspace_map', '_gradient_subspace_size', '_descent_subspace_size')
-            def __init__(self, i=None):
-                self._i = i
-                self._subspace_map = None
-                self._gradient_subspace_size = None
-                self._descent_subspace_size = None
-            @property
-            def _size_error(self):
-                return ValueError('vector size does not match any (sub)space')
-            @property
-            def n(self):
-                return __global__.x.size
-            @property
-            def i(self):
-                if self._i is None:
-                    raise ValueError('component attribute `i` is not set')
-                return self._i
-            @i.setter
-            def i(self, i):
-                if (self._i is None) != (i != self._i): # _i is None xor i != _i
-                    self._i = i
-                    self._subspace_map = None
-                    self._gradient_subspace_size = None
-                    self._descent_subspace_size = None
-            @property
-            def covariate(self):
-                return __global__.covariate(self.i)
-            @property
-            def gradient_subspace(self):
-                return __global__.gradient_subspace(self.i)
-            @property
-            def gradient_subspace_size(self):
-                if self._gradient_subspace_size is None:
-                    try:
-                        g = self.g
-                    except AttributeError:
-                        g = None
-                    if g is None:
-                        j = self.gradient_subspace
-                        if j is None: # full space
-                            self._gradient_subspace_size = self.n
-                        else:
-                            self._gradient_subspace_size = len(j)
-                    else:
-                        self._gradient_subspace_size = len(g)
-                return self._gradient_subspace_size
-            @property
-            def descent_subspace(self):
-                j = __global__.descent_subspace(self.i)
-                if j is None: # falls back onto gradient subspace
-                    j = self.gradient_subspace
-                return j
-            @property
-            def descent_subspace_size(self):
-                if self._descent_subspace_size is None:
-                    j = self.descent_subspace
-                    if j is None: # full space
-                        self._descent_subspace_size = self.n
-                    else:
-                        self._descent_subspace_size = len(j)
-                return self._descent_subspace_size
-            def in_full_space(self, vec, copy=False):#, working_copy=x
-                if vec is None:
-                    return None
-                if vec.size == self.n:
-                    if copy:
-                        vec = np.array(vec)
-                    return vec
-                if vec.size == self.gradient_subspace_size:
-                    j = self.gradient_subspace
-                elif vec.size == self.descent_subspace_size:
-                    j = self.descent_subspace
-                else:
-                    raise self._size_error
-                working_copy = __global__.x
-                if copy:
-                    working_copy = np.array(working_copy)
-                working_copy[j] = vec
-                return working_copy
-            def in_gradient_subspace(self, vec, copy=False):
-                if vec is None:
-                    return None
-                if vec.size == self.n:
-                    j = self.gradient_subspace
-                    if j is not None:
-                        vec = vec[j]
-                    elif copy:
-                        vec = np.array(vec)
-                elif vec.size == self.gradient_subspace_size:
-                    if copy:
-                        vec = np.array(vec)
-                elif vec.size == self.descent_subspace_size:
-                    _vec = np.zeros(self.gradient_subspace_size, dtype=vec.dtype)
-                    _vec[self.subspace_map] = vec
-                    vec = _vec
-                else:
-                    raise self._size_error
-                return vec
-            def in_descent_subspace(self, vec, copy=False):
-                if vec is None:
-                    return None
-                if vec.size == self.n:
-                    j = self.descent_subspace
-                    if j is not None:
-                        vec = vec[j]
-                    elif copy:
-                        vec = np.array(vec)
-                elif vec.size == self.descent_subspace_size:
-                    if copy:
-                        vec = np.array(vec)
-                elif vec.size == self.gradient_subspace_size:
-                    vec = vec[self.subspace_map]
-                else:
-                    raise self._size_error
-                return vec
-            @property
-            def subspace_map(self):
-                if self._subspace_map is None:
-                    jg = self.gradient_subspace
-                    assert jg is not None
-                    jd = self.descent_subspace
-                    assert jd is not None
-                    self._subspace_map = [ (jg==j).nonzero()[0][0] for j in jd ]
-                return self._subspace_map
-        class LocalSubspaceProxy(object):
-            __slots__ = ('__proxied__',)
-            def __init__(self, i):
-                if isinstance(i, LocalSubspaceProxy):
-                    self.__proxied__ = i.__proxied__
-                elif isinstance(i, LocalSubspace):
-                    self.__proxied__ = i
-                else:
-                    self.__proxied__ = LocalSubspace(i)
-            @property
-            def n(self):
-                return self.__proxied__.n
-            @property
-            def i(self):
-                return self.__proxied__.i
-            @i.setter
-            def i(self, i):
-                raise AttributeError('the `i` property is read-only')
-                self.__proxied__.i = i
-            @property
-            def covariate(self):
-                return self.__proxied__.covariate
-            @property
-            def gradient_subspace(self):
-                return self.__proxied__.gradient_subspace
-            @property
-            def gradient_subspace_size(self):
-                return self.__proxied__.gradient_subspace_size
-            @property
-            def descent_subspace(self):
-                return self.__proxied__.descent_subspace
-            @property
-            def descent_subspace_size(self):
-                return self.__proxied__.descent_subspace_size
-            @property
-            def subspace_map(self):
-                return self.__proxied__.subspace_map
-            def in_full_space(self, *args, **kwargs):
-                return self.__proxied__.in_full_space(*args, **kwargs)
-            def in_gradient_subspace(self, *args, **kwargs):
-                return self.__proxied__.in_gradient_subspace(*args, **kwargs)
-            def in_descent_subspace(self, *args, **kwargs):
-                return self.__proxied__.in_descent_subspace(*args, **kwargs)
-        # inverse Hessian matrix
-        Pair = namedtuple('Pair', ('s', 'y', 'rho', 'gamma'))
-        class AbstractInverseHessianBlock(LocalSubspaceProxy):
-            """
-            Requires `eps`.
-
-            May also expose the internal representation of a block as attribute or property `block`.
-            """
-            __slots__ = ()
-            @property
-            def eps(self):
-                return __global__.eps
-            def dot(self, g):
-                return self.block.dot(g)
-            def update(self, s, y, proj):
-                if proj is None:
-                    proj = np.dot(s, self.in_descent_subspace(y))
-                Hy = self.dot(y)
-                yHy = np.dot(y, Hy)
-                assert 0 <= yHy
-                self.block = self.block + (\
-                        (1 + yHy) / proj * np.outer(s, s) - np.outer(Hy, s) - np.outer(s, Hy)
-                    ) / proj
-            def drop(self):
-                raise NotImplementedError('abstract method')
-        class GradientDescent(AbstractInverseHessianBlock):
-            """Do not use Cauchy points."""
-            def dot(self, g):
-                return self.eps * g
-            def update(self, *args):
-                pass
-            def drop(self):
-                pass
-        class InverseHessianBlockView(AbstractInverseHessianBlock):
-            __slots__ = ('fresh', 'slice')
-            def __init__(self, component):
-                AbstractInverseHessianBlock.__init__(self, component)
-                self.fresh = True
-                self.slice = np.ix_(self.gradient_subspace, self.gradient_subspace)
-            def drop(self):
-                self.fresh = True
-            @property
-            def block(self):
-                block = __global__.H[self.slice]
-                if self.fresh:
-                    block = self.eps * (block + sparse.identity(self.gradient_subspace_size, format='lil'))
-                return block
-            @block.setter
-            def block(self, block):
-                #if self.fresh:
-                #    _block = __global__.H[self.slice]
-                #    i, j, k = sparse.find(_block)
-                #    block[np.ix_(i,j)] += k
-                #    block[np.ix_(i,j)] /= 2
-                __global__.H[self.slice] = block
-                self.fresh = False
-        class IndependentInverseHessianBlock(AbstractInverseHessianBlock):
-            __slots__ = ('block',)
-            def __init__(self, component):
-                AbstractInverseHessianBlock.__init__(self, component)
-                self.drop()
-            def drop(self):
-                self.block = self.eps * np.identity(self.gradient_subspace_size)
-        class LimitedMemoryInverseHessianBlock(AbstractInverseHessianBlock):
-            """Requires `memory`."""
-            __slots__ = ('block',)
-            def __init__(self, component):
-                AbstractInverseHessianBlock.__init__(self, component)
-                self.drop()
-            def drop(self):
-                self.block = deque([], __global__.memory)
-            def dot(self, g):
-                if self.block:
-                    # `block` is nonempty
-                    p = np.array(g) # copy
-                    U = []
-                    for u in self.block: # for each past block from k-1 to k-m
-                        if self.gradient_subspace is None or len(u.s) == self.gradient_subspace_size:
-                            alpha = u.rho * np.dot(u.s, p)
-                        else:
-                            alpha = u.rho * np.dot(u.s, self.in_descent_subspace(p))
-                        p -= alpha * u.y
-                        U.append((u.s, u.y, u.rho, alpha))
-                    p *= -self.last.gamma # gamma_{k-1}
-                    for s, y, rho, alpha in U[::-1]: # from k-m to k-1
-                        beta = rho * np.dot(y, p)
-                        if len(s) == len(p):
-                            p += (alpha - beta) * s
-                        else:
-                            assert self.subspace_map is not None
-                            p[self.subspace_map] += (alpha - beta) * s
-                else:
-                    p = -self.eps * g
-                return -p
-            def update(self, s, y, proj):
-                rho = 1. / proj
-                gamma = proj / np.dot(y, y)
-                self.block.appendleft(Pair(s, y, rho, gamma))
-            @property
-            def last(self):
-                return self.block[0]
-        # choose an implementation
-        if not newton:
-            InverseHessianBlock = GradientDescent
-        elif independent_components:
-            if memory:
-                __global__.memory = memory
-                InverseHessianBlock = LimitedMemoryInverseHessianBlock
-            else:
-                InverseHessianBlock = IndependentInverseHessianBlock
-        else:
-            # just ignore
-            #if memory:
-            #    raise NotImplementedError('`memory` requires `indepdendent_components`')
-            __global__.H = sparse.lil_matrix((x.size, x.size))
-            InverseHessianBlock = InverseHessianBlockView
-        # component
-        class Component(LocalSubspaceProxy):
-            """
-            Requires `fun`, `_sum` and `args`.
-            """
-            __slots__ = ('_x', '_f', '_g', '_H')
-            def __init__(self, i):
-                LocalSubspaceProxy.__init__(self, i)
-                self._x = None # gradient-active components only
-                self._f = None
-                self._g = None # gradient-active components only
-                self._H = None
-            @property
-            def x(self):
-                return self._x
-            @x.setter
-            def x(self, _x):
-                assert _x is None
-                self._x = self.in_gradient_subspace(_x)
-                self.f = None
-                self.g = None
-                self.H = None
-            def pull(self, _x):
-                self._x = self.in_gradient_subspace(_x)
-                #assert self._x is not _x # fails if not _stochastic
-                self._f = self.__f__(_x)
-                assert self._f is not None
-                self._g = self.__g__(_x, update=True)
-                assert self._g is not None
-            def __f__(self, _x):
-                #assert _x is x # check there is a single working copy
-                return __global__.fun(self.i, _x, *args)
-            @property
-            def f(self):
-                if self._f is None:
-                    self._f = self.__f__(self.in_full_space(self.x))
-                return self._f
-            @f.setter
-            def f(self, f):
-                self._f = f
-            def __g__(self, _x, subspace=None, covariate=None, update=False):
-                #assert _x is x # check there is a single working copy
-                if subspace is None:
-                    subspace = self.gradient_subspace
-                if covariate is None:
-                    covariate = self.covariate
-                _total_g, _partial_g = sparse_grad(__global__.fun, _x, covariate,
-                        subspace, __global__.args, __global__.sum, __global__.regul)
-                return _total_g
-            @property
-            def g(self):
-                if self._g is None:
-                    self._g = self.__g__(self.in_full_space(self.x), update=True)
-                return self._g
-            @g.setter
-            def g(self, g):
-                self._g = self.in_gradient_subspace(g)
-            @property
-            def H(self):
-                if self._H is None:
-                    self._H = InverseHessianBlock(self)
-                return self._H
-            @H.setter
-            def H(self, H):
-                self._H = H
-            def commit(self, s):
-                c = Component(self) # fails if `i` is not set
-                if self.x is None:
-                    raise ValueError('parameter vector `x` not defined')
-                #if self.s is None:
-                #    raise ValueError('parameter update `s` not defined')
-                c._x = np.array(self.x)
-                if c.descent_subspace is None:
-                    if len(s) != self.n:
-                        raise ValueError('wrong size for parameter update `s`')
-                    c._x += s
-                else:
-                    if len(s) != c.descent_subspace_size:
-                        raise ValueError('parameter update `s` is not in descent subspace')
-                    c._x[c.subspace_map] += s
-                return c
-            def push(self, _x=None):
-                if _x is None:
-                    _x = __global__.x
-                __x = self.x
-                if __x is None:
-                    raise RuntimeError('no parameters are defined')
-                if __x.size == _x.size:
-                    if __x is not _x:
-                        _x[...] = __x
-                elif __x.size == self.gradient_subspace_size:
-                    _x[self.gradient_subspace] = __x
-                else:
-                    raise self._size_error
-        if gradient_covariate is None:
-            return Component
-        else:
-            class Component1(Component):
-                __slots__ = ()
-                def __g__(self, x, subspace=None, update=False):
-                    return Component.__g__(self, x, subspace, gradient_covariate, update)
-            return Component1
-    __global__ = Parameters(x, covariate, gradient_subspace, descent_subspace, eps, fun, _sum, args, regul)
+    __global__ = SparseFunction(x, covariate, gradient_subspace, descent_subspace, eps, fun, _sum, args, regul)
     Component = define_component(__global__, independent_components, memory, newton, gradient_covariate)
     C = _defaultdict(Component)
     def push(c1, H1=None):
@@ -1810,10 +1867,11 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         regul0 = regul
     if ls_regul:
         ls_regul0 = ls_regul
-    if s_scale <= 0 or 1 < s_scale:
-        raise ValueError('expected: 0 < s_scale <= 1')
-    fcount = gcount = .9
-    k0 = k1 = 0
+    if step_scale <= 0 or 1 < step_scale:
+        raise ValueError('expected: 0 < step_scale <= 1')
+    ls_failure_count = low_df_count = low_dg_count = 0
+    if fix_ls:
+        recurrent_ls_failure_count = {}
 
     i_prev = None # previous component index
     k = 0 # iteration index
@@ -1852,7 +1910,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
                     proj_ii = np.dot(s_ii, y_ii)
                     if proj_ii <= 0:
                         if verbose:
-                            print(msg2(k, i, 'PROJ G <= 0 (k)'))
+                            print(msg2(k, i, 'PROJ G <= 0 (k-1)'))
                         c.H.drop()
                     else:
                         c.H.update(s_ii, y_ii, proj_ii)
@@ -1860,6 +1918,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
             # estimate the local gradient
             g = c.g # g_{k}
+            g0 = c.in_descent_subspace(g)
 
             # retrieve the local inverse Hessian
             H = c.H # H_{k}
@@ -1868,43 +1927,79 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             p = -H.dot(g) # p_{k} or q_{k}
             p = c.in_descent_subspace(p)
 
+            # sanity check
+            if newton and 0 <= np.dot(p, g0):
+                if verbose:
+                    print(msg2(k, i, 'PROJ G <= 0 (k)'))
+                H.drop()
+                p = -H.dot(g)
+                p = c.in_descent_subspace(p)
+
             # get the parameter update
             s = wolfe_line_search(
                     c.__f__, x, p, c.__g__, c.descent_subspace,
-                    f0=c.f, g0=c.in_descent_subspace(g), bounds=bounds,
+                    f0=c.f, g0=g0, bounds=bounds,
                     weight_regul=regul, step_regul=ls_regul,
+                    return_resolution=verbose,
                     **ls_kwargs) # s_{k}
             # sanity checks
+            ncomponents = len(C)
+            #assert 0 < ncomponents
+            # note: the first epoch is caracterized by ncomponents == k + 1;
+            #       the second epoch begins when ncomponents == k;
+            #       as a consequence, new_epoch is always True during the first epoch;
+            #       the epoch-wise criteria however are ignored during the first epoch.
+            new_epoch = (k + 1) % ncomponents == 0
+            if verbose:
+                s, _res = s
+                if s is None:
+                    print(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res.upper())))
+            if ncomponents <= k: # first epoch ignores the following criterion
+                if s is None:
+                    ls_failure_count += 1
+                    # try fixing problematic components
+                    if fix_ls:
+                        _count = recurrent_ls_failure_count[i] = recurrent_ls_failure_count.get(i, 0) + 1
+                        if fix_ls_trigger <= _count:
+                            if verbose:
+                                print(msg2(k, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
+                            c.push(x)
+                            fix_ls(i, x)
+                            c.pull(x)
+                            c.H.drop()
+                elif fix_ls:
+                    try:
+                        del recurrent_ls_failure_count[i]
+                    except KeyError:
+                        pass
+                if new_epoch:
+                    if ls_failure_rate * ncomponents <= ls_failure_count:
+                        resolution = 'LINE SEARCH FAILED'
+                        break
             if s is None:
-                if verbose:
-                    print(msg2(k, i, 'LINE SEARCH FAILED'))
-                push(c) # undo any change in the working copy of the parameter vector
+                # undo any change in the working copy of the parameter vector (default in finally block)
                 continue
             if np.all(s == 0):
                 if verbose:
                     print(msg2(k, i, 'NULL UPDATE'))
-                push(c) # undo any change in the working copy of the parameter vector
+                # undo any change in the working copy of the parameter vector (default in finally block)
                 continue
 
-            s *= s_scale
+            s *= step_scale
 
             # update the parameter vector
             c1 = c.commit(s) # x_{k+1} = x_{k} + s_{k}
 
             # check for convergence based on f
-            ncomponents = len(C)
-            assert 0 < ncomponents
-            if ftol is not None:
+            if ftol is not None and ncomponents <= k: # first epoch ignores this criterion
                 df = c.f - c1.f
                 if df < ftol:
-                    k0 += 1
-                if k and k % ncomponents == 0:
-                    if fcount * ncomponents <= k0:
+                    low_df_count += 1
+                if new_epoch:
+                    if low_df_rate * ncomponents <= low_df_count:
                         resolution = 'CONVERGENCE: DELTA F < FTOL'
-                        push(c1)
+                        c = c1 # 'push' the parameter update `c1`
                         break
-                    else:
-                        k0 = 0
 
             if gtol is None and not newton:
                 if verbose:
@@ -1917,13 +2012,12 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             if h is None:
                 if verbose:
                     print(msg2(k, i, 'GRADIENT CALCULATION FAILED (k+1)'))
-                # drop c1
-                push(c) # undo any change in the working copy of the parameter vector
+                # drop c1 (default in finally block)
                 continue
             if np.allclose(g, h):
                 if verbose:
                     print(msg2(k, i, 'NO CHANGE IN THE GRADIENT'))
-                push(c1) # 'push' the parameter update...
+                c = c1 # 'push' the parameter update...
                 continue # ...but do not update H
 
             #
@@ -1933,38 +2027,38 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             if proj <= 0:
                 if verbose:
                     print(msg2(k, i, 'PROJ G <= 0 (k+1)'))
-                # either drop c1...
-                #push(c) # undo any change in the working copy of the parameter vector
+                # either drop c1 (default in finally block)...
                 # ... or drop the inverse Hessian
                 c1.H.drop()
-                push(c1)
+                c = c1 # push `c1`
                 continue
             elif verbose:
                 print(msg1(k, i, c.f, c1.f, proj))
 
             # check for convergence based on g
-            if gtol is not None:
+            if gtol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if proj < gtol:
-                    k1 += 1
-                if k and k % ncomponents == 0:
-                    if gcount * ncomponents <= k1:
+                    low_dg_count += 1
+                if new_epoch:
+                    if low_dg_rate * ncomponents <= low_dg_count:
                         resolution = 'CONVERGENCE: PROJ G < GTOL'
-                        push(c1)
+                        c = c1 # push `c1`
                         break
-                    else:
-                        k1 = 0
 
             # 'push' the parameter update together with H update
             H1 = (s, y, proj)
             c1.H.update(*H1)
-            push(c1)
+            c = c1 # push `c1`
 
         except KeyboardInterrupt:
             resolution = 'INTERRUPTED'
-            push(c)
             break
 
         finally:
+            if new_epoch:
+                ls_failure_count = low_df_count = low_dg_count = 0
+            # refresh the working copy of the parameter vector
+            push(c)
             # loop
             k += 1
 
@@ -1978,7 +2072,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         else:
             print('Elapsed time = {:.3f}s\n'.format(second))
     H = {i: C[i].H for i in C}
-    return BFGSResult(x, H, None, None, None, None, None)
+    return BFGSResult(x, H, resolution, None, None, None, None, None)
 
 
 def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None):
@@ -2049,6 +2143,6 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None):
         return None, None
 
 
-__all__ = [ 'BFGSResult', 'minimize_sbfgs', 'minimize_range_sbfgs',
-        'sdfunc', 'slnsrch', 'subspace_search', 'minimize_sparse_bfgs' ]
+__all__ = [ 'BFGSResult', 'minimize_sbfgs', 'minimize_range_sbfgs', 'minimize_sparse_bfgs',
+        'SparseFunction', 'wolfe_line_search', 'sparse_grad' ]
 
