@@ -1,3 +1,14 @@
+"""
+Functions allowing to calculate the D posterior and MAP(D) as (will be) described in the Ito-Stratonovich article.
+Provides 3 functions:
+- get_D_posterior
+- get_MAP_D
+- get_D_confidence_interval
+
+If unsure, use `get_D_confidence_interval`, which provides MAP(D) and a confidence interval for D for the given confidence level.
+If need the D posterior, use `get_D_posterior`.
+"""
+
 
 import logging
 import warnings
@@ -12,17 +23,6 @@ from .convenience_functions import p as pow
 
 # prior assumption for diffusivity inference that does not include D'.
 # Should be described in the article Appendix
-
-
-def zeta_mu(dim):
-    """The center of the prior for the total force.
-    For diffusivity inference should not depend on the diffusivity gradient.
-    """
-    return np.zeros(dim)
-
-
-def norm2(x):
-    return np.sum(x**2)
 
 
 def get_D_posterior(n, zeta_t, V, V_pi, sigma2, dim, _MAP_D=False):
@@ -44,7 +44,7 @@ def get_D_posterior(n, zeta_t, V, V_pi, sigma2, dim, _MAP_D=False):
     p = pow(n, dim)
     v = 1.0 + n_pi / n * V_pi / V
     eta = np.sqrt(n_pi / (n + n_pi))
-    G3 = v + eta**2 * norm2(zeta_t - zeta_mu(dim))
+    G3 = v + eta**2 * _norm2(zeta_t - _zeta_mu(dim))
 
     if _MAP_D:
         return n * V * G3 / 2 / dim / (p + 1)
@@ -77,6 +77,20 @@ def get_MAP_D(n, zeta_t, V, V_pi, sigma2, dim):
 
 def get_D_confidence_interval(alpha, n, zeta_t, V, V_pi, sigma2, dim):
     """Returns MAP_D and a confidence interval corresponding to confidence level alpha, i.e. the values of D giving the values [alpha/2, 1-alpha/2] for the D posterior integrals
+
+    Input:
+    alpha   -   confidence level,
+    n       -   number of jumps in bin,
+    zeta_t  -   signal-to-noise ratio for the total force: <dr>/sqrt(V),
+    V       -   (biased) variance of jumps in the current bin,
+    V_pi    -   (biased) variance of jumps in all other bins excluding the current one,
+    sigma2  -   localization error (in the units of variance),
+    dim     -   dimensionality of the problem
+
+    Output:
+    MAP_D   -   MAP value of the diffusivity,
+    CI      -   a confidence interval for the diffusivity, 2x1 np.array
+
     """
 
     n_pi = n_pi_func(dim)
@@ -84,7 +98,7 @@ def get_D_confidence_interval(alpha, n, zeta_t, V, V_pi, sigma2, dim):
     v = 1.0 + n_pi / n * V_pi / V
     eta = np.sqrt(n_pi / (n + n_pi))
     zeta_t = np.array(zeta_t)
-    G3 = v + eta**2 * norm2(zeta_t - zeta_mu(dim))
+    G3 = v + eta**2 * _norm2(zeta_t - _zeta_mu(dim))
 
     MAP_D = get_MAP_D(n, zeta_t, V, V_pi, sigma2, dim)
 
@@ -108,3 +122,14 @@ def get_D_confidence_interval(alpha, n, zeta_t, V, V_pi, sigma2, dim):
         CI[i] = brentq(solve_me, min_D, max_D_search)
 
     return MAP_D, CI
+
+
+def _zeta_mu(dim):
+    """The center of the prior for the total force.
+    For diffusivity inference should not depend on the diffusivity gradient.
+    """
+    return np.zeros(dim)
+
+
+def _norm2(x):
+    return np.sum(x**2)
