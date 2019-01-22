@@ -2276,6 +2276,7 @@ def _poly2_deriv_eval(W, X):
     return np.hstack(Q)
 
 
+default_selection_angle = .9
 def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
     """
     See also :func:`grad1`.
@@ -2439,6 +2440,14 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
                     Xj = 1. / (X0[j] - np.mean(X[u,j]))
                 else:
                     Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
+                if np.isscalar(Xj):
+                    try:
+                        Xj = Xj.tolist()
+                    except AttributeError:
+                        pass
+                    else:
+                        if isinstance(Xj, list):
+                            Xj = Xj[0]
 
                 X_neighbours.append((u, v, Xj))
 
@@ -2473,7 +2482,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
             grad_j = _vander(Xj, np.r_[y0, np.mean(y[u]), np.mean(y[v])])
         grad.append(grad_j)
 
-    return np.asarray(grad)
+    return np.array(grad)
 
 
 def _vander(x, y):
@@ -2489,5 +2498,5 @@ __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps'
     'identify_columns', 'get_locations', 'get_translocations', 'distributed',
     'DistributeMerge',
     'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init',
-    'neighbours_per_axis', 'grad1', 'gradn']
+    'default_selection_angle', 'neighbours_per_axis', 'grad1', 'gradn']
 

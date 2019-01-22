@@ -9,769 +9,7 @@ import traceback
 import warnings
 
 
-BFGSResult = namedtuple('BFGSResult', ('x', 'H', 'resolution', 'f', 'projg', 'cumtime', 'err', 'diagnosis'))
-
-
-def sdfunc(func, yy, ids, components, _sum, h, args=(), kwargs={}, per_component_diff=None):
-    """
-    Deprecated!
-
-    Compute the derivative of a function.
-
-    Borrowed in large parts from *Numerical Recipes*
-
-    Gradient is calculated as ``(_sum([ func(x+dx_i) for i in ids ]) - _sum([ func(x-dx_i) for i in ids ])) / (2 * h)``
-    where ``h = norm(dx_i)``,
-    unless `per_component_diff` is defined.
-    In this later case, the gradient is ``_sum([ per_component_diff(func(x-dx_i), func(x+dx_i)) for i in ids ]) / (2 * h)``.
-    This may moderate numerical precision errors.
-    """
-    SAFE, CON = 2., 1.4
-    CON2 = CON * CON
-    ans = []
-    any_ok = False
-    a = np.zeros((h.size, h.size), dtype=float)
-    for d in ids:
-        if callable(components):
-            js = components(d)
-        else:
-            js = components
-        ans_d, err = None, np.inf
-        for i, hh in enumerate(h):
-            yy0, yy1 = np.array(yy), np.array(yy) # copies
-            yy0[d] -= hh
-            yy1[d] += hh
-            try:
-                if per_component_diff:
-                    a[i,0] = a_ip \
-                        = _sum([ per_component_diff( \
-                                func(j, yy0, *args, **kwargs), \
-                                func(j, yy1, *args, **kwargs)) \
-                             for j in js ]) \
-                        / (2. * hh)
-                else:
-                    a[i,0] = a_ip \
-                        = (_sum([ func(j, yy1, *args, **kwargs) \
-                              for j in components ]) \
-                        -  _sum([ func(j, yy0, *args, **kwargs) \
-                              for j in js ])) \
-                        / (2. * hh)
-            except (KeyboardInterrupt, SystemExit):
-                raise
-            except:
-                #traceback.print_exc()
-                #raise
-                continue
-            if i == 0:
-                continue
-            fac = CON2
-            for j in range(1, a.shape[1]):
-                a_pp = a[i-1,j-1] # pp stands for [previous, previous]
-                a[i,j] = a_ij = (a_ip * fac - a_pp) / (fac - 1.)
-                fac *= CON2
-                err_ij = max(abs(a_ij - a_ip), abs(a_ij - a_pp))
-                if err_ij <= err:
-                    err, ans_d = err_ij, a_ij
-                a_ip = a_ij
-            if SAFE * err <= abs(a[i,i] - a[i-1,i-1]):
-                break
-        if ans_d is None:
-            print('dfunc failed at column {}'.format(d))
-            #return None
-            ans_d = 0.
-        else:
-            any_ok = True
-        ans.append(ans_d)
-    if any_ok:
-        return np.array(ans)
-    else:
-        return None
-
-
-def minimize_range_sbfgs(ncomponents, minibatch, fun, x0, *args, **kwargs):
-    """
-    Deprecated!
-
-    Arguments:
-
-        ncomponents (int): number of components; components are expected to be in ``range(ncomponents)``.
-
-        minibatch (callable): takes a component index and returns a set of minibatch 'rows' and
-            'columns'.
-
-        ...
-
-        col2rows (callable): keyworded-only.
-
-    See also :func:`minimize_sbfgs`.
-    """
-    col2rows = kwargs.pop('col2rows', None)
-    if minibatch is None:
-        rows = np.arange(ncomponents)
-        if col2rows:
-            rows = (rows, col2rows)
-        def __minibatch__(i, x):
-            return rows,
-    else:
-        components = np.arange(ncomponents)
-        def _minibatch(i, x):
-            _i = i % ncomponents
-            if _i == 0:
-                np.random.shuffle(components) # in-place
-            _i = components[_i]
-            return _i, minibatch(_i, x)
-        if col2rows:
-            def __minibatch__(i, x):
-                _i, _x = _minibatch(i, x)
-                if _x is None:
-                    return None
-                elif isinstance(_x, tuple):
-                    _rows = _x[0]
-                    _rows = (_rows, col2rows)
-                    return (_i,_rows)+_x[1:]
-                else:
-                    _rows = _x
-                    _rows = (_rows, col2rows)
-                    return (_rows,)
-        else:
-            def __minibatch__(i, x):
-                _i, _x = _minibatch(i, x)
-                if _x is None:
-                    return None
-                else:
-                    #return _i, *_x
-                    return (_i,)+_x
-        if kwargs.get('epoch', None) is None:
-            kwargs['epoch'] = ncomponents
-        if kwargs.get('gcount', None) is None:
-            kwargs['gcount'] = .95
-    return minimize_sbfgs(__minibatch__, fun, x0, *args, **kwargs)
-
-
-def minimize_sbfgs(minibatch, fun, x0, args=(), bounds=None, eta0=1., c=1., l=0., eps=1e-6,
-    gtol=1e-10, gcount=10, maxiter=None, maxcor=50, tau=None, epoch=None, step_max=None,
-    covariates=None, _sum=np.sum, per_component_diff=None, memory=10,
-    diagnosis=None, check_gradient=None, fobj=None, independent_components=False,
-    iter_kwarg=None, epoch_kwarg=None, alt_fun=None, error=None, verbose=False, col2rows=None):
-    """
-    Deprecated!
-
-    Sparse variant of the BFGS minimization algorithm.
-
-    Designed for objective functions in the shape :math:`\sum_{i} f(i, \theta)`
-    where :math:`\sum` is sparse, i.e. considers few component indices :math:`i`.
-
-    Arguments:
-
-        minibatch (callable): takes the iteration number and the parameter vector
-            and returns component indices (referred to as 'row' indices),
-            or row indices and indices in :math:`theta` (referred to as 'column' indices),
-            or component index (referred to as 'explicit' component index),
-            row indices and column indices.
-
-        fun (callable): partial function :math:`f`;
-            takes a component index and the full parameter vector, and returns a float.
-
-        x0 (numpy.ndarray): initial parameter vector.
-
-        args (tuple): extra positional arguments for :func:`fun`.
-
-        bounds (list): list of (lower bound, upper bound) couples.
-
-        eta0 (float): see `eta_max` in :func:`slnsrch`.
-
-        c (float):
-
-        l (float):
-
-        eps (float):
-
-        gtol (float):
-
-        gcount (int or float):
-            if `epoch` is defined and `gcount` is float and less than or equal to 1,
-            `gcount` is multiplied by `epoch`.
-
-        maxiter (int):
-
-        maxcor (int):
-
-        tau (float):
-
-        epoch (int):
-
-        covariates (2-element tuple or scipy.sparse.csr_matrix):
-            parameter association matrix;
-            either a (`indices`, `indptr`) couple
-            or CSR sparse matrix with attributes `indices` and `indptr`;
-            expected if `independent_components` is ``False``.
-
-        _sum (callable): sum function for values returned by `fun`; see also :func:`sdfunc`.
-
-        per_component_diff (callable): see :func:`sdfunc`.
-
-        memory (int): requires ``independent_components=True``.
-
-        diagnosis (callable): called whenever a step has failed;
-            takes the parameter vector and all the output arguments from `minibatch` as input arguments
-            and optionally returns any output argument;
-            the returned objects are collected and stored in the output `BFGSResult` object.
-
-        check_gradient (callable):
-
-        fobj (float): stop when ``f <= fobj``.
-
-        independent_components (bool):
-
-        iter_kwarg (str): keyword for passing the iteration number to :func:`fun`.
-
-        epoch_kwarg (str): keyword for passing the epoch-wise baseline parameter vector.
-
-        alt_fun (callable): alternative function for :func:`fun` that is evaluated on a minibatch
-            at the beginning and end of each iteration;
-            :func:`alt_fun` does not admit `iter_kwarg` and `epoch_kwarg`.
-
-        error (callable): takes the parameter vector and returns a scalar error measurement.
-
-        verbose (bool): at each iteration print the value of the local objective and its variation;
-            if available, uses :func:`alt_fun` instead of :func:`fun`.
-    """
-    if verbose:
-        msg0, msg1, msg2 = define_pprint()
-        cumt = 0.
-        fx_history = []
-        t0 = time.time()
-    proj_history = []
-    # precompute arguments for dfunc
-    h = 1e-8
-    CON = 1.4
-    dfunc_h = h * ((1./CON) ** np.arange(maxcor))
-    #dfunc_h = np.outer(h, (1./CON) ** np.arange(maxcor))
-    if per_component_diff is None and _sum in (sum, np.sum, np.mean):
-        per_component_diff = lambda a, b: b - a
-    if diagnosis:
-        diagnoses = defaultdict(list)
-    #
-    fargs = args
-    fkwargs = {}
-    if iter_kwarg:
-        fkwargs[iter_kwarg] = 0
-    if epoch_kwarg:
-        if not epoch:
-            raise ValueError('`epoch` undefined')
-        fkwargs[epoch_kwarg] = x0
-    def f(_x, _rows):
-        return _sum([ fun(_j, _x, *fargs, **fkwargs) for _j in _rows ])
-    _local_f = {}
-    _total_f = [0] # mutable
-    def eval_f_and_update(_x, _rows):
-        _f = []
-        for _j in _rows:
-            _fj = fun(_j, _x, *fargs, **fkwargs)
-            _fj_old = _local_f.get(_j, 0)
-            _local_f[_j] = _fj
-            _total_f[0] += _fj - _fj_old
-            _f.append(_fj)
-        return _sum(_f)
-    if alt_fun:
-        def alt_f(_x, _rows):
-            return _sum([ alt_fun(_j, _x, *fargs) for _j in _rows ])
-    #
-    t = 0
-    while True:
-        rows = minibatch(t, x0)
-        if rows is None:
-            t += 1
-        else:
-            break
-    twoways = False
-    component = None
-    explicit_components = False
-    if isinstance(rows, tuple):
-        if rows[1:]:
-            twoways = True
-            if rows[2:]:
-                try:
-                    component, rows, cols = rows
-                except ValueError:
-                    raise ValueError('too many values to unpack from minibatch')
-                explicit_components = True
-            else:
-                rows, cols = rows
-            def df(_x, _rows, _cols):
-                return sdfunc(fun, _x, _cols, _rows, _sum, dfunc_h, fargs, fkwargs, per_component_diff)
-            if alt_fun:
-                def alt_df(_x, _rows, _cols):
-                    return sdfunc(alt_fun, _x, _cols, _rows, _sum, dfunc_h, fargs, {}, per_component_diff)
-        else:
-            rows, = rows
-    if isinstance(rows, tuple):
-        rows_f, rows_df = rows
-    else:
-        rows_f = rows_df = rows
-    #assert isinstance(rows[0], (int, np.int_))
-    if twoways:
-        if isinstance(cols, tuple):
-            cols_f, cols_df = cols
-        else:
-            cols_f = cols_df = cols
-        g = df(x0, rows_df, cols_df)
-    else:
-        cols = cols_f = cols_df = None
-        def df(_x, _rows):
-            return sdfunc(fun, _x, range(_x.size), _rows, _sum, dfunc_h, fargs, fkwargs, per_component_diff)
-        if alt_fun:
-            def alt_df(_x, _rows):
-                return sdfunc(alt_fun, _x, range(_x.size), _rows, _sum, dfunc_h, fargs, {}, per_component_diff)
-        g = df(x0, rows_df)
-    if g is None:
-        raise RuntimeError('gradient calculation failed')
-    p = -eps * g
-    # project descent direction onto descent subspace
-    if cols_df is not cols_f:
-        _gs2ds = [ (cols_df==_c).nonzero()[0][0] for _c in cols_f ] # gradient subspace to descent subspace
-        p = p[ _gs2ds ]
-    # precompute argument(s) for slnsrch
-    if step_max is None:
-        pass
-        #STPMX = 500.
-        #step_max = STPMX * max(np.sqrt(np.sum(p * p)), p.size) # assume p.size is constant
-    ls_maxiter = None#10
-    # bounds
-    if bounds:
-        lower_bound, upper_bound = np.full_like(x0, -np.inf), np.full_like(x0, np.inf)
-        any_lower_bound = any_upper_bound = False
-        for i, _bs in enumerate(bounds):
-            _lb, _ub = _bs
-            if _lb not in (None, -np.inf, np.nan):
-                any_lower_bound = True
-                lower_bound[i] = _lb
-            if _ub not in (None, np.inf, np.nan):
-                any_upper_bound = True
-                upper_bound[i] = _ub
-        if not any_lower_bound:
-            lower_bound = None
-        if not any_upper_bound:
-            upper_bound = None
-        if any_lower_bound or any_upper_bound:
-            bounds = (lower_bound, upper_bound)
-        else:
-            bounds = None
-        if bounds and c < 1:
-            warnings.warn('c < 1; bounds may be violated')
-    #
-    eta, p = subspace_search(f, rows_f, cols_f, x0, p, g, df, rows_df, bounds=bounds, eps=eps,
-            eta0=eta0, c=c, ls_maxiter=ls_maxiter, step_max=step_max, f0=eval_f_and_update)
-    #eta = slnsrch(f, rows_f, cols_f, x0, p, g, eta0, ls_maxiter, step_max, bounds, c)
-    s = eta / c * p
-    if cols is None:
-        x = x0 + s
-        h = df(x, rows_df)
-    else:
-        x = np.array(x0) # copy
-        x[cols_f] += s
-        h = df(x, rows_df, cols_df)
-    if h is None:
-        raise RuntimeError('gradient calculation failed')
-    y = h - g
-    # express descent vector in gradient subspace
-    if cols_df is not cols_f:
-        _s = s
-        s = np.zeros_like(y)
-        s[_gs2ds] = _s
-    if l:
-        y += l * s
-    proj = np.dot(s, y)
-    proj_history.append(proj)
-    if _local_f:
-        if verbose:
-            suspend = fobj is None
-            if suspend:
-                cumt += time.time() - t0
-        eval_f_and_update(x, rows_f)
-        if verbose:
-            f1 = _total_f[0]
-            print(msg0(t, component, f1, proj))
-            fx_history.append(f1)
-            if suspend:
-                t0 = time.time()
-    if error is None:
-        errs = None
-    else:
-        errs = [error(x)]
-    if epoch:
-        if isinstance(gcount, float) and gcount <= 1:
-            gcount = float(epoch) * gcount
-    # make B sparse and preallocate the nonzeros
-    gamma = proj / np.dot(y, y)
-    if independent_components and memory:
-        B0 = deque([], memory)
-        rho = 1. / proj
-        B0.appendleft((s, y, rho, gamma))
-    else:
-        memory = False
-        B0 = gamma
-    if independent_components:
-        i = component if explicit_components else tuple(rows_f)
-        B = {}
-        B[i] = B0
-    elif twoways and (sparse.issparse(covariates) or covariates):
-        if isinstance(covariates, tuple):
-            indices, indptr = covariates
-        else:
-            indices, indptr = covariates.indices, covariates.indptr
-        B = sparse.csr_matrix((np.zeros(indices.size, dtype=x0.dtype), indices, indptr),
-            shape=(x0.size, x0.size))
-        B[np.ix_(cols_df, cols_df)] = B0
-        covariates = True
-    elif np.isscalar(B0):
-        B = np.diag(np.full(x.size, B0))
-    elif B0.shape == ( x0.size, x0.size ):
-        B = B0
-    else:
-        raise NotImplementedError('fixme')
-    x2 = x0
-    k1 = k2 = 0
-    resolution = None
-    while True:
-        t += 1
-        if maxiter and maxiter < t:
-            break
-        try:
-            if iter_kwarg:
-                fkwargs[iter_kwarg] = t
-            #if epoch_kwarg and t % epoch == 0:
-            #    fkwargs[epoch_kwarg] = x
-
-            ## step (pre-a) ##
-            bt = minibatch(t, x)
-            if bt is None:
-                continue
-            if twoways:
-                if explicit_components:
-                    component, rows, cols = bt
-                else:
-                    rows, cols = bt
-                if isinstance(cols, tuple):
-                    cols_f, cols_df = cols
-                else:
-                    cols_f = cols_df = cols
-            else:
-                if isinstance(bt, tuple):
-                    rows, = bt
-                else:
-                    rows = bt
-                    bt = (rows,)
-            if isinstance(rows, tuple):
-                rows_f, rows_df = rows
-            else:
-                rows_f = rows_df = rows
-            if cols is None:
-                g = df(x, rows_df)
-            else:
-                g = df(x, rows_df, cols_df) # computation of `g` is part of step (a)
-
-            #
-            if g is None or np.all(g == 0):
-                x = x2
-                if verbose:
-                    print(msg2(t, component, 'GRADIENT CALCULATION FAILED (t)'))
-                if diagnosis:
-                    _d = diagnosis(x, *bt)
-                    if _d is not None:
-                        _d = ('GRADIENT CALCULATION FAILED', _d)
-                        if explicit_components:
-                            _d = (component,) + _d
-                        diagnoses[t].append(_d)
-                continue
-                resolution = 'GRADIENT CALCULATION FAILED (t)'
-                break
-            #if verbose:
-            #    if alt_fun:
-            #        f0 = alt_f(x, rows_f)
-            #    else:
-            #        try:
-            #            f0 = f(x, rows_f)
-            #        except ValueError as e:
-            #            f0 = e
-
-            ## step (a) ##
-            if independent_components:
-                i = component if explicit_components else tuple(rows_f)
-                try:
-                    Bi = B[i]
-                except KeyError:
-                    Bi = None
-            elif cols is None:
-                Bi = B
-            else:
-                Bi = B[np.ix_(cols_df, cols_df)]
-                if covariates:
-                    if sparse.issparse(Bi):
-                        firsttime = Bi.count_nonzero() == 0
-                    else:
-                        firsttime = np.all(Bi == 0)
-                    if firsttime:
-                        Bi = None
-            if Bi is None:
-                p = -eps * g
-            elif memory:
-                _B = []
-                p = np.array(g) # copy
-                for _s, _y, _rho, _ in Bi: # from k-1 to k-m
-                    _alpha = _rho * np.dot(_s, p)
-                    p -= _alpha * _y
-                    _B.append((_s, _y, _rho, _alpha))
-                _, _, _, gamma = Bi[0]
-                p *= -gamma # gamma_{k-1}
-                for _s, _y, _rho, _alpha in _B[::-1]: # from k-m to k-1
-                    _beta = _rho * np.dot(_y, p)
-                    p += (_alpha - _beta) * _s
-                print((g, p, _s, _y, _rho, gamma, _alpha, _beta))
-            else:
-                p = -np.dot(Bi, g)
-                if sparse.issparse(p):
-                    p = p.todense()
-                if p.shape[1:]:
-                    p = np.ravel(p)
-                if 0 <= np.sum(g * p):
-                    # line search will fail; make a small update instead
-                    if verbose:
-                        print(msg2(t, component, 'IGNORING THE HESSIAN MATRIX'))
-                    p = -eps * g
-
-            # project descent direction onto descent subspace
-            if cols_df is not cols_f:
-                _gs2ds = [ (cols_df==_c).nonzero()[0][0] for _c in cols_f ] # gradient subspace to descent subspace
-                p = p[ _gs2ds ]
-
-            ## step (b) ##
-            #epoch = ncomps
-            #if epoch:
-            #    if t % epoch == 1:
-            #        eta = tau / (tau + float(t / epoch)) * eta0
-            #else:
-            #    eta = tau / (tau + float(t)) * eta0
-            eta, p = subspace_search(f, rows_f, cols_f, x, p, g, df, rows_df, B=Bi, bounds=bounds, eps=eps,
-                    eta0=eta0, c=c, ls_maxiter=ls_maxiter, step_max=step_max, f0=eval_f_and_update)
-            #eta = slnsrch(f, rows_f, cols, x, p, g, eta0, ls_maxiter, step_max, bounds)
-            if eta is None or (bounds is None and eta == 0):
-                if diagnosis:
-                    _d = diagnosis(x, *bt)
-                    if _d is not None:
-                        _d = ('LINE SEARCH FAILED', _d)
-                        if explicit_components:
-                            _d = (component,) + _d
-                        diagnoses[t].append(_d)
-                #x = x2
-                if verbose:
-                    print(msg2(t, component, 'LINE SEARCH FAILED'))
-                    #print(B[component])
-                continue
-                #resolution = 'LINE SEARCH FAILED'
-                #break
-            elif eta:
-                if tau:
-                    if epoch:
-                        eta *= 1. - tau * fmod(t, epoch) / epoch
-                        #eta *= tau / (tau + float(t / epoch))
-                    else:
-                        eta *= tau / (tau + float(t))
-            else:#if bounds is not None and eta == 0
-                if verbose:
-                    print(msg2(t, component, 'SATURATED CONSTRAINT'))
-                continue
-
-            ## step (c) ##
-            s = eta / c * p
-
-            _update_B = True
-
-            ## step (d) ##
-            if cols is None:
-                x1 = x + s
-            else:
-                x1 = np.array(x)
-                x1[cols_f] += s
-            #if _fobj and _fobj(x1):
-            #    resolution = 'CONVERGENCE: F* <= FOBJ  (f*= approximated total)'
-            #    break
-            if cols is None:
-                h = df(x1, rows_df)
-            else:
-                h = df(x1, rows_df, cols_df) # computation of `h` is part of step (e)
-
-            #
-            if h is None:
-                if verbose:
-                    print(msg2(t, component, 'GRADIENT CALCULATION FAILED (t+1)'))
-                    if alt_fun:
-                        print('calling sdfunc with alt_fun:')
-                        if twoways:
-                            h = alt_df(x1, rows_df, cols_df)
-                        else:
-                            h = alt_df(x1, rows_df)
-                        assert h is None
-                if diagnosis:
-                    _d = diagnosis(x1, *bt)
-                    if _d is not None:
-                        _d = ('GRADIENT CALCULATION FAILED', _d)
-                        if explicit_components:
-                            _d = (component,) + _d
-                        diagnoses[t].append(_d)
-                # option 1. step back
-                x = x2
-                continue
-                # option 2. admit the update and continue, just skip the inverse Hessian calculations
-                _update_B = False
-                # option 3. stop here
-                #resolution = 'GRADIENT CALCULATION FAILED (t+1)'
-                #break
-            elif np.allclose(g, h):
-                if np.all(s == 0):
-                    warnings.warn('null update')
-                if diagnosis:
-                    _d = diagnosis(x1, *bt)
-                    if _d is not None:
-                        _d = ('NO CHANGE IN THE GRADIENT', _d)
-                        if explicit_components:
-                            _d = (component,) + _d
-                        diagnoses[t].append(_d)
-                #if not l:
-                #    warnings.warn('no change in the gradient; setting `l` greater than 0')
-                #    l = .1
-                if verbose:
-                    print(msg2(t, component, 'NO CHANGE IN THE GRADIENT'))
-                _update_B = False
-                #continue # B cannot be properly updated
-
-            ## step (e) ##
-            y = h - g
-
-            # express descent vector in gradient subspace
-            if cols_df is not cols_f:
-                _s = s
-                s = np.zeros_like(y)
-                s[_gs2ds] = _s
-
-            if l:
-                y += l * s
-
-            #
-            proj = np.dot(s, y)
-            proj_history.append(proj)
-
-            if proj <= 0:
-                if verbose:
-                    print(msg2(t, component, 'PROJ G <= 0'))
-                continue
-
-            x2, x = x, x1
-
-            if error is not None:
-                errs.append(error(x))
-
-            if epoch:
-                if gtol is not None and proj < gtol:
-                    k1 += 1
-                if t % epoch == 0:
-                    if gcount <= k1:
-                        resolution = 'CONVERGENCE: PROJ G < GTOL'
-                        break
-                    else:
-                        k1 = 0
-            else:
-                if gtol is not None and abs(proj) < gtol:
-                    k1 += 1
-                    if gcount <= k1:
-                        resolution = 'CONVERGENCE: PROJ G < GTOL'
-                        break
-                else:
-                    k1 = 0
-
-            if not _update_B:
-                continue
-
-            # step (f)
-            if Bi is None:
-                if memory:
-                    Bi = deque([], memory)
-                else:
-                    Bi = proj / np.dot(y, y)
-                if independent_components:
-                    B[i] = Bi
-                elif twoways:
-                    B[np.ix_(cols_df, cols_df)] = Bi
-                else:
-                    B[...] = Bi
-
-            #
-            if _local_f:
-                if verbose and suspend:
-                    cumt += time.time() - t0
-                f0 = _total_f[0]
-                eval_f_and_update(x, rows_f)
-                f1 = _total_f[0]
-                if verbose:
-                    print(msg1(t, component, f0, f1, proj))
-                    fx_history.append((f0, f1))
-                    if suspend:
-                        t0 = time.time()
-                if fobj is not None and f1 <= fobj:
-                    resolution = 'CONVERGENCE: F <= FOBJ'
-                    break
-
-            ## step (g) ##
-            if proj <= 0:
-                continue
-            rho = 1. / proj
-
-            if memory:
-                gamma = proj / np.dot(y, y)
-                Bi.appendleft((s, y, rho, gamma))
-                continue
-
-            #
-            # no first time or small step computation for `q`
-            q = -np.dot(Bi, y)
-            if sparse.issparse(q):
-                q = q.todense()
-            if q.shape[1:]:
-                q = np.ravel(q)
-
-            ## step (h) ##
-            # B = (I - rho s y.T) B ( I - rho y s.T) + c rho s s.T
-            phi = c - rho * np.dot(y, q) # rho s y.T B y s.T rho + c rho s s.T = rho phi s s.T
-            deltaB = rho * (np.outer(q, s) + np.outer(s, q) + phi * np.outer(s, s))
-            if independent_components:
-                B[i] = B[i] + deltaB
-            elif twoways:
-                B[np.ix_(cols_df, cols_df)] += deltaB
-            else:
-                B += deltaB
-
-        except KeyboardInterrupt:
-            #x = x2
-            # some variables may not be valid, e.g. t0
-            resolution = 'INTERRUPTED'
-            break
-
-    if not resolution:
-        resolution = 'MAXIMUM ITERATION REACHED'
-    if verbose:
-        cumt += time.time() - t0
-        print('           * * *\n\n{}\n'.format(resolution))
-        minute = floor(cumt / 60.)
-        second = cumt - minute * 60.
-        if minute:
-            print('Elapsed time = {:d}m{:.3f}s\n'.format(minute, second))
-        else:
-            print('Elapsed time = {:.3f}s\n'.format(second))
-    else:
-        fx_history = cumt = None
-    if not (diagnosis and diagnoses):
-        diagnoses = None
-    return BFGSResult(x, B, resolution, fx_history, proj_history, cumt, errs, diagnoses)
+BFGSResult = namedtuple('BFGSResult', ('x', 'H', 'resolution', 'niter', 'f', 'df', 'projg', 'cumtime', 'err', 'diagnosis'))
 
 
 def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=None, f0=None, g0=None,
@@ -850,7 +88,7 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
     else:
         eta_min = eta_max * c5
     eta = eta_prev = eta_max
-    #eta_hist, f_hist, norm_p_hist, df_hist, armijo_hist = [], [], [], [], []
+    #eta_hist, f_hist, norm_p_hist, df_hist, armijo_hist = [], [f0], [], [], []
     last_valid_eta = None
     last_valid_x = np.array(x0)
     i = 0
@@ -866,7 +104,7 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
             _p = _x - x0
         else:
             _slope = eta * slope
-        #norm_p_hist.append(sqrt(np.dot(_p, _p)))
+        #norm_p_hist.append(np.max(np.abs(_p)))
         if subspace is None:
             x = _x
         else:
@@ -949,122 +187,12 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
             #print('iter_max reached')
             res = 'iter_max reached'
             break
-    #if True:
-    #    print((eta_hist, norm_p_hist, f_hist, df_hist, armijo_hist))
+    #print((eta_hist, norm_p_hist, f_hist, df_hist, armijo_hist))
     if return_resolution:
         return None, res
     else:
         return None # line search failed
 
-
-def slnsrch(f, rows, cols, x, p, g, eta_max=1., iter_max=10, step_max=None, bounds=None, c=1.,
-        fold=None, active_set=False):
-    """
-    Deprecated!
-
-    Line search.
-
-    Borrowed in large parts from *Numerical Recipes*.
-    """
-    #if cols is None and bounds is None:
-    #    eta, f_count, fnew =  ls.line_search_armijo(f, x, p, g, f(x, rows), (rows,)) # crashes
-    #    return eta
-    #
-    TOLX = 1e-8
-    ALF = 1e-4
-    #
-    slope = np.sum(g * p)
-    if 0 <= slope:
-        #raise ValueError('positive slope: {}'.format(slope))
-        return None
-    if step_max:
-        norm = np.sqrt(np.sum(p * p))
-        if step_max < norm * eta_max:
-            eta_max *= step_max / norm
-    if fold is None:
-        fold = f(x, rows)
-    f2 = fold
-    if cols is None:
-        xold = x
-    else:
-        xold = x[cols]
-    xnew = np.array(x)
-    if bounds:
-        lb, ub = bounds
-        if cols is not None:
-            lb, ub = None if lb is None else lb[cols], None if ub is None else ub[cols]
-    else:
-        assert bounds is None
-        bounds = lb = ub = None
-    eta_min = min(eta_max * 1e-3, TOLX / np.max(np.abs(p) / np.maximum(np.abs(xold), 1.)))
-    eta = eta2 = eta_max
-    last_valid_eta = None
-    last_valid_x = np.array(x)
-    i = 0
-    while True:
-        _x = xold + eta * p
-        _x = _proj(_x, lb, ub)
-        if cols is None:
-            xnew = _x
-        else:
-            xnew[cols] = _x
-        try:
-            fnew = f(xnew, rows)
-        except ValueError:
-            #print((xold, xnew[cols], i, bounds, eta, p))
-            #raise
-            eta /= 2.
-        else:
-            last_valid_eta = eta
-            last_valid_x = _x
-            if eta < eta_min:
-                #print('eta < eta_min={}'.format(eta_min))
-                break
-            df = fnew - fold
-            if df <= ALF * eta * slope:
-                #print('df <= ALF * eta * slope = {} * {} * {}'.format(ALF, eta, slope))
-                break
-            if eta == eta_max:
-                eta1 = -slope / (2. * (df - slope))
-                assert 0 <= eta1
-            else:
-                rhs1 = df - eta * slope
-                rhs2 = f2 - fold - eta2 * slope
-                rhs1 /= eta * eta
-                rhs2 /= eta2 * eta2
-                a = (rhs1 - rhs2) / (eta - eta2)
-                b = (eta * rhs2 - eta2 * rhs1) / (eta - eta2)
-                if a == 0:
-                    eta1 = -slope / (2. * b)
-                    assert 0 <= eta1
-                else:
-                    discr = b * b - 3. * a * slope
-                    if discr < 0:
-                        eta1 = eta / 2.
-                    elif b <= 0:
-                        eta1 = (np.sqrt(discr) - b) / (3. * a)
-                        assert 0 <= eta1
-                    else:
-                        eta1 = -slope / (np.sqrt(discr) + b)
-                        assert 0 <= eta1
-                eta1 = min(eta1, eta / 2.)
-            eta2, f2 = eta, fnew
-            eta = max(eta1, .1 * eta)
-        i += 1
-        if iter_max and i == iter_max:
-            #print('iter_max reached')
-            break
-    if last_valid_eta:
-        pnew = _x - xold
-        if active_set:
-            return pnew, _active_set(_x, lb, ub, cols)
-        else:
-            return pnew
-    else:
-        if active_set:
-            return None, []
-        else:
-            return None
 
 def _proj(x, lb, ub):
     if lb is not None:
@@ -1072,40 +200,6 @@ def _proj(x, lb, ub):
     if ub is not None:
         x = np.minimum(x, ub)
     return x
-
-def _active_set(x, lb, ub, cols=None):
-    """Deprecated!"""
-    _as = set()
-    if lb is not None:
-        _lb = np.isclose(x, lb).nonzero()
-        _as += set(_lb.tolist())
-    if ub is not None:
-        _ub = np.isclose(x, ub).nonzero()
-        _as += set(_ub.tolist())
-    if _as:
-        _as = np.array(list(_as))
-        if cols:
-            _as = cols[_as]
-    return _as
-
-
-def subspace_search(f, rows_f, cols, x, p, g, df, rows_df=None, B=None,
-        eta0=1., c=1., ls_maxiter=None, f0=None, eps=None, bounds=None, **kwargs):
-    """Deprecated!"""
-    assert c == 1
-    #if B is None and eps is not None:
-    #    kwargs['c2'] = 1. - eps
-    if bounds is not None:
-        kwargs['c2'] = None # no Wolfe condition
-    fold = f0(x, rows_f) if f0 else None
-    rows_pnew = wolfe_line_search(f, x, p, df, cols, rows_f, rows_df, f0=fold,# g0=g,
-            eta_max=eta0, iter_max=ls_maxiter, bounds=bounds, **kwargs)
-    if pnew is None:
-        return None, p
-    #elif bounds:
-    #    pnew = wolfe_line_search(f, rows_f, cols, x, pnew, df, f0=fold, rows_g=rows_df,# g0=g,
-    #        eta_max=1., iter_max=ls_maxiter, **kwargs)
-    return 1., pnew
 
 
 def define_pprint():
@@ -1227,10 +321,14 @@ class SparseFunction(object):
 
         regul (float): regularization coefficient on the parameters.
 
+        bounds (tuple): (lower, upper) bounds as a couple of lists.
+
+        h0 (float): gradient initial step.
+
     See also :func:`minimize_sparse_bfgs`.
     """
     def __init__(self, x, covariate, gradient_subspace, descent_subspace,
-            eps, fun, _sum, args, regul):
+            eps, fun, _sum, args, regul, bounds, h0):
         self.x = x
         self.covariate = covariate
         self.gradient_subspace = gradient_subspace
@@ -1240,6 +338,8 @@ class SparseFunction(object):
         self.sum = _sum
         self.args = args
         self.regul = regul
+        self.bounds = bounds
+        self.h0 = h0
 
 
 def define_component(__global__, independent_components, memory, newton, gradient_covariate):
@@ -1256,7 +356,7 @@ def define_component(__global__, independent_components, memory, newton, gradien
 
         newton (bool): whether to operate as a quasi-Newton algorithm with Cauchy point estimation.
 
-        gradient_covariate (callable): same as `SparseFunction.covariate`, for gradient calculation.
+        gradient_covariate (callable): see also :func:`minimize_sparse_bfgs`.
 
     Returns:
 
@@ -1525,9 +625,9 @@ def define_component(__global__, independent_components, memory, newton, gradien
                     else:
                         assert self.subspace_map is not None
                         p[self.subspace_map] += (alpha - beta) * s
+                return -p
             else:
-                p = -self.eps * g
-            return -p
+                return self.eps * g
         def update(self, s, y, proj):
             rho = 1. / proj
             gamma = proj / np.dot(y, y)
@@ -1597,7 +697,8 @@ def define_component(__global__, independent_components, memory, newton, gradien
             if covariate is None:
                 covariate = self.covariate
             _total_g, _partial_g = sparse_grad(__global__.fun, _x, covariate,
-                    subspace, __global__.args, __global__.sum, __global__.regul)
+                    subspace, __global__.args, __global__.sum, __global__.regul,
+                    __global__.bounds, __global__.h0)
             return _total_g
         @property
         def g(self):
@@ -1657,8 +758,10 @@ def define_component(__global__, independent_components, memory, newton, gradien
 def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, descent_subspace,
         args=(), bounds=None, _sum=np.sum, gradient_sum=None, gradient_covariate=None,
         memory=10, eps=1e-6, ftol=1e-6, gtol=1e-10, low_df_rate=.9, low_dg_rate=.9, step_scale=1.,
-        max_iter=None, regul=None, regul_decay=1e-5, ls_regul=None, ls_step_max=None, ls_iter_max=None,
-        ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.5, fix_ls=None, fix_ls_trigger=5,
+        max_iter=None, regul=None, regul_decay=1e-5, ls_regul=None, ls_step_max=None,
+        ls_step_max_decay=None, ls_iter_max=None,
+        ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
+        gradient_initial_step=1e-8,
         independent_components=True, newton=True, verbose=False):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
@@ -1700,7 +803,8 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         x0 (numpy.ndarray): initial parameter vector.
 
         component (callable): takes an iteration index (`int`) and returns a component index (`int`);
-            all the components are expected to be drawn exactly once per epoch.
+            all the components are expected to be drawn exactly once per epoch;
+            if `component` is an `int`, will be interpreted as the number of components.
 
         covariate (callable): takes a component index `i` (`int`) and returns a sequence of
             indices of the components that covary with `i`, including `i`.
@@ -1721,7 +825,8 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
         gradient_sum (callable): replacement for `_sum` in the calculation of the gradient.
 
-        gradient_covariate (callable): replacement for `covariate` in the calculation of the gradient.
+        gradient_covariate (callable): takes a parameter index (`int`) and returns a sequence
+            of the components affected by this parameter.
 
         memory (int): number of memorized pairs of `H` updates in quasi-Newton mode.
 
@@ -1748,7 +853,10 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         ls_regul (float): regularization trade-off coefficient for the L2-norm of the parameter vector
             update.
 
-        ls_step_max (float): maximum L-infinite norm of the parameter vector update.
+        ls_step_max (float): maximum L-infinite norm of the parameter vector update;
+            if `ls_step_max_decay` is defined, `ls_step_max` can be an (initial, final) `tuple` instead.
+
+        ls_step_max_decay (float): decay parameter for `ls_step_max`.
 
         ls_iter_max (int): maximum number of linesearch iterations.
 
@@ -1785,7 +893,24 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
     if not isinstance(x0, np.ndarray):
         raise TypeError('x0 is not a numpy.ndarray')
     if not callable(component):
-        raise TypeError('component is not callable')
+        if isinstance(component, int):
+            if component == 0:
+                component = lambda k: 0
+            elif 0 < component:
+                m = component
+                def mk_component(m):
+                    components = np.arange(m)
+                    def _component(k):
+                        _i = k % m
+                        if _i == 0:
+                            np.random.shuffle(components)
+                        return components[_i]
+                    return _component
+                component = mk_component(m)
+            else:
+                raise ValueError('wrong number of components')
+        else:
+            raise TypeError('component is not callable')
     if not callable(covariate):
         raise TypeError('covariate is not callable')
     if gradient_subspace is None:
@@ -1836,15 +961,16 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         #    warnings.warn('c < 1; bounds may be violated')
     # component
 
-    __global__ = SparseFunction(x, covariate, gradient_subspace, descent_subspace, eps, fun, _sum, args, regul)
+    __global__ = SparseFunction(x, covariate, gradient_subspace, descent_subspace, eps, fun, _sum, args, regul, bounds, gradient_initial_step)
     Component = define_component(__global__, independent_components, memory, newton, gradient_covariate)
     C = _defaultdict(Component)
-    def push(c1, H1=None):
-        i = c1.i
-        C[i] = c1
-        c1.push(x) # update the full parameter vector
-        if H1 is not None:
-            c1.H.update(*H1)
+    def mk_push(C):
+        def _push(c):
+            i = c.i
+            C[i] = c
+            c.push() # update the full parameter vector
+        return _push
+    push = mk_push(C)
     ls_kwargs = {}
     if ls_step_max:
         ls_kwargs['step_max'] = ls_step_max
@@ -1869,14 +995,26 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         ls_regul0 = ls_regul
     if step_scale <= 0 or 1 < step_scale:
         raise ValueError('expected: 0 < step_scale <= 1')
+    if ls_step_max_decay:
+        try:
+            initial_ls_step_max, final_ls_step_max = ls_step_max
+        except TypeError:
+            initial_ls_step_max = ls_step_max
+            final_ls_step_max = initial_ls_step_max * .1
     ls_failure_count = low_df_count = low_dg_count = 0
     if fix_ls:
         recurrent_ls_failure_count = {}
+
+    f_history = []
+    df_history = []
+    dg_history = []
 
     i_prev = None # previous component index
     k = 0 # iteration index
     while True:
         try:
+            assert x is __global__.x
+            #print(x[[0, 196, 197, 210]])
             if max_iter and max_iter <= k:
                 resolution = 'MAXIMUM ITERATION REACHED'
                 break
@@ -1886,6 +1024,8 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
                     __global__.regul = regul = regul0 * _decay
                 if ls_regul:
                     ls_regul = ls_regul0 * _decay
+            if ls_step_max_decay:
+                ls_step_max = initial_ls_step_max * max(1. - float(k) * ls_step_max_decay, final_ls_step_max)
 
             # choose the target component (as a component index)
             i = component(k)
@@ -1894,54 +1034,68 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
             # check for changes in the corresponding parameters since last iteration on component `i`
             if i != i_prev:
-                # copy part of it for initial H update
                 new_component = c.x is None
-                if new_component:
-                    c.pull(x0)
-                x_prev, g_prev = c.x, c.g
+                if not new_component:
+                    # copy part of the component for initial H update
+                    x_prev, g_prev = c.x, c.g
                 # update with current parameters
                 c.pull(x)
-                # update H with inter-iteration changes
-                if np.allclose(x_prev, c.x):
-                    pass
-                elif newton:
-                    s_ii = c.x - x_prev
-                    y_ii = c.g - g_prev
-                    proj_ii = np.dot(s_ii, y_ii)
-                    if proj_ii <= 0:
-                        if verbose:
-                            print(msg2(k, i, 'PROJ G <= 0 (k-1)'))
-                        c.H.drop()
-                    else:
-                        c.H.update(s_ii, y_ii, proj_ii)
-                i_prev = i # do so before first `continue` may happen
+                if not new_component:
+                    # update H with inter-iteration changes
+                    if np.allclose(x_prev, c.x):
+                        pass
+                    elif newton:
+                        s_ii = c.x - x_prev
+                        y_ii = c.g - g_prev
+                        proj_ii = np.dot(s_ii, y_ii)
+                        if proj_ii <= 0:
+                            if verbose:
+                                print(msg2(k, i, 'PROJ G <= 0 (k-1)'))
+                            c.H.drop()
+                        else:
+                            c.H.update(s_ii, y_ii, proj_ii)
 
             # estimate the local gradient
             g = c.g # g_{k}
-            g0 = c.in_descent_subspace(g)
 
             # retrieve the local inverse Hessian
             H = c.H # H_{k}
 
-            # define the descent direction
-            p = -H.dot(g) # p_{k} or q_{k}
-            p = c.in_descent_subspace(p)
-
-            # sanity check
-            if newton and 0 <= np.dot(p, g0):
-                if verbose:
-                    print(msg2(k, i, 'PROJ G <= 0 (k)'))
-                H.drop()
-                p = -H.dot(g)
+            _k = 0
+            while True:
+                # define the descent direction
+                p = -H.dot(g) # p_{k} or q_{k}
                 p = c.in_descent_subspace(p)
+                g0 = c.in_descent_subspace(g)
 
-            # get the parameter update
-            s = wolfe_line_search(
-                    c.__f__, x, p, c.__g__, c.descent_subspace,
-                    f0=c.f, g0=g0, bounds=bounds,
-                    weight_regul=regul, step_regul=ls_regul,
-                    return_resolution=verbose,
-                    **ls_kwargs) # s_{k}
+                # sanity check
+                if np.all(g0 == 0):
+                    break
+                if newton and 0 <= np.dot(p, g0):
+                    if verbose:
+                        print(msg2(k, i, 'PROJ G <= 0 (k)'))
+                    H.drop()
+                    p = -H.dot(g)
+                    p = c.in_descent_subspace(p)
+
+                # get the parameter update
+                s = wolfe_line_search(
+                        c.__f__, x, p, c.__g__, c.descent_subspace,
+                        f0=c.f, g0=g0, bounds=bounds,
+                        weight_regul=regul, step_regul=ls_regul,
+                        #return_resolution=verbose,
+                        **ls_kwargs) # s_{k}
+
+                # if the linesearch failed, make `g` sparser
+                if s is None:
+                    if not _k:
+                        g = np.array(g)
+                        _active = np.argsort(np.abs(g))
+                    g[_active[_k]] = 0.
+                    _k += 1
+                else:
+                    break
+
             # sanity checks
             ncomponents = len(C)
             #assert 0 < ncomponents
@@ -1951,9 +1105,10 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             #       the epoch-wise criteria however are ignored during the first epoch.
             new_epoch = (k + 1) % ncomponents == 0
             if verbose:
-                s, _res = s
-                if s is None:
-                    print(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res.upper())))
+                print(msg2(k, i, 'LINE SEARCH FAILED'))
+                #s, _res = s
+                #if s is None:
+                #    print(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res.upper())))
             if ncomponents <= k: # first epoch ignores the following criterion
                 if s is None:
                     ls_failure_count += 1
@@ -1993,6 +1148,8 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             # check for convergence based on f
             if ftol is not None and ncomponents <= k: # first epoch ignores this criterion
                 df = c.f - c1.f
+                f_history.append(c.f)
+                df_history.append(df)
                 if df < ftol:
                     low_df_count += 1
                 if new_epoch:
@@ -2004,6 +1161,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             if gtol is None and not newton:
                 if verbose:
                     print(msg1(k, i, c.f, c1.f))
+                c = c1 # 'push' the parameter update `c1`
                 continue
 
             # estimate the gradient at x_{k+1}
@@ -2037,6 +1195,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
             # check for convergence based on g
             if gtol is not None and ncomponents <= k: # first epoch ignores this criterion
+                dg_history.append(proj)
                 if proj < gtol:
                     low_dg_count += 1
                 if new_epoch:
@@ -2060,6 +1219,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             # refresh the working copy of the parameter vector
             push(c)
             # loop
+            i_prev = i
             k += 1
 
     if verbose:
@@ -2072,19 +1232,26 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
         else:
             print('Elapsed time = {:.3f}s\n'.format(second))
     H = {i: C[i].H for i in C}
-    return BFGSResult(x, H, resolution, None, None, None, None, None)
+    return BFGSResult(x, H, resolution, k,
+            f_history if f_history else None,
+            df_history if df_history else None,
+            dg_history if dg_history else None,
+            cumt if verbose else None, None, None)
 
 
-def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None):
+def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bounds=None, h0=1e-8):
     """
     Compute the derivative of a function.
     """
     SAFE, CON = 2., 1.4
     CON2 = CON * CON
-    h0 = 1e-8
     H = h0 * ((1./CON) ** np.arange(10))
     if active_j is None:
         active_j = range(x.size)
+    if bounds is None:
+        lower = upper = None
+    else:
+        lower, upper = bounds
     if not regul:
         penalty = 0.
     total_grad, partial_grad = [], {}
@@ -2100,10 +1267,17 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None):
         try:
             for u, h in enumerate(H):
                 try:
+                    #
                     x[j] = xj + h
+                    if upper is not None:
+                        x[j] = min(x[j], upper[j])
                     f_a = np.array([ fun(i, x, *args) for i in I ])
+                    #
                     x[j] = xj - h
+                    if lower is not None:
+                        x[j] = max(lower[j], x[j])
                     f_b = np.array([ fun(i, x, *args) for i in I ])
+                    #
                     partial_grad_j = (f_a - f_b) / (2. * h)
                     if regul:
                         penalty = regul * 2. * xj
@@ -2111,8 +1285,8 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None):
                 except (KeyboardInterrupt, SystemExit):
                     raise
                 except:
+                    raise
                     #traceback.print_exc()
-                    #raise
                     continue
                 if u == 0:
                     continue
@@ -2143,6 +1317,5 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None):
         return None, None
 
 
-__all__ = [ 'BFGSResult', 'minimize_sbfgs', 'minimize_range_sbfgs', 'minimize_sparse_bfgs',
-        'SparseFunction', 'wolfe_line_search', 'sparse_grad' ]
+__all__ = [ 'BFGSResult', 'minimize_sparse_bfgs', 'SparseFunction', 'wolfe_line_search', 'sparse_grad' ]
 

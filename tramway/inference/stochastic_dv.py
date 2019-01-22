@@ -24,8 +24,6 @@ from collections import OrderedDict
 import time
 from scipy.stats import trim_mean
 
-_default_epsilon = 1e-3 # is no longer default; recommended value instead
-_default_selection_angle = .9
 
 setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
     'provides': 'dv',
@@ -41,7 +39,7 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('compatibility',       ('-c', '--inferencemap', '--compatible',
                                 dict(action='store_true', help='InferenceMAP compatible'))),
         ('epsilon',             ('--grad-epsilon', dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every spatial gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True))),
-        ('grad_selection_angle',('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; if not -c, default is: {})'.format(_default_selection_angle)))),
+        ('grad_selection_angle',('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; if not -c, default is: {})'.format(default_selection_angle)))),
         ('grad',                dict(help="spatial gradient implementation; any of 'grad1', 'gradn'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',             ()))),
@@ -270,13 +268,13 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
             if compatibility:
                 warn('grad_selection_angle breaks backward compatibility with InferenceMAP', RuntimeWarning)
         else:
-            grad_selection_angle = _default_selection_angle
+            grad_selection_angle = default_selection_angle
         if grad_selection_angle:
             grad_kwargs['selection_angle'] = grad_selection_angle
     # bounds
     V_bounds = [(0., None)] * V_initial.size
-    if min_diffusivity is None:
-        assert np.all(min_diffusivity < D_initial)
+    #if min_diffusivity is not None:
+    #    assert np.all(min_diffusivity < D_initial)
     bounds = D_bounds + V_bounds
 
     # posterior function input arguments
@@ -301,19 +299,14 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
 
     # covariates and subspaces
     if stochastic:
-        components = np.arange(m)
-        def component(k):
-            _i = k % m
-            if _i == 0:
-                np.random.shuffle(components)
-            return components[_i]
+        component = m
         covariate = dv.region
         #covariate = lambda i: np.unique(np.concatenate([ dv.region(_i) for _i in dv.region(i) ]))
         descent_subspace = None
         if superlocal:
             gradient_subspace = dv.indices
-            if 'ls_failure_rate' not in sbfgs_kwargs:
-                sbfgs_kwargs['ls_failure_rate'] = .9
+            #if 'ls_failure_rate' not in sbfgs_kwargs:
+            #    sbfgs_kwargs['ls_failure_rate'] = .9
         else:
             def gradient_subspace(i):
                 return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
@@ -348,20 +341,24 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         sbfgs_kwargs['bounds'] = bounds
     if 'eps' not in sbfgs_kwargs:
         sbfgs_kwargs['eps'] = 1. # beware: not the `tramway.inference.grad` option
-    # TODO: superlocal may work better in pure gradient descent
-    sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', not stochastic or superlocal)
+    # TODO: in principle `superlocal` could work in quasi-Newton work but did not with random `x0`
+    sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', not stochastic)# or superlocal)
     if newton:
-        default_step_max = .5
+        default_step_max = 1.
         default_wolfe = (.5, None)
     else:
-        default_step_max = .25
+        default_step_max = .5
         default_wolfe = (.1, None)
+    if stochastic:
+        sbfgs_kwargs['ls_wolfe'] = sbfgs_kwargs.get('ls_wolfe', default_wolfe)
+        sbfgs_kwargs['ls_step_max'] = sbfgs_kwargs.get('ls_step_max', default_step_max)
     if 'ls_armijo_max' not in sbfgs_kwargs:
         sbfgs_kwargs['ls_armijo_max'] = 5
-    sbfgs_kwargs['ls_step_max'] = sbfgs_kwargs.get('ls_step_max', default_step_max)
-    sbfgs_kwargs['ls_wolfe'] = sbfgs_kwargs.get('ls_wolfe', default_wolfe)
+    ls_step_max_decay = sbfgs_kwargs.get('ls_step_max_decay', None)
+    if ls_step_max_decay:
+        sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-3
+        sbfgs_kwargs['ftol'] = 1e-2
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
@@ -407,12 +404,25 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
             cols = ['iter'] + cols
         posterior_info = pd.DataFrame(np.array(posterior_info), columns=cols)
 
+    info = dict(posterior_info=posterior_info)
     if return_struct:
-        return DVF, dict(posterior_info=posterior_info, result=result)
-    elif result.err is not None:
-        return DVF, dict(posterior_info=posterior_info, resolution=result.resolution, error=result.err)
+        # cannot be rwa-stored
+        info['result'] = result
     else:
-        return DVF, dict(posterior_info=posterior_info, resolution=result.resolution)
+        for src_attr in ('resolution',
+                'niter',
+                ('f', 'f_history'),
+                ('projg', 'projg_history'),
+                ('err', 'error'),
+                ('diagnosis', 'diagnoses')):
+            if isinstance(src_attr, str):
+                dest_attr = src_attr
+            else:
+                src_attr, dest_attr = src_attr
+            val = getattr(result, src_attr)
+            if val is not None:
+                info[dest_attr] = val
+    return DVF, info
 
     return DVF, posterior_info
 
