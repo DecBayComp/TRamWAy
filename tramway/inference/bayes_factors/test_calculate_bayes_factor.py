@@ -23,7 +23,7 @@ class bayes_test(unittest.TestCase):
 
     def setUp(self):
         """Initialize data for different tests"""
-        self.long = True
+        self.full_tests = False
         self.tol = 1e-32
         self.rel_tol = 1e-2
         self.B_threshold = 10.0
@@ -250,7 +250,7 @@ class bayes_test(unittest.TestCase):
 
         lims = np.array([-1, 1]) * 10
 
-        if self.long:
+        if self.full_tests:
             norm = dblquad(integrate_me, lims[0], lims[1],
                            lims[0], lims[1], epsabs=tol, epsrel=tol)[0]
             true_norm = 1
@@ -276,7 +276,7 @@ class bayes_test(unittest.TestCase):
 
         lims = np.array([-1, 1]) * 10
 
-        if 1 or self.long:
+        if self.full_tests:
             norm = quad(integrate_me, lims[0], lims[1], epsabs=tol, epsrel=tol)[0]
             true_norm = 1
 
@@ -341,6 +341,57 @@ class bayes_test(unittest.TestCase):
         true_norm = 1
         self.assertTrue(np.isclose(norm, true_norm, rtol=rtol, atol=atol),
                         "Active force prior normalization test failed for 1D posteriors in 2D. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
+
+    def test_diffusivity_posterior(self):
+        from .get_D_posterior import get_D_posterior, get_MAP_D
+
+        # >> Test diffusivity posterior norm with localization error <<
+        zeta_t = np.asarray([0.7, 0.4])
+        zeta_sp = np.asarray([0.8, 0.6])
+        n = np.asarray(20)
+        V = np.asarray(0.8 ** 2.0)
+        u = np.asarray(0.95)
+        loc_error = 0.1**2.0
+        V_pi = u * V
+        tol = 1e-16
+
+        # Get MAP D estimate
+        MAP_D = get_MAP_D(n=n, zeta_t=zeta_t, V=V, V_pi=V_pi, sigma2=loc_error, dim=2)
+        posterior = get_D_posterior(n=n, zeta_t=zeta_t, V=V, V_pi=V_pi, sigma2=loc_error, dim=2)
+
+        lims = np.array([0, 1e3])
+
+        if 1 or self.full_tests:
+            norm = quad(posterior, lims[0], lims[1], points=MAP_D, epsabs=tol, epsrel=tol)[0]
+            true_norm = 1
+
+            # Check value
+            self.assertTrue(np.isclose(norm, true_norm, rtol=self.rel_tol, atol=self.tol),
+                            "Diffusivity posterior normalization test with localization error failed in 2D. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
+
+        # >> Test diffusivity posterior norm without localization error <<
+        zeta_t = np.asarray([0.7, 0.4])
+        zeta_sp = np.asarray([0.8, 0.6])
+        n = np.asarray(20)
+        V = np.asarray(0.8 ** 2.0)
+        u = np.asarray(0.95)
+        loc_error = 0
+        V_pi = u * V
+        tol = 1e-16
+
+        # Get MAP D estimate
+        MAP_D = get_MAP_D(n=n, zeta_t=zeta_t, V=V, V_pi=V_pi, sigma2=loc_error, dim=2)
+        posterior = get_D_posterior(n=n, zeta_t=zeta_t, V=V, V_pi=V_pi, sigma2=loc_error, dim=2)
+
+        lims = np.array([0, 1e3])
+
+        if 1 or self.full_tests:
+            norm = quad(posterior, lims[0], lims[1], points=MAP_D, epsabs=tol, epsrel=tol)[0]
+            true_norm = 1
+
+            # Check value
+            self.assertTrue(np.isclose(norm, true_norm, rtol=self.rel_tol, atol=self.tol),
+                            "Diffusivity posterior normalization test with localization error failed in 2D. Obtained norm = %.8g did not match the expected norm = %.8g" % (norm, true_norm))
 
 
 # # A dirty fix for a weird bug in unittest
