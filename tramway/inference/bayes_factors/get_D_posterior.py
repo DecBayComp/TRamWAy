@@ -1,4 +1,7 @@
 
+import logging
+import warnings
+
 import numpy as np
 from numpy import log as log
 from scipy.optimize import brentq
