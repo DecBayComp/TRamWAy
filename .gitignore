@@ -17,6 +17,15 @@ _build/
 
 # generated rwa and image files
 *.rwa
+*.h5
+*.cluster
+*.vmesh
 *.png
 *.jpg
 *.jpeg
+*.svg
+
+# others
+*.tar
+*.gz
+*.bz2

@@ -1227,7 +1227,7 @@ class Voronoi(Delaunay):
     def cell_volume(self):
         if self._cell_volume is None:
             adjacency = self.vertex_adjacency.tocsr()
-            cell_volume = np.full(self._cell_centers.shape[0], np.NaN)
+            cell_volume = np.full(len(self._cell_centers), np.NaN)
             for i, u in enumerate(self._cell_centers):
                 js = _js = self.cell_vertices[i] # vertex indices
 
@@ -1259,6 +1259,8 @@ class Voronoi(Delaunay):
                         cell_volume[i] = hull.volume
                     continue
 
+                assert bool(simplices) # `simplices` is not empty
+                cell_volume[i] = 0.
                 for j, k in simplices:
                     v = self._vertices[j] if isinstance(j, int) else j
                     w = self._vertices[k] if isinstance(k, int) else k

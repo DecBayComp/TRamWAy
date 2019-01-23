@@ -288,13 +288,17 @@ def add_noise(points, sigma, copy=False):
     return points
 
 
-def truth(cells, t=None, diffusivity=None, force=None):
+def truth(cells, t=None, diffusivity=None, force=None, potential=None, **kwargs):
     """
     Generate maps for the true diffusivity/force distribution.
 
+    If `cells` is a :class:`~tramway.tessellation.base.CellStats` object,
+    :func:`~tramway.inference.base.distributed` is called on `cells` and with the trailing
+    keyword arguments to build a :class:`~tramway.inference.base.Distributed` object.
+
     Arguments:
 
-        cells (Distributed): distributed data ready for inference
+        cells (CellStats or Distributed): distributed data ready for inference
 
         t (float): time as understood by `diffusivity` and `force`
 
@@ -304,11 +308,19 @@ def truth(cells, t=None, diffusivity=None, force=None):
         force (callable): admits the coordinates of a single location (array-like)
             and time (float, if `t` is defined) and returns the local force (array-like)
 
+        potential (callable): admits the coordinates of a single location (array-like)
+            and time (float, if `t` is defined) and returns the local potential energy (float)
+
     Returns:
 
         pandas.DataFrame: diffusivity/force maps
     """
-    I, DF = [], []
+    try:
+        cells.cells
+    except AttributeError:
+        import tramway.inference as ti
+        cells = ti.distributed(cells, **kwargs)
+    I, DVF = [], []
     for i in cells.cells:
         cell = cells.cells[i]
         if not I:
@@ -326,14 +338,22 @@ def truth(cells, t=None, diffusivity=None, force=None):
             F = force(cell.center)
         else:
             F = force(cell.center, t)
-        DF.append(np.concatenate((D, F)))
-    DF = np.vstack(DF)
+        if potential is None:
+            V = []
+        elif t is None:
+            V = [potential(cell.center)]
+        else:
+            V = [potential(cell.center, t)]
+        DVF.append(np.concatenate((D, V, F)))
+    DVF = np.vstack(DVF)
     if diffusivity is None:
         columns = []
     else:
         columns = [ 'diffusivity' ]
+    if potential is not None:
+        columns.append('potential')
     if force is not None:
         columns += [ 'force x' + str(col+1) for col in range(dim) ]
-    return pd.DataFrame(index=I, data=DF, columns = columns)
+    return pd.DataFrame(index=I, data=DVF, columns = columns)
 
 

@@ -204,10 +204,22 @@ class Infer(Helper):
             kwargs['profile'] = profile
         x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
 
+        ret = {}
         if isinstance(x, tuple):
-            maps = Maps(x[0], mode=mode, posteriors=x[1])
-            if x[2:]:
-                maps.other = x[2:] # Python 3 only
+            if isinstance(x[1], pd.DataFrame):
+                maps = Maps(x[0], mode=mode, posteriors=x[1])
+                if x[2:]:
+                    try:
+                        maps.other = x[2:] # Python 3 only
+                    except:
+                        warn('failed to store output arguments: {}'.format(x[2:]), RuntimeWarning)
+                        if verbose:
+                            print(traceback.format_exc())
+            else:
+                maps = Maps(x[0], mode=mode)
+                ret = x[1]
+                if x[2:]:
+                    warn('ignoring output arguments: {}'.format(x[2:]), RuntimeWarning)
         else:
             maps = Maps(x, mode=mode)
 
@@ -219,6 +231,9 @@ class Infer(Helper):
         if verbose:
             print('{} mode: elapsed time: {}ms'.format(mode, int(round(runtime*1e3))))
         maps.runtime = runtime
+
+        for attr in ret:
+            maps.defattr(attr, ret[attr])
 
         if self.analyses is not None:
             self.insert_analysis(maps, comment=comment)
