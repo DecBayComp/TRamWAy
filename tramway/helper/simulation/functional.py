@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017 2018, Institut Pasteur
+# Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -20,14 +20,19 @@ import warnings
 
 def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         trajectory_mean_count=100, trajectory_count_sd=0, turnover=None,
+        initial_trajectory_count=None, new_trajectory_count=None,
         lifetime_tau=None, lifetime=None, single=False,
         box=(0., 0., 1., 1.), duration=10., time_step=.05, minor_step_count=99,
-        full=False, count_outside_trajectories=None):
+        reflect=False, full=False, count_outside_trajectories=None):
     """
     Generate random walks.
 
     Consider also the alternative generator
     :func:`~tramway.helper.simulation.categoricaltrap.random_walk_2d`.
+
+    The `trajectory_mean_count` and `trajectory_count_sd` arguments are not compatible with
+    the `initial_trajectory_count` and `new_trajectory_count` arguments.
+    Use either pair of arguments.
 
     Arguments:
 
@@ -57,6 +62,12 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         turnover (float): fraction of trajectories that will end at each time step;
             **deprecated**
 
+        initial_trajectory_count (int): initial number of active trajectories
+
+        new_trajectory_count (int or callable): number of newly generated trajectories;
+            if `new_trajectory_count` is ``callable``, then it takes the time of a step as input
+            and returns the count for this step as an ``int``
+
         lifetime_tau (float): trajectory lifetime constant in seconds
 
         lifetime (callable or float): trajectory lifetime in seconds;
@@ -73,6 +84,8 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         time_step (float): duration between two consecutive observations
 
         minor_step_count (int): number of intermediate unobserved steps
+
+        reflect (bool): reflect the minor steps that would otherwise leave the bounding box
 
         full (bool): include locations that are outside the bounding box and times that are
             posterior to `duration`
@@ -146,17 +159,30 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
     else:
         assert bool(lifetime_tau)
     # number of trajectories at each time step
-    if trajectory_count_sd:
-        K = np.rint(np.random.randn(N) * trajectory_count_sd + trajectory_mean_count).astype(int)
-    else:
-        K = np.full(N, trajectory_mean_count, dtype=int)
-    k = np.zeros_like(K)
+    K = None
+    if new_trajectory_count is None:
+        if trajectory_count_sd:
+            K = np.rint(np.random.randn(N) * trajectory_count_sd + trajectory_mean_count).astype(int)
+        else:
+            K = np.full(N, trajectory_mean_count, dtype=int)
+    elif initial_trajectory_count is None:
+        warnings.warn('in combination with `new_trajectory_count`, use `initial_trajectory_count` instead of `trajectory_mean_count`')
+        initial_trajectory_count = trajectory_mean_count
+    k = np.zeros(N, dtype=int)
     # starting time and duration of the trajectories
     time_support = []
     t = 0.
     for i in range(N):
         t += time_step
-        k_new = K[i] - k[i]
+        if K is None:
+            if i == 0:
+                k_new = initial_trajectory_count
+            elif callable(new_trajectory_count):
+                k_new = new_trajectory_count(t)
+            else:
+                k_new = new_trajectory_count
+        else:
+            k_new = K[i] - k[i]
         if k_new <= 0:
             if k_new != 0:
                 print('{:d} excess trajectories at step {:d}'.format(-k_new, i))
@@ -171,8 +197,9 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         _lifetimes, _count = np.unique(_lifetime, return_counts=True)
         _lifetime = np.zeros(_lifetimes.max(), dtype=_count.dtype)
         _lifetime[_lifetimes-1] = _count
-        _count = np.flipud(np.cumsum(np.flipud(_lifetime)))
-        k[i:min(i+_count.size,k.size)] += _count[:min(k.size-i,_count.size)]
+        if K is not None:
+            _count = np.flipud(np.cumsum(np.flipud(_lifetime)))
+            k[i:min(i+_count.size,k.size)] += _count[:min(k.size-i,_count.size)]
     #
     actual_time_step = time_step / float(minor_step_count + 1)
     total_location_count = sum([ np.sum(_lifetime) for _, _lifetime in time_support ])
@@ -190,19 +217,45 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
             X[i] = x = x0
             T[i] = t = t0
             i += 1
-            for j in range(1,_lifetime):
-                for _ in range(minor_step_count+1):
-                    D = diffusivity(x, t)
-                    A = drift(x, t, D)
-                    dx = actual_time_step * A + \
-                        np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
-                    x = x + dx
-                    t = t + actual_time_step
-                t = t0 + j * time_step # moderate numerical precision errors
-                N[i] = n
-                X[i] = x
-                T[i] = t
-                i += 1
+            # from here the main code (``not reflect``) is duplicated to reduce the number of if-tests
+            if reflect:
+                # duplicated code
+                for j in range(1,_lifetime):
+                    for _ in range(minor_step_count+1):
+                        D = diffusivity(x, t)
+                        A = drift(x, t, D)
+                        dx = actual_time_step * A + \
+                            np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
+                        x = x + dx
+                        # additional code
+                        above = support_upper_bound < x
+                        x[above] = 2*support_upper_bound[above] - x[above]
+                        below = x < support_lower_bound
+                        if np.any(below & above):
+                            raise NotImplementedError('the jump is so large that its reflection also exceeds the opposite bound')
+                        x[below] = 2*support_lower_bound[below] - x[below]
+                        #
+                        t = t + actual_time_step
+                    t = t0 + j * time_step # moderate numerical precision errors
+                    N[i] = n
+                    X[i] = x
+                    T[i] = t
+                    i += 1
+            else:
+                # reference code
+                for j in range(1,_lifetime):
+                    for _ in range(minor_step_count+1):
+                        D = diffusivity(x, t)
+                        A = drift(x, t, D)
+                        dx = actual_time_step * A + \
+                            np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
+                        x = x + dx
+                        t = t + actual_time_step
+                    t = t0 + j * time_step # moderate numerical precision errors
+                    N[i] = n
+                    X[i] = x
+                    T[i] = t
+                    i += 1
     # format the data as a dataframe
     columns = 'xyz'
     if dim <= 3:
