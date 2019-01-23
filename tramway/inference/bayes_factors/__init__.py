@@ -34,8 +34,6 @@ def _bayes_factor(cells, B_threshold=None, **kwargs):
         kwargs['B_threshold'] = B_threshold
 
     # iterate over the cells
-    # print(tqdm)
-    # print('Actually calculating', datetime.datetime.now().time())
     for key in tqdm(cells):
         calculate_bayes_factors_for_one_cell(cells[key], localization_error, **kwargs)
 
@@ -47,5 +45,6 @@ setup = {
         ('localization_error', ('-e', dict(type=float, help='localization error (same units as the variance)'))),
         ('B_threshold', ('-b', dict(type=float, help='values of Bayes factor for thresholding'))),
     )),
+    # List of variables that the module returns as cell properties, e.g. cell.lg_B
     'returns': ['lg_B', 'force', 'min_n'],
 }
