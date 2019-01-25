@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -80,6 +80,12 @@ class TimeLattice(Tessellation):
         self.cell_label = None
         self.cell_adjacency = None
         self.adjacency_label = None
+        if isinstance(segments, list):
+            segments = np.array(segments)
+        # ensure that single segments are encoded as single-row matrices
+        if not segments.shape[1:]:
+            assert segments.shape[0] == 2
+            segments = segments[np.newaxis,:]
         self._time_lattice = segments
 
     @property
@@ -300,12 +306,15 @@ class TimeLattice(Tessellation):
                         shape=(ncells, ncells))
                     edge_ptr += active_cells.size
 
-                blocks = [[A, future] + [None] * (nsegments - 2)]
-                for k in range(1, nsegments - 1):
-                    blocks.append([None] * (k - 1) + [past, A, future] + \
-                        [None] * (nsegments - 2 - k))
-                blocks.append([None] * (nsegments - 2) + [past, A])
-                self._cell_adjacency = sparse.bmat(blocks, format='csr')
+                if nsegments == 1:
+                    self._cell_adjacency = A
+                else:
+                    blocks = [[A, future] + [None] * (nsegments - 2)]
+                    for k in range(1, nsegments - 1):
+                        blocks.append([None] * (k - 1) + [past, A, future] + \
+                            [None] * (nsegments - 2 - k))
+                    blocks.append([None] * (nsegments - 2) + [past, A])
+                    self._cell_adjacency = sparse.bmat(blocks, format='csr')
 
                 if past_edge is True:
                     if future_edge != edge_max + 1:

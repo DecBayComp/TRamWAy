@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+
+# Copyright © 2018-2019, Institut Pasteur
+#   Contributor: François Laurent
+
+# This file is part of the TRamWAy software available at
+# "https://github.com/DecBayComp/TRamWAy" and is distributed under
+# the terms of the CeCILL license as circulated at the following URL
+# "http://www.cecill.info/licenses.en.html".
 
 from math import *
 import numpy as np
@@ -1104,11 +1113,12 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             #       as a consequence, new_epoch is always True during the first epoch;
             #       the epoch-wise criteria however are ignored during the first epoch.
             new_epoch = (k + 1) % ncomponents == 0
-            if verbose:
-                print(msg2(k, i, 'LINE SEARCH FAILED'))
-                #s, _res = s
-                #if s is None:
-                #    print(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res.upper())))
+            if s is None:
+                if verbose:
+                    print(msg2(k, i, 'LINE SEARCH FAILED'))
+                    #s, _res = s
+                    #if s is None:
+                    #    print(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res.upper())))
             if ncomponents <= k: # first epoch ignores the following criterion
                 if s is None:
                     ls_failure_count += 1

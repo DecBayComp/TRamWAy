@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2018-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -181,7 +181,7 @@ class Infer(Helper):
     def infer(self, cells, worker_count=None, profile=None, min_diffusivity=None, \
             localization_error=None, sigma=None, sigma2=None, \
             diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
-            comment=None, verbose=None, **kwargs):
+            comment=None, verbose=None, snr_extensions=False, **kwargs):
         if verbose is None:
             verbose = self.verbose
         mode = self.name
@@ -235,6 +235,9 @@ class Infer(Helper):
         for attr in ret:
             maps.defattr(attr, ret[attr])
 
+        if snr_extensions:
+            maps = inference.snr.add_snr_extensions(cells, maps, get_grad_kwargs(**kwargs))
+
         if self.analyses is not None:
             self.insert_analysis(maps, comment=comment)
 
@@ -247,7 +250,7 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
     merge_threshold_count=False, \
     grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
-    return_cells=None, profile=None, force=None, inplace=False, **kwargs):
+    return_cells=None, profile=None, force=None, inplace=False, snr_extensions=False, **kwargs):
     """
     Inference helper.
 
@@ -324,6 +327,8 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
         inplace (bool): replace the input analysis by the output one.
 
+        snr_extensions (bool): add snr extensions for Bayes factor calculation.
+
     Returns:
 
         Maps or pandas.DataFrame or tuple:
@@ -357,7 +362,7 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
     maps = helper.infer(_map, worker_count=worker_count, profile=profile, \
         min_diffusivity=min_diffusivity, localization_error=localization_error, \
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-        jeffreys_prior=jeffreys_prior, **kwargs)
+        jeffreys_prior=jeffreys_prior, snr_extensions=snr_extensions, **kwargs)
 
     helper.save_analyses(output_file, force=force)
 

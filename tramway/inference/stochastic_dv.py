@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018, Institut Pasteur
+# Copyright © 2018-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -13,6 +13,7 @@
 
 
 from .base import *
+from .gradient import *
 from .dv import DV
 from .optimization import *
 from warnings import warn
@@ -38,9 +39,9 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('max_iter',            dict(type=int, help='maximum number of iterations')),
         ('compatibility',       ('-c', '--inferencemap', '--compatible',
                                 dict(action='store_true', help='InferenceMAP compatible'))),
-        ('epsilon',             ('--grad-epsilon', dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every spatial gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True))),
+        ('gradient',            ('--grad', dict(help="spatial gradient implementation; any of 'grad1', 'gradn'"))),
+        ('grad_epsilon',        dict(args=('--eps', '--epsilon'), kwargs=dict(type=float, help='if defined, every spatial gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
         ('grad_selection_angle',('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; if not -c, default is: {})'.format(default_selection_angle)))),
-        ('grad',                dict(help="spatial gradient implementation; any of 'grad1', 'gradn'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',             ()))),
         #('region_size',         ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
@@ -216,7 +217,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
 
 def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None,
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
-    epsilon=None, grad_selection_angle=None, compatibility=False,
+    compatibility=False,
     export_centers=False, verbose=True, superlocal=False, stochastic=True, x0=None,
     return_struct=False,
     **kwargs):
@@ -256,21 +257,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     posterior_info = []
 
     # gradient options
-    grad_kwargs = {}
-    if epsilon is not None:
-        if compatibility:
-            warn('epsilon breaks backward compatibility with InferenceMAP', RuntimeWarning)
-        if grad_selection_angle:
-            warn('grad_selection_angle is not compatible with epsilon and will be ignored', RuntimeWarning)
-        grad_kwargs['eps'] = epsilon
-    else:
-        if grad_selection_angle:
-            if compatibility:
-                warn('grad_selection_angle breaks backward compatibility with InferenceMAP', RuntimeWarning)
-        else:
-            grad_selection_angle = default_selection_angle
-        if grad_selection_angle:
-            grad_kwargs['selection_angle'] = grad_selection_angle
+    grad_kwargs = get_grad_kwargs(**kwargs)
     # bounds
     V_bounds = [(0., None)] * V_initial.size
     #if min_diffusivity is not None:
@@ -358,7 +345,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     if ls_step_max_decay:
         sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-2
+        sbfgs_kwargs['ftol'] = 1e-3
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
