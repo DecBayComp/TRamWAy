@@ -110,7 +110,7 @@ def infer_snr(cells, **kwargs):
             maps = helper.infer(cells, 'smooth.d', **kwargs)
         else:
             maps = helper.infer(cells, 'd', **kwargs)
-        maps = add_snr_extensions(maps, cells, get_grad_kwargs(**kwargs))
+    maps = add_snr_extensions(cells, maps, get_grad_kwargs(**kwargs))
     return maps
 
 
@@ -202,9 +202,9 @@ def add_snr_extensions(cells, maps=None, grad_kwargs={}):
         columns=['zeta_spurious '+col for col in cells.space_cols],
         ))
     if isinstance(maps, Maps):
-        maps = _maps
-    else:
         maps.maps = _maps
+    else:
+        maps = _maps
     return maps
 
 
