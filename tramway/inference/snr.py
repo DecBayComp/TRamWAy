@@ -114,22 +114,34 @@ def infer_snr(cells, **kwargs):
     return maps
 
 
-def add_snr_extensions(cells, maps=None, grad_kwargs={}):
+def add_snr_extensions(cells, maps=None, grad_kwargs={}, _zeta_spurious=True):
     '''
     Infer signal-to-noise ratio related variables useful for Bayes factor calculation.
 
-    Diffusion is read from `maps` (variable `diffusivity` is expected).
+    Diffusion is read from `maps` (if available) or `cells`.
+    Variable/attribute `diffusivity` is expected.
 
-    If `maps` is defined, `add_snr_extensions` returns `maps` aumented with the SNR variables.
-    Otherwise `cells` is returned similarly aumented.
+    Arguments:
+
+        cells (tramway.inference.base.Distributed): distributed cells.
+
+        maps (pandas.DataFrame or Maps): existing maps.
+
+        grad_kwargs (dict): keyword arguments to :met:`cells.grad`.
+
+    Returns:
+
+        pandas.DataFrame or Maps: `maps` aumented with the SNR variables.
     '''
     if maps is None:
-        for i in cells:
-            any_cell = cells[i]
-            break
-        if not hasattr(any_cell, 'diffusivity'):
-            raise AttributeError('missing attribute `diffusivity`; please infer diffusion first')
-        raise NotImplementedError
+        index = np.array(list(cells.keys()))
+        if _zeta_spurious:
+            for i in cells:
+                any_cell = cells[i]
+                break
+            if not hasattr(any_cell, 'diffusivity'):
+                raise AttributeError('missing attribute `diffusivity`; please infer diffusion first')
+            D = []
     else:
         if isinstance(maps, Maps):
             _maps = maps.maps
@@ -138,35 +150,25 @@ def add_snr_extensions(cells, maps=None, grad_kwargs={}):
         else:
             raise TypeError('unsupported type for `maps`: {}'.format(type(maps)))
         index = _maps.index.values
-        D = _maps['diffusivity'].values
-    reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
-    reverse_index[index] = np.arange(len(index))
-    n = np.array([ float(len(cells[i])) for i in index ])
-    nnz = 1 < n
-    # compute diffusivity gradient g (defined at cells `g_index`)
-    g_index, g = [], []
-    g_defined = np.zeros(len(index), dtype=bool)
-    for j, i in enumerate(index):
-        gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
-        if gradD is not None and nnz[j]:
-            # the nnz condition does not prevent the gradient to be defined
-            # but such cases are excluded anyway in the calculation of zeta_spurious
-            g_defined[j] = True
-            g_index.append(i)
-            g.append(gradD[np.newaxis,:])
-    g = np.concatenate(g, axis=0)
+        if _zeta_spurious:
+            D = _maps['diffusivity'].values
     # compute mean displacement m and variances V and V_prior (defined at cells `index`)
     sum_pts  = lambda a: np.sum(a, axis=0, keepdims=True)
     sum_dims = lambda a: np.sum(a, axis=1, keepdims=True)
-    m, dts, dr, dr2 = [], [], [], []
+    m, n, dr, dr2 = [], [], [], []
+    dts = []
     for i in index:
         cell = cells[i]
+        n.append(len(cell))
         m.append(np.mean(cell.dr, axis=0, keepdims=True))
         dr.append(sum_pts(cell.dr))
         dr2.append(sum_pts(cell.dr * cell.dr))
         dts.append(cell.dt)
+        if maps is None and _zeta_spurious:
+            D.append(cell.diffusivity)
+    n = np.array(n)
+    nnz = 1 < n
     m   = np.concatenate(m, axis=0)
-    dts = np.concatenate(dts)
     n   = n[:,np.newaxis]
     dr  = np.concatenate(dr, axis=0)
     dr2 = np.concatenate(dr2, axis=0)
@@ -179,28 +181,57 @@ def add_snr_extensions(cells, maps=None, grad_kwargs={}):
     sd = np.sqrt(V)
     zeta_total = np.zeros_like(m)
     zeta_total[nnz] = m[nnz] / sd[nnz]
-    dt = np.median(dts)
-    zeta_spurious = g * dt / sd[g_defined]
+    if _zeta_spurious:
+        if maps is None:
+            D = np.array(D)
+        dts = np.concatenate(dts)
+        dt = np.median(dts)
+        if not np.all(np.isclose(dts, dt)):
+            raise ValueError('dts are not all equal')
+        reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
+        reverse_index[index] = np.arange(len(index))
+        # compute diffusivity gradient g (defined at cells `g_index`)
+        g_index, g = [], []
+        g_defined = np.zeros(len(index), dtype=bool)
+        for j, i in enumerate(index):
+            gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
+            if gradD is not None and nnz[j]:
+                # the nnz condition does not prevent the gradient to be defined
+                # but such cases are excluded anyway in the calculation of zeta_spurious
+                g_defined[j] = True
+                g_index.append(i)
+                g.append(gradD[np.newaxis,:])
+        g = np.concatenate(g, axis=0)
+        # zeta_spurious
+        zeta_spurious = g * dt / sd[g_defined]
     # format the output
-    _maps = _maps.join(pd.DataFrame(
+    __maps = pd.DataFrame(
         np.concatenate((n, V_prior), axis=1),#, dr, dr2
         index=index,
         columns=['n'] + \
             ['V_prior'],# + \
             #['dr '+col for col in cells.space_cols] + \
             #['dr2 '+col for col in cells.space_cols],
-        ))
+        )
+    _maps = __maps if maps is None else _maps.join(__maps)
     _maps = _maps.join(pd.DataFrame(
         np.concatenate((V, zeta_total), axis=1)[nnz],
         index=index[nnz],
         columns=['V'] + \
             ['zeta_total '+col for col in cells.space_cols],
         ))
-    _maps = _maps.join(pd.DataFrame(
-        zeta_spurious,
-        index=g_index,
-        columns=['zeta_spurious '+col for col in cells.space_cols],
-        ))
+    if _zeta_spurious:
+        _maps = _maps.join(pd.DataFrame(
+            zeta_spurious,
+            index=g_index,
+            columns=['zeta_spurious '+col for col in cells.space_cols],
+            ))
+    else:
+        _maps = _maps.join(pd.DataFrame(
+            sd[nnz],
+            index=index[nnz],
+            columns=['sd'],
+            ))
     if isinstance(maps, Maps):
         maps.maps = _maps
     else:

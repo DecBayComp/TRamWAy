@@ -123,9 +123,20 @@ class Infer(Helper):
         return _map
 
     def overload_cells(self, cells):
-        input_variables = ()
-        if self.input_maps is not None:
-            input_variables = tuple(self.input_maps.variables)
+        if self.input_maps is None:
+            input_variables = ()
+        else:
+            input_variables = []
+            for input_variable in self.input_maps.variables:
+                # check `input_variable` can be an identifier
+                try:
+                    class _BreakMe(object):
+                        __slots__ = input_variable
+                except TypeError:
+                    pass
+                else:
+                    input_variables.append(input_variable)
+            input_variables = tuple(input_variables)
             maps = { v: self.input_maps[v] for v in input_variables }
         output_variables = self.setup.get('returns', [])
         if isinstance(output_variables, (tuple, list, frozenset, set)):
