@@ -10,11 +10,11 @@ from .calculate_marginalized_integral import calculate_marginalized_integral
 from .convenience_functions import p
 
 
-def find_marginalized_zeta_t_roots(zeta_sp_par, n, n_pi, B, u, dim, zeta_t_perp, loc_error):
+def find_marginalized_zeta_t_roots(zeta_sp_par, n, n_pi, B, u, dim, zeta_t_perp, sigma2):
     """
     Find marginalized roots zeta_t.
     I have proven that the min B for the marginalized inference is achieved at zeta_t = zeta_sp/2 (for the parallel component and under the condition that the orthogonal component is 0).
-    loc_error --- localization error. Same units as variance. Set to 0 if localization error can be ignored;
+    sigma2 --- localization error. Same units as variance. Set to 0 if localization error can be ignored;
     """
 
     # Constants
@@ -34,10 +34,7 @@ def find_marginalized_zeta_t_roots(zeta_sp_par, n, n_pi, B, u, dim, zeta_t_perp,
     #     return(1.0 + n_pi / n * u + (dim - 1.0) * s * zeta_t_perp ** 2)
     v = 1.0 + n_pi / n * u
 
-    if loc_error > 0:
-        rel_loc_error = n * V / (2 * dim * loc_error)
-    else:
-        rel_loc_error = np.inf
+    rel_loc_error = n * V / (4 * sigma2) if sigma2 > 0 else np.inf
 
     # Function to optimize
     def solve_me(zeta_t_par):

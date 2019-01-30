@@ -312,14 +312,14 @@ class bayes_test(unittest.TestCase):
         # >> Test that 1D zeta_ax PRIOR is normalized in 2D with localization error <<
         V = np.asarray(0.8 ** 2.0)
         u = np.asarray(0.95)
-        loc_error = 0.1**2.0
+        sigma2 = 0.1**2.0
         V_pi = u * V
         rtol = 1e-6
         atol = 1e-4
 
         def integrate_me(zax):
             return calculate_one_1D_prior_in_2D(
-                zeta_a=zax, V_pi=V_pi, loc_error=loc_error)
+                zeta_a=zax, V_pi=V_pi, sigma2=sigma2)
 
         norm = quad(integrate_me, -np.inf, np.inf, epsrel=rtol)[0]
         true_norm = 1
@@ -329,14 +329,14 @@ class bayes_test(unittest.TestCase):
         # >> Test that 1D zeta_ax PRIOR is normalized in 2D without localization error <<
         V = np.asarray(0.8 ** 2.0)
         u = np.asarray(0.95)
-        loc_error = 0
+        sigma2 = 0
         V_pi = u * V
         rtol = 1e-6
         atol = 1e-4
 
         def integrate_me(zax):
             return calculate_one_1D_prior_in_2D(
-                zeta_a=zax, V_pi=V_pi, loc_error=loc_error)
+                zeta_a=zax, V_pi=V_pi, sigma2=sigma2)
 
         norm = quad(integrate_me, -np.inf, np.inf, epsrel=rtol)[0]
         true_norm = 1
@@ -354,15 +354,17 @@ class bayes_test(unittest.TestCase):
         loc_errors = [0, 0.1**2.0]
         V_pi = u * V
         tol = 1e-16
+        dt = 0.04
         lims = np.array([0, 1e3])
 
         for dim in range(1, 3):
             for loc_error in loc_errors:
 
                 # Use MAP D estimate as an integration breakpoint
-                MAP_D = get_MAP_D(n=n, zeta_t=zeta_t, V=V, V_pi=V_pi, sigma2=loc_error, dim=2)
+                MAP_D = get_MAP_D(n=n, zeta_t=zeta_t, V=V, V_pi=V_pi,
+                                  dt=dt, sigma2=loc_error, dim=2)
                 posterior = get_D_posterior(n=n, zeta_t=zeta_t, V=V,
-                                            V_pi=V_pi, sigma2=loc_error, dim=2)
+                                            V_pi=V_pi, dt=dt, sigma2=loc_error, dim=2)
 
                 norm = quad(posterior, lims[0], lims[1], points=MAP_D, epsabs=tol, epsrel=tol)[0]
                 true_norm = 1
