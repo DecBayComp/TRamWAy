@@ -189,7 +189,34 @@ class GasMesh(Voronoi):
         if points is not None:
             #t = time.time()
             points = np.asarray(points)
-            ix = np.argmin(cdist(points, self._cell_centers), axis=1)
+            try:
+                ix = np.argmin(cdist(points, self._cell_centers), axis=1)
+            except MemoryError:
+                X, Y = points, self._cell_centers
+                # slice X to process less rows at a time (borrowed from tessellation.base.Delaunay.cell_index)
+                ix = np.zeros(X.shape[0], dtype=int)
+                X2 = np.sum(X * X, axis=1, keepdims=True).astype(np.float32)
+                Y2 = np.sum(Y * Y, axis=1, keepdims=True).astype(np.float32)
+                X, Y = X.astype(np.float32), Y.astype(np.float32)
+                n = 0
+                while True:
+                    n += 1
+                    block = int(ceil(X.shape[0] * 2**(-n)))
+                    try:
+                        np.empty((block, Y.shape[0]), dtype=X.dtype)
+                    except MemoryError:
+                        pass # continue
+                    else:
+                        break
+                n += 2 # safer
+                block = int(ceil(X.shape[0] * 2**(-n)))
+                for i in range(0, X.shape[0], block):
+                    j = min(i+block, X2.size)
+                    Di = np.dot(np.float32(-2.)* X[i:j], Y.T)
+                    Di += X2[i:j]
+                    Di += Y2.T
+                    ix[i:j] = np.argmin(Di, axis=1)
+            #
             ref = int( ceil(float(self.gas.knn) / 8.0) ) # int and float for PY2
             #ref = -ref # with alternative to cdist, index from the end
             ref -= 1 # with cdist, index

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -57,7 +57,7 @@ def d_neg_posterior(diffusivity, cell, sigma2, jeffreys_prior, dt_mean, \
         cell.cache = np.sum(cell.dr * cell.dr, axis=1) # dx**2 + dy**2 + ..
     n = len(cell) # number of translocations
     D_dt = 4. * (diffusivity * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
-    if np.any(D_dt <= 0) or np.any(np.isclose(D_dt, 0)):
+    if np.any(D_dt <= 0):# or np.any(np.isclose(D_dt, 0)):
         raise RuntimeError('near-0 diffusivity; increase `localization_error`')
     d_neg_posterior = n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
     d_neg_posterior += np.sum(cell.cache / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
@@ -88,6 +88,8 @@ def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivit
             raise ValueError('empty cell')
         if cell.dr.shape[1] == 0:
             raise ValueError('translocation array has no column')
+        if cell.dt.shape[1:]:
+            raise ValueError('time deltas are structured in multiple dimensions')
         # ensure that translocations are properly oriented in time
         if not np.all(0 < cell.dt):
             warn('translocation dts are not all positive', RuntimeWarning)

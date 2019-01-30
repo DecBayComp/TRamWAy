@@ -845,7 +845,8 @@ class Delaunay(Tessellation):
         Y = self._cell_centers
         try:
             D = cdist(X, Y, metric, **kwargs)
-        except MemoryError as memory_error:
+        except MemoryError as e:
+            memory_error = e # make it available outside the except block
             # slice X to process less rows at a time
             if metric != 'euclidean':
                 raise #NotImplementedError
@@ -1226,14 +1227,16 @@ class Voronoi(Delaunay):
     def cell_volume(self):
         if self._cell_volume is None:
             adjacency = self.vertex_adjacency.tocsr()
-            cell_volume = np.zeros(self._cell_centers.shape[0])
+            cell_volume = np.full(len(self._cell_centers), np.NaN)
             for i, u in enumerate(self._cell_centers):
                 js = _js = self.cell_vertices[i] # vertex indices
 
                 if u.size != 2:
                     # use Qhull to estimate the volume
-                    hull = spatial.ConvexHull(self._vertices[js])
-                    cell_volume[i] = hull.volume
+                    pts = self._vertices[js]
+                    if pts.shape[1] < pts.shape[0]: # if enough points
+                        hull = spatial.ConvexHull(pts)
+                        cell_volume[i] = hull.volume
                     continue
 
                 js = set(js.tolist())
@@ -1250,10 +1253,14 @@ class Voronoi(Delaunay):
                     # missing vertices are at infinite distance;
                     # take instead the convex hull of the local vertices plus
                     # the center of the cell (ideally all the points in the cell)
-                    hull = spatial.ConvexHull(np.r_[self._vertices[_js], u[np.newaxis,:]])
-                    cell_volume[i] = hull.volume
+                    pts = np.r_[self._vertices[_js], u[np.newaxis,:]]
+                    if pts.shape[1] < pts.shape[0]: # if enough points
+                        hull = spatial.ConvexHull(pts)
+                        cell_volume[i] = hull.volume
                     continue
 
+                assert bool(simplices) # `simplices` is not empty
+                cell_volume[i] = 0.
                 for j, k in simplices:
                     v = self._vertices[j] if isinstance(j, int) else j
                     w = self._vertices[k] if isinstance(k, int) else k

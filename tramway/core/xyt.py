@@ -18,6 +18,7 @@ import pandas as pd
 import warnings
 import itertools
 from .exceptions import *
+import re
 
 
 def _translocations(df, sort=True): # very slow; may soon be deprecated
@@ -47,12 +48,15 @@ def translocations(df, sort=False):
     return jump#np.sqrt(np.sum(jump * jump, axis=1))
 
 
-def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False, verbose=False,
-        reset_origin=False):
+def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
+        reset_origin=False, header=None, **kwargs):
     """
     Load trajectory files.
 
-    Files are loaded with :func:`~pandas.read_table` with explicit column names.
+    Files are loaded with :func:`~pandas.read_table` and should have the same number of columns
+    and either none or all files should exhibit a single-line header.
+
+    Default column names are 'n', 'x', 'y' and 't'.
 
     Arguments:
 
@@ -70,12 +74,21 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
             Apply to time and space columns. Default column names are 'x', 'y', 'z'
             and 't'. A sequence overrides the default.
 
+        header (bool): if defined, a single-line header is expected in the file(s);
+            if ``False``, ignore the header;
+            if ``True``, overwrite the `columns` argument with names from the header;
+            if undefined, check whether a header is present and, if so, act as ``True``.
+
     Returns:
 
         pandas.DataFrame or list or tuple: trajectories as one or multiple DataFrames;
             if `tuple` (with *return_paths*), the trajectories are first, the list
             of filepaths second.
+
+    Extra keyword arguments are passed to :func:`~pandas.read_table`.
     """
+    if columns is not None and header is True:
+        raise ValueError('both column names and header are defined')
     #if 'n' not in columns:
     #    raise ValueError("trajectory index should be denoted 'n'")
     if not isinstance(path, list):
@@ -93,7 +106,27 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
         try:
             if verbose:
                 print('loading file: {}'.format(f))
-            dff = pd.read_table(f, names=columns)
+            if header is False:
+                if columns is None:
+                    columns = ['n', 'x', 'y', 't']
+                kwargs['names'] = columns
+                dff = pd.read_table(f, header=0, **kwargs)
+            else:
+                with open(f, 'r') as fd:
+                    first_line = fd.readline()
+                if re.search(r'[a-df-zA-DF-Z_]', first_line):
+                    if columns is None:
+                        columns = first_line.split()
+                    kwargs['names'] = columns
+                    dff = pd.read_table(f, header=0, **kwargs)
+                elif header is True:
+                    dff = pd.read_table(f, header=0, **kwargs)
+                    columns = dff.columns
+                else:
+                    if columns is None:
+                        columns = ['n', 'x', 'y', 't']
+                    kwargs['names'] = columns
+                    dff = pd.read_table(f, **kwargs)
         except OSError:
             warnings.warn(f, FileNotFoundWarning)
         else:
@@ -108,7 +141,7 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
                             print(sample.loc[conflicting])
                         except:
                             pass
-                        raise ValueError("some indices refer to multiple simultaneous trajectories in table: '{}'".format(f))
+                        raise ValueError("some simultaneous locations are associated to a same trajectory: '{}'".format(f))
                     else:
                         warnings.warn(EfficiencyWarning("table '{}' is not properly ordered".format(f)))
                     # faster sort

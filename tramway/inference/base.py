@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -16,6 +16,7 @@ from tramway.core import *
 from tramway.core.exceptions import *
 from tramway.tessellation import format_cell_index, nearest_cell
 import tramway.tessellation as tessellation
+from .gradient import grad1
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -27,7 +28,6 @@ import six
 from functools import partial
 from warnings import warn
 import traceback
-from numpy.polynomial import polynomial as poly
 
 
 
@@ -390,7 +390,7 @@ class Distributed(Local):
 
     def grad(self, i, X, index_map=None, **kwargs):
         """
-        Local gradient.
+        Local spatial gradient.
 
         Sub-classes are free to return multi-component gradients as matrices provided that
         they exhibit as many columns as there are dimensions in the (trans-)location data.
@@ -943,6 +943,10 @@ class Cell(Local):
 
     @time_col.setter
     def time_col(self, col):
+        if isinstance(col, (tuple, list)):
+            if not col or col[1:]:
+                raise ValueError('a single time column is supported')
+            col = col[0]
         # space_cols is left unchanged
         self.__lazysetter__(col)
 
@@ -1191,6 +1195,9 @@ def identify_columns(points, trajectory_col=True):
         tuple: (*coord_cols*, *trajectory_col*, *get_var*, *get_point*)
 
     *coord_cols* is an array of column indices/names other than the trajectory column.
+    If the data contains typical translocation column names such as 'dx', 'dy', 'dt',
+    *coord_cols* is a tuple with, as first element, an array of location column names,
+    and as second element an array of translocation column names.
 
     *trajectory_col* is the column index/name that contains tracking information.
 
@@ -1203,6 +1210,7 @@ def identify_columns(points, trajectory_col=True):
     """
     _has_trajectory = trajectory_col not in [False, None]
     _traj_undefined = trajectory_col is True
+    _has_delta_columns = False
 
     if isstructured(points):
         coord_cols = columns(points)
@@ -1221,6 +1229,10 @@ def identify_columns(points, trajectory_col=True):
                     _has_trajectory = False
                 else:
                     raise
+        delta_cols = [ col for col in coord_cols if col[0] == 'd' and col[1:] ]
+        if delta_cols and delta_cols[1:] and all(col[1:].lstrip() in coord_cols for col in delta_cols):
+            coord_cols = [ col for col in coord_cols if col not in delta_cols ]
+            coord_cols = (coord_cols, delta_cols)
     else:
         if not _has_trajectory:
             coord_cols = np.arange(points.shape[1])
@@ -1354,7 +1366,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         points (array-like):
             location coordinates and trajectory index.
 
-        index (ndarray or pair of ndarrrays or sparse matrix):
+        index (ndarray or pair of ndarrays or sparse matrix):
             point-cell association (see :class:`~tramway.tessellation.base.CellStats`
             documentation or :meth:`~tramway.tessellation.base.Tessellation.cell_index`).
 
@@ -1374,17 +1386,31 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
     """
     if coord_cols is None:
         coord_cols, trajectory_col, get_var, get_point = identify_columns(points, trajectory_col)
-    if trajectory_col is None:
-        raise ValueError('cannot find trajectory indices')
+    if isinstance(coord_cols, tuple):
+        coord_cols, delta_cols = coord_cols
+    else:
+        delta_cols = []
 
-    # trajectory index
-    n = np.asarray(get_var(points, trajectory_col))
-    # point coordinates
-    points = get_var(points, coord_cols)
+    if delta_cols:
+        # translocation "coordinates"
+        deltas = get_var(points, delta_cols)
+        # location coordinates
+        points = get_var(points, coord_cols)
+        # fake `final`
+        initial = final = np.ones(points.shape[0], dtype=bool)
+        # note: the destination cell will be undefined
+    else:
+        if trajectory_col is None:
+            raise ValueError('cannot find trajectory indices')
 
-    initial = np.diff(n, axis=0) == 0
-    final = np.r_[False, initial]
-    initial = np.r_[initial, False]
+        # trajectory index
+        n = np.asarray(get_var(points, trajectory_col))
+        # point coordinates
+        points = get_var(points, coord_cols)
+
+        initial = np.diff(n, axis=0) == 0
+        final = np.r_[False, initial]
+        initial = np.r_[initial, False]
 
     if index is None:
 
@@ -1485,7 +1511,22 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         final_cell = __f__(final)
 
     initial_point = get_point(points, initial)
-    final_point = get_point(points, final)
+    assert not np.any(np.isnan(initial_point))
+
+    if delta_cols:
+        # if deltas are available, the destination cell is undefined
+        if callable(final_cell):
+            final_cell = lambda cell: []
+        elif final_cell is not None:
+            final_cell[...] = -1
+
+        deltas = get_point(deltas, initial)
+        deltas.columns = [ col[1:].lstrip() for col in deltas.columns ]
+        final_point = initial_point + deltas
+    else:
+        final_point = get_point(points, final)
+    assert not np.any(np.isnan(final_point))
+    assert initial_point.shape == final_point.shape
 
     return initial_point, final_point, initial_cell, final_cell, get_point
 
@@ -1539,13 +1580,17 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
     # format (trans-)locations
     coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
+    has_precomputed_deltas = isinstance(coord_cols, tuple)
     precomputed = ()
-    if new_cell is Locations:
-        are_translocations = False
-    elif new_cell is Translocations:
-        are_translocations = True
+    if new_cell is None:
+        are_translocations = trajectory_col is not None or has_precomputed_deltas
     else:
-        are_translocations = trajectory_col is not None
+        if issubclass(new_cell, Locations):
+            are_translocations = False
+        elif issubclass(new_cell, Translocations):
+            are_translocations = True
+        else:
+            raise TypeError('`new_cell` is neither `Locations` nor `Translocations`')
     if are_translocations:
         precomputed = (coord_cols, trajectory_col, get_var, get_point)
     else:
@@ -1582,8 +1627,22 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         fuzzy = f
 
     # time and space columns in (trans-)locations array
+    def _bool(a):
+        try:
+            return bool(a.size)
+        except AttributeError:
+            return bool(a)
     if isstructured(cells.points):
         time_col = 't'
+    else:
+        time_col = cells.points.shape[1] - 1
+    if cells.tessellation.scaler is not None and _bool(cells.tessellation.scaler.columns):
+        space_cols = cells.tessellation.scaler.columns
+        # remove delta columns
+        if has_precomputed_deltas:
+            _, delta_cols = coord_cols
+            space_cols = [ col for col in space_cols if col not in delta_cols ]
+    elif isstructured(cells.points):
         space_cols = columns(cells.points)
         if 'n' in space_cols:
             not_space = ['n', time_col]
@@ -1594,20 +1653,12 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         else:
             space_cols = [ c for c in space_cols if c not in not_space ]
     else:
-        time_col = cells.points.shape[1] - 1
         if time_col == cells.points.shape[1] - 1:
             space_cols = np.arange(time_col)
         else:
             space_cols = np.ones(cells.points.shape[1], dtype=bool)
             space_cols[time_col] = False
             space_cols, = space_cols.nonzero()
-    def _bool(a):
-        try:
-            return bool(a.size)
-        except AttributeError:
-            return bool(a)
-    if cells.tessellation.scaler is not None and _bool(cells.tessellation.scaler.columns):
-        space_cols = cells.tessellation.scaler.columns
 
     # pre-select cells
     if cells.tessellation.cell_label is None:
@@ -1634,21 +1685,27 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         if are_translocations:
             _origin = get_point(initial_point, i)
             _destination = get_point(final_point, i)
-            __origin = _origin.copy() # make copy
-            __origin.index += 1
-            try:
-                _ok = np.array([i in _destination.index for i in __origin.index])
-                _ok &= np.array([i in __origin.index for i in _destination.index])
-            except TypeError:
-                J[j] = False
-                continue
-            _origin = get_point(_origin, _ok)
-            __origin = get_point(__origin, _ok)
-            _destination = get_point(_destination, _ok)
+            if has_precomputed_deltas:
+                assert np.all(_origin.index == _destination.index)
+                __origin = _origin
+            else:
+                __origin = _origin.copy() # make copy
+                __origin.index += 1
+                try:
+                    _ok = np.array([i in _destination.index for i in __origin.index])
+                    _ok &= np.array([i in __origin.index for i in _destination.index])
+                except TypeError:
+                    J[j] = False
+                    continue
+                _origin = get_point(_origin, _ok)
+                __origin = get_point(__origin, _ok)
+                _destination = get_point(_destination, _ok)
             _points = _origin # for convex hull; ideally not only origins
             points = _destination - __origin # translocations
         else:
             points = _points = get_point(locations, i) # locations
+
+        assert not np.any(np.isnan(points))
 
         # convex hull
         _points = np.asarray(get_var(_points, space_cols))
@@ -1656,13 +1713,14 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             hull[j] = cells.tessellation.cell_volume[j]
         except (KeyboardInterrupt, SystemExit):
             raise
-        except:
-            try:
-                hull[j] = scipy.spatial.qhull.ConvexHull(_points)
-            except (KeyboardInterrupt, SystemExit):
-                raise
-            except Exception as e:
-                warn(str(e), RuntimeWarning)
+        except Exception as e:
+            #try:
+            #    hull[j] = scipy.spatial.qhull.ConvexHull(_points)
+            #except (KeyboardInterrupt, SystemExit):
+            #    raise
+            #except Exception as e:
+            raise
+            warn(str(e), RuntimeWarning)
 
         if points.size == 0:
             J[j] = False
@@ -1936,6 +1994,24 @@ class Maps(Lazy):
         s = '\n'.join([ '{}:{} {}'.format(k, ' '*(l-len(k)), str(v)) for k, v in attrs.items() ])
         return s
 
+    def defattr(self, attr, val):
+        count = 0
+        while True:
+            try:
+                getattr(self, attr)
+            except AttributeError:
+                break
+            else:
+                if count:
+                    attr = attr[:-1] + str(count)
+                else:
+                    if attr[-1] in '0123456789' or '_' in attr:
+                        attr = attr + '_0'
+                    else:
+                        attr = attr + '0'
+                count += 1
+        setattr(self, attr, val)
+
 
 
 class OptimizationWarning(RuntimeWarning):
@@ -2007,6 +2083,13 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
         if not bool(cell):
             raise ValueError('empty cells')
 
+        # sanity checks
+        if cell.dr.shape[1] == 0:
+            raise ValueError('translocation array has no column')
+        if cell.dt.shape[1:]:
+            raise ValueError('time deltas are structured in multiple dimensions')
+        if np.any(np.isnan(cell.dt)):
+            raise ValueError('time delta is nan')
         # ensure that translocations are properly oriented in time
         if not np.all(0 < cell.dt):
             warn('translocation dts are not all positive', RuntimeWarning)
@@ -2058,326 +2141,8 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
     return index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border
 
 
-def gradn(cells, i, X, index_map=None):
-    """
-    Local gradient by multi-dimensional 2 degree polynomial interpolation.
-
-    Arguments:
-
-        cells (Distributed):
-            distributed cells.
-
-        i (int):
-            cell index at which the gradient is evaluated.
-
-        X (array):
-            vector of a scalar measurement at every cell.
-
-        index_map (array):
-            index map that converts cell indices to indices in X.
-
-    Returns:
-
-        array:
-            local gradient vector with as many elements as there are dimensions
-            in the (trans-)location data.
-    """
-    cell = cells[i]
-
-    # below, the measurement is renamed Y and the coordinates are X
-    Y = X
-    X0 = cell.center
-
-    # cache the components related to X
-    if not isinstance(cell.cache, dict):
-        cell.cache = {}
-    try:
-        poly = cell.cache['poly']
-
-    except KeyError: # fill in the cache
-        # find neighbours
-        adjacent = _adjacent = cells.neighbours(i)
-        if index_map is not None:
-            i = index_map[i]
-            adjacent = index_map[_adjacent]
-            ok = 0 <= adjacent
-            assert np.all(ok)
-            adjacent, _adjacent = adjacent[ok], _adjacent[ok]
-        if adjacent.size:
-            X0_dup = _adjacent.size
-            local = np.r_[np.full(X0_dup, i), adjacent]
-            # neighbour locations
-            X = np.vstack([ X0 ] * X0_dup + [ cells[j].center for j in _adjacent ])
-            # cache X-related terms and indices of the neighbours
-            poly = cell.cache['poly'] = (_poly2(X), local)
-        else:
-            poly = cell.cache['poly'] = None
-
-    if poly is None:
-        return
-
-    V, local = poly
-    Y = Y[local]
-
-    # interpolate
-    W, _, _, _ = np.linalg.lstsq(V, Y, rcond=None)
-    gradX = _poly2_deriv_eval(W, X0)
-
-    return gradX
-
-
-def _poly2(X):
-    n, d = X.shape
-    x = X.T
-    return np.hstack((
-        np.vstack([ x[u] * x[v] for v in range(d) for u in range(d) ]).T,
-        X,
-        np.ones((n, 1), dtype=X.dtype),
-        ))
-
-def _memoize1(f):
-    results = {}
-    def helper(x):
-        try:
-            y = results[x]
-        except KeyError:
-            y = results[x] = f(x)
-        return y
-    return helper
-
-@_memoize1
-def _poly2_meta_deriv(dim):
-    poly = []
-    for d in range(dim):
-        p = []
-        for v in range(dim):
-            for u in range(dim):
-                if u == d:
-                    if v == d:
-                        p.append((2., u))
-                    else:
-                        p.append((1., v))
-                else:
-                    if v == d:
-                        p.append((1., u))
-                    else:
-                        p.append((0., None))
-        for u in range(dim):
-            if u == d:
-                p.append((1., None))
-            else:
-                p.append((0., None))
-        p.append((0., None))
-        poly.append(p)
-    return poly
-
-def _poly2_deriv_eval(W, X):
-    if not X.shape[1:]:
-        X = X[np.newaxis, :]
-    dim = X.shape[1]
-    dP = _poly2_meta_deriv(dim)
-    Q = []
-    for Pd in dP:
-        Qd = 0.
-        i = 0
-        for q, u in Pd:
-            if q == 0:
-                continue
-            if u is None:
-                Qd += q * W[i]
-            else:
-                Qd += q * W[i] * X[:,u]
-            i += 1
-        Q.append(Qd)
-    return np.hstack(Q)
-
-
-def neighbours_per_axis(i, cells, eps=None, centers=None):
-    """
-    """
-    if centers is None:
-        centers = np.vstack([ cells[j].center for j in cells.neighbours(i) ])
-
-    cell = cells[i]
-    center = cell.center
-    below = np.zeros((centers.shape[1], centers.shape[0]), dtype=bool)
-    above = np.zeros_like(below)
-
-    if eps is None:
-        # InferenceMAP-compatible gradient
-
-        if cells.adjacency.dtype == bool:
-            # divide the space in non-overlapping region and
-            # assign each neighbour to a single region;
-            # assign each pair of symmetric regions to a single
-            # dimension (gradient calculation)
-            proj = centers - center[np.newaxis, :]
-            assigned_dim = np.argmax(np.abs(proj), axis=1)
-            proj_dist = proj[ np.arange(proj.shape[0]), assigned_dim ]
-            for j in range(cell.dim):
-                below[ j, (assigned_dim == j) & (proj_dist < 0) ] = True
-                above[ j, (assigned_dim == j) & (0 < proj_dist) ] = True
-
-        elif cells.adjacency.dtype == int:
-            # neighbour cells are already classified
-            # as left (-1), right (1), top (2) or bottom (-2), etc
-            # in the adjacency matrix
-            code = cells.adjacency.data[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]] - 1
-            for j in range(cell.dim):
-                below[ j, code == -j ] = True
-                above[ j, code ==  j ] = True
-
-        else:
-            raise TypeError('{} adjacency labels are not supported'.format(cells.adjacency.dtype))
-
-    else:
-        # along each dimension, divide the space in half-spaces
-        # minus margin `eps` (supposed to be positive)
-        for j in range(cell.dim):
-            x, x0 = centers[:,j], center[j]
-            below[ j, x < x0 - eps ] = True
-            above[ j, x0 + eps < x ] = True
-
-    return below, above
-
-
-def grad1(cells, i, X, index_map=None, eps=None):
-    """
-    Local gradient by 2 degree polynomial interpolation along each dimension independently.
-
-    Claims cache variable *grad1*.
-
-    Supports the InferenceMAP way of dividing the space in non-overlapping regions (quadrants in 2D)
-    so that each neighbour is involved in the calculation of a single component of the gradient.
-
-    This is the default behaviour in cases where the `adjacent` attribute contains adequate
-    labels, i.e. ``-j`` and ``j`` for each dimension ``j``, representing one side and the other
-    side of cell-i's center.
-    This is also the default behaviour otherwise, when `eps` is ``None``.
-
-    If `eps` is defined, the calculation of a gradient component may recruit all the points
-    minus those at a projected distance smaller than this value.
-
-    See also:
-
-        `neighbours_per_axis`.
-
-    Arguments:
-
-        cells (Distributed):
-            distributed cells.
-
-        i (int):
-            cell index at which the gradient is evaluated.
-
-        X (array):
-            vector of a scalar measurement at every cell.
-
-        index_map (array):
-            index map that converts cell indices to indices in X;
-            for a given cell, should be constant.
-
-        eps (float):
-            minimum projected distance from cell-i's center for neighbours to be considered
-            in the calculation of the gradient;
-            if `eps` is ``None``, the space is instead divided in twice as many
-            non-overlapping regions as dimensions, and each neighbour is assigned to
-            a single region (counts against a single dimension)
-
-    Returns:
-
-        array:
-            local gradient vector with as many elements as there are dimensions
-            in the (trans-)location data.
-    """
-    cell = cells[i]
-    # below, the measurement is renamed y and the coordinates are X
-    y = X
-    X0 = cell.center
-
-    # cache neighbours (indices and center locations)
-    if not isinstance(cell.cache, dict):
-        cell.cache = {}
-    try:
-        i, adjacent, X = cell.cache['grad1']
-    except KeyError:
-        adjacent = _adjacent = cells.neighbours(i)
-        if index_map is not None:
-            adjacent = index_map[_adjacent]
-            ok = 0 <= adjacent
-            assert np.all(ok)
-            #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
-        if _adjacent.size:
-            X = np.vstack([ cells[j].center for j in _adjacent ])
-            below, above = neighbours_per_axis(i, cells, eps, X)
-
-            # pre-compute the X terms for each dimension
-            X_neighbours = []
-            for j in range(cell.dim):
-                u, v = below[j], above[j]
-                if not np.any(u):
-                    u = None
-                if not np.any(v):
-                    v = None
-
-                if u is None:
-                    if v is None:
-                        Xj = None
-                    else:
-                        Xj = 1. / (X0[j] - np.mean(X[v,j]))
-                elif v is None:
-                    Xj = 1. / (X0[j] - np.mean(X[u,j]))
-                else:
-                    Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
-
-                X_neighbours.append((u, v, Xj))
-
-            X = X_neighbours
-        else:
-            X = []
-
-        if index_map is not None:
-            i = index_map[i]
-        cell.cache['grad1'] = (i, adjacent, X)
-
-    if not X:
-        return None
-
-    y0, y = y[i], y[adjacent]
-
-    # compute the gradient for each dimension separately
-    grad = []
-    for u, v, Xj in X: # j= dimension index
-        #u, v, Xj= below, above, X term
-        if u is None:
-            if v is None:
-                grad_j = 0.
-            else:
-                # 1./Xj = X0[j] - np.mean(X[v,j])
-                grad_j = (y0 - np.mean(y[v])) * Xj
-        elif v is None:
-            # 1./Xj = X0[j] - np.mean(X[u,j])
-            grad_j = (y0 - np.mean(y[u])) * Xj
-        else:
-            # Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
-            grad_j = _vander(Xj, np.r_[y0, np.mean(y[u]), np.mean(y[v])])
-        grad.append(grad_j)
-
-    return np.asarray(grad)
-
-
-def _vander(x, y):
-    #P = poly.polyfit(x, y, 2)
-    #dP = poly.polyder(P)
-    #return poly.polyval(x[0], dP)
-    _, b, a = poly.polyfit(x, y, 2)
-    return b + 2. * a * x[0]
-
-
-
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
     'identify_columns', 'get_locations', 'get_translocations', 'distributed',
     'DistributeMerge',
-    'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init',
-    'neighbours_per_axis', 'grad1', 'gradn']
+    'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']
 

@@ -71,12 +71,19 @@ def infer_DD(cells, localization_error=None, jeffreys_prior=False, min_diffusivi
         return inferred
     else: # single cell
         cell = cells
+        # sanity checks
         if not bool(cell):
             raise ValueError('empty cells')
+        if cell.dr.shape[1] == 0:
+            raise ValueError('translocation array has no column')
+        if cell.dt.shape[1:]:
+            raise ValueError('time deltas are structured in multiple dimensions')
+        # ensure that translocations are properly oriented in time
         if not np.all(0 < cell.dt):
             warn('translocation dts are non-positive', RuntimeWarning)
             cell.dr[cell.dt < 0] *= -1.
             cell.dt[cell.dt < 0] *= -1.
+        #
         dt_mean = np.mean(cell.dt)
         D_initial = np.mean(cell.dr * cell.dr) / (2. * dt_mean)
         initial_drift = np.zeros(cell.dim, dtype=D_initial.dtype)

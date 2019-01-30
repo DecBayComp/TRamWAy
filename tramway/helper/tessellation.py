@@ -555,7 +555,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     helper.save_analyses(output_file, force=force, **save_options)
 
     if return_analyses:
-        return self.analyses
+        return helper.analyses
     else:
         return cells
 
