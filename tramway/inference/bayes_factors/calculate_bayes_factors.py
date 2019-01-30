@@ -134,7 +134,7 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_t
     eta = np.sqrt(n_pi / (n + n_pi))
 
     if loc_error > 0:
-        rel_loc_error = n * V / (2 * dim * loc_error)
+        rel_loc_error = n * V / (4 * loc_error)
     else:
         rel_loc_error = np.inf
 

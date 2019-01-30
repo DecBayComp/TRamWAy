@@ -11,26 +11,27 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.inference.base import Maps
-from tramway.inference.gradient import get_grad_kwargs
-from tramway.inference.bayes_factors.get_D_posterior import *
-from tramway.inference.snr import add_snr_extensions
 import numpy as np
 import pandas as pd
 
+from tramway.inference.base import Maps
+from tramway.inference.bayes_factors.get_D_posterior import *
+from tramway.inference.gradient import get_grad_kwargs
+from tramway.inference.snr import add_snr_extensions
 
 setup = {
-    'name': 'd.ci',
+    'name': 'd.conj_prior',
     'provides': 'snr',
     'arguments': dict(
-        localization_error = ('-e', dict(type=float, help='localization error (same units as the variance)')),
-        alpha = dict(type=float, default=.95, help='confidence level')),
-    }
+        localization_error=(
+            '-e', dict(type=float, help='localization error (same units as the variance)')),
+        alpha=dict(type=float, default=.95, help='confidence level')),
+}
 
 
 def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False, **kwargs):
     """
-    Infer diffusivity MAP and confidence interval.
+    Infer diffusivity MAP and confidence interval using a conjugate prior, according to Serov et al. (2018)
 
     Arguments:
 
@@ -53,6 +54,7 @@ def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False,
     and :func:`~tramway.inference.base.gradient.get_grad_kwargs`.
     """
     dim = cells.dim
+    dt = cells.any_cell().dt[0]
     sigma2 = cells.get_localization_error(kwargs)
     maps = add_snr_extensions(cells, _zeta_spurious=False)
     n, zeta_t, V, V_pi = maps['n'], Maps(maps)['zeta_total'], maps['V'], maps['V_prior']
@@ -66,7 +68,8 @@ def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False,
         except KeyError:
             continue
         try:
-            _map, _ci = get_D_confidence_interval(alpha, n_i, zeta_i, V_i, V_minus_i, sigma2, dim)
+            _map, _ci = get_D_confidence_interval(
+                alpha, n_i, zeta_i, V_i, V_minus_i, dt, sigma2, dim)
         except (SystemExit, KeyboardInterrupt):
             raise
         except:
@@ -75,7 +78,7 @@ def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False,
             continue
         index.append(i)
         D_map.append(_map)
-        D_ci.append(_ci[np.newaxis,:])
+        D_ci.append(_ci[np.newaxis, :])
     D_map = np.array(D_map)
     D_ci = np.vstack(D_ci)
     if return_zeta_spurious:
@@ -92,23 +95,22 @@ def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False,
                 # but such cases are excluded anyway in the calculation of zeta_spurious
                 g_defined[j] = True
                 g_index.append(i)
-                g.append(gradD[np.newaxis,:])
+                g.append(gradD[np.newaxis, :])
         g = np.concatenate(g, axis=0)
         # zeta_spurious
-        dt = cells[i].dt[0] # `add_snr_extensions` checked that all dts are equal
-        sd = sd.values[:,np.newaxis]
+        dt = cells[i].dt[0]  # `add_snr_extensions` checked that all dts are equal
+        sd = sd.values[:, np.newaxis]
         zeta_spurious = g * dt / sd[g_defined]
         maps = maps.join(pd.DataFrame(
             zeta_spurious,
             index=g_index,
-            columns=['zeta_spurious '+col for col in cells.space_cols],
-            ))
+            columns=['zeta_spurious ' + col for col in cells.space_cols],
+        ))
     maps = maps.drop(columns=['sd']).join(pd.DataFrame(
-        np.hstack((D_map[:,np.newaxis], D_ci)),
+        np.hstack((D_map[:, np.newaxis], D_ci)),
         index=index,
         columns=['diffusivity', 'ci low', 'ci high']))
     return maps
 
 
-__all__ = [ 'infer_d_map_and_ci', 'setup' ]
-
+__all__ = ['infer_d_map_and_ci', 'setup']

@@ -34,7 +34,7 @@ def calculate_one_2D_posterior(zeta_t, zeta_sp, zeta_a, n, V, V_pi, loc_error, d
         lamb = 'int'
 
     if loc_error > 0:
-        rel_loc_error = n * V / (2 * dim * loc_error)
+        rel_loc_error = n * V / (4 * loc_error)
     else:
         rel_loc_error = np.inf
 
@@ -76,7 +76,7 @@ def calculate_one_1D_posterior_in_2D(zeta_a, zeta_t, zeta_sp, n, V, V_pi, loc_er
 
     zeta_t, zeta_sp, zeta_a = map(np.asarray, [zeta_t, zeta_sp, zeta_a])
     i_post, i_marg = (0, 1) if axis == 'x' else (1, 0)
-    rel_loc_error = n * V / (2 * dim * loc_error) if loc_error > 0 else np.inf
+    rel_loc_error = n * V / (4 * loc_error) if loc_error > 0 else np.inf
 
     # Parameter combinations
     n_pi = n_pi_func(dim)
@@ -112,7 +112,7 @@ def calculate_one_1D_posterior_in_2D(zeta_a, zeta_t, zeta_sp, n, V, V_pi, loc_er
     return exp(log_prefactor + log_ratio)
 
 
-def calculate_one_1D_prior_in_2D(zeta_a, V_pi, loc_error):
+def calculate_one_1D_prior_in_2D(zeta_a, V_pi, sigma2):
     """
     Calculate the prior for a projection of zeta_a for any convention for one bin in 2D
 
@@ -123,7 +123,7 @@ def calculate_one_1D_prior_in_2D(zeta_a, V_pi, loc_error):
 
     zeta_a = np.asarray(zeta_a)
     n_pi = n_pi_func(dim)
-    rel_loc_error = n_pi * V_pi / (2 * dim * loc_error) if loc_error > 0 else np.inf
+    rel_loc_error = n_pi * V_pi / (4 * sigma2) if sigma2 > 0 else np.inf
 
     # Parameter combinations
     p = n_pi - 2

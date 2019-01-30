@@ -26,7 +26,7 @@ def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error, zet
     Here:
     arg = (v + factor_za * zeta_a**2 + E * (zeta_t - zeta_a - lambda * zeta_sp)**2);
     IMPORTANT: gamma_inc --- is the normalized lower incomplete gamma function;
-    rel_loc_error = n * V / (2 * dim * sigma_L^2) --- inverse relative localization error,
+    rel_loc_error = n * V / (4 * sigma_L^2) --- inverse relative localization error,
 
 
     Input:
