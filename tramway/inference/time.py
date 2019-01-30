@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018, Institut Pasteur
+# Copyright © 2018-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -13,7 +13,7 @@
 
 
 from .base import *
-import tramway.inference.base as base
+import tramway.inference.gradient as grad
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -138,7 +138,7 @@ class DynamicCells(Distributed):
         elif v is None:
             deriv = (x0 - np.mean(x[u])) * t
         else:
-            deriv = base._vander(t, np.r_[x0, np.mean(x[u]), np.mean(x[v])])
+            deriv = grad._vander(t, np.r_[x0, np.mean(x[u]), np.mean(x[v])])
 
         return deriv
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -42,6 +42,8 @@ class InstancesView(AnalysesView):
     def __getitem__(self, label):
         return self.__analyses__._instances[label]
     def __setitem__(self, label, analysis):
+        if not isinstance(analysis, Analyses):
+            analysis = type(self.__analyses__)(analysis)
         self.__analyses__._instances[label] = analysis
     def __delitem__(self, label):
         self.__analyses__._instances.__delitem__(label)
