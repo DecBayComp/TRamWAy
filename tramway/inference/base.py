@@ -1229,8 +1229,9 @@ def identify_columns(points, trajectory_col=True):
                     _has_trajectory = False
                 else:
                     raise
-        delta_cols = [ col for col in coord_cols if col[0] == 'd' and col[1:] ]
-        if delta_cols and delta_cols[1:] and all(col[1:].lstrip() in coord_cols for col in delta_cols):
+        # assume no column name is empty
+        delta_cols = [ col for col in coord_cols if col[0] == 'd' and col[1:] in coord_cols ]
+        if delta_cols:
             coord_cols = [ col for col in coord_cols if col not in delta_cols ]
             coord_cols = (coord_cols, delta_cols)
     else:
@@ -1397,7 +1398,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         # location coordinates
         points = get_var(points, coord_cols)
         # fake `final`
-        initial = final = np.ones(points.shape[0], dtype=bool)
+        initial = final = ~np.any(np.isnan(deltas), axis=1)#np.ones(points.shape[0], dtype=bool)
         # note: the destination cell will be undefined
     else:
         if trajectory_col is None:
@@ -1521,11 +1522,20 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
             final_cell[...] = -1
 
         deltas = get_point(deltas, initial)
-        deltas.columns = [ col[1:].lstrip() for col in deltas.columns ]
+        cols = deltas.columns
+        deltas.columns = [ col[1:].lstrip() for col in cols ]
         final_point = initial_point + deltas
+        if np.any(np.isnan(final_point)):
+            for col in initial_point.columns:
+                if col not in deltas.columns:
+                    if col[0] == 'd':
+                        raise ValueError("no column corresponding to delta '{}'".format(col))
+                    else:
+                        raise ValueError("no delta column corresponding to '{}'".format(col))
+            assert False # final_point contains NaNs
     else:
         final_point = get_point(points, final)
-    assert not np.any(np.isnan(final_point))
+        assert not np.any(np.isnan(final_point))
     assert initial_point.shape == final_point.shape
 
     return initial_point, final_point, initial_cell, final_cell, get_point
@@ -1575,12 +1585,16 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         new_group = new
     if not isinstance(cells, tessellation.CellStats):
         raise TypeError('`cells` is not a `CellStats`')
-    if np.any(np.isnan(cells.points)):
-        raise ValueError('NaN in location data')
 
     # format (trans-)locations
     coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
     has_precomputed_deltas = isinstance(coord_cols, tuple)
+    if has_precomputed_deltas:
+        _nan = np.any(np.isnan(get_var(cells.points, coord_cols[0])))
+    else:
+        _nan = np.any(np.isnan(cells.points))
+    if _nan:
+        raise ValueError('NaN in location data')
     precomputed = ()
     if new_cell is None:
         are_translocations = trajectory_col is not None or has_precomputed_deltas

@@ -25,6 +25,9 @@ _build/
 *.jpeg
 *.svg
 
+# notebooks
+*.ipynb
+
 # others
 *.tar
 *.gz

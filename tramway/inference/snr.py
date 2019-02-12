@@ -222,7 +222,7 @@ def add_snr_extensions(cells, maps=None, grad_kwargs={}, _zeta_spurious=True):
             columns += ['zeta_spurious '+col for col in cells.space_cols]
         else:
             columns.append('sd')
-        _maps = _maps.drop(columns=columns).join(__maps)
+        _maps = _maps.drop(columns=columns, errors='ignore').join(__maps)
     _maps = _maps.join(pd.DataFrame(
         np.concatenate((V, zeta_total), axis=1)[nnz],
         index=index[nnz],

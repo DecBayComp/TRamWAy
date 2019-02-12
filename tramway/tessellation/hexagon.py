@@ -65,8 +65,6 @@ class HexagonalMesh(Voronoi):
         if isinstance(points, pd.DataFrame):
             points = points.copy()
         points = self._preprocess(points)
-        #lower_bound = kwargs.get('lower_bound', points.min(axis=0))
-        #upper_bound = kwargs.get('upper_bound', points.max(axis=0))
         # center
         mean_kwargs = {}
         if not isinstance(points, pd.DataFrame):
@@ -74,15 +72,26 @@ class HexagonalMesh(Voronoi):
         center = self.descriptors(points).mean(axis=0, **mean_kwargs)
         points -= center
         if isinstance(points, pd.DataFrame):
-            #lower_bound -= center[self.scaler.columns]
-            #upper_bound -= center[self.scaler.columns]
+            _center = center[self.scaler.columns]
             center = center.values
             pts = points[self.scaler.columns].values
         else:
-            #lower_bound -= center
-            #upper_bound -= center
             pts = points
-        lower_bound, upper_bound = points.min(axis=0), points.max(axis=0)
+        # bounds
+        lower_bound = kwargs.get('lower_bound', None)
+        if lower_bound is None:
+            lower_bound = points.min(axis=0)
+        elif isinstance(points, pd.DataFrame):
+            lower_bound -= _center
+        else:
+            lower_bound -= center
+        upper_bound = kwargs.get('upper_bound', None)
+        if upper_bound is None:
+            upper_bound = points.max(axis=0)
+        elif isinstance(points, pd.DataFrame):
+            upper_bound -= _center
+        else:
+            upper_bound -= center
         # rotate
         if self.tilt:
             theta = self.tilt * pi / 6.

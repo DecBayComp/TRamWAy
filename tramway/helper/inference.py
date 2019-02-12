@@ -873,22 +873,43 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figs = []
     nfig = 0
 
-    all_vars = splitcoord(maps.columns)
+    all_vars = dict(splitcoord(maps.columns)) # not a defaultdict
     if isinstance(variable, (frozenset, set, tuple, list)):
         all_vars = { v: all_vars[v] for v in variable }
     elif variable is not None:
         all_vars = { variable: all_vars[variable] }
+
+    standard_kwargs = {}
+    differential_kwargs = {}
+    for kw in kwargs:
+        arg = kwargs[kw]
+        if isinstance(arg, dict):
+            keys = arg.keys()
+        elif isinstance(arg, pd.Series):
+            keys = arg.index
+        elif isinstance(arg, pd.DataFrame):
+            keys = arg.columns
+        else:
+            keys = ()
+        if 0 < len(keys) and all(key in all_vars for key in keys):
+            differential_kwargs[kw] = arg
+        else:
+            standard_kwargs[kw] = arg
+    kwargs = standard_kwargs
+
     scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
     scalar_vars = [ (v, scalar_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 1 ]
 
     for col, short_name in scalar_vars:
 
-        col_kwargs = {}
-        for a in kwargs:
-            if isinstance(kwargs[a], (dict, pd.Series, pd.DataFrame)) and col in kwargs[a]:
-                col_kwargs[a] = kwargs[a][col]
+        col_kwargs = dict(standard_kwargs)
+        for kw in differential_kwargs:
+            try:
+                arg = differential_kwargs[kw][col]
+            except KeyError:
+                pass
             else:
-                col_kwargs[a] = kwargs[a]
+                col_kwargs[kw] = arg
 
         if new_fig or figs:
             fig = mplt.figure(figsize=figsize, dpi=dpi)
@@ -957,12 +978,14 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     for name, short_name in vector_vars:
         cols = all_vars[name]
 
-        var_kwargs = {}
-        for a in kwargs:
-            if isinstance(kwargs[a], (dict, pd.Series, pd.DataFrame)) and name in kwargs[a]:
-                var_kwargs[a] = kwargs[a][name]
+        var_kwargs = dict(standard_kwargs)
+        for kw in differential_kwargs:
+            try:
+                arg = differential_kwargs[kw][name]
+            except KeyError:
+                pass
             else:
-                var_kwargs[a] = kwargs[a]
+                var_kwargs[kw] = arg
 
         if new_fig or figs:
             fig = mplt.figure(figsize=figsize, dpi=dpi)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -119,6 +119,8 @@ class Tessellate(Helper):
             rel_avg_distance = 2.
 
         if ref_distance is None:
+            if 'n' not in self.xyt_data.columns:
+                raise ValueError('please specify ref_distance')
             transloc_xy = np.asarray(translocations(self.xyt_data))
             if transloc_xy.shape[0] == 0:
                 raise ValueError('no translocation found')
@@ -142,7 +144,7 @@ class Tessellate(Helper):
             min_probability = float(min_location_count) / n_pts
         else:
             min_probability = None
-        if not avg_location_count:
+        if avg_location_count is None:
             if min_location_count is None:
                 avg_location_count = 80 # former default value
             else:
