@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -53,7 +53,7 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
     """
     Load trajectory files.
 
-    Files are loaded with :func:`~pandas.read_table` and should have the same number of columns
+    Files are loaded with :func:`~pandas.read_csv` and should have the same number of columns
     and either none or all files should exhibit a single-line header.
 
     Default column names are 'n', 'x', 'y' and 't'.
@@ -85,12 +85,14 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
             if `tuple` (with *return_paths*), the trajectories are first, the list
             of filepaths second.
 
-    Extra keyword arguments are passed to :func:`~pandas.read_table`.
+    Extra keyword arguments are passed to :func:`~pandas.read_csv`.
     """
     if columns is not None and header is True:
         raise ValueError('both column names and header are defined')
     #if 'n' not in columns:
     #    raise ValueError("trajectory index should be denoted 'n'")
+    if 'sep' not in kwargs and 'delimiter' not in kwargs:
+        kwargs['delim_whitespace'] = True
     if not isinstance(path, list):
         path = [path]
     paths = []
@@ -110,7 +112,7 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
                 if columns is None:
                     columns = ['n', 'x', 'y', 't']
                 kwargs['names'] = columns
-                dff = pd.read_table(f, header=0, **kwargs)
+                dff = pd.read_csv(f, header=0, **kwargs)
             else:
                 with open(f, 'r') as fd:
                     first_line = fd.readline()
@@ -118,15 +120,15 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
                     if columns is None:
                         columns = first_line.split()
                     kwargs['names'] = columns
-                    dff = pd.read_table(f, header=0, **kwargs)
+                    dff = pd.read_csv(f, header=0, **kwargs)
                 elif header is True:
-                    dff = pd.read_table(f, header=0, **kwargs)
+                    dff = pd.read_csv(f, header=0, **kwargs)
                     columns = dff.columns
                 else:
                     if columns is None:
                         columns = ['n', 'x', 'y', 't']
                     kwargs['names'] = columns
-                    dff = pd.read_table(f, **kwargs)
+                    dff = pd.read_csv(f, **kwargs)
         except OSError:
             warnings.warn(f, FileNotFoundWarning)
         else:
@@ -156,6 +158,8 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
                 if dff['n'].min() < index_max:
                     dff['n'] += index_max
                     index_max = dff['n'].max()
+            if np.any(dff.isnull().values.all(axis=0)):
+                raise ValueError('too many specified columns: {}'.format(columns))
             df.append(dff)
     if reset_origin:
         if reset_origin == True:

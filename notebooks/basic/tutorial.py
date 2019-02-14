@@ -7,8 +7,10 @@ import tempfile
 from tramway.helper import *
 from tramway.helper.simulation import *
 
+np.random.seed(123456789)
+
 try:
-    trajectory_file = glob.glob(os.path.join(tempfile.gettempdir(), '.*_tutorial0\.txt'))[0]
+    trajectory_file = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial0.txt'))[0]
 except IndexError:
     _fd, trajectory_file = tempfile.mkstemp('_tutorial0.txt')
     os.close(_fd)
@@ -19,9 +21,9 @@ except IndexError:
     _fd, analyses_with_time_varying_properties = tempfile.mkstemp('_tutorial1.rwa')
     os.close(_fd)
 else:
-    rwa_file = glob.glob(os.path.join(tempfile.gettempdir(), '.*_tutorial0\.rwa'))[0]
-    trajectories_with_time_varying_properties = glob.glob(os.path.join(tempfile.gettempdir(), '.*_tutorial1\.txt'))[0]
-    analyses_with_time_varying_properties = glob.glob(os.path.join(tempfile.gettempdir(), '.*_tutorial1\.rwa'))[0]
+    rwa_file = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial0.rwa'))[0]
+    trajectories_with_time_varying_properties = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial1.txt'))[0]
+    analyses_with_time_varying_properties = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial1.rwa'))[0]
 
 def _exists(f):
     return 0 < os.stat(f).st_size
@@ -66,8 +68,8 @@ def load_default_trajectories(time_varying_properties=False):
         else:
             trajs = random_walk_2d(
                 n_trajs=400, N_mean=5, dt=.05,
-                D0=.1, amplitude_D=0,
-                amplitude_V=-2., mode_V='potential_linear',
+                D0=.3, amplitude_D=0,
+                amplitude_V=-3., mode_V='potential_linear',
                 )
             trajs.to_csv(trajectory_file, sep='\t', header=False)
         return trajs
@@ -90,6 +92,7 @@ def load_default_partition(time_varying_properties=False):
             cells = analysis_tree['default'].data
         else:
             cells = tessellate(analysis_tree, 'hexagon',
+                rel_avg_distance=4.,
                 time_window_duration=2.,
                 time_window_options=dict(time_dimension=True),
                 knn=10,
