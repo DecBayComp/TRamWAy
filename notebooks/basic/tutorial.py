@@ -92,7 +92,7 @@ def load_default_partition(time_varying_properties=False):
             cells = analysis_tree['default'].data
         else:
             cells = tessellate(analysis_tree, 'hexagon',
-                rel_avg_distance=4.,
+                rel_avg_distance=1.3, avg_location_count=0,
                 time_window_duration=2.,
                 time_window_options=dict(time_dimension=True),
                 knn=10,
