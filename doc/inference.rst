@@ -52,9 +52,6 @@ can be implemented as follows:
 Concepts
 --------
 
-Inference
-^^^^^^^^^
-
 |tramway| uses the Bayesian inference technique that was first described in [Masson09]_ and implemented in `InferenceMAP`_. 
 
 The motion of single particles is modeled with an overdamped Langevin equation:
@@ -106,40 +103,6 @@ For each cell, :math:`P(D,V|T)` is optimized for the model parameters :math:`D` 
 
 
 .. [Masson09] Masson J.-B., Casanova D., Türkcan S., Voisinne G., Popoff M.R., Vergassola M. and Alexandrou A. (2009) Inferring maps of forces inside cell membrane microdomains, *Physical Review Letters* 102(4):048103
-
-
-Maps
-^^^^
-
-The maps are available as :class:`~tramway.inference.base.Maps` objects that expose a `pandas.DataFrame`-like interface with "column" names such as '*diffusivity*', '*potential*' and '*force*'.
-
-``maps['force']`` for 2D space-only data will typically return a :class:`~pandas.DataFrame` with two columns '*force x*' and '*force y*', where *x* and *y* refers to the space dimensions.
-
-
-Distributed cells
-^^^^^^^^^^^^^^^^^
-
-The :func:`~tramway.helper.inference.infer` function prepares the :class:`~tramway.tessellation.base.CellStats` partition (see the :ref:`tessellation` section) before the inference is run.
-
-Cells are represented by either :class:`~tramway.inference.base.Locations` or :class:`~tramway.inference.base.Translocations` objects. 
-Both types of objects derivate from the :class:`~tramway.inference.base.Cell` class.
-
-These cell objects are distributed in a :class:`~tramway.inference.base.Distributed` object.
-The :class:`~tramway.inference.base.Distributed` class controls how the cells and the associated (trans-)locations are passed to the inference algorithm.
-
-For example cells can be grouped in subsets of cells.
-In this case the top :class:`~tramway.inference.base.Distributed` object will contain other :class:`~tramway.inference.base.Distributed` objects that will in turn contain :class:`~tramway.inference.base.Cell` objects.
-
-The main routine of an inference plugin receives a :class:`~tramway.inference.base.Distributed` object and can:
-
-* iterate over the contained cells (:class:`~tramway.inference.base.Distributed` features a dict-like interface),
-* take benefit from the cell adjacency matrix (attribute :attr:`~tramway.inference.base.Distributed.adjacency`)
-* and other convenience calculations such as gradient components (method :meth:`~tramway.inference.base.Distributed.grad`) that can be summed (method :meth:`~tramway.inference.base.Distributed.grad_sum`).
-
-
-The :meth:`~tramway.inference.base.Distributed.run` applies the inference routine on the defined subsets of cells.
-It handles the multi-processing logic and combines the regional maps into a full map.
-The number of workers (or processes) can be set with the `worker_count` argument.
 
 
 Methods
@@ -287,11 +250,11 @@ Compare::
 	infer('example.rwa', 'DD', localization_error=0.01, output_label='DD_sigma_10nm')
 
 
-Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 
-If the Jeffreys' prior is requested, then this minimum default value is :math:`0.01`. 
-This can be overwritten with the ``--min-diffusivity`` command-line option or the `min_diffusivity` argument to :func:`~tramway.helper.inference.infer`.
+.. Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 
+.. If the Jeffreys' prior is requested, then this minimum default value is :math:`0.01`. 
+.. This can be overwritten with the ``--min-diffusivity`` command-line option or the `min_diffusivity` argument to :func:`~tramway.helper.inference.infer`.
 
-Note that in some cases it can be beneficial to allow negative values for the diffusivity.
+.. Note that in some cases it can be beneficial to allow negative values for the diffusivity.
 
 If no specific prior is defined, a uniform prior is used by default.
 
@@ -395,6 +358,67 @@ Note that the :ref:`DV <inference_dv>` inference mode readily features this smoo
 	P_S(\textbf{V}) = \textrm{exp}\left(-\lambda\sum_i ||\nabla V_i||^2\right)
 
 Similarly to :math:`\mu`, the :math:`\lambda` parameter can be set with the ``-v`` command-line option or the `potential_prior` argument to :func:`~tramway.helper.inference.infer`.
+
+
+Implementation details
+----------------------
+
+Maps
+^^^^
+
+The maps are available as :class:`~tramway.inference.base.Maps` objects that expose a `pandas.DataFrame`-like interface with "column" names such as '*diffusivity*', '*potential*' and '*force*'.
+
+``maps['force']`` for 2D space-only data will typically return a :class:`~pandas.DataFrame` with two columns '*force x*' and '*force y*', where *x* and *y* refers to the space dimensions.
+
+
+Distributed cells
+^^^^^^^^^^^^^^^^^
+
+The :func:`~tramway.helper.inference.infer` function prepares the :class:`~tramway.tessellation.base.CellStats` partition (see the :ref:`tessellation` section) before the inference is run.
+
+Cells are represented by either :class:`~tramway.inference.base.Locations` or :class:`~tramway.inference.base.Translocations` objects. 
+Both types of objects derivate from the :class:`~tramway.inference.base.Cell` class.
+
+These cell objects are grouped together in a dict-like :class:`~tramway.inference.base.Distributed` object.
+The :class:`~tramway.inference.base.Distributed` class controls how the cells and the associated (trans-)locations are passed to the inference algorithm.
+
+For example cells can be grouped in subsets of cells.
+In this case the top :class:`~tramway.inference.base.Distributed` object will contain other :class:`~tramway.inference.base.Distributed` objects that will in turn contain :class:`~tramway.inference.base.Cell` objects.
+
+The main routine of an inference plugin receives a :class:`~tramway.inference.base.Distributed` object and can:
+
+* iterate over the contained cells (:class:`~tramway.inference.base.Distributed` features a dict-like interface),
+* take benefit from the cell adjacency matrix (attribute :attr:`~tramway.inference.base.Distributed.adjacency`)
+* and other convenience calculations such as gradient components (method :meth:`~tramway.inference.base.Distributed.grad`) that can be summed (method :meth:`~tramway.inference.base.Distributed.grad_sum`).
+
+
+The :meth:`~tramway.inference.base.Distributed.run` applies the inference routine on the defined subsets of cells.
+It handles the multi-processing logic and combines the regional maps into a full map.
+The number of workers (or processes) can be set with the `worker_count` argument.
+
+
+.. _inference_bayes_factor:
+
+Force testing
+-------------
+
+In every cell the inferred drift can be compared against the effect of diffusivity gradients.
+
+The `bayes_factor`_ module calculates the ratio of the probability of having an actual active force
+over the probability that diffusivity gradients can explain the observed drift.
+Ratio values above the user-specified `B_threshold` threshold are indicative of an active force,
+and values below the inverse threshold are indicative of diffusivity gradients being a likely explanation of the observed drift,
+while values in-between do not allow any conclusion.
+
+The `bayes_factor`_ plugin generates 3 additional maps:
+
+* `force`: ternary map for the presence of an active force (``-1``: no force, ``0``: undetermined, ``1``: force)
+* `min_n`: minimum number of points necessary for the Bayes factor to lead to a conclusion on the presence of a force, if such a conclusion is not allowed
+* `lg_B`: Bayes factor value
+
+The `bayes_factor`_ plugin operates on top of a diffusivity map that must be inferred first, preferably with the *d.conj_prior* plugin.
+
+The current version of the `bayes_factor`_ plugin does not test the drift or force inferred by plugins such as :ref:`DF <inference_df>`, :ref:`DD <inference_dd>` or :ref:`DV <inference_dv>`.
 
 
 .. Advanced usage

@@ -267,7 +267,8 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
     Arguments:
 
-        cells (str or CellStats or Analyses): data partition or path to partition file
+        cells (str or CellStats or tramway.core.analyses.base.Analyses):
+            data partition or path to partition file
 
         mode (str or callable): plugin name; see for example
             :mod:`~tramway.inference.d` (``'d'``),
@@ -322,7 +323,8 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
             '*gradn*'
 
         input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
-            object in `cells` if the latter is an `Analyses` or filepath
+            object in `cells` if the latter is an :class:`~tramway.core.analyses.base.Analyses`
+            or filepath
 
         output_label (str): label for the resulting analysis instance
 
@@ -399,7 +401,8 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
     Arguments:
 
-        cells (str or CellStats or Analyses): data partition or path to partition file
+        cells (str or CellStats or tramway.core.analyses.base.Analyses):
+            data partition or path to partition file
 
         mode (str or callable): plugin name; see for example
             :mod:`~tramway.inference.d` (``'d'``),
@@ -454,7 +457,8 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
             '*gradn*'
 
         input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
-            object in `cells` if the latter is an `Analyses` or filepath
+            object in `cells` if the latter is an :class:`~tramway.core.analyses.base.Analyses`
+            or filepath
 
         output_label (str): label for the resulting analysis instance
 
@@ -679,7 +683,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
     Arguments:
 
-        maps (str or Analyses or pandas.DataFrame or Maps): maps as a path to a rwa map file,
+        maps (str or tramway.core.analyses.base.Analyses or pandas.DataFrame or Maps):
+            maps as a path to a rwa map file,
             an analysis tree, a dataframe or a :class:`Maps`;
             filepaths and analysis trees may require `label` (or equivalently `input_label`)
             to be defined; dataframes and encapsulated maps require `cells` to be defined

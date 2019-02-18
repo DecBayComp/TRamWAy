@@ -401,15 +401,15 @@ class Distributed(Local):
             i (int):
                 cell index at which the gradient is evaluated.
 
-            X (array):
+            X (numpy.ndarray):
                 vector of a scalar measurement at every cell.
 
-            index_map (array):
+            index_map (numpy.ndarray):
                 index map that converts cell indices to indices in X.
 
         Returns:
 
-            array:
+            numpy.ndarray:
                 gradient as a vector with as many elements as there are dimensions
                 in the (trans-)location data.
         """
@@ -427,7 +427,7 @@ class Distributed(Local):
             grad (numpy.ndarray):
                 local gradient.
 
-            index_map (array):
+            index_map (numpy.ndarray):
                 index mapping, useful to convert cell indices to positional indices in
                 an optimization array for example.
 
@@ -1235,6 +1235,8 @@ def identify_columns(points, trajectory_col=True):
             coord_cols = [ col for col in coord_cols if col not in delta_cols ]
             coord_cols = (coord_cols, delta_cols)
     else:
+        if isinstance(points, (tuple, list)):
+            points = np.asarray(points)
         if not _has_trajectory:
             coord_cols = np.arange(points.shape[1])
         elif _traj_undefined:
@@ -1251,17 +1253,16 @@ def identify_columns(points, trajectory_col=True):
             return a.iloc[i]
         def get_var(a, j):
             return a[j]
+    elif isstructured(points):
+        def get_point(a, i):
+            return a[i,:]
+        def get_var(a, j):
+            return a[j]
     else:
-        if isstructured(points):
-            def get_point(a, i):
-                return a[i,:]
-            def get_var(a, j):
-                return a[j]
-        else:
-            def get_point(a, i):
-                return a[i]
-            def get_var(a, j):
-                return a[:,j]
+        def get_point(a, i):
+            return a[i]
+        def get_var(a, j):
+            return a[:,j]
 
     return coord_cols, trajectory_col, get_var, get_point
 
@@ -1451,7 +1452,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 
                 Returns:
 
-                    bool or ndarray:
+                    bool or numpy.ndarray:
                         True for translocations associated to cell `cell`,
                         False otherwise.
                 """

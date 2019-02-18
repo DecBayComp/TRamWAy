@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -370,9 +370,9 @@ def nearest_cell(locations, cell_centers):
 
     Arguments:
 
-        locations (array-like): location coordinates.
+        locations (numpy.ndarray): location coordinates.
 
-        cell_centers (array-like): cell center coordinates.
+        cell_centers (numpy.ndarray): cell center coordinates.
 
     Returns:
 
@@ -532,7 +532,7 @@ class Tessellation(Lazy):
         Grow the tessellation.
 
         Arguments:
-            points (array-like): point coordinates.
+            points (pandas.DataFrame): point coordinates.
 
         Admits keyword arguments.
         """
@@ -569,7 +569,7 @@ class Tessellation(Lazy):
         See also :func:`format_cell_index`.
 
         Arguments:
-            points (array-like): point (location) coordinates.
+            points (pandas.DataFrame): point (location) coordinates.
 
             format (str): preferred representation of the point-cell association
                 (or partition).
@@ -578,7 +578,7 @@ class Tessellation(Lazy):
                 tessellation as arguments, and returns a cell index or ``-1`` for no cell.
 
         """
-        point_count = points.shape[0]
+        point_count = len(points)
         #if isinstance(points, pd.DataFrame):
         #       point_count = max(point_count, points.index.max()+1) # NO!
         # point indices are row indices and NOT rows labels
@@ -641,7 +641,7 @@ class Tessellation(Lazy):
             adjacency (scipy.sparse.spmatrix): adjacency matrix (`cell_adjacency` is used
                 if `adjacency` is ``None``).
 
-            label (bool or array-like or tuple): cell labels.
+            label (bool or array-like): cell labels.
 
             format (str): any of *'coo'*, *'csr'* and *'csc'*.
 
@@ -683,15 +683,16 @@ class Tessellation(Lazy):
         """Keep the data columns that were involved in growing the tessellation.
 
         Arguments:
-            points (array-like): point coordinates.
-            asarray (bool, optional): returns a :class:`numpy.ndarray`.
+            points (pandas.DataFrame): point coordinates.
+            asarray (bool): returns a :class:`numpy.ndarray`.
 
         Returns:
-            array-like: coordinates. If equal to `points`, may be truly identical.
+            array-like: selected coordinates; the data may not be copied.
 
         See also:
             :meth:`tramway.core.scaler.Scaler.scaled`.
         """
+        return self.scaler.scaled(points, asarray)
         try:
             return self.scaler.scaled(points, asarray)
         except (KeyboardInterrupt, SystemExit):
@@ -820,7 +821,7 @@ class Delaunay(Tessellation):
 
         """
         if self._cell_centers.size == 0:
-            return format_cell_index(np.full(points.shape[0], -1, dtype=int), format=format)
+            return format_cell_index(np.full(len(points), -1, dtype=int), format=format)
         if callable(knn):
             min_nn = max_nn = True
         elif isinstance(knn, tuple):

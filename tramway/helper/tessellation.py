@@ -345,7 +345,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     This may change in a future version.
 
     Arguments:
-        xyt_data (str or matrix):
+        xyt_data (str or pandas.DataFrame):
             Path to a *.trxyt* or *.rwa* file or raw data in the shape of
             :class:`pandas.DataFrame`.
 
@@ -590,7 +590,7 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
     This may change in a future version.
 
     Arguments:
-        xyt_data (str or matrix):
+        xyt_data (str or pandas.DataFrame):
             Path to a *.trxyt* or *.rwa* file or raw data in the shape of
             :class:`pandas.DataFrame`.
 
@@ -1132,7 +1132,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
     Plots a spatial representation of the tessellation and partition if data are 2D.
 
     Arguments:
-        cells (str or CellStats or Analyses):
+        cells (str or CellStats or tramway.core.analyses.base.Analyses):
             Path to a *.rwa* file or :class:`~tramway.tessellation.CellStats`
             instance or analysis tree; files and analysis trees may require
             `label`/`input_label` to be defined.

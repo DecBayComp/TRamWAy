@@ -2,6 +2,7 @@
 .. |tramway| replace:: **TRamWAy**
 .. _InferenceMAP: https://research.pasteur.fr/en/software/inferencemap/
 .. _github: https://github.com/DecBayComp/TRamWAy
+.. _bayes_factor: https://github.com/DecBayComp/TRamWAy/tree/master/tramway/inference/bayes_factors
 
 .. |txt| replace:: *.txt*
 .. |xyt| replace:: *.xyt*

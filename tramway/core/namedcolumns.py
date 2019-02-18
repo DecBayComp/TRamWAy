@@ -31,7 +31,7 @@ def isstructured(x):
         bool: ``True`` if input argument ``x`` has named columns.
 
     """
-    if isinstance(x, pd.DataFrame) or isinstance(x, pd.Series):
+    if isinstance(x, (pd.Series, pd.DataFrame)):
         return True
     else:
         try:

@@ -7,14 +7,6 @@ tramway.helper package
     :show-inheritance:
 
 
-tramway.helper.analysis module
-------------------------------
-
-.. automodule:: tramway.helper.analysis
-    :members:
-    :show-inheritance:
-
-
 tramway.helper.inference module
 -------------------------------
 

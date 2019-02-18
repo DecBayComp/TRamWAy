@@ -1,7 +1,8 @@
-# Basic tutorials
+Basic tutorials
+---------------
 
-* Random walk generation: random_walk_genetion.ipynb
-* Spatial and temporal binning: binning.ipynb
-* Diffusivity, potential energy and force inference: inference.ipynb
-* Analysis tree manipulations: data_model.ipynb
+* *random_walk_genetion.ipynb*: random walk generation
+* *binning.ipynb*: spatial and temporal binning
+* *inference.ipynb*: diffusivity, potential energy and force inference
+* *data_model.ipynb*: analysis tree manipulations
 

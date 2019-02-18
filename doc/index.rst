@@ -19,8 +19,8 @@ Features
 
 * spatial :ref:`tessellation <tessellation>` and temporal segmentation
 * :ref:`inference <inference>` of diffusivity, drift, force and potential energy
-* analyses of the estimated force, such as curl calculation and `Bayes factor <https://github.com/DecBayComp/TRamWAy/tree/bayes_factor>`_ calculation to distinguish interactions and spurious forces
-* and more: generation of random trajectories, plotting utilities, etc
+* analyses of the estimated force, such as curl calculation and :ref:`Bayes factor <inference_bayes_factor>` calculation to distinguish interactions and spurious forces
+* and more: generation of random-walk trajectories, plotting utilities, etc
 
 
 
@@ -33,9 +33,9 @@ Maps of diffusivity and potential energy estimates can be generated from molecul
 .. code-block:: shell
 	:linenos:
 
-	tramway tessellate gwr -i trajectories.txt -o my-analyses.rwa
-	tramway infer dv -i my-analyses.rwa
-	tramway draw map -i my-analyses.rwa
+	tramway tessellate gwr -i trajectories.txt -o my_analyses.rwa
+	tramway infer dv -i my_analyses.rwa
+	tramway draw map -i my_analyses.rwa
 
 * Single molecule locations and/or trajectories are usually stored in text files.
   In the above example, such an input file is named *trajectories.txt*.
@@ -63,9 +63,9 @@ The equivalent Python code is:
 
 	from tramway.helper import *
 
-	tessellate('trajectories.txt', 'gwr', output_file='my-analyses.rwa')
-	infer('my-analyses.rwa', 'dv')
-	map_plot('my-analyses.rwa')
+	tessellate('trajectories.txt', 'gwr', output_file='my_analyses.rwa')
+	infer('my_analyses.rwa', 'dv')
+	map_plot('my_analyses.rwa')
 
 
 
@@ -78,6 +78,7 @@ Where to start
 * :ref:`Installation <installation>`
 * :ref:`Concepts <concepts>`
 * :ref:`Command-line <commandline>`
+* :ref:`Tutorials <tutorials>`
 * :ref:`Reference library <api>`
 
 
@@ -90,6 +91,7 @@ Where to start
 	installation
 	concepts
 	commandline
+	tutorials
 	license
 
 .. toctree::

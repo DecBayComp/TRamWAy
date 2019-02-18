@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017,2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -14,7 +14,7 @@
 
 import numpy as np
 import pandas as pd
-from ..core.namedcolumns import *
+from .namedcolumns import *
 
 
 class Scaler(object):
@@ -84,7 +84,7 @@ class Scaler(object):
         """Discard columns that are not recognized by the initialized scaler.
 
         Applies to points and vectors, not distances, surface areas or volumes."""
-        if (isinstance(self.columns, list) and self.columns) or self.columns.size:
+        if len(self.columns):
             if isstructured(points):
                 cols = columns(points)
                 coltype = type(cols[0])
@@ -97,9 +97,11 @@ class Scaler(object):
                     self.euclidean = [ coerce(c) for c in self.euclidean ]
                 points = points[self.columns]
             else:
-                if self.center is not None and isstructured(self.center):
-                    raise TypeError("input data are not structured whereas scaler's internal data are")
-                points = points[:, self.columns]
+                try:
+                    points = np.asarray(points)[:, self.columns]
+                except IndexError:
+                    cols = list(self.columns)
+                    raise TypeError("the input data array does not feature the following columns: {}".format(cols))
         elif isstructured(points):
             raise ValueError("input data are structured whereas scaler's internal data are not")
         else:
@@ -109,8 +111,11 @@ class Scaler(object):
             if scaler_data is None:
                 if self.function:
                     raise RuntimeError('scaler has not been initialized')
-            elif scaler_data.shape[1] != points.shape[1]:
-                raise ValueError('number of columns does not match')
+            else:
+                if isinstance(points, (tuple, list)):
+                    points = np.asarray(points)
+                if scaler_data.shape[1] != points.shape[1]:
+                    raise ValueError('number of columns does not match')
         if asarray:
             points = np.asarray(points)
         return points
@@ -143,12 +148,14 @@ class Scaler(object):
             array-like: With default optional input arguments, the returned variable will be
                 a pointer to `points`, not otherwise.
         """
+        if isinstance(points, (tuple, list)):
+            points = np.asarray(points)
         if self.init:
             # define named columns
             if self.columns:
                 raise AttributeError('remove data columns at initialization instead of defining `columns`')
             try:
-                self.columns = columns(points)
+                self.columns = list(columns(points)) # structured arrays do not support tuple indexing
             except:
                 pass
             # backup predefined values
@@ -165,12 +172,12 @@ class Scaler(object):
                 self.center, self.factor = self.function(points)
                 # equalize factor for euclidean variables
                 if self.euclidean:
-                    if isinstance(points, pd.DataFrame):
+                    if isinstance(points, (pd.Series, pd.DataFrame)):
                         xyz = points[self.euclidean].values
                     elif points.dtype.names:
-                        xyz = np.asarray(points[self.euclidean])
+                        xyz = np.asarray(points[list(self.euclidean)])
                     else:
-                        xyz = points[:,self.euclidean]
+                        xyz = np.asarray(points)[:,self.euclidean]
                     _, self.factor[self.euclidean] = self.function(xyz.flatten())
             # overwrite the coordinates that were actually predefined
             if predefined_centers:
@@ -185,8 +192,7 @@ class Scaler(object):
                     self.factor[col] = val
             self.init = False
         if not (self.center is None and self.factor is None):
-            if not inplace:
-                points = points.copy()
+            points = _format(points, inplace)
             if isinstance(points, np.ndarray):
                 if self.center is not None:
                     points -= np.asarray(self.center)
@@ -222,8 +228,7 @@ class Scaler(object):
         if self.init:
             raise AttributeError('scaler has not been initialized')
         if not (self.center is None and self.factor is None):
-            if not inplace:
-                points = points.copy(False)
+            points = _format(points, inplace)
             if isinstance(points, np.ndarray):
                 if self.factor is not None:
                     points *= np.asarray(self.factor)
@@ -261,8 +266,7 @@ class Scaler(object):
         if self.init:
             raise AttributeError('scaler has not been initialized')
         if self.factor is not None:
-            if not inplace:
-                vect = vect.copy(deep=False)
+            vect = _format(vect, inplace)
             vect /= self.factor
         if scaledonly:
             vect = self.scaled(vect, asarray)
@@ -289,8 +293,7 @@ class Scaler(object):
         if self.init:
             raise AttributeError('scaler has not been initialized')
         if self.factor is not None:
-            if not inplace:
-                vect = vect.copy(deep=False)
+            vect = _format(vect, inplace)
             vect *= self.factor
         return vect
 
@@ -334,8 +337,7 @@ class Scaler(object):
                 factor = self.factor[self.euclidean[0]]
             if self.euclidean[1:] and not np.all(self.factor[self.euclidean[1:]] == factor):
                 raise ValueError('the scaling factors for the euclidean variables are not all equal')
-            if not inplace:
-                size = size.copy(deep=False)
+            size = _format(size, inplace)
             if 1 < dim:
                 factor **= dim
             if _unscale:
@@ -373,7 +375,7 @@ def _whiten(x):
     '''Scaling function for :class:`Scaler`. Performs ``(x - mean(x)) / std(x)``. Consider using
     :func:`whiten` instead.'''
     scaling_center = x.mean(axis=0)
-    scaling_factor = x.std(axis=0)
+    scaling_factor = x.std(axis=0, ddof=0)
     return (scaling_center, scaling_factor)
 
 def whiten(): # should be a function so that each new instance is a distinct one
@@ -395,13 +397,29 @@ def unitrange():
 
 
 def __get_row(points, fill=None):
-    if isinstance(points, pd.DataFrame):
+    if isinstance(points, (pd.Series, pd.DataFrame)):
         row = points.iloc[0]
     else:
         row = points[0]
     if fill is not None:
+        if isinstance(points, (tuple, list)):
+            row = np.asarray(row)
         row.fill(fill)
     return row
+
+
+def _format(points, inplace):
+    if inplace:
+        if isinstance(points, tuple):
+            raise TypeError('cannot modify tuple inplace')
+        elif isinstance(points, list):
+            raise NotImplementedError('cannot modify list inplace')
+    else:
+        if isinstance(points, (tuple, list)):
+            points = np.asarray(points)
+        else:
+            points = points.copy()
+    return points
 
 
 __all__ = [

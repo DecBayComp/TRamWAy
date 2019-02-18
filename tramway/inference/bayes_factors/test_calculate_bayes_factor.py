@@ -366,7 +366,7 @@ class bayes_test(unittest.TestCase):
                 posterior = get_D_posterior(n=n, zeta_t=zeta_t, V=V,
                                             V_pi=V_pi, dt=dt, sigma2=loc_error, dim=2)
 
-                norm = quad(posterior, lims[0], lims[1], points=MAP_D, epsabs=tol, epsrel=tol)[0]
+                norm = quad(posterior, lims[0], lims[1], points=[MAP_D], epsabs=tol, epsrel=tol)[0]
                 true_norm = 1
                 self.assertTrue(np.isclose(norm, true_norm, rtol=self.rel_tol, atol=self.tol),
                                 "{dim}D diffusivity posterior normalization test with localization error = {loc_error} failed in 2D. Obtained norm = {norm:.8g} did not match the expected norm = {true_norm:.8g}".format(dim=dim, loc_error=loc_error, norm=norm, true_norm=true_norm))

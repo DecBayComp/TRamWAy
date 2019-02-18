@@ -49,7 +49,7 @@ class TimeLattice(Tessellation):
     * setting `time_lattice` unsets `cell_label`, `cell_adjacency` and `adjacency_label`
     * setting `spatial_mesh` unsets `cell_centers`, `cell_label`, `cell_adjacency` and `adjacency_label`, `cell_volume`
     * `cell_centers`, `cell_volume` and `split_frames` are available only when `spatial_mesh`
-    is defined
+        is defined
 
     """
     __slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers', '_cell_volume',
