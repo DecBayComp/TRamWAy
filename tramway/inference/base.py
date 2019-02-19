@@ -1939,6 +1939,12 @@ class Maps(Lazy):
         else:
             if not isinstance(m, pd.DataFrame):
                 raise TypeError('DataFrame expected')
+            _err = TypeError('not any column defined')
+            if isinstance(m.columns, (tuple, list)):
+                if not m.columns:
+                    raise _err
+            elif m.columns.size == 0:
+                raise _err
             self._variables = splitcoord(m.columns)
         self._maps = m
 

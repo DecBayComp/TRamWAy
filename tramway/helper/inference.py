@@ -750,7 +750,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     if isinstance(maps, tuple):
         warn('`maps` as (CellStats, str, DataFrame) tuple are deprecated', DeprecationWarning)
         cells, mode, maps = maps
-    elif isinstance(maps, (pd.DataFrame, Maps)):
+    elif isinstance(maps, (pd.DataFrame, Maps, pd.Series)):
         if cells is None:
             raise ValueError('`cells` is not defined')
     elif isinstance(maps, Analyses):
@@ -800,6 +800,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if mode != False:
             mode = maps.mode
         maps = maps.maps
+    elif isinstance(maps, pd.Series):
+        maps = pd.DataFrame(maps, columns=['unknown variable'])
     if isinstance(cells, Distributed):
         # fix for rwa-0.5 OrderedDict
         cells.cells = collections.OrderedDict((k, cells[k]) for k in range(max(cells.keys())+1) if k in cells )
