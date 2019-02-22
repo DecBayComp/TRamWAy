@@ -406,6 +406,7 @@ def main():
     for arg1, arg2, kwargs in global_arguments:
         cells_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
     cells_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
+    cells_parser.add_argument('--segment', type=int, help='time segment index (indices range from 0)')
     cells_parser.add_argument('-s', '--min-location-count', type=int, \
         help='minimum number of locations per cell')
     cells_parser.add_argument('--min-distance', type=float, \
@@ -427,6 +428,7 @@ def main():
         map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
     map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
     map_parser.add_argument('-V', '--variable', help='map variable name')
+    map_parser.add_argument('--segment', type=int, help='time segment index (indices range from 0)')
     map_parser.add_argument('-P', '--points', nargs='?', default=False, help='plot the points; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
     map_parser.add_argument('-D', '--delaunay', nargs='?', default=False, help='plot the Delaunay graph; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
     map_parser.add_argument('-cm', '--colormap', help='colormap name (see https://matplotlib.org/users/colormaps.html)')

@@ -943,7 +943,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if with_segments:
             if 'clim' not in col_kwargs:
                 col_kwargs['clim'] = [_map.values.min(), _map.values.max()]
-            _map = _cells.tessellation.split_frames(_map)[segment]
+            _map = _cells.tessellation.split_frames(_map)
+            try:
+                _map = _map[segment]
+            except IndexError:
+                raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(_maps)-1))
 
         tplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 

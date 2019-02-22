@@ -1312,7 +1312,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                     warn('cannot plot multiple segments in a single `cell_plot` call', RuntimeWarning)
                 segment = segment.pop()
                 print('plotting segment {}'.format(segment))
-            t0, t1 = cells.tessellation.time_lattice[segment]
+            try:
+                t0, t1 = cells.tessellation.time_lattice[segment]
+            except IndexError:
+                raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(cells.tessellation.time_lattice)-1))
             ts = xyt[time_col]
             if isinstance(ts, (pd.Series, pd.DataFrame)):
                 ts = ts.values

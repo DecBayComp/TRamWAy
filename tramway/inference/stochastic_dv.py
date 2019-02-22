@@ -21,7 +21,7 @@ from math import pi, log
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
-from collections import OrderedDict
+from collections import OrderedDict, deque
 import time
 from scipy.stats import trim_mean
 
@@ -219,7 +219,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
     export_centers=False, verbose=True, superlocal=False, stochastic=True, x0=None,
-    return_struct=False,
+    return_struct=False, posterior_max_count=1000,
     **kwargs):
     """
     See also :func:`~tramway.inference.optimization.minimize_sparse_bfgs`.
@@ -254,7 +254,10 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
 
     dv = LocalDV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity,
         prior_delay=prior_delay)
-    posterior_info = []
+    if posterior_max_count:
+        posterior_info = deque([], posterior_max_count)
+    else:
+        posterior_info = []
 
     # gradient options
     grad_kwargs = get_grad_kwargs(**kwargs)
