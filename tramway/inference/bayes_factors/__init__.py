@@ -13,14 +13,17 @@ if sys.version_info <= (3, 5):
     raise RuntimeError("Python 3.5+ is required for calculating Bayes factors")
 
 
-def _bayes_factor(cells, B_threshold=None, **kwargs):
-    try:
-        from tqdm import tqdm
-    except Exception:
-        import logging
-        logging.warning(
-            "Consider installing `tqdm` package (`pip install tqdm`) to see Bayes factors calculation progress.")
+def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
+    if verbose:
+        try:
+            from tqdm import tqdm
+        except:
+            import logging
+            logging.warning(
+                "Consider installing `tqdm` package (`pip install tqdm`) to see Bayes factors calculation progress.")
 
+            def tqdm(x): return x
+    else:
         def tqdm(x): return x
 
     # TODO: use the same localization error as for inference
@@ -32,6 +35,9 @@ def _bayes_factor(cells, B_threshold=None, **kwargs):
     # B_threshold
     if B_threshold is not None:
         kwargs['B_threshold'] = B_threshold
+    # verbose
+    if verbose is not None:
+        kwargs['verbose'] = verbose
 
     # iterate over the cells
     for key in tqdm(cells):
@@ -44,6 +50,7 @@ setup = {
     'arguments': OrderedDict((
         ('localization_error', ('-e', dict(type=float, help='localization error (same units as the variance)'))),
         ('B_threshold', ('-b', dict(type=float, help='values of Bayes factor for thresholding'))),
+        ('verbose', ()),
     )),
     # List of variables that the module returns as cell properties, e.g. cell.lg_B
     'returns': ['lg_B', 'force', 'min_n'],
