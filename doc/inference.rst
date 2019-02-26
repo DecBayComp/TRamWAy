@@ -413,8 +413,8 @@ The values in-between indicate that a conclusion cannot be reached at the requir
 
 The `bayes_factor`_ plugin generates 3 additional maps:
 
-* `force`: ternary map for the presence of an active force (``-1``: no force, ``0``: insufficient evidence, ``1``: force)
 * `lg_B`: current Bayes factor value
+* `force`: ternary map for the presence of an active force (``-1``: no force, ``0``: insufficient evidence, ``1``: force)
 * `min_n`: given the supplied total force and diffusivity gradient estimates are correct, returns a number of points to be collected in the current bin, so as to reach the required level of evidence.
 
 The `bayes_factor`_ plugin operates on top of a diffusivity map that must be inferred first, preferably with the *d.conj_prior* plugin.
