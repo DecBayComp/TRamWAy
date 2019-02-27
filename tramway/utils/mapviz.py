@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
 
-from tramway.plot.movie.xyt import animate_trajectories_2d
+from tramway.plot.movie.map import *
 
 
-def trajviz_utility():
+def mapviz_utility():
     import argparse
-    parser = argparse.ArgumentParser(prog='trajviz',
-        description='visualize animated 2D trajectories')
-    parser.add_argument('--columns', help="xyt file column names (comma-separated list)")
+    parser = argparse.ArgumentParser(prog='mapviz',
+        description='visualize animated 2D maps')
+    parser.add_argument('-l', '-L', '--label', help="comma-separated list of labels")
+    parser.add_argument('-m', '--variable', help="mapped variable to render")
     parser.add_argument('-r', '--frame-rate', '--fps', type=float, help="frames per second")
     parser.add_argument('-c', '--codec', help="the codec to use")
     parser.add_argument('-b', '--bit-rate', '--bitrate', type=int, help="movie bitrate")
@@ -17,31 +18,30 @@ def trajviz_utility():
     parser.add_argument('--write-only', action='store_true', default=False, help="do not play the movie")
     parser.add_argument('-s', '--time-step', type=float, help="time step between successive frames")
     parser.add_argument('-u', '--time-unit', type=str, default='s', help="time unit for time display")
-    parser.add_argument('--line-width', type=float, default=1, help="translocation line width")
-    parser.add_argument('--marker-style', type=str, default='o', help="location marker style (can be 'none')")
-    parser.add_argument('--marker-size', type=int, default=4, help="location marker size")
+    parser.add_argument('--colormap', help="matplotlib colormap name")
     parser.add_argument('--axis-off', '--axes-off', action='store_true', help="turn the axes off")
-    parser.add_argument('input_file', help='path to xyt trajectory file')
+    parser.add_argument('--colorbar-off', action='store_true', help="turn the colorbar off")
+    parser.add_argument('input_file', help='path to rwa file')
     parser.add_argument('output_file', help='path to mp4 file')
     args = parser.parse_args()
 
-    animate_trajectories_2d(args.input_file, args.output_file,
+    animate_map_2d_helper(args.input_file, args.output_file,
+            label=args.label,
+            variable=args.variable,
             frame_rate=args.frame_rate,
             codec=args.codec,
             bit_rate=args.bit_rate,
             play=not args.write_only,
             time_step=args.time_step,
             time_unit=args.time_unit,
-            line_width=args.line_width,
-            marker_style=None if args.marker_style == 'none' else args.marker_style,
-            marker_size=args.marker_size,
+            colormap=args.colormap,
             axis=not args.axis_off,
-            verbose=not args.quiet,
-            columns=args.columns)
+            colorbar=not args.colorbar_off,
+            verbose=not args.quiet)
 
 
 if __name__ == '__main__':
     import matplotlib
     matplotlib.use('Agg')
-    trajviz_utility()
+    mapviz_utility()
 

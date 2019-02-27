@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -22,7 +22,6 @@ from tramway.tessellation import *
 from tramway.inference import Distributed
 from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
-import matplotlib.pyplot as plt
 import scipy.spatial
 import scipy.sparse as sparse
 from warnings import warn
@@ -278,12 +277,13 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
             except:
                 print('warning: {}'.format(msg))
             scalar_map[np.isnan(scalar_map)] = 0
-    except TypeError as e: # help debug
+    except TypeError: # help debug
         print(scalar_map)
         print(scalar_map.dtype)
-        raise e
+        raise
 
     if figure is None:
+        import matplotlib.pyplot as plt
         figure = plt.gcf() # before PatchCollection
     if axes is None:
         axes = figure.gca()
@@ -293,8 +293,12 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if alpha is None:
             alpha = .9
         patch_kwargs['alpha'] = alpha
-    if colormap is not None and 'cmap' not in patch_kwargs:
-        patch_kwargs['cmap'] = colormap
+    if colormap is not None:
+        cmap = patch_kwargs.get('cmap', None)
+        if cmap is None:
+            patch_kwargs['cmap'] = colormap
+        elif colormap != cmap:
+            warn('both cmap and colormap arguments are passed with different values', RuntimeWarning)
     patches = PatchCollection(polygons, linewidth=linewidth, **patch_kwargs)
     patches.set_array(scalar_map)
     if clim is not None:
@@ -325,6 +329,10 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
     if colorbar=='nice':
         # make the colorbar closer to the plot and same size
         from mpl_toolkits.axes_grid1 import make_axes_locatable
+        try:
+            plt
+        except NameError:
+            import matplotlib.pyplot as plt
         try:
             gca_bkp = plt.gca()
             divider = make_axes_locatable(figure.gca())
@@ -400,6 +408,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
             warn('cannot compute the amplitude; setting `overlay` to True', RuntimeWarning)
             overlay = True
     if figure is None:
+        import matplotlib.pyplot as plt
         figure = plt.gcf()
     if axes is None:
         axes = figure.gca()

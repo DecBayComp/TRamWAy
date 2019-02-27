@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -16,7 +16,6 @@ from math import *
 import numpy as np
 import pandas as pd
 from matplotlib.colors import Normalize
-import matplotlib.pyplot as plt
 import itertools
 from copy import deepcopy
 import scipy.sparse as sparse
@@ -57,6 +56,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
 
     Extra keyword arguments are passed to *matplotlib* 's *scatter* or *plot*.
     """
+    import matplotlib.pyplot as plt
     if isinstance(cells, np.ndarray):
         points = cells
         label = None
@@ -175,6 +175,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
         tuple: list of handles of the plotted edges,
             handle of the plotted centroids
     """
+    import matplotlib.pyplot as plt
     vertices = cells.tessellation.vertices
     labels, color = _graph_theme(cells.tessellation, labels, color, negative)
     try:
@@ -298,6 +299,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
             handle of the plotted centroids
     """
     if axes is None:
+        import matplotlib.pyplot as plt
         axes = plt
     try:
         tessellation = cells.tessellation
@@ -429,6 +431,8 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
 
     `plot_distributed` is similar to `plot_delaunay` but takes a :class:`~tramway.inference.base.Distributed` object instead.
     """
+    import matplotlib.pyplot as plt
+
     centers = np.vstack([ cells[i].center for i in cells ])
     _min, _max = np.min(centers), np.max(centers)
 
@@ -494,6 +498,7 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
 
     Trailing keyword arguments are passed to :func:`~matplotlib.pyplot.text`.
     """
+    import matplotlib.pyplot as plt
     kwargs['fontsize'] = kwargs.get('fontsize', font_size)
     handles = []
     if isinstance(cells, CellStats):

@@ -265,18 +265,22 @@ class CellStats(Lazy):
             v = getattr(self, '_'+k)
             attrs[k] = None if v is None else type(v)
         attrs['number_of_cells'] = self.number_of_cells
-        l = max( max(len(k) for k in attrs), 1 + max(len(k) for k in self.param) ) + 1
-        l0 = l + 1
+        l = max(len(k) for k in attrs)
+        if self.param:
+            l = max(l, 1 + max(len(k) for k in self.param))
+        l += 1 # for ':'
+        l0 = l + 1 # for ' '
         attrs['bounding_box'] = None if self._bounding_box is None \
             else _str(self.bounding_box, l0)
-        l1 = max( max(len(k) for k in _attrs) for _attrs in self.param.values() \
-                if isinstance(_attrs, dict) )
-        for k, v in self.param.items():
-            if isinstance(v, dict):
-                v = print_kwargs(v, l0, l1)
-            else:
-                v = _str(v, l0)
-            attrs['@'+k] = v
+        if self.param:
+            l1 = max( max(len(k) for k in _attrs) for _attrs in self.param.values() \
+                    if isinstance(_attrs, dict) )
+            for k, v in self.param.items():
+                if isinstance(v, dict):
+                    v = print_kwargs(v, l0, l1)
+                else:
+                    v = _str(v, l0)
+                attrs['@'+k] = v
         try:
             # handle child classes with __dict__ defined
             for k, v in self.__dict__.items():
