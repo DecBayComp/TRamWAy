@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-from tramway.plot.movie.xyt import animate_trajectories_2d
+from tramway.helper.movie import animate_trajectories_2d_helper
 
 
 def trajviz_utility():
@@ -22,10 +22,10 @@ def trajviz_utility():
     parser.add_argument('--marker-size', type=int, default=4, help="location marker size")
     parser.add_argument('--axis-off', '--axes-off', action='store_true', help="turn the axes off")
     parser.add_argument('input_file', help='path to xyt trajectory file')
-    parser.add_argument('output_file', help='path to mp4 file')
+    parser.add_argument('output_file', nargs='?', help='path to mp4 file')
     args = parser.parse_args()
 
-    animate_trajectories_2d(args.input_file, args.output_file,
+    animate_trajectories_2d_helper(args.input_file, args.output_file,
             frame_rate=args.frame_rate,
             codec=args.codec,
             bit_rate=args.bit_rate,

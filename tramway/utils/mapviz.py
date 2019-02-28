@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-from tramway.plot.movie.map import *
+from tramway.helper.movie import animate_map_2d_helper
 
 
 def mapviz_utility():
@@ -10,7 +10,7 @@ def mapviz_utility():
         description='visualize animated 2D maps')
     parser.add_argument('-l', '-L', '--label', help="comma-separated list of labels")
     parser.add_argument('-m', '--variable', help="mapped variable to render")
-    parser.add_argument('-r', '--frame-rate', '--fps', type=float, help="frames per second")
+    parser.add_argument('-r', '--frame-rate', '--fps', default=1, type=float, help="frames per second")
     parser.add_argument('-c', '--codec', help="the codec to use")
     parser.add_argument('-b', '--bit-rate', '--bitrate', type=int, help="movie bitrate")
     parser.add_argument('--dpi', type=int, help="dots per inch")
@@ -22,7 +22,7 @@ def mapviz_utility():
     parser.add_argument('--axis-off', '--axes-off', action='store_true', help="turn the axes off")
     parser.add_argument('--colorbar-off', action='store_true', help="turn the colorbar off")
     parser.add_argument('input_file', help='path to rwa file')
-    parser.add_argument('output_file', help='path to mp4 file')
+    parser.add_argument('output_file', nargs='?', help='path to mp4 file')
     args = parser.parse_args()
 
     animate_map_2d_helper(args.input_file, args.output_file,
