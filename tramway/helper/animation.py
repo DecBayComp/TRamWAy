@@ -27,9 +27,9 @@ def animate_trajectories_2d_helper(input_data, *args, **kwargs):
         columns (str or list): (comma-separated) list of column names if input data
             are to be loaded; keyworded-only; see also :func:`~tramway.core.xyt.load_xyt`.
 
-    The other arguments are passed to :func:`~tramway.plot.movie.xyt.animate_trajectories_2d`.
+    The other arguments are passed to :func:`~tramway.plot.animation.xyt.animate_trajectories_2d`.
     """
-    from tramway.plot.movie.xyt import animate_trajectories_2d
+    from tramway.plot.animation.xyt import animate_trajectories_2d
     import pandas as pd
 
     columns = kwargs.pop('columns', None)
@@ -74,12 +74,12 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, variable=Non
 
         variable (str): name of the mapped variable to be rendered.
 
-    The other keyword arguments are passed to :func:`~tramway.plot.movie.map.animate_map_2d`.
+    The other keyword arguments are passed to :func:`~tramway.plot.animation.map.animate_map_2d`.
     """
     from tramway.core.analyses import find_artefacts
     from tramway.tessellation.base import CellStats
     from tramway.inference.base import Maps
-    from tramway.plot.movie.map import animate_map_2d
+    from tramway.plot.animation.map import animate_map_2d
 
     if isinstance(input_data, Analyses):
         analyses = input_data
@@ -90,6 +90,9 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, variable=Non
             raise "file '{}' not found".format(input_file)
         analyses = load_rwa(input_file, lazy=True)
 
+    if isinstance(label, str):
+        label = label.split(',')
+
     cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
 
     if variable is None:
@@ -99,4 +102,7 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, variable=Non
     _map = maps[variable]
 
     animate_map_2d(_map, cells, output_file, **kwargs)
+
+
+__all__ = ['animate_trajectories_2d_helper', 'animate_map_2d_helper']
 

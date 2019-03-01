@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.plot.movie import *
+from tramway.plot.animation import *
 import numpy as np
 
 

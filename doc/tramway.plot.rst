@@ -8,6 +8,15 @@ tramway.plot package
     :show-inheritance:
 
 
+tramway.plot.animation module
+-----------------------------
+
+.. automodule:: tramway.plot.animation
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.plot.contour module
 ---------------------------
 
@@ -30,6 +39,15 @@ tramway.plot.mesh module
 ------------------------
 
 .. automodule:: tramway.plot.mesh
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.plot.tk module
+----------------------
+
+.. automodule:: tramway.plot.tk
     :members:
     :undoc-members:
     :show-inheritance:

@@ -15,7 +15,7 @@
 from tramway.tessellation.base import CellStats
 from tramway.tessellation.time import TimeLattice
 from tramway.plot.map import *
-from tramway.plot.movie import *
+from tramway.plot.animation import *
 import numpy as np
 
 
@@ -88,7 +88,7 @@ def animate_map_2d(_map, cells, output_file=None,
         cells = CellStats(tessellation=_mesh, location_count=np.ones(_mesh.number_of_cells))
     else:
         _map = [_map]
-        t = analyses.xyt['t']
+        t = cells.locations['t']
         tmin, tmax = t.min(), t.max()
         segments = [[tmin, tmax]]
 
@@ -155,5 +155,5 @@ def animate_map_2d(_map, cells, output_file=None,
         pass
 
 
-__all__ = ['animate_map_2d', 'animate_map_2d_helper']
+__all__ = ['animate_map_2d']
 

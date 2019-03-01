@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-from tramway.helper.movie import animate_trajectories_2d_helper
+from tramway.helper.animation import animate_trajectories_2d_helper
 
 
 def trajviz_utility():
@@ -29,6 +29,7 @@ def trajviz_utility():
             frame_rate=args.frame_rate,
             codec=args.codec,
             bit_rate=args.bit_rate,
+            dots_per_inch=args.dpi,
             play=not args.write_only,
             time_step=args.time_step,
             time_unit=args.time_unit,

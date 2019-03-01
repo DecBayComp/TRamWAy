@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-from tramway.helper.movie import animate_map_2d_helper
+from tramway.helper.animation import animate_map_2d_helper
 
 
 def mapviz_utility():

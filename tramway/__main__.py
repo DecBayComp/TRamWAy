@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -225,6 +225,51 @@ def _curl(args):
         output_file = input_file
     save_rwa(output_file, analyses, force=output_file == input_file)
 
+def _animate_trajectories(args):
+    import matplotlib
+    matplotlib.use('Agg')
+    from tramway.helper.animation import animate_trajectories_2d_helper
+    input_file, kwargs = _parse_args(args)
+    input_label = kwargs.get('input_label', kwargs.get('label', None))
+    if input_file[1:]:
+        raise NotImplementedError('cannot handle multiple input files')
+    input_file = input_file[0]
+    output_file = kwargs.pop('output', None)
+    write_only = kwargs.pop('write_only', False)
+    kwargs = { kw: arg for kw, arg in kwargs.items() if arg is not None }
+    if 'play' not in kwargs:
+        kwargs['play'] = not write_only
+    animate_trajectories_2d_helper(input_file, output_file, **kwargs)
+
+def _animate_map(args):
+    import matplotlib
+    matplotlib.use('Agg')
+    from tramway.helper.animation import animate_map_2d_helper
+    input_file, kwargs = _parse_args(args)
+    input_label = kwargs.pop('input_label', kwargs.get('label', None))
+    kwargs['label'] = input_label
+    if input_file[1:]:
+        raise NotImplementedError('cannot handle multiple input files')
+    input_file = input_file[0]
+    output_file = kwargs.pop('output', None)
+    write_only = kwargs.pop('write_only', False)
+    kwargs = { kw: arg for kw, arg in kwargs.items() if arg is not None }
+    if 'play' not in kwargs:
+        kwargs['play'] = not write_only
+    animate_map_2d_helper(input_file, output_file, **kwargs)
+
+
+def _add_subparsers(sub, subcommand, aliases=None, help=None, title=None, target='targets'):
+    if aliases:
+        try:
+            _parser = sub.add_parser(subcommand, aliases=aliases, help=help)
+        except TypeError: # Py2
+            _parser = sub.add_parser(subcommand, help=help)
+    else:
+        _parser = sub.add_parser(subcommand, help=help)
+    _subsub = _parser.add_subparsers(title=subcommand if title is None else title,
+            description='{}; the available {} are:'.format(help, target))
+    return _subsub, _parser
 
 
 def main():
@@ -267,15 +312,10 @@ def main():
     tessellate_name = 'tessellate'
     tessellate_aliases = ['sample']
     load_tessellate_plugins = tessellate_name in sys.argv
-    try:
-        tessellate_parser = sub.add_parser(tessellate_name, aliases=tessellate_aliases)
-    except TypeError: # Py2
-        tessellate_parser = sub.add_parser(tessellate_name)
-    else:
-        if not load_tessellate_plugins:
-            load_tessellate_plugins = any(alias in sys.argv for alias in tessellate_aliases)
-    tsub = tessellate_parser.add_subparsers(title='methods', \
-        description="type '%(prog)s sample method --help' for additional help about method")
+    if not load_tessellate_plugins:
+        load_tessellate_plugins = any(alias in sys.argv for alias in tessellate_aliases)
+    tsub, _ = _add_subparsers(sub, tessellate_name, tessellate_aliases,
+            'spatial and temporal binning of (trans-)locations data', target='binning methods')
     if load_tessellate_plugins:
         for method in tessellation.plugins:
             method_parser = tsub.add_parser(method)
@@ -318,9 +358,7 @@ def main():
 
 
     # infer
-    infer_parser = sub.add_parser('infer') #, conflict_handler='resolve'
-    isub = infer_parser.add_subparsers(title='modes', \
-        description="type '%(prog)s infer mode --help' for additional help about mode")
+    isub, _ = _add_subparsers(sub, 'infer', help='infer local parameters', target='inference modes')
     if 'infer' in sys.argv:
         for mode in inference.plugins:
             mode_parser = isub.add_parser(mode)
@@ -352,7 +390,7 @@ def main():
 
 
     # dump analysis tree
-    dump_parser = sub.add_parser('dump')
+    dump_parser = sub.add_parser('dump', help='print information from an .rwa file')
     dump_parser.set_defaults(func=_dump_rwa)
     for arg1, arg2, kwargs in global_arguments:
         if arg1 in ['-c', '-v', '-L']:
@@ -371,9 +409,7 @@ def main():
 
 
     # extract features
-    feature_parser = sub.add_parser('extract')
-    fsub = feature_parser.add_subparsers(title='features', \
-        description="type '%(prog)s extract feature --help' for additional help")
+    fsub, _ = _add_subparsers(sub, 'extract', help='extract features from maps', target='features')
 
     # extract curl
     curl_parser = fsub.add_parser('curl')
@@ -393,12 +429,8 @@ def main():
 
 
     # plot artefacts
-    try:
-        plot_parser = sub.add_parser('draw', aliases=['show'])
-    except TypeError: # Py2
-        plot_parser = sub.add_parser('draw')
-    psub = plot_parser.add_subparsers(title='show artefacts', \
-        description="type %(prog)s draw artefact --help for additional help")
+    psub, _ = _add_subparsers(sub, 'draw', aliases=['show'], help='plot static data',
+            target='types of data')
 
     # plot cells
     cells_parser = psub.add_parser('cells')
@@ -443,6 +475,40 @@ def main():
     except:
         pass
 
+
+    # animate artefacts
+    asub, _ = _add_subparsers(sub, 'animate', aliases=['grab'], help='make a movie')
+
+    # animate trajectories
+    try:
+        traj_parser = asub.add_parser('trajectories', aliases=['traj'])
+    except TypeError: # Py2
+        traj_parser = asub.add_parser('trajectories')
+    traj_parser.set_defaults(func=_animate_trajectories)
+    for arg1, arg2, kwargs in global_arguments:
+        traj_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+    traj_parser.add_argument('-r', '--frame-rate', '--fps', type=float, help="frames per second")
+    traj_parser.add_argument('-c', '--codec', help="the codec to use")
+    traj_parser.add_argument('-b', '--bit-rate', '--bitrate', type=int, help="movie bitrate")
+    traj_parser.add_argument('--dots-per-inch', '--dpi', type=int, help="dots per inch")
+    traj_parser.add_argument('--write-only', action='store_true', default=False, help="do not play the movie")
+    traj_parser.add_argument('-s', '--time-step', type=float, help="time step between successive frames")
+    traj_parser.add_argument('-u', '--time-unit', type=str, default='s', help="time unit for time display")
+
+    # animate a map
+    map_parser = asub.add_parser('map')
+    map_parser.set_defaults(func=_animate_map)
+    for arg1, arg2, kwargs in global_arguments:
+        map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
+    map_parser.add_argument('-l', '-L', '--label', help="comma-separated list of labels to the map")
+    map_parser.add_argument('-x', '--variable', help="mapped variable to be rendered")
+    map_parser.add_argument('-r', '--frame-rate', '--fps', type=float, help="frames per second")
+    map_parser.add_argument('-c', '--codec', help="the codec to use")
+    map_parser.add_argument('-b', '--bit-rate', '--bitrate', type=int, help="movie bitrate")
+    map_parser.add_argument('--dots-per-inch', '--dpi', type=int, help="dots per inch")
+    map_parser.add_argument('--write-only', action='store_true', default=False, help="do not play the movie")
+    map_parser.add_argument('-s', '--time-step', type=float, help="time step between successive frames")
+    map_parser.add_argument('-u', '--time-unit', type=str, default='s', help="time unit for time display")
 
 
     # parse
