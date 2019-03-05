@@ -59,7 +59,7 @@ def animate_trajectories_2d_helper(input_data, *args, **kwargs):
     animate_trajectories_2d(xyt, *args, **kwargs)
 
 
-def animate_map_2d_helper(input_data, output_file=None, label=None, variable=None, **kwargs):
+def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None, variable=None, **kwargs):
     """
     Animate 2D maps.
 
@@ -72,7 +72,7 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, variable=Non
 
         label (str or list): path to the maps as a (comma-separated) list of labels.
 
-        variable (str): name of the mapped variable to be rendered.
+        feature/variable (str): name of the mapped feature to be rendered.
 
     The other keyword arguments are passed to :func:`~tramway.plot.animation.map.animate_map_2d`.
     """
@@ -95,11 +95,13 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, variable=Non
 
     cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
 
-    if variable is None:
-        if maps.variables[1:]:
-            raise ValueError('multiple mapped variables found: {}'.format(maps.variables))
-        variable = maps.variables[0]
-    _map = maps[variable]
+    if feature is None:
+        feature = variable
+    if feature is None:
+        if maps.features[1:]:
+            raise ValueError('multiple mapped features found: {}'.format(maps.features))
+        feature = maps.features[0]
+    _map = maps[feature]
 
     animate_map_2d(_map, cells, output_file, **kwargs)
 

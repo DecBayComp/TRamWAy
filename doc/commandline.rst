@@ -10,7 +10,30 @@ The input data are tracking data of single molecules, stored in a text file.
 
 The extension of input data files will usually be |txt|, |xyt| or |trxyt| but this is not required.
 
-We will first import an example |trxyt| file and sample the molecule locations in a step referred to as "tessellation", before we perform the inference and feature extraction.
+The trajectories from an example |trxyt| file can be visualized with the following command::
+
+    > tramway -v animate trajectories -i example.trxyt
+
+The *tramway* command is followed by the *animate* subcommand, itself followed by the *trajectories* subsubcommand.
+
+``-i`` stands for *input file* and can be omitted as long as the file path comes last in the command.
+
+``-v`` stands for *verbose* and is a flag that does not take any argument after.
+
+Equivalent commands are::
+
+    > tramway -i example.trxyt animate trajectories -v
+    > tramway animate trajectories -v example.trxyt
+
+Note that it is recommended to specify the time step with the ``--time-step`` (or ``-s``) option.
+In the absence of this option as in the above example, *tramway animate trajectories* will try to determine the inter-frame duration, but some floating-point precision error may occur.
+
+The documentation for the *animate* and *animate trajectories* subcommands can be printed using the ``-h`` flag::
+
+    > tramway animate -h
+    > tramway animate trajectories -h
+
+We will first import the example |trxyt| file and bin the molecule locations in a step referred to as *tessellation*, before we perform the inference.
 
 Note that there is no standalone import.
 Molecule locations and trajectories should always be sampled in a way or another.
@@ -152,7 +175,9 @@ Visualizing maps
 
 2D maps can be plotted with::
 
-	> tramway draw map -i example.rwa -L gwr1,dv-map0
+	> tramway draw map -i example.rwa -L gwr1,dv-map0 --feature force
+
+If the mapped feature to be drawn is not specified, *tramway draw map* will make a figure for each of the mapped features.
 
 One can overlay the locations as white dots with high transparency over maps colored with one of the *matplotlib* supported colormaps (see also https://matplotlib.org/users/colormaps.html)::
 
@@ -184,10 +209,10 @@ The extracted map can be plotted just like any map::
 	> tramway draw map -i example.rwa -L kmeans,df-map0,curl_2
 
 
-Final analysis tree
--------------------
+Inspecting an *rwa* file
+------------------------
 
-To sum up this primer, the content of the *example.rwa* file that results from all the above steps is dumped below::
+The content of the *example.rwa* file that results from all the above steps can be superficially inspected as below::
 
 	> tramway dump -i example.rwa
 
@@ -200,5 +225,57 @@ To sum up this primer, the content of the *example.rwa* file that results from a
 			'gwr1' <class 'tramway.tessellation.base.CellStats'>
 				'dv-map0' <class 'tramway.inference.base.Maps'>
 
+As mentioned before, some analysis artefacts can be inspected specifying the corresponding label.
 
+The *dump* subcommand can also export some analysis artefacts for use in **InferenceMAP** using the ``--cluster`` (for spatial meshes) and ``--vmesh`` (for maps) options.
+Learn more from the *tramway dump* help::
+
+    > tramway dump -h
+
+
+.. _commandline_time:
+
+Segmenting in time
+------------------
+
+The *tramway tessellate* command features temporal windowing as an addition to spatial binning.
+Let us consider the following example::
+
+    > tramway -i example.trxyt -o example2.rwa tessellate gwr --time-window-duration 1 --time-window-shift 0.1
+
+Note first that we are making a new *rwa* file with the ``-o`` flag.
+We could have kept on working on the existing *rwa* file with ``-i example.rwa`` instead of ``-i example.trxyt -o example2.rwa``.
+
+Note second that we do not specify any label for the resulting sampling of the locations.
+Of course we could have done so.
+
+In the example above, we bin the locations using the *gwr* spatial tessellation method.
+At the spatial binning step, all the locations considered independently of their onset time.
+
+Temporal windowing comes next and requires the ``--time-window-duration`` argument followed by the duration of the window in seconds.
+
+Optionally, the time shift between successive segments can be specified with the ``--time-window-shift`` argument.
+In the above example every pair of successive segments will share a 90% overlap (900 ms).
+The default is a shift equal to the duration, so that there is no overlap.
+
+At the inference step, the temporal sampling is transparent::
+
+    > tramway -i example2.rwa infer df
+
+Note that drawing the spatial mesh or the inferred map now requires the index of a time segment to be specified::
+
+    > tramway -i example2.rwa draw cells --segment 0
+    > tramway -i example2.rwa draw map --feature force --segment 0
+
+A movie can also be generated out of the inferred maps::
+
+    > tramway -v -i example2.rwa animate map --feature force
+
+Note that *tramway animate map* requires a mapped feature to be specified unless a single feature is found.
+
+This actually generates a temporary *mp4* file.
+To keep the generated file, an output file name has to be specified with the ``-o`` option.
+
+*tramway animate map* can also subsample in time with the ``--time-step`` (or ``-s``) option.
+Overlapping segments will be averaged wrt the distance from the segment centers.
 

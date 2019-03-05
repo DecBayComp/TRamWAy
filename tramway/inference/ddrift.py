@@ -26,7 +26,8 @@ setup = {'name': ('dd', 'ddrift'),
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
-        ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed'))))}
+        ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')))),
+        'cell_sampling':    'individual'};
 
 
 def dd_neg_posterior(x, dd, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivity):

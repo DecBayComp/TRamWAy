@@ -114,13 +114,14 @@ def animate_map_2d(_map, cells, output_file=None,
                     else:
                         t = tmin + f * time_step
 
+                        seg_scale = np.median([ _s[1] - _s[0] for _s in segment ]) * .5
                         segs = []
                         weights = []
                         for s, seg in enumerate(segments):
                             if seg[0] <= t and t <= seg[1]:
                                 segs.append(s)
                                 seg_center = (seg[0] + seg[1]) / 2.
-                                w = np.abs(t - seg_center)
+                                w = 1. - np.abs(t - seg_center) / seg_scale
                                 weights.append(w)
                         assert bool(segs)
 

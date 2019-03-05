@@ -124,26 +124,26 @@ class Infer(Helper):
 
     def overload_cells(self, cells):
         if self.input_maps is None:
-            input_variables = ()
+            input_features = ()
         else:
-            input_variables = []
-            for input_variable in self.input_maps.variables:
-                # check `input_variable` can be an identifier
+            input_features = []
+            for input_feature in self.input_maps.features:
+                # check `input_feature` can be an identifier
                 try:
                     class _BreakMe(object):
-                        __slots__ = input_variable
+                        __slots__ = input_feature
                 except TypeError:
                     pass
                 else:
-                    input_variables.append(input_variable)
-            input_variables = tuple(input_variables)
-            maps = { v: self.input_maps[v] for v in input_variables }
-        output_variables = self.setup.get('returns', [])
-        if isinstance(output_variables, (tuple, list, frozenset, set)):
-            output_variables = tuple(output_variables)
+                    input_features.append(input_feature)
+            input_features = tuple(input_features)
+            maps = { v: self.input_maps[v] for v in input_features }
+        output_features = self.setup.get('returns', [])
+        if isinstance(output_features, (tuple, list, frozenset, set)):
+            output_features = tuple(output_features)
         else:
-            output_variables = (output_variables,)
-        if input_variables or output_variables:
+            output_features = (output_features,)
+        if input_features or output_features:
             any_cell = cells.any_cell()
             cell_type = type(any_cell)
             try:
@@ -151,13 +151,13 @@ class Infer(Helper):
             except AttributeError:
                 attrs = Lazy.__slots__ + Local.__slots__ + Cell.__slots__ + cell_type.__slots__
             class OverloadedCell(cell_type):
-                __slots__ = input_variables + output_variables
+                __slots__ = input_features + output_features
                 def __init__(self, cell, **kwargs):
                     for attr in attrs:
                         setattr(self, attr, getattr(cell, attr))
-                    for attr in input_variables:
+                    for attr in input_features:
                         setattr(self, attr, kwargs[attr])
-                    for attr in output_variables:
+                    for attr in output_features:
                         setattr(self, attr, None)
             kwargs = {}
             overloaded_cells = {}
@@ -675,7 +675,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
-    alpha=None, point_style=None, variable=None, segment=None, \
+    alpha=None, point_style=None, feature=None, variable=None, segment=None, \
     label=None, input_label=None, mode=None, title=True, \
     **kwargs):
     """
@@ -720,7 +720,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
         point_style (dict): if defined, points are overlaid
 
-        variable (str): variable name (e.g. 'diffusivity', 'force')
+        feature/variable (str): feature name (e.g. 'diffusivity', 'force')
 
         segment (int): segment index;
             if multiple time segments were defined, show only this segment
@@ -730,7 +730,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         mode (bool or str): inference mode; can be ``False`` so that mode information from
             files, analysis trees and encapsulated maps are not displayed
 
-        title (bool or str): add titles to the figures, based on the variable name and
+        title (bool or str): add titles to the figures, based on the feature name and
             inference mode
 
         xlim (array-like): min and max values for the x-axis; this argument is keyworded only
@@ -741,7 +741,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
     Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
     :func:`~tramway.plot.map.field_map_2d`.
-    They can be dictionnaries with variable names as keys and the corresponding values for the
+    They can be dictionnaries with feature names as keys and the corresponding values for the
     parameters.
 
     """
@@ -801,7 +801,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             mode = maps.mode
         maps = maps.maps
     elif isinstance(maps, pd.Series):
-        maps = pd.DataFrame(maps, columns=['unknown variable'])
+        maps = pd.DataFrame(maps.values, index=maps.index, columns=['unknown feature'])
     if isinstance(cells, Distributed):
         # fix for rwa-0.5 OrderedDict
         cells.cells = collections.OrderedDict((k, cells[k]) for k in range(max(cells.keys())+1) if k in cells )
@@ -880,11 +880,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figs = []
     nfig = 0
 
+    if feature is None:
+        feature = variable
     all_vars = dict(splitcoord(maps.columns)) # not a defaultdict
-    if isinstance(variable, (frozenset, set, tuple, list)):
-        all_vars = { v: all_vars[v] for v in variable }
-    elif variable is not None:
-        all_vars = { variable: all_vars[variable] }
+    if isinstance(feature, (frozenset, set, tuple, list)):
+        all_vars = { v: all_vars[v] for v in feature }
+    elif feature is not None:
+        all_vars = { feature: all_vars[feature] }
 
     standard_kwargs = {}
     differential_kwargs = {}
@@ -942,7 +944,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         # split time segments, if any
         if with_segments:
             if 'clim' not in col_kwargs:
-                col_kwargs['clim'] = [_map.values.min(), _map.values.max()]
+                col_kwargs['clim'] = [_map.min(), _map.max()]
             _map = _cells.tessellation.split_frames(_map)
             try:
                 _map = _map[segment]

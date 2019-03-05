@@ -26,7 +26,8 @@ setup = {'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
-        ('debug',       dict(action='store_true'))))}
+        ('debug',       dict(action='store_true')))),
+        'cell_sampling':    'individual'}
 
 
 def df_neg_posterior(x, df, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivity):

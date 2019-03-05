@@ -3,7 +3,7 @@
 Tessellation
 ============
 
-This step consists of defining time segments or space cells and assigning the individual molecule locations to one or more of these segments or cells.
+This step consists of defining time segments or space cells and assigning the individual molecule locations to one or more of these segments or cells/bins.
 
 Basic usage
 -----------
@@ -55,43 +55,43 @@ or with the :func:`~tramway.helper.tessellation.cell_plot` helper function:
 	cell_plot('example.rwa', label='kmeans')
 
 
-Concepts
---------
-
-The concept of tessellation or windowing in itself is independent of the proper partition of the molecule locations or translocations in subsets corresponding to cells or segments.
-
-These data are combined together in a :class:`~tramway.tessellation.base.CellStats`.
-
-Its :attr:`~tramway.tessellation.base.CellStats.tessellation` attribute of type :class:`~tramway.tessellation.base.Tessellation` is the tessellation or sampling strategy grown from (trans-)location data and in principle suitable for partitioning/sampling any other similar set of (trans-)locations.
-
-The partition itself, i.e. the proper assignment of locations to cells or segments - whether these locations are those involved in growing the tessellation or others, is referred to as *cell_index*.
-This naming appears in the :class:`~tramway.tessellation.base.Tessellation` class as a method, in the :class:`~tramway.tessellation.base.CellStats` class as an attribute (actually a property) and at other locations.
-
-From a particular partition a series of derivative products are commonly extracted, such as the location count per cell, and some of these products are conveniently provided by the :class:`~tramway.tessellation.base.CellStats`.
-
-Note that, because tessellating and partitioning are considered two different procedures, some input arguments to the :func:`~tramway.helper.tessellation.tessellate` helper function may have multiple understandings.
-Some constraints may be taken as directions by the tessellation algorithm while the same constraints would typically be enforced by the partitioning.
-
-As a consequence, :func:`~tramway.helper.tessellation.tessellate` takes arguments with the *strict_* prefix in their name.
-These arguments apply to the partition while arguments of similar names without this prefix apply to the tessellation.
-
-
 Standard methods
 ----------------
 
 The available methods are:
 
-* *grid*: regular grid with equally sized square or cubic areas.
-* *kdtree*: kd-tree tessellation with midpoint splits.
-* *kmeans*: tessellation based on the k-means clustering algorithm.
-* *gwr* (or *gas*): tessellation based on the Growing-When-Required self-organizing gas.
+* :ref:`random <tessellation_random>`: randomly located cell centers.
+* :ref:`grid <tessellation_grid>`: regular grid with equally sized square or cubic areas.
+* :ref:`hexagon <tessellation_hexagon>`: regular grid with equally shaped hexagons (2D only).
+* :ref:`kdtree <tessellation_kdtree>`: kd-tree tessellation with midpoint splits.
+* :ref:`kmeans <tessellation_kmeans>`: tessellation based on the k-means clustering algorithm.
+* :ref:`gwr <tessellation_gwr>` (or :ref:`gas <tessellation_gwr>`): tessellation based on the Growing-When-Required self-organizing gas.
 
-All the above methods can handle time as just another space dimension in combination with the `time_scale` argument to :func:`~tramway.helper.tessellation.tessellate` that scales the time axis so that it can be quantitatively related to the space axes.
-Note however that this possibility has been very sparsely tested.
+All the above methods can handle time as just another space dimension if the `time_scale` argument to :func:`~tramway.helper.tessellation.tessellate` if defined.
+This argument scales the time axis so that it can be quantitatively related to the space axes.
+Note however that this feature has been very sparsely tested.
 
-In addition, an exclusively temporal method consists of windowing.
-It can be called upon as the *window* method.
+Instead, molecule (trans-)locations can be divided into time segments.
+See the :ref:`window <tessellation_window>` subsection for more information.
 
+
+.. _tessellation_random:
+
+The *random* method
+^^^^^^^^^^^^^^^^^^^
+
+*random* places cell centers at random within the bounding box of the (trans-)locations.
+Empty cells are discarded (unless ``allow_empty_cells=True`` is passed to :func:`~tramway.helper.tessellation.tessellate`) and cell boundaries are defined as the Voronoi graph.
+
+The corresponding tessellation class is :class:`~tramway.tessellation.random.RandomMesh`.
+
+From the command-line, a key argument is ``--cell-count``.
+This is the desired number of cells.
+
+The number of cells can alternatively be determined using the ``--location-count`` argument (or `avg_location_count` argument to the :func:`~tramway.helper.tessellation.tessellate` Python helper).
+If defined, the number of cells is defined so that the average number of locations per cell (before empty cells are discarded) equals the specified value.
+
+.. _tessellation_grid:
 
 The *grid* method
 ^^^^^^^^^^^^^^^^^
@@ -103,11 +103,40 @@ The corresponding tessellation class is :class:`~tramway.tessellation.grid.Regul
 From the command-line, key arguments are ``--location-count`` and ``--distance``.
 
 Per default, ``--distance`` is set to the average translocation distance.
-If ``--location-count`` is not defined, neighbour cells are spaced by twice the value given by ``--distance``.
+If ``--location-count`` is not defined, neighbour cells are spaced by twice the value of ``--distance``.
 
-If ``--location-count`` is defined, the :func:`~tramway.helper.tessellation.tessellate` helper function converts the desired average location count per cell into a probability (:attr:`~tramway.tessellation.grid.RegularMesh.avg_probability`) that :class:`~tramway.tessellation.grid.RegularMesh` in turn considers to fit the size of the cells.
-The cell size (or inter-cell distance) is bounded by :math:`0.8` times the value given by ``--distance``.
+If ``--location-count`` is defined, the cells are sized so that the average number of locations per cell equals the specified value.
 
+The cell size (or inter-cell distance) is bounded by :math:`0.8` times the value of ``--distance``.
+This bound can be ignored with ``--min-location-count=0``.
+
+With the :func:`~tramway.helper.tessellation.tessellate` Python helper only, one can adjust `avg_distance` (equivalent to commandline option ``--distance``) without specifying an absolute value, with `rel_avg_distance` instead.
+The average translocation distance is multiplied by this value.
+
+
+.. _tessellation_hexagon:
+
+The *hexagon* method
+^^^^^^^^^^^^^^^^^^^^
+
+*hexagon* is a regular grid of hexagonal cells.
+
+The corresponding tessellation class is :class:`~tramway.tessellation.hexagon.HexagonalMesh`.
+
+From the command-line, key arguments are ``--location-count`` and ``--distance``.
+
+If ``--location-count`` is not defined, per default ``--distance`` is set to the average translocation distance and neighbour cells are spaced by twice this value.
+
+If ``--location-count`` is defined, the cells are sized so that the average number of locations per cell equals the specified value.
+
+Per default, the cell size (or inter-cell distance) is lower-bounded by :math:`0.8` times the average translocation distance.
+This bound can be ignored with ``--min-location-count=0``.
+
+With the :func:`~tramway.helper.tessellation.tessellate` Python helper only, one can adjust `avg_distance` (equivalent to commandline option ``--distance``) without specifying an absolute value, with `rel_avg_distance` instead.
+The average translocation distance is multiplied by this value.
+
+
+.. _tessellation_kdtree:
 
 The *kdtree* method
 ^^^^^^^^^^^^^^^^^^^
@@ -123,16 +152,20 @@ Cells scale with the `ref_distance` input argument to :func:`~tramway.helper.tes
 The maximum cell size can be controlled with the `max_level` input argument that defines the maximum cell size as a multiple of the smallest cell size, in side length.
 
 
+.. _tessellation_kmeans:
+
 The *kmeans* method
 ^^^^^^^^^^^^^^^^^^^
 
-*kmeans* is a fast tessellation approach that usually displays non-"square" cells and offers better resolutions along density borders.
+*kmeans* is a fast tessellation approach that usually displays different cell shapes and offers better resolutions along density borders.
 
 The corresponding tessellation class is :class:`~tramway.tessellation.kmeans.KMeansMesh`.
 
-The algorithm is initialized with a *grid* tessellation.
+The algorithm is initialized with a :ref:`grid <tessellation_grid>` tessellation.
 As a consequence cells scale wrt the `avg_probability` argument (or command-line option ``--location-count``) or `ref_distance` argument (or command-line option ``--distance``).
 
+
+.. _tessellation_gwr:
 
 The *gwr* method
 ^^^^^^^^^^^^^^^^
@@ -141,9 +174,10 @@ The *gwr* method
 
 The corresponding tessellation class is :class:`~tramway.tessellation.gwr.GasMesh`.
 
-The main arguments are `min_probability` (or command-line option ``-s``/``--min-location-count``) and `avg_distance`.
+The main arguments are `min_probability` (or command-line option ``-s``/``--min-location-count``) and `avg_distance` (or command-line option ``-d``/``--distance``).
 
-*gwr* exhibits many more arguments. Some of them must be passed directly to the :meth:`~tramway.tessellation.gwr.GasMesh.tessellate` method.
+*gwr* exhibits many more arguments.
+Some of them must be passed directly to the :meth:`~tramway.tessellation.gwr.GasMesh.tessellate` method.
 
 This method may be useful to build high resolution maps with the desired minimum number of locations per cell reasonably well approached in the low-density areas. 
 The `knn` argument to `cell_index` may be very useful in combination to such high resolution tessellations.
@@ -157,6 +191,8 @@ A trial-and-error approach may be necessary to generate a mesh with a suitable a
 Under-trained solutions tend to exhibit the same average location count as in more refined solutions.
 
 
+.. _tessellation_window:
+
 The *window* method
 ^^^^^^^^^^^^^^^^^^^
 
@@ -166,6 +202,35 @@ The corresponding tessellation class is :class:`~tramway.tessellation.window.Sli
 
 The step (`shift`) and window width (`duration`) can be defined either as timestamps (default) or as
 frames (with ``frames=True`` or command-line option ``--frames``).
+
+Note that all the above spatial-only tessellation methods admit extra arguments related to time windowing, including ``time_window_duration`` and ``time_window_shift``.
+This is equivalent to applying first the spatial method and then segmenting in time, all in one step.
+
+An example is given in the :ref:`Segmenting in time <commandline_time>` subsection of the command-line primer section.
+
+Arbitrary time segments can also be defined, although no helper is available for this.
+See also the :ref:`Custom time segments <tessellation_custom_time>` subsection.
+
+
+Implementation details
+----------------------
+
+The concept of tessellation or windowing in itself is independent of the proper partition of the molecule locations or translocations in subsets corresponding to cells or segments.
+
+These data are combined together in a :class:`~tramway.tessellation.base.CellStats`.
+
+Its :attr:`~tramway.tessellation.base.CellStats.tessellation` attribute of type :class:`~tramway.tessellation.base.Tessellation` is the "tessellation" or binning/sampling strategy grown from (trans-)location data and in principle suitable for partitioning/sampling any other similar set of (trans-)locations.
+
+The partition itself, i.e. the proper assignment of locations to cells/bins or segments - whether these locations are those involved in growing the tessellation or others, is referred to as *cell_index*.
+This naming appears in the :class:`~tramway.tessellation.base.Tessellation` class as a method, in the :class:`~tramway.tessellation.base.CellStats` class as an attribute (actually a property) and at other locations.
+
+From a particular partition a series of derivative products are commonly extracted, such as the location count per cell, and some of these products are conveniently provided by the :class:`~tramway.tessellation.base.CellStats`.
+
+Note that, because tessellating and partitioning are considered two different procedures, some input arguments to the :func:`~tramway.helper.tessellation.tessellate` helper function may have multiple understandings.
+Some constraints may be taken as directions by the tessellation algorithm while the same constraints would typically be enforced by the partitioning.
+
+As a consequence, :func:`~tramway.helper.tessellation.tessellate` takes arguments with the *strict_* prefix in their name.
+These arguments apply to the partition while arguments of similar names without this prefix apply to the tessellation.
 
 
 Advanced methods
@@ -251,6 +316,7 @@ The specific case of random cell centers can be implemented using the '*random*'
         knn=(n_nearest_neighbours, n_nearest_neighbours), label='random centroids')
 
 
+.. _tessellation_custom_time:
 
 Custom time segments
 ^^^^^^^^^^^^^^^^^^^^

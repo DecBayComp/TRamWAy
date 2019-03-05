@@ -513,6 +513,14 @@ class Distributed(Local):
             if connected:
                 raise ValueError('`connected` is not supported in combination with other arguments')
 
+            if cell_centers is None and max_cell_count == 1 and not adjacency_margin:
+                distr = type(new)
+                for i in new:
+                    cell = new[i]
+                    new[i] = distr({i: cell}, sparse.eye(1, dtype=bool, format='csr'),
+                            center=cell.center)
+                return new
+
             any_cell = self.any_cell()
 
             points = np.zeros((ncells, self.dim), dtype=any_cell.center.dtype)
@@ -524,7 +532,9 @@ class Distributed(Local):
 
             if cell_centers is None:
                 if max_cell_count == 1:
-                    grid = copy(self)
+                    assert False
+                    grid = tessellation.Voronoi()
+                    grid.cell_centers = points
                 else:
                     avg_probability = 1.0
                     if ngroups:
@@ -1906,10 +1916,10 @@ class Maps(Lazy):
 
     Functional dependencies:
 
-    * setting `maps` unsets `_variables`
+    * setting `maps` unsets `_features`
 
     """
-    __lazy__ = Lazy.__lazy__ + ('_variables',)
+    __lazy__ = Lazy.__lazy__ + ('_features',)
 
     def __init__(self, maps, mode=None, posteriors=None):
         Lazy.__init__(self)
@@ -1935,7 +1945,7 @@ class Maps(Lazy):
     @maps.setter
     def maps(self, m):
         if m is None:
-            self._variables = None
+            self._features = None
         else:
             if not isinstance(m, pd.DataFrame):
                 raise TypeError('DataFrame expected')
@@ -1945,38 +1955,64 @@ class Maps(Lazy):
                     raise _err
             elif m.columns.size == 0:
                 raise _err
-            self._variables = splitcoord(m.columns)
+            self._features = splitcoord(m.columns)
         self._maps = m
+
+    @property
+    def features(self):
+        """
+        `list` or ``None``
+
+        List of different feature names without the coordinate suffix.
+
+        For example, if `maps` has columns *diffusivity*, *force x* and *force y*, `features`
+        will return *diffusivity* and *force*.
+        """
+        if self._features is None:
+            return None
+        else:
+            return list(self._features.keys())
 
     @property
     def variables(self):
         """
-        `list` or ``None``
-
-        List of different variable names without the coordinate suffix.
-
-        For example, if `maps` has columns *diffusivity*, *force x* and *force y*, `variables`
-        will return *diffusivity* and *force*.
+        Alias for `features`.
         """
-        if self._variables is None:
-            return None
-        else:
-            return list(self._variables.keys())
+        warn('`variables` is deprecated; use `features` instead', PendingDeprecationWarning)
+        return self.features
+
+    @property
+    def _variables(self):
+        """
+        Alias for `_features`.
+        """
+        warn('`_variables` is deprecated; use `_features` instead', PendingDeprecationWarning)
+        return self._features
 
     def __nonzero__(self):
         return self.maps is not None
 
     def __len__(self):
-        return 0 if self._variables is None else len(self._variables)
+        return 0 if self._features is None else len(self._features)
 
-    def __contains__(self, variable_name):
-        return variable_name in self._variables
+    def __contains__(self, feature_name):
+        return feature_name in self._features
 
-    def __getitem__(self, variable_name):
+    def __getitem__(self, feature_name):
         try:
-            return self.maps[self._variables[variable_name]]
+            return self.maps[self._features[feature_name]]
         except (TypeError, KeyError):
-            raise KeyError("no such map: '{}'".format(variable_name))
+            raise KeyError("no such mapped feature: '{}'".format(feature_name))
+
+    def __setitem__(self, feature_name, val):
+        if isinstance(val, np.ndarray):
+            if val.size == self.maps.shape[0]:
+                self.maps[feature_name] = val
+                self._features = None
+            else:
+                raise ValueError('wrong array size')
+        else:
+            raise NotImplementedError('only numpy ndarrays are supported')
 
     def sub(self, ix, reindex=False):
         """
@@ -2007,9 +2043,9 @@ class Maps(Lazy):
 
     def __str__(self):
         attrs = { k: v for k, v in self.__dict__.items() if not (k[0] == '_' or v is None) }
-        v = self.variables
+        v = self.features
         if v is not None:
-            attrs['variables'] = v
+            attrs['features'] = v
         attrs['maps'] = type(self.maps)
         l = max(len(k) for k in attrs)
         s = '\n'.join([ '{}:{} {}'.format(k, ' '*(l-len(k)), str(v)) for k, v in attrs.items() ])

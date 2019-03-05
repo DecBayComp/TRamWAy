@@ -15,6 +15,7 @@ from ..core import *
 from ..core.hdf5 import *
 import os.path
 import six
+import pandas as pd
 
 
 class UseCaseWarning(UserWarning):
@@ -52,7 +53,11 @@ class Helper(object):
             verbose = self.verbose
         if labels is None:
             labels = self.input_label
-        if (self.are_multiple_files(data) and data and all(os.path.exists(_d) for _d in data)) or \
+        if isinstance(data, pd.DataFrame):
+            self.analyses = Analyses(data)
+        elif isinstance(data, Analyses):
+            self.analyses = data
+        elif (self.are_multiple_files(data) and data and all(os.path.exists(_d) for _d in data)) or \
                 (isinstance(data, six.string_types) and os.path.isdir(data)):
             data, self.input_file = load_xyt(data, return_paths=True, **kwargs)
             self.analyses = Analyses(data)
@@ -76,8 +81,6 @@ class Helper(object):
                         self.analyses = Analyses(data)
                 else:
                     raise
-        elif isinstance(data, Analyses):
-            self.analyses = data
         if isinstance(data, Analyses):
             if not (labels is None and types is None):
                 data = find_artefacts(data, types, labels)

@@ -15,6 +15,7 @@ setup = {
         ('shift', dict(type=float, help="time shift between consecutive segments, in seconds (or in frames)")),
         ('frames', dict(action='store_true', help="regard the --duration and --shift arguments as numbers of frames instead of timestamps")),
         )),
+    'window_compatible': False,
     }
 
 
@@ -36,6 +37,9 @@ class SlidingWindow(TimeLattice):
         if frames:
             duration = int(duration)
             shift = int(shift)
+        else:
+            duration = float(duration)
+            shift = float(duration)
         self.duration = duration
         self.shift = shift
         self.start_time = start_time
@@ -53,11 +57,7 @@ class SlidingWindow(TimeLattice):
             t0 = self.start_time
         duration, shift = self.duration, self.shift
         if isinstance(duration, int):
-            dt = np.unique(np.diff(np.sort(ts)))
-            if dt[0] == 0:
-                dt = dt[1]
-            else:
-                dt = dt[0]
+            dt = np.median(np.diff(np.unique(ts)))
             duration *= dt
             shift *= dt
             dt /= 10.
