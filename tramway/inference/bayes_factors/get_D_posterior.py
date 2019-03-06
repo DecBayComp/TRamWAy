@@ -97,11 +97,11 @@ def get_D_confidence_interval(alpha, n, zeta_t, V, V_pi, dt, sigma2, dim):
     eta = np.sqrt(n_pi / (n + n_pi))
     zeta_t = np.array(zeta_t)
     G3 = v + eta**2 * _norm2(zeta_t - _zeta_mu(dim))
-
+    min_D = sigma2 / dt    # units of variance /s
     MAP_D = get_MAP_D(n, zeta_t, V, V_pi, dt, sigma2, dim)
 
     def posterior_integral(D):
-        if z <= min_D:
+        if D <= min_D:
             intg = 0
         else:
             intg = (1
@@ -113,7 +113,6 @@ def get_D_confidence_interval(alpha, n, zeta_t, V, V_pi, dt, sigma2, dim):
         return intg
 
     # %% Find root
-    min_D = sigma2 / dt    # units of variance /s
     max_D_search = 1e4  # Maximal D up to which to look for a root, units of variance /s
     CI = np.ones(2) * np.nan
 
