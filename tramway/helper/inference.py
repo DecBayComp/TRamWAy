@@ -17,6 +17,8 @@ from tramway.core.hdf5 import *
 from tramway.inference import *
 from .base import *
 import tramway.inference as inference # inference.plugins
+import tramway.tessellation.time
+import tramway.inference.time
 from tramway.helper.tessellation import *
 from warnings import warn
 import os
@@ -69,10 +71,16 @@ class Infer(Helper):
         else:
             if not isinstance(cells, CellStats) or cells.tessellation is None:
                 raise ValueError('no cells found')
+            has_time_linking = isinstance(cells.tessellation, tramway.tessellation.time.TimeLattice) \
+                    and bool(cells.tessellation.time_dimension)
             # prepare the data for the inference
             distributed_kwargs = {}
+            if new_cell is None and has_time_linking:
+                new_cell = tramway.inference.time.DynamicTranslocations
             if new_group is None:
-                if merge_threshold_count:
+                if has_time_linking:
+                    new_group = tramway.inference.time.DynamicCells
+                elif merge_threshold_count:
                     new_group = DistributeMerge
                     distributed_kwargs['new_group_kwargs'] = \
                         {'min_location_count': merge_threshold_count}
@@ -949,7 +957,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             try:
                 _map = _map[segment]
             except IndexError:
-                raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(_maps)-1))
+                raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(_map)-1))
 
         tplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 

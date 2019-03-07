@@ -102,6 +102,11 @@ def animate_trajectories_2d(xyt, output_file=None,
         dt = time_step
     if frame_rate is None:
         frame_rate = 1. / dt # assume dt is in seconds
+    if bounding_box is None:
+        import matplotlib.transforms
+        xmin, ymin = xyt['x'].min(), xyt['y'].min()
+        xmax, ymax = xyt['x'].max(), xyt['y'].max()
+        bounding_box = matplotlib.transforms.Bbox.from_bounds(xmin, ymin, xmax-xmin, ymax-ymin)
 
     t0 = np.round(xyt['t'].min() / dt) * dt
     N = np.round((xyt['t'].max() - t0) / dt) + 1
@@ -136,6 +141,8 @@ def animate_trajectories_2d(xyt, output_file=None,
                     #
                     if time_unit:
                         movie.axes.set_title(title_pattern.format(t))
+                    if bounding_box is not None:
+                        movie.axes.update_datalim_bounds(bounding_box)
                     #
                     movie.grab_frame()
                     #

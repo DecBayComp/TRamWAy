@@ -39,12 +39,16 @@ def translocations(df, sort=False):
     xyz = ['x', 'y']
     if 'z' in df.columns:
         xyz.append('z')
-    ixyz = xyz + [i]
-    jump = df[ixyz].diff()
-    #df[xyz] = jump[xyz]
-    #df = df[jump[i] != 0]
-    #return df
-    jump = jump[jump[i] == 0][xyz]
+    dxyz = [ 'd'+col for col in xyz ]
+    if all( col in df.columns for col in dxyz ):
+        jump = df[dxyz]
+    else:
+        ixyz = xyz + [i]
+        jump = df[ixyz].diff()
+        #df[xyz] = jump[xyz]
+        #df = df[jump[i] != 0]
+        #return df
+        jump = jump[jump[i] == 0][xyz]
     return jump#np.sqrt(np.sum(jump * jump, axis=1))
 
 
@@ -177,19 +181,22 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
         return df
 
 
-def crop(points, box, by=None):
+def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False):
     """
     Remove locations outside a bounding box.
 
     When a location is discarded, the corresponding trajectory is splitted into two distinct
     trajectories.
 
+    Important: the locations of any given trajectory should be contiguous and ordered.
+
     Arguments:
 
         locations (pandas.DataFrame): locations with trajectory indices in column 'n',
-            times in column 't' and coordinates in the other columns
+            times in column 't' and coordinates in the other columns;
+            delta columns are ignored
 
-        box (array-like): origin and size of the bounding box
+        box (array-like): origin and size of the space bounding box
 
         by (str): for translocations only;
             '*start*': crop by translocation starting point; keep the associated
@@ -198,6 +205,12 @@ def crop(points, box, by=None):
             origins;
             trajectories with a single non-terminal point outside the bounding box are
             not splitted
+
+        add_deltas (bool): add 'dx', 'dy', ..., 'dt' columns is they are not already present
+
+        keep_nans (bool): adding deltas generates NaN; keep them
+
+        no_deltas (bool): do not consider any column as deltas
 
     Returns:
 
@@ -208,28 +221,47 @@ def crop(points, box, by=None):
     support_lower_bound = box[:dim]
     support_size = box[dim:]
     support_upper_bound = support_lower_bound + support_size
-    coord_cols = [ c for c in points.columns if c not in ['n', 't'] ]
+    not_coord_cols = ['n', 't']
+    if no_deltas:
+        delta_cols = []
+    else:
+        delta_cols = [ c for c in points.columns \
+                if c[0]=='d' and c[1:] != 'n' and c[1:] in points.columns ]
+        not_coord_cols += delta_cols
+    coord_cols = [ c for c in points.columns if c not in not_coord_cols ]
+    if len(coord_cols) != dim:
+        raise ValueError('the bounding box has dimension {} while the following coordinate columns were found: {}'.format(dim, coord_cols))
     within = np.all(np.logical_and(support_lower_bound <= points[coord_cols].values,
         points[coord_cols].values <= support_upper_bound), axis=1)
-    if by:
+    if add_deltas or by:
         paired_dest = points['n'].diff().values==0
         paired_src = np.r_[paired_dest[1:], False]
+    points = points.copy()
+    if add_deltas:
+        cols_with_deltas = [ c[1:] for c in delta_cols ]
+        cols_to_diff = [ c for c in points.columns if c not in ['n']+cols_with_deltas ]
+        deltas = points[cols_to_diff].diff().shift(-1)
+        deltas = deltas[paired_src]
+        deltas.columns = [ 'd'+c for c in cols_to_diff ]
+        points = points.join(deltas)
+    if by:
         if by == 'start':
             within[paired_dest] |= within[paired_src]
         elif by == 'stop':
             within[paired_src] |= within[paired_dest]
         else:
             raise ValueError('unsupported value for argument `by`')
-    points = points.copy()
     if 'n' in points.columns:
         points['n'] += np.cumsum(np.logical_not(within), dtype=points.index.dtype)
         single_point = 0 < points['n'].diff().values[1:]
         single_point[:-1] = np.logical_and(single_point[:-1], single_point[1:])
         ok = np.r_[True, np.logical_not(single_point)]
-        points = points.iloc[ok]
+        points = points[ok]
         within = within[ok]
         points['n'] -= (points['n'].diff() - 1).clip_lower(0).cumsum()
-    points = points.iloc[within]
+    points = points[within]
+    if not keep_nans:
+        points.dropna(inplace=True)
     points.index = np.arange(points.shape[0])
     return points
 

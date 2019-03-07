@@ -29,9 +29,9 @@ setup = {
 }
 
 
-def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False, **kwargs):
+def infer_d_conj_prior(cells, alpha=.95, return_zeta_spurious=True, trust=False, **kwargs):
     """
-    Infer diffusivity MAP and confidence interval using a conjugate prior, according to Serov et al. (2018)
+    Infer diffusivity MAP and confidence interval using a conjugate prior [Serov et al. 2019]
 
     Arguments:
 
@@ -50,8 +50,8 @@ def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False,
     Other valid input arguments are localization- and gradient-related arguments.
 
     See also :func:`~tramway.inference.bayes_factors.get_D_posterior.get_D_confidence_interval`,
-    :met:`~tramway.inference.base.Distributed.get_localization_error`
-    and :func:`~tramway.inference.base.gradient.get_grad_kwargs`.
+    :meth:`~tramway.inference.base.Local.get_localization_error`
+    and :func:`~tramway.inference.gradient.get_grad_kwargs`.
     """
     dim = cells.dim
     dt = cells.any_cell().dt[0]
@@ -112,5 +112,10 @@ def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False,
         columns=['diffusivity', 'ci low', 'ci high']))
     return maps
 
+def infer_d_map_and_ci(*args, **kwargs):
+    """
+    Backward-compatibility alias for :func:`infer_d_conj_prior`.
+    """
+    return infer_d_conj_prior(*args, **kwargs)
 
-__all__ = ['infer_d_map_and_ci', 'setup']
+__all__ = ['infer_d_conj_prior', 'infer_d_map_and_ci', 'setup']

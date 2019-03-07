@@ -36,7 +36,7 @@ setup = {'arguments': OrderedDict((
         ('grad',        dict(help="gradient; any of 'grad1', 'gradn'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',         ()))),
-    'cell_sampling': 'group'}
+    'cell_sampling': 'connected'}
 
 
 class DV(ChainArray):

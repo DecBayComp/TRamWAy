@@ -26,3 +26,20 @@ tramway.utils.inferencemap module
     :show-inheritance:
 
 
+tramway.utils.trajviz module
+----------------------------
+
+.. automodule:: tramway.utils.trajviz
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.utils.mapviz module
+---------------------------
+
+.. automodule:: tramway.utils.mapviz
+    :members:
+    :undoc-members:
+    :show-inheritance:
+

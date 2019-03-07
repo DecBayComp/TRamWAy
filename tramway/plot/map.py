@@ -131,8 +131,8 @@ def cell_to_polygon(c, X, voronoi=None, bounding_box=None, region_point=None, re
 
 
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
-        delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
-        **kwargs):
+        delaunay=False, colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
+        xlim=None, ylim=None, **kwargs):
     """
     Plot a 2D scalar map as a colourful image.
 
@@ -140,7 +140,8 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
         cells (CellStats or Distributed): spatial description of the cells
 
-        values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
+        values (pandas.DataFrame or numpy.ndarray): feature value at each cell,
+            that will be represented as a colour
 
         aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
 
@@ -159,6 +160,8 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
             :func:`~matplotlib.pyplot.colorbar`;
             setting colorbar to '*nice*' allows to produce a colorbar close to the figure
             of the same size as the figure
+
+        unit/clabel (str): colorbar label, usually the unit of displayed feature
 
         alpha (float): alpha value of the cells
 
@@ -326,28 +329,35 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
     if aspect is not None:
         axes.set_aspect(aspect)
 
-    if colorbar=='nice':
-        # make the colorbar closer to the plot and same size
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        try:
-            plt
-        except NameError:
-            import matplotlib.pyplot as plt
-        try:
-            gca_bkp = plt.gca()
-            divider = make_axes_locatable(figure.gca())
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            figure.colorbar(patches, cax=cax)
-            plt.sca(gca_bkp)
-        except AttributeError as e:
-            warn(e.args[0], RuntimeWarning)
-    elif colorbar:
-        if not isinstance(colorbar, dict):
-            colorbar = {}
-        try:
-            figure.colorbar(patches, **colorbar)
-        except AttributeError as e:
-            warn(e.args[0], RuntimeWarning)
+    if colorbar:
+        if colorbar=='nice':
+            # make the colorbar closer to the plot and same size
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            try:
+                plt
+            except NameError:
+                import matplotlib.pyplot as plt
+            try:
+                gca_bkp = plt.gca()
+                divider = make_axes_locatable(figure.gca())
+                cax = divider.append_axes("right", size="5%", pad=0.05)
+                _colorbar = figure.colorbar(patches, cax=cax)
+                plt.sca(gca_bkp)
+            except AttributeError as e:
+                warn(e.args[0], RuntimeWarning)
+        else:
+            if not isinstance(colorbar, dict):
+                colorbar = {}
+            try:
+                _colorbar = figure.colorbar(patches, **colorbar)
+            except AttributeError as e:
+                warn(e.args[0], RuntimeWarning)
+            finally:
+                figure.sca(axes) # not sure whether this can be useful
+        if clabel:
+            unit = clabel
+        if unit:
+            _colorbar.set_label(unit)
 
     return obj
 

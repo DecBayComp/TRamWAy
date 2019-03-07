@@ -30,7 +30,7 @@ except:
     except:
         class VideoReader(object):
             def __init__(self, *args, **kwargs):
-                import cv2 # fails
+                import cv2 # cannot read the movie
     else:
         class VideoReader(object):
             def __init__(self, filepath, *args, **kwargs):
@@ -61,7 +61,8 @@ else:
                 elif key == 27: # quit on ESC
                     break
                 # check that window is still opened
-                if cv2.getWindowProperty('frame', cv2.WND_PROP_AUTOSIZE) < 1:
+                if cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) < 1:
+                    # in old opencv-python versions, use cv2.WND_PROP_AUTOSIZE instead
                     break
             self.cap.release()
             cv2.destroyAllWindows()

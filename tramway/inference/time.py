@@ -28,7 +28,10 @@ class DynamicTranslocations(Translocations):
             t_pos = list(self.data.columns).index(self.time_col)
         else:
             t_pos = self.time_col
-        self.center_t = rt[t_pos].tolist()
+        try:
+            self.center_t = rt[t_pos].tolist()
+        except IndexError:
+            raise RuntimeError('missing time column; was the tessellation made with defined time_dimension?')
         others = np.ones(rt.size, dtype=bool)
         others[t_pos] = False
         self.center_r = rt[others]

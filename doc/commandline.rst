@@ -235,13 +235,13 @@ Learn more from the *tramway dump* help::
 
 .. _commandline_time:
 
-Segmenting in time
-------------------
+Segmenting time
+---------------
 
 The *tramway tessellate* command features temporal windowing as an addition to spatial binning.
 Let us consider the following example::
 
-    > tramway -i example.trxyt -o example2.rwa tessellate gwr --time-window-duration 1 --time-window-shift 0.1
+    > tramway -i example.trxyt -o example2.rwa tessellate gwr --knn 10 --time-window-duration 2 --time-window-shift 0.2
 
 Note first that we are making a new *rwa* file with the ``-o`` flag.
 We could have kept on working on the existing *rwa* file with ``-i example.rwa`` instead of ``-i example.trxyt -o example2.rwa``.
@@ -255,21 +255,21 @@ At the spatial binning step, all the locations considered independently of their
 Temporal windowing comes next and requires the ``--time-window-duration`` argument followed by the duration of the window in seconds.
 
 Optionally, the time shift between successive segments can be specified with the ``--time-window-shift`` argument.
-In the above example every pair of successive segments will share a 90% overlap (900 ms).
+In the above example every pair of successive segments will share a 90% overlap (1800 ms).
 The default is a shift equal to the duration, so that there is no overlap.
 
 At the inference step, the temporal sampling is transparent::
 
-    > tramway -i example2.rwa infer df
+    > tramway -i example2.rwa infer ddrift
 
 Note that drawing the spatial mesh or the inferred map now requires the index of a time segment to be specified::
 
     > tramway -i example2.rwa draw cells --segment 0
-    > tramway -i example2.rwa draw map --feature force --segment 0
+    > tramway -i example2.rwa draw map --feature drift --segment 0
 
 A movie can also be generated out of the inferred maps::
 
-    > tramway -v -i example2.rwa animate map --feature force
+    > tramway -v -i example2.rwa animate map --feature drift
 
 Note that *tramway animate map* requires a mapped feature to be specified unless a single feature is found.
 

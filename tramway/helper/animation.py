@@ -13,6 +13,7 @@
 
 
 from tramway.core.analyses.base import Analyses
+from tramway.plot.animation import *
 import os.path
 
 def animate_trajectories_2d_helper(input_data, *args, **kwargs):
@@ -106,5 +107,5 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
     animate_map_2d(_map, cells, output_file, **kwargs)
 
 
-__all__ = ['animate_trajectories_2d_helper', 'animate_map_2d_helper']
+__all__ = ['animate_trajectories_2d_helper', 'animate_map_2d_helper', 'VideoReader', 'VideoWriter', 'VideoWriterReader']
 

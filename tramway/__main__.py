@@ -92,10 +92,10 @@ def _sample(method, parse_extra=None):
         max_nn = kwargs.pop('max_nn', None)
         if not (min_nn is None and max_nn is None):
             kwargs['knn'] = (min_nn, max_nn)
-        if kwargs.pop('disable_time_regularization', False):
-            kwargs['time_window_options'] = dict(time_dimension=False)
-        elif kwargs.get('time_window_duration', None):
+        if kwargs.pop('enable_time_regularization', False):
             kwargs['time_window_options'] = dict(time_dimension=True)
+        elif kwargs.get('time_window_duration', None):
+            kwargs['time_window_options'] = dict(time_dimension=False)
         if parse_extra:
             for extra_arg, parse_arg in parse_extra:
                 kwargs[extra_arg] = parse_arg(**kwargs)
@@ -361,7 +361,7 @@ def main():
             if setup.get('window_compatible', True):
                 method_parser.add_argument('--time-window-duration', type=float, help="time window duration in seconds")
                 method_parser.add_argument('--time-window-shift', type=float, help="time window shift in seconds (default is equal to --time-window-duration so that there is no overlap between successive segments)")
-                method_parser.add_argument('--disable-time-regularization', action="store_true", help="successive segments are disconnected; this simplifies the further inference steps but disables time regularization")
+                method_parser.add_argument('--enable-time-regularization', action="store_true", help="successive segments are connected; this enables the further inference steps to regularize across time; beware that most inference modes are NOT compatible with this option")
             method_parser.set_defaults(func=_sample(method, translations))
 
 

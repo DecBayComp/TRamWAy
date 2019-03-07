@@ -32,9 +32,9 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
-        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
+        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential energy'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
-        ('time_prior',          ('-t', dict(type=float, help='prior on the time'))),
+        ('time_prior',          ('-t', dict(type=float, help='prior on the temporal variations of the diffusivity and potential energy'))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',            dict(type=int, help='maximum number of iterations')),
         ('compatibility',       ('-c', '--inferencemap', '--compatible',
@@ -172,17 +172,17 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
 
     # priors
     standard_priors, time_priors = 0., 0.
-    potential_prior = dv.potential_prior(j)
-    if potential_prior:
-        standard_priors += potential_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
-    diffusivity_prior = dv.diffusivity_prior(j)
-    if diffusivity_prior:
+    V_prior = dv.potential_prior(j)
+    if V_prior:
+        standard_priors += V_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
+    D_prior = dv.diffusivity_prior(j)
+    if D_prior:
         D = x[:int(x.size/2)]
         # spatial gradient of the local diffusivity
         gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
         if gradD is not None:
             # `grad_sum` memoizes and can be called several times at no extra cost
-            standard_priors += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
+            standard_priors += D_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
     #print('{}\t{}\t{}'.format(i+1, D[j], result))
     if jeffreys_prior:
         if Dj <= 0:
@@ -190,13 +190,20 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
         standard_priors += jeffreys_prior * 2. * np.log(Dj * dt_mean[j] + sigma2) - np.log(Dj)
 
     if time_prior:
-        if diffusivity_prior:
+        D_time_prior, V_time_prior = time_prior
+        if D_prior and D_time_prior:
             dDdt = cells.time_derivative(i, D, reverse_index)
-            # assume fixed-duration time window
-            time_priors += diffusivity_prior * time_prior * dDdt * dDdt
-        if potential_prior:
+            if dDdt is None:
+                warn('time_derivative({}, D) failed'.format(i), RuntimeWarning)
+            else:
+                # assume fixed-duration time window
+                time_priors += D_prior * D_time_prior * dDdt * dDdt
+        if V_prior and V_time_prior:
             dVdt = cells.time_derivative(i, V, reverse_index)
-            time_priors += potential_prior * time_prior * dVdt * dVdt
+            if dVdt is None:
+                warn('time_derivative({}, V) failed'.format(i), RuntimeWarning)
+            else:
+                time_priors += V_prior * V_time_prior * dVdt * dVdt
 
     priors = standard_priors + time_priors
     result = raw_posterior + priors
@@ -222,6 +229,18 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     return_struct=False, posterior_max_count=1000,
     **kwargs):
     """
+    Arguments:
+
+        ...
+
+        time_prior (float or tuple): one of two regularization coefficients that
+            penalize the temporal derivative of diffusivity and potential energy;
+            the first coefficient applies to diffusivity (and is multiplied by
+            `diffusivity_prior`) and the second applies to potential energy (and
+            is multiplied by `potential_prior`).
+
+        ...
+
     See also :func:`~tramway.inference.optimization.minimize_sparse_bfgs`.
     """
 
@@ -271,6 +290,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     localization_error = cells.get_localization_error(kwargs, 0.03, True)
     if jeffreys_prior is True:
         jeffreys_prior = 1.
+    if time_prior and not isinstance(time_prior, (tuple, list)):
+        time_prior = (time_prior, time_prior)
     args = (dv, cells, localization_error, jeffreys_prior, time_prior, dt_mean,
         index, reverse_index, grad_kwargs, posterior_info)
 
@@ -348,7 +369,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     if ls_step_max_decay:
         sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-3
+        sbfgs_kwargs['ftol'] = 1e-2
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,

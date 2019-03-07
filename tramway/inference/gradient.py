@@ -173,7 +173,7 @@ def get_grad_kwargs(gradient=None, grad_epsilon=None, grad_selection_angle=None,
 
     Returns:
 
-        dict: keyworded arguments to :met:`~tramway.inference.base.Distributed.grad`.
+        dict: keyworded arguments to :meth:`~tramway.inference.base.Distributed.grad`.
 
     Note: `grad` and `gradient` are currently ignored.
     """
@@ -417,7 +417,7 @@ def _vander(x, y):
 
 
 def setup_with_grad_arguments(setup):
-    """Add :met:`~tramway.inference.base.Distributed.grad` related arguments to inference plugin setup.
+    """Add :meth:`~tramway.inference.base.Distributed.grad` related arguments to inference plugin setup.
 
     Input argument `setup` is modified inplace.
     """

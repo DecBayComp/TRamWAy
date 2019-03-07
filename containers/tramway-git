@@ -12,7 +12,7 @@ From: ubuntu:xenial
 	apt-get install -y --no-install-recommends locales
 	locale-gen
 	apt-get install -y --no-install-recommends \
-		libhdf5-10 python python-pip python-numpy python-scipy
+		libhdf5-10 ffmpeg python python-pip python-numpy python-scipy
 	apt-get install -y --no-install-recommends \
 		python-h5py python-tables python-pandas python-matplotlib
 	apt-get install -y --no-install-recommends \

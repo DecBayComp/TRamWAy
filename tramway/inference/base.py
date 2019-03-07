@@ -849,6 +849,10 @@ def __run__(func, cell):
     if x is None:
         return None
     else:
+        is_tuple = isinstance(x, tuple)
+        if is_tuple:
+            _x = x[1:]
+            x = x[0]
         i = cell.indices
         if cell.central is not None:
             try:
@@ -865,7 +869,10 @@ def __run__(func, cell):
             if x.shape[0] != i.shape[0]:
                 raise IndexError('not as many indices as values')
         x.index = i
-        return x
+        if is_tuple:
+            return (x,)+_x
+        else:
+            return x
 
 def __run_star__(args):
     return __run__(*args)
@@ -1185,6 +1192,12 @@ class Translocations(Cell):
         else:
             return np.asarray(self.origins[:,self.time_col])
 
+    @property
+    def r(self):
+        if isstructured(self.origins):
+            return np.asarray(self.origins[self.space_cols])
+        else:
+            return np.asarray(self.origins[:,self.space_cols])
 
 
 def identify_columns(points, trajectory_col=True):
@@ -2000,7 +2013,7 @@ class Maps(Lazy):
 
     def __getitem__(self, feature_name):
         try:
-            return self.maps[self._features[feature_name]]
+            return self.maps[dict(self._features)[feature_name]]
         except (TypeError, KeyError):
             raise KeyError("no such mapped feature: '{}'".format(feature_name))
 

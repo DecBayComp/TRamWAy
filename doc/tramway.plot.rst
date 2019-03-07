@@ -44,10 +44,10 @@ tramway.plot.mesh module
     :show-inheritance:
 
 
-tramway.plot.tk module
-----------------------
+tramway.plot.tk.contour module
+------------------------------
 
-.. automodule:: tramway.plot.tk
+.. automodule:: tramway.plot.tk.contour
     :members:
     :undoc-members:
     :show-inheritance:

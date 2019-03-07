@@ -39,7 +39,7 @@ class SlidingWindow(TimeLattice):
             shift = int(shift)
         else:
             duration = float(duration)
-            shift = float(duration)
+            shift = float(shift)
         self.duration = duration
         self.shift = shift
         self.start_time = start_time

@@ -2,6 +2,7 @@
 
 
 from tramway.helper.animation import animate_trajectories_2d_helper
+from matplotlib.transforms import Bbox
 
 
 def trajviz_utility():
@@ -21,9 +22,15 @@ def trajviz_utility():
     parser.add_argument('--marker-style', type=str, default='o', help="location marker style (can be 'none')")
     parser.add_argument('--marker-size', type=int, default=4, help="location marker size")
     parser.add_argument('--axis-off', '--axes-off', action='store_true', help="turn the axes off")
+    parser.add_argument('--bounding-box', help="bounding box as left,bottom,right,top")
     parser.add_argument('input_file', help='path to xyt trajectory file')
     parser.add_argument('output_file', nargs='?', help='path to mp4 file')
     args = parser.parse_args()
+
+    if args.bounding_box:
+        bounding_box = Bbox.from_extents(int(x) for x in args.bounding_box.split(','))
+    else:
+        bounding_box = None
 
     animate_trajectories_2d_helper(args.input_file, args.output_file,
             frame_rate=args.frame_rate,
@@ -37,6 +44,7 @@ def trajviz_utility():
             marker_style=None if args.marker_style == 'none' else args.marker_style,
             marker_size=args.marker_size,
             axis=not args.axis_off,
+            bounding_box=bounding_box,
             verbose=not args.quiet,
             columns=args.columns)
 

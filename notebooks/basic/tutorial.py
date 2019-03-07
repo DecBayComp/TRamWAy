@@ -56,7 +56,7 @@ def load_default_trajectories(time_varying_properties=False):
             trajs = random_walk(
                 diffusivity=.1, force=F,
                 trajectory_mean_count=500, lifetime_tau=.25,
-                reflect=True,# minor_step_count=999,
+                full=False,# minor_step_count=999,
                 )
             trajs.to_csv(trajectories_with_time_varying_properties, sep='\t', header=False)
         return trajs
@@ -68,9 +68,10 @@ def load_default_trajectories(time_varying_properties=False):
         else:
             trajs = random_walk_2d(
                 n_trajs=400, N_mean=5, dt=.05,
-                D0=.3, amplitude_D=0,
-                amplitude_V=-3., mode_V='potential_linear',
+                D0=.2, amplitude_D=0,
+                amplitude_V=-4., mode_V='potential_linear',
                 )
+            trajs = crop(trajs, [-1.,-1.,2,2]).dropna()
             trajs.to_csv(trajectory_file, sep='\t', header=False)
         return trajs
 
@@ -92,7 +93,7 @@ def load_default_partition(time_varying_properties=False):
             cells = analysis_tree['default'].data
         else:
             cells = tessellate(analysis_tree, 'hexagon',
-                rel_avg_distance=1.3, avg_location_count=0,
+                rel_avg_distance=1.2, avg_location_count=0,
                 time_window_duration=2.,
                 time_window_options=dict(time_dimension=True),
                 knn=10,
@@ -110,7 +111,8 @@ def load_default_partition(time_varying_properties=False):
             cells = analysis_tree['default'].data
         else:
             cells = tessellate(analysis_tree, 'hexagon',
-                lower_bound=np.array((-.6,-.6)), upper_bound=np.array((.6,.6)),
+                rel_avg_distance=0.8, knn=10,
+                lower_bound=np.array((-.9,-.9)), upper_bound=np.array((.9,.9)),
                 output_label='default')
             save_rwa(rwa_file, analysis_tree, force=True)
         return cells

@@ -206,7 +206,7 @@ frames (with ``frames=True`` or command-line option ``--frames``).
 Note that all the above spatial-only tessellation methods admit extra arguments related to time windowing, including ``time_window_duration`` and ``time_window_shift``.
 This is equivalent to applying first the spatial method and then segmenting in time, all in one step.
 
-An example is given in the :ref:`Segmenting in time <commandline_time>` subsection of the command-line primer section.
+An example is given in the :ref:`Segmenting time <commandline_time>` subsection of the command-line primer section.
 
 Arbitrary time segments can also be defined, although no helper is available for this.
 See also the :ref:`Custom time segments <tessellation_custom_time>` subsection.

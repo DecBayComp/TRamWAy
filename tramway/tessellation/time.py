@@ -62,7 +62,7 @@ class TimeLattice(Tessellation):
             time_dimension=None):
         Tessellation.__init__(self, scaler) # scaler is ignored
         self._time_lattice = segments
-        self.time_edge = time_label
+        self.time_edge = None if time_label in ((), []) else time_label
         self._cell_adjacency = None
         self._cell_label = None
         self._adjacency_label = None
@@ -102,8 +102,10 @@ class TimeLattice(Tessellation):
         self.cell_volume = None
 
     def tessellate(self, points, **kwargs):
-        if self.time_edge is None:
-            if self.time_dimension is not None:
+        if self.time_edge in (None, (), []):
+            if self.time_dimension is None:
+                self.time_edge = None
+            else:
                 self.time_edge = bool(self.time_dimension)
         elif self.time_dimension is None:
             self.time_dimension = bool(self.time_edge)
@@ -212,14 +214,17 @@ class TimeLattice(Tessellation):
         if self._cell_adjacency is None:
             nsegments = self.time_lattice.shape[0]
 
-            try:
-                past_edge, future_edge = self.time_edge
-            except (TypeError, ValueError):
-                past_edge = future_edge = self.time_edge
-            if past_edge is False:
-                past_edge = None
-            if future_edge is False:
-                future_edge = None
+            if self.time_edge in (None, (), []):
+                self.time_edge = past_edge = future_edge = None
+            else:
+                try:
+                    past_edge, future_edge = self.time_edge
+                except (TypeError, ValueError):
+                    past_edge = future_edge = self.time_edge
+                if past_edge is False:
+                    past_edge = None
+                if future_edge is False:
+                    future_edge = None
 
             if self.spatial_mesh is None:
                 cell_ids = np.arange(nsegments)
