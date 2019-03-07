@@ -67,24 +67,20 @@ def infer_d_map_and_ci(cells, alpha=.95, return_zeta_spurious=True, trust=False,
             V_minus_i = V_pi.loc[i]
         except KeyError:
             continue
-        # try:
-            # print(3, alpha, n_i, zeta_i, V_i, V_minus_i, dt, sigma2, dim)
-        _map, _ci = get_D_confidence_interval(
-            alpha, n_i, zeta_i, V_i, V_minus_i, dt, sigma2, dim)
-        # except (SystemExit, KeyboardInterrupt):
-        #     raise
-        # except:
-        #     if trust:
-        #         raise
-        #     continue
+        try:
+            _map, _ci = get_D_confidence_interval(
+                alpha, n_i, zeta_i, V_i, V_minus_i, dt, sigma2, dim)
+        except (SystemExit, KeyboardInterrupt):
+            raise
+        except:
+            if trust:
+                raise
+            continue
         index.append(i)
         D_map.append(_map)
-        # print(_ci)
         D_ci.append(_ci[np.newaxis, :])
     D_map = np.array(D_map)
-    # print(1, D_ci)
     D_ci = np.vstack(D_ci)
-    # print(2, D_ci)
     if return_zeta_spurious:
         reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
         reverse_index[index] = np.arange(len(index))
