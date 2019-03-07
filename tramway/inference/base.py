@@ -12,23 +12,25 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.core import *
-from tramway.core.exceptions import *
-from tramway.tessellation import format_cell_index, nearest_cell
-import tramway.tessellation as tessellation
-from .gradient import grad1
+import traceback
+from collections import OrderedDict
+from copy import copy
+from functools import partial
+from multiprocessing import Lock, Pool
+from warnings import warn
+
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
 import scipy.spatial.qhull
-from copy import copy
-from collections import OrderedDict
-from multiprocessing import Pool, Lock
 import six
-from functools import partial
-from warnings import warn
-import traceback
 
+import tramway.tessellation as tessellation
+from tramway.core import *
+from tramway.core.exceptions import *
+from tramway.tessellation import format_cell_index, nearest_cell
+
+from .gradient import grad1
 
 
 class Local(Lazy):
@@ -110,10 +112,10 @@ class Local(Lazy):
                 u = self.center
                 for i in self.hull.simplices:
                     v, w = self.hull.points[i]
-                    area += .5 * abs(\
-                            (v[0] - u[0]) * (w[1] - u[1]) - \
-                            (w[0] - u[0]) * (v[1] - u[1]) \
-                        )
+                    area += .5 * abs(
+                        (v[0] - u[0]) * (w[1] - u[1]) -
+                        (w[0] - u[0]) * (v[1] - u[1])
+                    )
                 self._volume = area
             else:
                 self._volume = self.hull.volume
@@ -216,7 +218,7 @@ class Local(Lazy):
                 if not (localization_error is None or np.isclose(_sigma2, sigma2)):
                     raise MultipleArgumentError('localization_error', 'sigma')
         else:
-            if not (sigma is None or np.isclose(sigma*sigma, sigma2)):
+            if not (sigma is None or np.isclose(sigma * sigma, sigma2)):
                 if localization_error is None:
                     raise MultipleArgumentError('sigma', 'sigma2')
                 else:
@@ -225,7 +227,6 @@ class Local(Lazy):
                 raise MultipleArgumentError('localization_error', 'sigma2')
 
         return sigma2
-
 
 
 class Distributed(Local):
@@ -237,12 +238,12 @@ class Distributed(Local):
 
     """
     __slots__ = ('_reverse', '_adjacency', 'central', '_degree', '_ccount', '_tcount')
-    __lazy__  = Local.__lazy__ + ('reverse', 'degree', 'ccount', 'tcount')
+    __lazy__ = Local.__lazy__ + ('reverse', 'degree', 'ccount', 'tcount')
 
-    def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
-        boundary=None):
+    def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None,
+                 boundary=None):
         Local.__init__(self, index, OrderedDict(), center, span, boundary)
-        self.cells = cells # let's `cells` setter perform the necessary checks
+        self.cells = cells  # let's `cells` setter perform the necessary checks
         self.adjacency = adjacency
         self.central = central
 
@@ -268,13 +269,13 @@ class Distributed(Local):
                 cells = celltype(sorted(enumerate(cells), key=lambda t: t[0]))
             else:
                 raise TypeError('`cells` argument is not a dictionnary (`dict` or `OrderedDict`)')
-        if not all([ isinstance(cell, Local) for cell in cells.values() ]):
+        if not all([isinstance(cell, Local) for cell in cells.values()]):
             raise TypeError('`cells` argument is not a dictionnary of `Local`')
-        #try:
+        # try:
         #       if self.ccount == len(cells): #.keys().reversed().next(): # max
         #           self.adjacency = None
         #           self.central = None
-        #except:
+        # except:
         #       pass
         self.reverse = None
         self.ccount = None
@@ -282,7 +283,7 @@ class Distributed(Local):
 
     @property
     def indices(self):
-        return np.array([ cell.index for cell in self.cells.values() ])
+        return np.array([cell.index for cell in self.cells.values()])
 
     @property
     def reverse(self):
@@ -296,7 +297,7 @@ class Distributed(Local):
         return self._reverse
 
     @reverse.setter
-    def reverse(self, r): # ro
+    def reverse(self, r):  # ro
         self.__assertlazy__('reverse', r, related_attribute='cells')
 
     @property
@@ -329,10 +330,10 @@ class Distributed(Local):
         """
         if self._tcount is None:
             if self.central is None:
-                self._tcount = sum([ cell.tcount \
-                    for i, cell in self.cells.items() if self.central[i] ])
+                self._tcount = sum([cell.tcount
+                                    for i, cell in self.cells.items() if self.central[i]])
             else:
-                self._tcount = sum([ cell.tcount for cell in self.cells.values() ])
+                self._tcount = sum([cell.tcount for cell in self.cells.values()])
         return self._tcount
 
     @tcount.setter
@@ -347,14 +348,14 @@ class Distributed(Local):
 
         Total number of terminal cells. Duplicates are ignored.
         """
-        #return self.adjacency.shape[0] # or len(self.cells)
+        # return self.adjacency.shape[0] # or len(self.cells)
         if self._ccount is None:
-            self._ccount = sum([ cell.ccount if isinstance(cell, Distributed) else 1 \
-                for cell in self.cells.values() ])
-        return self._ccount # not mutable (no need for __returnlazy__)
+            self._ccount = sum([cell.ccount if isinstance(cell, Distributed) else 1
+                                for cell in self.cells.values()])
+        return self._ccount  # not mutable (no need for __returnlazy__)
 
     @ccount.setter
-    def ccount(self, c): # rw for performance issues, but `c` should equal self.ccount
+    def ccount(self, c):  # rw for performance issues, but `c` should equal self.ccount
         self.__setlazy__('ccount', c)
 
     @property
@@ -371,7 +372,7 @@ class Distributed(Local):
         if a is not None:
             a = a.tocsr()
         self._adjacency = a
-        self._degree = None # `degree` is ro, hence set `_degree` instead
+        self._degree = None  # `degree` is ro, hence set `_degree` instead
 
     @property
     def degree(self):
@@ -385,7 +386,7 @@ class Distributed(Local):
         return self._degree
 
     @degree.setter
-    def degree(self, d): # ro
+    def degree(self, d):  # ro
         self.__lazyassert__(d, 'adjacency')
 
     def grad(self, i, X, index_map=None, **kwargs):
@@ -453,15 +454,15 @@ class Distributed(Local):
                 return np.stack(arrays, axis=0)
 
         new = copy(self)
-        new.cells = {i: Cell(i, concat([cell.data for cell in dist.cells.values()]), \
-                dist.center, dist.span, hull=dist.hull) \
-            if isinstance(dist, Distributed) else dist \
-            for i, dist in self.cells.items() }
+        new.cells = {i: Cell(i, concat([cell.data for cell in dist.cells.values()]),
+                             dist.center, dist.span, hull=dist.hull)
+                     if isinstance(dist, Distributed) else dist
+                     for i, dist in self.cells.items()}
 
         return new
 
-    def group(self, ngroups=None, max_cell_count=None, cell_centers=None, \
-        adjacency_margin=2, connected=False):
+    def group(self, ngroups=None, max_cell_count=None, cell_centers=None,
+              adjacency_margin=2, connected=False):
         """
         Make groups of cells.
 
@@ -503,7 +504,8 @@ class Distributed(Local):
         ncells = self.adjacency.shape[0]
         new = copy(self)
 
-        strategy_0 = ngroups or (max_cell_count and max_cell_count < ncells) or cell_centers is not None
+        strategy_0 = ngroups or (max_cell_count and max_cell_count <
+                                 ncells) or cell_centers is not None
         if not strategy_0 and not connected:
             #raise KeyError('`group` expects more input arguments')
             return new
@@ -511,14 +513,15 @@ class Distributed(Local):
         elif strategy_0:
 
             if connected:
-                raise ValueError('`connected` is not supported in combination with other arguments')
+                raise ValueError(
+                    '`connected` is not supported in combination with other arguments')
 
             any_cell = self.any_cell()
 
             points = np.zeros((ncells, self.dim), dtype=any_cell.center.dtype)
             ok = np.zeros(points.shape[0], dtype=bool)
             for i in self.cells:
-                if self.cells[i]: # non-empty
+                if self.cells[i]:  # non-empty
                     points[i] = self.cells[i].center
                     ok[i] = True
 
@@ -530,8 +533,8 @@ class Distributed(Local):
                     if ngroups:
                         avg_probability = min(1.0 / float(ngroups), avg_probability)
                     if max_cell_count:
-                        avg_probability = min(float(max_cell_count) / \
-                            float(points.shape[0]), avg_probability)
+                        avg_probability = min(float(max_cell_count) /
+                                              float(points.shape[0]), avg_probability)
                     import tramway.tessellation.kmeans as kmeans
                     grid = kmeans.KMeansMesh(avg_probability=avg_probability)
                     try:
@@ -549,37 +552,37 @@ class Distributed(Local):
 
             I = np.full(ok.size, -1, dtype=int)
             I[ok] = grid.cell_index(points[ok], min_location_count=1)
-            #if not np.all(ok):
+            # if not np.all(ok):
             #       print(ok.nonzero()[0])
-            new.adjacency = grid.simplified_adjacency(format='csr') # macro-cell adjacency matrix
+            new.adjacency = grid.simplified_adjacency(format='csr')  # macro-cell adjacency matrix
             J = np.unique(I)
             J = J[0 <= J]
             assert 0 < J.size
             new.data = type(self.cells)()
 
-            for j in J: # for each macro-cell
-                K = I == j # find corresponding cells
+            for j in J:  # for each macro-cell
+                K = I == j  # find corresponding cells
                 assert np.any(K)
 
                 if 0 < adjacency_margin:
                     L = np.copy(K)
                     for k in range(adjacency_margin):
                         # add adjacent cells for future gradient calculations
-                        K[self.adjacency[K,:].indices] = True
+                        K[self.adjacency[K, :].indices] = True
                     L = L[K]
 
-                A = self.adjacency[K,:].tocsc()[:,K].tocsr() # point adjacency matrix
+                A = self.adjacency[K, :].tocsc()[:, K].tocsr()  # point adjacency matrix
                 C = grid.cell_centers[j]
-                D = OrderedDict([ (i, self.cells[k]) \
-                    for i, k in enumerate(K.nonzero()[0]) if k in self.cells ])
+                D = OrderedDict([(i, self.cells[k])
+                                 for i, k in enumerate(K.nonzero()[0]) if k in self.cells])
 
                 for i in D:
                     adj = A[i].indices
                     if 0 < D[i].tcount and adj.size:
-                        span = np.stack([ D[k].center for k in adj ], axis=0)
+                        span = np.stack([D[k].center for k in adj], axis=0)
                     else:
-                        span = np.empty((0, D[i].center.size), \
-                            dtype=D[i].center.dtype)
+                        span = np.empty((0, D[i].center.size),
+                                        dtype=D[i].center.dtype)
                     if span.shape[0] < D[i].span.shape[0]:
                         D[i] = copy(D[i])
                         D[i].span = span - D[i].center
@@ -607,20 +610,20 @@ class Distributed(Local):
                     for cell in neighbours:
                         new_neighbours |= set(self.neighbours(cell).tolist())
                     neighbours = new_neighbours - visited_cells
-                available_cells = { k: cell for k, cell in available_cells.items()
-                    if k not in visited_cells } # update for next iteration
+                available_cells = {k: cell for k, cell in available_cells.items()
+                                   if k not in visited_cells}  # update for next iteration
 
                 K = list(visited_cells)
-                A = self.adjacency[K,:].tocsc()[:,K].tocsr() # point adjacency matrix
-                D = OrderedDict([ (i, self.cells[k]) \
-                    for i, k in enumerate(K) if k in self.cells ])
+                A = self.adjacency[K, :].tocsc()[:, K].tocsr()  # point adjacency matrix
+                D = OrderedDict([(i, self.cells[k])
+                                 for i, k in enumerate(K) if k in self.cells])
 
                 new.cells[j] = type(self)(D, A, index=j)
 
                 j += 1
 
-            new.adjacency = sparse.csr_matrix((np.array([], dtype=bool), (np.array([], dtype=int), np.array([], dtype=int))), shape=(j, j))
-
+            new.adjacency = sparse.csr_matrix(
+                (np.array([], dtype=bool), (np.array([], dtype=int), np.array([], dtype=int))), shape=(j, j))
 
         new.ccount = self.ccount
         # _tcount is not supposed to change
@@ -688,9 +691,9 @@ class Distributed(Local):
             fargs = (function, args, kwargs)
             if profile:
                 fargs = (profile, fargs)
-                cells = [ (i, self.cells[i]) for i in self.cells if bool(self.cells[i]) ]
+                cells = [(i, self.cells[i]) for i in self.cells if bool(self.cells[i])]
             else:
-                cells = [ self.cells[i] for i in self.cells if bool(self.cells[i]) ]
+                cells = [self.cells[i] for i in self.cells if bool(self.cells[i])]
             if six.PY3:
                 if profile:
                     _run = __profile_run__
@@ -704,16 +707,16 @@ class Distributed(Local):
                 else:
                     _run = __run_star__
                 ys = pool.map(_run,
-                    itertools.izip(itertools.repeat(fargs), cells))
+                              itertools.izip(itertools.repeat(fargs), cells))
             if returns is None:
-                ys = [ y for y in ys if y is not None ]
+                ys = [y for y in ys if y is not None]
                 if ys:
                     if ys[1:]:
                         if isinstance(ys[0], tuple):
                             ys = zip(*ys)
                             result = tuple([
                                 pd.concat(_ys, axis=0).sort_index()
-                                for _ys in ys ])
+                                for _ys in ys])
                         else:
                             result = pd.concat(ys, axis=0).sort_index()
                     else:
@@ -726,8 +729,8 @@ class Distributed(Local):
             result = function(self, *args, **kwargs)
 
         if returns:
-            index = { v: [] for v in returns }
-            result = { v: [] for v in returns }
+            index = {v: [] for v in returns}
+            result = {v: [] for v in returns}
             for i in self.cells:
                 cell = self.cells[i]
                 if cell:
@@ -741,13 +744,13 @@ class Distributed(Local):
                             result[v].append(x)
             for v in result:
                 x = np.vstack(result[v])
-                result[v] = pd.DataFrame(x, index=index[v], \
-                        columns=[v] if x.shape[1] == 1 \
-                        else [ '{} {:d}'.format(v, i) for i in range(x.shape[1]) ])
+                result[v] = pd.DataFrame(x, index=index[v],
+                                         columns=[v] if x.shape[1] == 1
+                                         else ['{} {:d}'.format(v, i) for i in range(x.shape[1])])
             _result = result
             result = _result[returns[0]]
             if returns[1:]:
-                result = result.join([ _result[v] for v in returns[1:] ])
+                result = result.join([_result[v] for v in returns[1:]])
 
         return result
 
@@ -804,7 +807,7 @@ class Distributed(Local):
             numpy.ndarray: indices of the neighbour cells of cell *i*.
 
         """
-        return self.adjacency.indices[self.adjacency.indptr[i]:self.adjacency.indptr[i+1]]
+        return self.adjacency.indices[self.adjacency.indptr[i]:self.adjacency.indptr[i + 1]]
 
     def clear_caches(self):
         try:
@@ -845,7 +848,8 @@ def __run__(func, cell):
                 x = x.iloc[cell.central[x.index]]
             except IndexError as e:
                 if cell.central.size < x.index.max():
-                    raise IndexError('dataframe indices do no match with group-relative cell indices (maybe are they global ones)')
+                    raise IndexError(
+                        'dataframe indices do no match with group-relative cell indices (maybe are they global ones)')
                 else:
                     print(x.shape)
                     print((cell.central.shape, cell.central.max()))
@@ -857,12 +861,14 @@ def __run__(func, cell):
         x.index = i
         return x
 
+
 def __run_star__(args):
     return __run__(*args)
 
 
 def __profile_run__(func, args):
-    import cProfile, pstats
+    import cProfile
+    import pstats
     proptions, func = func
     try:
         process, cells = args
@@ -883,9 +889,9 @@ def __profile_run__(func, args):
         stats.print_stats(*proptions)
     return result
 
+
 def __profile_run_star__(args):
     return __profile_run__(*args)
-
 
 
 class Cell(Local):
@@ -901,7 +907,7 @@ class Cell(Local):
 
     """
     __slots__ = ('_time_col', '_space_cols', 'cache', 'fuzzy')
-    __lazy__  = Local.__lazy__ + ('time_col', 'space_cols')
+    __lazy__ = Local.__lazy__ + ('time_col', 'space_cols')
 
     def __init__(self, index, data, center=None, span=None, boundary=None):
         """
@@ -968,8 +974,8 @@ class Cell(Local):
                 if self.time_col == 0:
                     self._space_cols = np.arange(1, self.data.shape[1])
                 else:
-                    self._space_cols = np.ones(self.data.shape[1], \
-                        dtype=bool)
+                    self._space_cols = np.ones(self.data.shape[1],
+                                               dtype=bool)
                     self._space_cols[self.time_col] = False
                     self._space_cols, = self._space_cols.nonzero()
         return self._space_cols
@@ -984,7 +990,7 @@ class Cell(Local):
         return len(self.space_cols)
 
     @dim.setter
-    def dim(self, d): # ro
+    def dim(self, d):  # ro
         self.__lazyassert__(d, 'data')
 
     @property
@@ -997,7 +1003,7 @@ class Cell(Local):
         return self.space_data.shape[0]
 
     @tcount.setter
-    def tcount(self, c): # ro
+    def tcount(self, c):  # ro
         self.__lazyassert__(c, 'data')
 
     @property
@@ -1014,7 +1020,7 @@ class Cell(Local):
         if isstructured(self.data):
             return np.asarray(self.data[self.time_col])
         else:
-            return np.asarray(self.data[:,self.time_col])
+            return np.asarray(self.data[:, self.time_col])
 
     @property
     def space_data(self):
@@ -1030,7 +1036,7 @@ class Cell(Local):
         if isstructured(self.data):
             return np.asarray(self.data[self.space_cols])
         else:
-            return np.asarray(self.data[:,self.space_cols])
+            return np.asarray(self.data[:, self.space_cols])
 
     def __len__(self):
         return self.tcount
@@ -1173,8 +1179,7 @@ class Translocations(Cell):
         if isstructured(self.origins):
             return np.asarray(self.origins[self.time_col])
         else:
-            return np.asarray(self.origins[:,self.time_col])
-
+            return np.asarray(self.origins[:, self.time_col])
 
 
 def identify_columns(points, trajectory_col=True):
@@ -1230,9 +1235,9 @@ def identify_columns(points, trajectory_col=True):
                 else:
                     raise
         # assume no column name is empty
-        delta_cols = [ col for col in coord_cols if col[0] == 'd' and col[1:] in coord_cols ]
+        delta_cols = [col for col in coord_cols if col[0] == 'd' and col[1:] in coord_cols]
         if delta_cols:
-            coord_cols = [ col for col in coord_cols if col not in delta_cols ]
+            coord_cols = [col for col in coord_cols if col not in delta_cols]
             coord_cols = (coord_cols, delta_cols)
     else:
         if isinstance(points, (tuple, list)):
@@ -1243,26 +1248,29 @@ def identify_columns(points, trajectory_col=True):
             trajectory_col = 0
             coord_cols = np.arange(1, points.shape[1])
         else:
-            coord_cols = np.r_[np.arange(trajectory_col), \
-                np.arange(trajectory_col+1, points.shape[1])]
+            coord_cols = np.r_[np.arange(trajectory_col),
+                               np.arange(trajectory_col + 1, points.shape[1])]
     if not _has_trajectory:
         trajectory_col = None
 
     if isinstance(points, pd.DataFrame):
         def get_point(a, i):
-            return a.iloc[i]
+            return a[i]
+
         def get_var(a, j):
             return a[j]
     elif isstructured(points):
         def get_point(a, i):
-            return a[i,:]
+            return a[i, :]
+
         def get_var(a, j):
             return a[j]
     else:
         def get_point(a, i):
             return a[i]
+
         def get_var(a, j):
-            return a[:,j]
+            return a[:, j]
 
     return coord_cols, trajectory_col, get_var, get_point
 
@@ -1328,12 +1336,12 @@ def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=N
 
         location_cell = __associated__
 
-    else:#if sparse.issparse(index):
+    else:  # if sparse.issparse(index):
         assert sparse.issparse(index)
 
         try:
             index = index.tocsc(copy=True)
-        except TypeError: # not already a CSC matrix; copy is implicit
+        except TypeError:  # not already a CSC matrix; copy is implicit
             index = index.tocsc()
 
         def __association__(cell):
@@ -1360,7 +1368,7 @@ def get_locations(points, index=None, coord_cols=None, get_var=None, get_point=N
 
 
 def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
-        get_var=None, get_point=None):
+                       get_var=None, get_point=None):
     """
     Identify translocations as initial and final points.
 
@@ -1399,7 +1407,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         # location coordinates
         points = get_var(points, coord_cols)
         # fake `final`
-        initial = final = ~np.any(np.isnan(deltas), axis=1)#np.ones(points.shape[0], dtype=bool)
+        initial = final = ~np.any(np.isnan(deltas), axis=1)  # np.ones(points.shape[0], dtype=bool)
         # note: the destination cell will be undefined
     else:
         if trajectory_col is None:
@@ -1427,7 +1435,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 
         _point, _cell = index
         _unique = np.unique(_point)
-        loc_count = max(initial.size, _unique[-1]+1) # should be enough
+        loc_count = max(initial.size, _unique[-1] + 1)  # should be enough
         transloc_count = np.sum(initial)
 
         def __f__(termination):
@@ -1441,6 +1449,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
             _loc = _loc[_point]
             if not np.any(_transloc_ok):
                 raise ValueError('no translocations available')
+
             def __associated__(cell):
                 """
                 Translocation-cell association.
@@ -1458,7 +1467,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                 """
                 _in = np.zeros(transloc_count, dtype=bool)
                 _ok = _loc[_cell == cell]
-                _in[_ok[0<=_ok]] = True
+                _in[_ok[0 <= _ok]] = True
                 return _in
             return __associated__
 
@@ -1472,12 +1481,12 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         #_pts = pts[initial][initial_cell(_c)]
         #print((_pts.min(axis=0), _pts.max(axis=0)))
 
-    else:#if sparse.issparse(index):
+    else:  # if sparse.issparse(index):
         assert sparse.issparse(index)
 
         try:
             index = index.tocsc(copy=True)
-        except TypeError: # not already a CSC matrix; copy is implicit
+        except TypeError:  # not already a CSC matrix; copy is implicit
             index = index.tocsc()
         loc_count = index.shape[0]
         transloc_count = np.sum(initial)
@@ -1485,8 +1494,9 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         def __f__(termination):
             _transloc = np.full(loc_count, -1, dtype=int)
             _transloc[termination] = np.arange(transloc_count)
-            if np.all(_transloc==-1):
+            if np.all(_transloc == -1):
                 raise ValueError('no translocations available')
+
             def __association__(cell):
                 """
                 Translocation-cell association.
@@ -1504,8 +1514,8 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                         False otherwise.
                 """
                 _in = np.zeros(transloc_count, dtype=bool)
-                _ok = _transloc[index.indices[index.indptr[cell]:index.indptr[cell+1]]]
-                _in[_ok[0<=_ok]] = True
+                _ok = _transloc[index.indices[index.indptr[cell]:index.indptr[cell + 1]]]
+                _in[_ok[0 <= _ok]] = True
                 return _in
             return __association__
 
@@ -1518,13 +1528,13 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
     if delta_cols:
         # if deltas are available, the destination cell is undefined
         if callable(final_cell):
-            final_cell = lambda cell: []
+            def final_cell(cell): return []
         elif final_cell is not None:
             final_cell[...] = -1
 
         deltas = get_point(deltas, initial)
         cols = deltas.columns
-        deltas.columns = [ col[1:].lstrip() for col in cols ]
+        deltas.columns = [col[1:].lstrip() for col in cols]
         final_point = initial_point + deltas
         if np.any(np.isnan(final_point)):
             for col in initial_point.columns:
@@ -1533,7 +1543,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
                         raise ValueError("no column corresponding to delta '{}'".format(col))
                     else:
                         raise ValueError("no delta column corresponding to '{}'".format(col))
-            assert False # final_point contains NaNs
+            assert False  # final_point contains NaNs
     else:
         final_point = get_point(points, final)
         assert not np.any(np.isnan(final_point))
@@ -1543,8 +1553,8 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 
 
 def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
-        new_cell_kwargs={}, new_group_kwargs={}, fuzzy_kwargs={},
-        new=None, verbose=False):
+                new_cell_kwargs={}, new_group_kwargs={}, fuzzy_kwargs={},
+                new=None, verbose=False):
     """
     Build a `Distributed`-like object from a :class:`~tramway.tessellation.base.CellStats` object.
 
@@ -1656,7 +1666,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         # remove delta columns
         if has_precomputed_deltas:
             _, delta_cols = coord_cols
-            space_cols = [ col for col in space_cols if col not in delta_cols ]
+            space_cols = [col for col in space_cols if col not in delta_cols]
     elif isstructured(cells.points):
         space_cols = columns(cells.points)
         if 'n' in space_cols:
@@ -1666,7 +1676,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         if isinstance(space_cols, pd.Index):
             space_cols = space_cols.drop(not_space)
         else:
-            space_cols = [ c for c in space_cols if c not in not_space ]
+            space_cols = [c for c in space_cols if c not in not_space]
     else:
         if time_col == cells.points.shape[1] - 1:
             space_cols = np.arange(time_col)
@@ -1685,7 +1695,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
     _fuzzy, data, hull = {}, {}, {}
     if are_translocations:
         extra = {}
-    for j, ok in enumerate(J): # for each cell
+    for j, ok in enumerate(J):  # for each cell
         if not ok:
             continue
 
@@ -1704,7 +1714,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 assert np.all(_origin.index == _destination.index)
                 __origin = _origin
             else:
-                __origin = _origin.copy() # make copy
+                __origin = _origin.copy()  # make copy
                 __origin.index += 1
                 try:
                     _ok = np.array([i in _destination.index for i in __origin.index])
@@ -1715,10 +1725,10 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 _origin = get_point(_origin, _ok)
                 __origin = get_point(__origin, _ok)
                 _destination = get_point(_destination, _ok)
-            _points = _origin # for convex hull; ideally not only origins
-            points = _destination - __origin # translocations
+            _points = _origin  # for convex hull; ideally not only origins
+            points = _destination - __origin  # translocations
         else:
-            points = _points = get_point(locations, i) # locations
+            points = _points = get_point(locations, i)  # locations
 
         assert not np.any(np.isnan(points))
 
@@ -1729,11 +1739,11 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as e:
-            #try:
+            # try:
             #    hull[j] = scipy.spatial.qhull.ConvexHull(_points)
-            #except (KeyboardInterrupt, SystemExit):
+            # except (KeyboardInterrupt, SystemExit):
             #    raise
-            #except Exception as e:
+            # except Exception as e:
             raise
             warn(str(e), RuntimeWarning)
 
@@ -1749,15 +1759,16 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         _adjacency = cells.tessellation.diagonal_adjacency
     except AttributeError:
         _adjacency = None
-    _adjacency = cells.tessellation.simplified_adjacency(adjacency=_adjacency, label=J, format='csr')
-    ## reweight each row i as 1/n_i where n_i is the degree of cell i
+    _adjacency = cells.tessellation.simplified_adjacency(
+        adjacency=_adjacency, label=J, format='csr')
+    # reweight each row i as 1/n_i where n_i is the degree of cell i
     #n = np.diff(_adjacency.indptr)
     #_adjacency.data = np.repeat(1.0 / np.maximum(1, n), n)
 
     # build every cells
     J, = np.nonzero(J)
     _cells = OrderedDict()
-    for j in J: # for each cell
+    for j in J:  # for each cell
         try:
             center = cells.tessellation.cell_centers[j]
         except AttributeError:
@@ -1786,15 +1797,15 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         if are_translocations:
             try:
                 _cells[j].origins = extra[j][0]
-            except AttributeError: # `_cells` does not have the `origins` attribute
+            except AttributeError:  # `_cells` does not have the `origins` attribute
                 pass
             try:
                 _cells[j].destinations = extra[j][1]
-            except AttributeError: # `_cells` does not have the `destinations` attribute
+            except AttributeError:  # `_cells` does not have the `destinations` attribute
                 pass
         try:
             _cells[j].fuzzy = _fuzzy[j]
-        except AttributeError: # `_cells` does not have the `fuzzy` attribute
+        except AttributeError:  # `_cells` does not have the `fuzzy` attribute
             pass
 
     # perform a few last checks
@@ -1815,7 +1826,6 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
     return self
 
 
-
 class DistributeMerge(Distributed):
 
     __slots__ = ('merged', )
@@ -1824,24 +1834,24 @@ class DistributeMerge(Distributed):
         if min_location_count is None:
             raise ValueError('`min_location_count` is not defined')
         Distributed.__init__(self, cells, adjacency)
-        count = np.array([ len(cells[i]) for i in cells ])
+        count = np.array([len(cells[i]) for i in cells])
         index, = (count < min_location_count).nonzero()
         ordered_index = np.argsort(count[index])
         ordered_index = index[ordered_index]
         index = set(index)
         merged = dict()
         for i in ordered_index[::-1]:
-            js = [ j for j in self.neighbours(i).tolist() if j not in index ]
+            js = [j for j in self.neighbours(i).tolist() if j not in index]
             if not js:
                 warn('no large-enough neighbours for cell {:d}'.format(i), RuntimeWarning)
                 continue
-            dr = np.vstack([ cells[j].center for j in js ]) - cells[i].center#[np.newaxis,:]
+            dr = np.vstack([cells[j].center for j in js]) - cells[i].center  # [np.newaxis,:]
             j = js[np.argmin(np.sum(dr * dr, axis=1))]
             j = merged.get(j, j)
             # merge cells i and j
             # attributes: center(?),time_data,space_data,span,boundary,fuzzy,origins,destinations
             cells[j].data = (np.vstack((cells[j].space_data, cells[i].space_data)),
-                    np.r_[cells[j].time_data, cells[i].time_data])
+                             np.r_[cells[j].time_data, cells[i].time_data])
             if cells[j].span is not None:
                 try:
                     cells[j].span = np.vstack((cells[j].span, cells[i].span))
@@ -1889,10 +1899,11 @@ class DistributeMerge(Distributed):
                     js |= set(self.neighbours(k).tolist())
             js -= discarded
             for j in js:
-                adjacency[i,j] = True
-                adjacency[j,i] = True
+                adjacency[i, j] = True
+                adjacency[j, i] = True
         self.adjacency = adjacency.tocsr()
-        assert set(self.cells.keys()) == set((self.adjacency.indptr[1:] - self.adjacency.indptr[:-1]).nonzero()[0].tolist())
+        assert set(self.cells.keys()) == set(
+            (self.adjacency.indptr[1:] - self.adjacency.indptr[:-1]).nonzero()[0].tolist())
         assert set(self.cells.keys()) == set(self.adjacency.indices.tolist())
 
 
@@ -1921,10 +1932,10 @@ class Maps(Lazy):
         self.potential_prior = None
         self.jeffreys_prior = None
         self.extra_args = None
-        self.distributed_translocations = None # legacy attribute
-        self.partition_file = None # legacy attribute
-        self.tessellation_param = None # legacy attribute
-        self.version = None # legacy attribute
+        self.distributed_translocations = None  # legacy attribute
+        self.partition_file = None  # legacy attribute
+        self.tessellation_param = None  # legacy attribute
+        self.version = None  # legacy attribute
         self.runtime = None
         self.posteriors = posteriors
 
@@ -2006,13 +2017,13 @@ class Maps(Lazy):
         return sub_map
 
     def __str__(self):
-        attrs = { k: v for k, v in self.__dict__.items() if not (k[0] == '_' or v is None) }
+        attrs = {k: v for k, v in self.__dict__.items() if not (k[0] == '_' or v is None)}
         v = self.variables
         if v is not None:
             attrs['variables'] = v
         attrs['maps'] = type(self.maps)
         l = max(len(k) for k in attrs)
-        s = '\n'.join([ '{}:{} {}'.format(k, ' '*(l-len(k)), str(v)) for k, v in attrs.items() ])
+        s = '\n'.join(['{}:{} {}'.format(k, ' ' * (l - len(k)), str(v)) for k, v in attrs.items()])
         return s
 
     def defattr(self, attr, val):
@@ -2032,7 +2043,6 @@ class Maps(Lazy):
                         attr = attr + '0'
                 count += 1
         setattr(self, attr, val)
-
 
 
 class OptimizationWarning(RuntimeWarning):
@@ -2100,7 +2110,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
     for i in cells:
         cell = cells[i]
 
-        #assert i == cell.index # NO!
+        # assert i == cell.index # NO!
         if not bool(cell):
             raise ValueError('empty cells')
 
@@ -2119,8 +2129,8 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
         # check cell i has neighbours
         try:
-            adjacent = cells.adjacency.indices[cells.adjacency.indptr[i]:cells.adjacency.indptr[i+1]]
-            adjacent = [ c for c in adjacent if cells[c] ]
+            adjacent = cells.adjacency.indices[cells.adjacency.indptr[i]                                               :cells.adjacency.indptr[i + 1]]
+            adjacent = [c for c in adjacent if cells[c]]
             if not adjacent:
                 continue
         except ValueError:
@@ -2144,11 +2154,11 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
                 warn('missing cell center', RuntimeWarning)
                 border.append(np.zeros(cell.dim, dtype=np.bool_))
             else:
-                adjacent = np.vstack([ cells[c].center for c in adjacent if cells[c] ])
+                adjacent = np.vstack([cells[c].center for c in adjacent if cells[c]])
                 border.append(np.logical_or(
                     np.max(adjacent, axis=0) <= cell.center,
                     cell.center <= np.min(adjacent, axis=0)
-                    )) # to be improved
+                ))  # to be improved
         except ValueError:
             border.append(None)
 
@@ -2163,7 +2173,6 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
-    'identify_columns', 'get_locations', 'get_translocations', 'distributed',
-    'DistributeMerge',
-    'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']
-
+           'identify_columns', 'get_locations', 'get_translocations', 'distributed',
+           'DistributeMerge',
+           'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']
