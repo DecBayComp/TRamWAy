@@ -121,10 +121,15 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
 def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_threshold=10, bl_need_min_n=True):
     """Calculate the Bayes factor for one bin."""
 
-    # Check if None is present
-    if any(var is None for var in [zeta_t, zeta_sp, n, V, V_pi, loc_error]):
-        logging.info('None values encountered in cell. Skipping cell.')
+    if check_for_nan(zeta_t, zeta_sp, n, V, V_pi, loc_error):
+        logging.warning(
+            f'A NaN value is present in the input parameters.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
         return [np.nan] * 3
+
+    # # Check if None is present
+    # if any(var is None for var in [zeta_t, zeta_sp, n, V, V_pi, loc_error]):
+    #     logging.info('None values encountered in cell. Skipping cell.')
+    #     return [np.nan] * 3
 
     # Parameter combinations
     n_pi = n_pi_func(dim)
@@ -180,6 +185,11 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     Return - 1 if unable to find the min_n
     """
 
+    if check_for_nan(zeta_t, zeta_sp, n0, V, V_pi, loc_error):
+        logging.warning(
+            f'A NaN value is present in the input parameters.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
+        return np.nan
+
     if np.isnan(n0):
         logging.error(
             'Invalid initial jumps number supplied for minimal n calculation: {}'.format(n0))
@@ -205,15 +215,19 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     # Find the initial search interval
     bl_found = False
     n = n0
+    print(
+        f'Start min n search. Params: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
     for attempt in range(max_attempts):
         n = n0 - 1 + increase_factor ** attempt
+        print(
+            f'Min_n search. Iteration: {attempt}, n: {n}, lg_B(n): {lg_B(n)}, abs(lg_B_threshold): {abs(lg_B_threshold)}')
         if abs(lg_B(n)) >= abs(lg_B_threshold):
             bl_found = True
             break
 
     if not bl_found:
         logging.warning(
-            "Unable to find the minimal number of data points to provide strong evidence.")
+            "Unable to find the minimal number of data points to provide strong evidence. Search parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}")
         return np.nan
 
     # Find a more accurate location
@@ -232,3 +246,11 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
 def check_dimensionality(dim):
     if dim not in [2]:
         raise ValueError("Bayes factor calculations in {dim}D not supported yet.".format(dim=dim))
+
+
+def check_for_nan(*args):
+    """Return true if a nan value is present in any of the variables"""
+    for var in args:
+        if np.any(np.isnan(var)):
+            return True
+    return False
