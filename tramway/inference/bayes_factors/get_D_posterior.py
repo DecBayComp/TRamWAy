@@ -14,6 +14,7 @@ import logging
 import warnings
 
 import numpy as np
+from numpy import exp as exp
 from numpy import log as log
 from scipy.optimize import brentq
 from scipy.special import gammainc, gammaincc, gammaln
@@ -97,29 +98,33 @@ def get_D_confidence_interval(alpha, n, zeta_t, V, V_pi, dt, sigma2, dim):
     eta = np.sqrt(n_pi / (n + n_pi))
     zeta_t = np.array(zeta_t)
     G3 = v + eta**2 * _norm2(zeta_t - _zeta_mu(dim))
-
+    min_D = sigma2 / dt    # units of variance /s
     MAP_D = get_MAP_D(n, zeta_t, V, V_pi, dt, sigma2, dim)
+    y_L = n * V * G3 / 4 / sigma2
 
     def posterior_integral(D):
-        if z <= min_D:
+        y = n * V * G3 / 4 / dt / D
+        if D <= min_D:
             intg = 0
         else:
-            intg = (1
-                    - gammainc(p, n * V * G3 / 4 / dt / D)
-                    / gammainc(p, n * V * G3 / 4 / sigma2))
-            # ((gammainc(p, n * V * G3 / 4 / sigma2)
-            #         - gammainc(p, n * V * G3 / 4 / dt / D))
-            #        / gammainc(p, n * V * G3 / 4 / sigma2))
+            intg = 1 - gammainc(p, y) / gammainc(p, y_L)
         return intg
 
     # %% Find root
-    min_D = sigma2 / dt    # units of variance /s
-    max_D_search = 1e4  # Maximal D up to which to look for a root, units of variance /s
-    CI = np.ones(2) * np.nan
+    # Maximal D up to which to look for a root, units of variance /s
+    # Calculated as asymptotic root times 2
+    # TODO may result in error if low alpha is given as input
+    q = 1 - (1 - alpha) / 2
+    max_D_search = (-1 / p) * (log(p) + log(1 - q) + log(gammainc(p, y_L)) - gammaln(p))
+    max_D_search = n * V * G3 / 4 / dt / exp(max_D_search)
+    max_D_search *= 2
+    max_D_search = np.max([max_D_search, 1e3])
 
-    for i, z in enumerate([(1 - alpha) / 2, 1 - (1 - alpha) / 2]):
+    CI = np.ones(2) * np.nan
+    for i, q in enumerate([(1 - alpha) / 2, 1 - (1 - alpha) / 2]):
+
         def solve_me(D):
-            return posterior_integral(D) - z
+            return posterior_integral(D) - q
         CI[i] = brentq(solve_me, min_D, max_D_search)
 
     return MAP_D, CI

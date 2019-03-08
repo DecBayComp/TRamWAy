@@ -410,19 +410,20 @@ The number of workers (or processes) can be set with the `worker_count` argument
 Force testing
 -------------
 
-In every cell the inferred drift can be compared against the effect of diffusivity gradients.
+In every cell, the inferred drift can be compared against the effect of diffusivity gradients.
 
-The `bayes_factor`_ module calculates the ratio of the probability of having an actual active force
+The `bayes_factor`_ module calculates the odds (the probability ratio) of having an actual active force
 over the probability that diffusivity gradients can explain the observed drift.
-Ratio values above the user-specified `B_threshold` threshold are indicative of an active force,
-and values below the inverse threshold are indicative of diffusivity gradients being a likely explanation of the observed drift,
-while values in-between do not allow any conclusion.
+The user-specified `B_threshold` threshold sets the required level of evidence.
+Values above `B_threshold` indicate the presence of an active force,
+and values below `1/B_threshold` indicate that diffusivity gradients are the moste likely explanation of the observed drift.
+The values in-between indicate that a conclusion cannot be reached at the required level of evidence.
 
 The `bayes_factor`_ plugin generates 3 additional maps:
 
-* `force`: ternary map for the presence of an active force (``-1``: no force, ``0``: undetermined, ``1``: force)
-* `min_n`: minimum number of points necessary for the Bayes factor to lead to a conclusion on the presence of a force, if such a conclusion is not allowed
-* `lg_B`: Bayes factor value
+* `lg_B`: current Bayes factor value
+* `force`: ternary map for the presence of an active force (``-1``: no force, ``0``: insufficient evidence, ``1``: force)
+* `min_n`: given the supplied total force and diffusivity gradient estimates are correct, returns a number of points to be collected in the current bin, so as to reach the required level of evidence.
 
 The `bayes_factor`_ plugin operates on top of a diffusivity map that must be inferred first, preferably with the *d.conj_prior* plugin.
 

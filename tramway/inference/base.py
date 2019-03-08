@@ -1273,7 +1273,7 @@ def identify_columns(points, trajectory_col=True):
 
     if isinstance(points, pd.DataFrame):
         def get_point(a, i):
-            return a.iloc[i]
+            return a[i]
         def get_var(a, j):
             return a[j]
     elif isstructured(points):
