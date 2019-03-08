@@ -21,7 +21,9 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'arguments': OrderedDict((
+setup = {'name':    ('degraded.d', 'd'),
+        #'provides': 'd',
+        'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, default=0, help='minimum diffusivity value allowed')))),

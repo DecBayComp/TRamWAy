@@ -258,7 +258,7 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         ok = np.r_[True, np.logical_not(single_point)]
         points = points[ok]
         within = within[ok]
-        points['n'] -= (points['n'].diff() - 1).clip_lower(0).cumsum()
+        points['n'] -= (points['n'].diff().fillna(0) - 1).clip_lower(0).cumsum()
     points = points[within]
     if not keep_nans:
         points.dropna(inplace=True)

@@ -191,8 +191,8 @@ class CellStats(Lazy):
             if isinstance(self.cell_index, tuple):
                 _point, _cell = self.cell_index
                 if np.any(_cell < 0):
-                    import warnings
-                    warnings.warn('point-cell association pair contains invalid assignments')
+                    #import warnings
+                    #warnings.warn('point-cell association pair contains invalid assignments')
                     ok = 0 <= _cell
                     _point, _cell = _point[ok], _cell[ok]
                 ci = sparse.csc_matrix(

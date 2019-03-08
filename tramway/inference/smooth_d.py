@@ -21,14 +21,15 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name': 'smooth.d',
+setup = {'name': ('standard.d', 'smooth.d'),
     'provides': 'd',
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
-        ('diffusivity_prior',   ('-d', dict(type=float, default=1., help='prior on the diffusivity'))),
+        ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
+        ('tol',             dict(type=float, help='tolerance for scipy minimizer')),
         ('epsilon',         dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)))),
     'cell_sampling': 'group'}
 
@@ -98,7 +99,7 @@ def smooth_d_neg_posterior(diffusivity, cells, sigma2, diffusivity_prior, \
         result += 2. * np.sum(np.log(diffusivity * dt_mean + sigma2))
     return result
 
-def infer_smooth_D(cells, diffusivity_prior=1., jeffreys_prior=None, \
+def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     min_diffusivity=None, max_iter=None, epsilon=None, **kwargs):
 
     # initial values

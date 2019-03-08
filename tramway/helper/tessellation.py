@@ -909,6 +909,8 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
         colnames.append('z')
     if time_scale:
         colnames.append('t')
+        if scaler is None:
+            raise ValueError('no scaling defined')
         scaler.factor = [('t', time_scale)]
 
     # distinguish between tessellation and partition arguments

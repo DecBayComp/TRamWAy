@@ -217,19 +217,19 @@ class TestInference(object):
         assert not out
 
     def test_d(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'd -j', 'd0')
+        self.common(tmpdir, datadir, 'degraded.d -j', 'd0')
     def test_df(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'df -j', 'df0')
+        self.common(tmpdir, datadir, 'degraded.df -j', 'df0')
     def test_dd(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'dd -j', 'dd0')
+        self.common(tmpdir, datadir, 'degraded.dd -j', 'dd0')
     def test_dv0(self, tmpdir, datadir):
         self.common(tmpdir, datadir, 'dv -j --max-iter 10', 'dv0')
     def test_dv1(self, tmpdir, datadir):
         self.common(tmpdir, datadir, 'dv -d 1 -v 1 --max-iter 10', 'dv1')
     def test_smooth_d(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'smooth.d -j --max-iter 10', 'd1')
+        self.common(tmpdir, datadir, 'standard.d -j --max-iter 10', 'd1')
     def test_smooth_df(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'smooth.df -j --max-iter 10', 'df1')
+        self.common(tmpdir, datadir, 'standard.df -j --max-iter 10', 'df1')
     def test_smooth_dd(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'smooth.dd -j --max-iter 10', 'dd1')
+        self.common(tmpdir, datadir, 'standard.dd -j --max-iter 10', 'dd1')
 

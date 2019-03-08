@@ -22,7 +22,8 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name': ('dd', 'ddrift'),
+setup = {'name': ('degraded.dd', 'degraded.ddrift', 'dd', 'ddrift'),
+    #'provides': ('dd', 'ddrift'),
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),

@@ -22,7 +22,9 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'arguments': OrderedDict((
+setup = {'name':    ('degraded.df', 'df'),
+        #'provides': 'df',
+        'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),

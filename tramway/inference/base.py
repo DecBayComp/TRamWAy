@@ -1676,10 +1676,6 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         time_col = cells.points.shape[1] - 1
     if cells.tessellation.scaler is not None and _bool(cells.tessellation.scaler.columns):
         space_cols = cells.tessellation.scaler.columns
-        # remove delta columns
-        if has_precomputed_deltas:
-            _, delta_cols = coord_cols
-            space_cols = [ col for col in space_cols if col not in delta_cols ]
     elif isstructured(cells.points):
         space_cols = columns(cells.points)
         if 'n' in space_cols:
@@ -1697,6 +1693,10 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             space_cols = np.ones(cells.points.shape[1], dtype=bool)
             space_cols[time_col] = False
             space_cols, = space_cols.nonzero()
+    # remove delta columns
+    if has_precomputed_deltas:
+        _, delta_cols = coord_cols
+        space_cols = [ col for col in space_cols if col not in delta_cols ]
 
     # pre-select cells
     if cells.tessellation.cell_label is None:

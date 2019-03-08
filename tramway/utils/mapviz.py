@@ -27,7 +27,7 @@ def mapviz_utility():
     args = parser.parse_args()
 
     if args.bounding_box:
-        bounding_box = Bbox.from_extents(int(x) for x in args.bounding_box.split(','))
+        bounding_box = Bbox.from_extents(float(x) for x in args.bounding_box.split(','))
     else:
         bounding_box = None
 

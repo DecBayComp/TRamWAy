@@ -263,7 +263,7 @@ class Infer(Helper):
         return maps
 
 
-def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
+def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=False, \
     localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
     max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
@@ -365,9 +365,10 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
     if mode in ('D', 'DF', 'DD', 'DV'):
         mode = mode.lower()
+        #warn('inference mode: please use degraded.{} instead'.format(mode), PendingDeprecationWarning)
     helper.plugin(mode)
     _map = helper.distribute(new_cell=new_cell, \
-            new_group=constructor if new_group is None else new_group, cell_sampling=None, \
+            new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
             merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
             dilation=dilation, grad=grad)
     _map = helper.overload_cells(_map)

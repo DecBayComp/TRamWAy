@@ -153,9 +153,11 @@ Inferring diffusivity and other parameters
 
 Inferring diffusivity and force with the *DF* mode::
 
-	> tramway infer df -i example.rwa -L kmeans -l df-map*
+	> tramway infer standard.df -i example.rwa -L kmeans -l df-map*
 
-Other inference modes are *D* (``d``), *DD* (``dd``) and *DV* (``dv``).
+Other inference modes are *D* (``standard.d``), *DD* (``standard.dd``) and *DV* (``dv``).
+
+*D*, *DD* and *DF* have *degraded* variants, respectively: ``degraded.d``, ``degraded.dd`` and ``degraded.df``.
 
 A common parameter is the localization error, which default value is :math:`\sigma = 0.03 \textrm{µm}`.
 See the :ref:`Common parameters section <inference_parameters>` to learn more about it.

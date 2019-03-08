@@ -19,15 +19,16 @@ from tramway.inference.bayes_factors.get_D_posterior import *
 from tramway.inference.gradient import get_grad_kwargs
 from tramway.inference.snr import add_snr_extensions
 
+
 setup = {
     'name': 'd.conj_prior',
     'provides': 'snr',
+    'infer': 'infer_d_conj_prior',
     'arguments': dict(
         localization_error=(
             '-e', dict(type=float, help='localization error (same units as the variance)')),
         alpha=dict(type=float, default=.95, help='confidence level')),
 }
-
 
 def infer_d_conj_prior(cells, alpha=.95, return_zeta_spurious=True, trust=False, **kwargs):
     """
