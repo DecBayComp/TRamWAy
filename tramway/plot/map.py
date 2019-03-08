@@ -349,11 +349,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
             if not isinstance(colorbar, dict):
                 colorbar = {}
             try:
-                _colorbar = figure.colorbar(patches, **colorbar)
+                _colorbar = figure.colorbar(patches, ax=axes, **colorbar)
             except AttributeError as e:
                 warn(e.args[0], RuntimeWarning)
-            finally:
-                figure.sca(axes) # not sure whether this can be useful
         if clabel:
             unit = clabel
         if unit:
