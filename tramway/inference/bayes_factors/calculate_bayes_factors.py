@@ -123,7 +123,7 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_t
 
     if check_for_nan(zeta_t, zeta_sp, n, V, V_pi, loc_error):
         logging.warning(
-            f'A NaN value is present in the input parameters.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
+            f'A NaN value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
         return [np.nan] * 3
 
     # # Check if None is present
@@ -187,7 +187,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
 
     if check_for_nan(zeta_t, zeta_sp, n0, V, V_pi, loc_error):
         logging.warning(
-            f'A NaN value is present in the input parameters.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
+            f'A NaN value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
         return np.nan
 
     if np.isnan(n0):
@@ -250,10 +250,10 @@ def check_dimensionality(dim):
 
 def check_for_nan(*args):
     """Return true if a nan value is present in any of the variables"""
-    for var in args:
+    for i, var in enumerate(args):
         try:
             if np.any(np.isnan(var)):
                 return True
         except:
-            logging.warning(f'Unable to check for nan value for variable: {var}')
+            logging.warning(f'Unable to check for nan value for variable #{i}')
     return False
