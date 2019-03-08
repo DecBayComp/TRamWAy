@@ -255,5 +255,5 @@ def check_for_nan(*args):
             if np.any(np.isnan(var)):
                 return True
         except:
-            logging.warning('Unable to check for nan value for variable: {var}')
+            logging.warning(f'Unable to check for nan value for variable: {var}')
     return False
