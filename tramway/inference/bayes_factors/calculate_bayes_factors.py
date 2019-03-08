@@ -205,15 +205,19 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     # Find the initial search interval
     bl_found = False
     n = n0
+    print(
+        f'Start min n search. Params: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
     for attempt in range(max_attempts):
         n = n0 - 1 + increase_factor ** attempt
+        print(
+            f'Min_n search. Iteration: {attempt}, n: {n}, lg_B(n): {lg_B(n)}, abs(lg_B_threshold): {abs(lg_B_threshold)}')
         if abs(lg_B(n)) >= abs(lg_B_threshold):
             bl_found = True
             break
 
     if not bl_found:
-        logging.warning(
-            "Unable to find the minimal number of data points to provide strong evidence.")
+        # logging.warning(
+        #     "Unable to find the minimal number of data points to provide strong evidence.")
         return np.nan
 
     # Find a more accurate location
