@@ -251,6 +251,9 @@ def check_dimensionality(dim):
 def check_for_nan(*args):
     """Return true if a nan value is present in any of the variables"""
     for var in args:
-        if np.any(np.isnan(var)):
-            return True
+        try:
+            if np.any(np.isnan(var)):
+                return True
+        except:
+            logging.warning('Unable to check for nan value for variable: {var}')
     return False
