@@ -982,11 +982,11 @@ class Delaunay(Tessellation):
                         J = np.repeat(nonempty, n)
                         K = (I, J)
                 else:
-                    count = np.zeros(ncells, dtype=positive_count.dtype)
-                    count[nonempty] = positive_count
-                    small = count < min_nn
-                    #if min_location_count:
-                    #    small = np.logical_and(small, min_location_count <= count)
+                    if min_location_count:
+                        small = np.zeros(ncells, dtype=bool)
+                    else:
+                        small = np.ones(ncells, dtype=bool)
+                    small[nonempty] = positive_count < min_nn
                     if np.any(small):
                         if D is None:
                             raise memory_error

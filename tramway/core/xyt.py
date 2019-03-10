@@ -199,14 +199,14 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         box (array-like): origin and size of the space bounding box
 
         by (str): for translocations only;
-            '*start*': crop by translocation starting point; keep the associated
-            destination points;
-            '*stop*': crop by translocation destination point; keep the associated
+            '*start*' or '*origin*': crop by translocation origin; keep the associated destinations;
+            '*stop*' or '*destination*': crop by translocation destinations; keep the associated
             origins;
             trajectories with a single non-terminal point outside the bounding box are
             not splitted
 
-        add_deltas (bool): add 'dx', 'dy', ..., 'dt' columns is they are not already present
+        add_deltas (bool): add 'dx', 'dy', ..., 'dt' columns is they are not already present;
+            deltas are associated to the translocation origins
 
         keep_nans (bool): adding deltas generates NaN; keep them
 
@@ -245,9 +245,9 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         deltas.columns = [ 'd'+c for c in cols_to_diff ]
         points = points.join(deltas)
     if by:
-        if by == 'start':
+        if by in ('start', 'origin'):
             within[paired_dest] |= within[paired_src]
-        elif by == 'stop':
+        elif by in ('stop', 'destination'):
             within[paired_src] |= within[paired_dest]
         else:
             raise ValueError('unsupported value for argument `by`')
@@ -258,7 +258,7 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         ok = np.r_[True, np.logical_not(single_point)]
         points = points[ok]
         within = within[ok]
-        points['n'] -= (points['n'].diff().fillna(0) - 1).clip_lower(0).cumsum()
+        points['n'] -= (points['n'].diff().fillna(0).astype(int) - 1).clip(lower=0).cumsum()
     points = points[within]
     if not keep_nans:
         points.dropna(inplace=True)

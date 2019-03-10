@@ -348,7 +348,7 @@ def main():
             method_group.add_argument('--scaling', choices=['whiten', 'unit'])
             method_parser.add_argument('-s', '--min-location-count', type=int, \
                 help='minimum number of locations per cell; this affects the tessellation only and not directly the partition; see --knn and -ss for partition-related parameters')
-            method_parser.add_argument('-ss', '--strict-min-location-count', type=int, \
+            method_parser.add_argument('-ss', '--strict-min-location-count', '--min-n', type=int, \
                 metavar='MIN_LOCATION_COUNT', \
                 help='minimum number of locations per cell; this is enforced at partition time; cells with insufficient locations are discarded and not compensated for')
             method_parser.add_argument('--seed', nargs='?', default=False, \

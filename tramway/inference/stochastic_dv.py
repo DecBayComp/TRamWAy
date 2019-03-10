@@ -154,7 +154,8 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     #print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
     #print('{}\t{}\t{}'.format(i+1, *gradV))
     if gradV is None or np.any(np.isnan(gradV)):
-        raise ValueError('gradV is not defined')
+        warn('gradV({}) is not defined'.format(i), RuntimeWarning)
+        gradV = np.zeros(cell.dim)
 
     # various posterior terms
     #print(cell.dt)
@@ -220,6 +221,12 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
         posterior_info.append(info)
 
     return result - y0
+
+def _local_dv_neg_posterior(*args, **kwargs):
+    try:
+        return local_dv_neg_posterior(*args, **kwargs)
+    except ValueError:
+        return np.inf
 
 
 def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None,

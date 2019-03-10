@@ -83,11 +83,13 @@ class VideoWriter(object):
             kwargs['bitrate'] = bit_rate
         self.grab = FFMpegWriter(**{kw: arg for kw, arg in kwargs.items() if arg is not None})
 
+        self.finally_close = False
         if figure is None:
             if axes is None:
                 # always import pyplot as late as possible to allow for backend selection
                 import matplotlib.pyplot as plt
                 figure, axes = plt.subplots()
+                self.finally_close = True
             else:
                 figure = axes.get_figure()
         elif axes is None:
@@ -165,6 +167,10 @@ class VideoWriterReader(object):
         return self
 
     def __exit__(self, *args):
+        if self.writer.finally_close:
+            # ideally this should happen in VideoWriter
+            import matplotlib.pyplot as plt
+            plt.close(self.figure)
         if self.unlink_on_exit:
             os.unlink(self.path)
 
