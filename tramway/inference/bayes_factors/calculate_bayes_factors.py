@@ -124,7 +124,7 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_t
     test = check_for_nan(zeta_t, zeta_sp, n, V, V_pi, loc_error)
     if test is not 'ok':
         logging.warning(
-            f'A {test} value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
+            f'>>A {test} value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
         return [np.nan] * 3
 
     # # Check if None is present
@@ -189,7 +189,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     test = check_for_nan(zeta_t, zeta_sp, n0, V, V_pi, loc_error)
     if test is not 'ok':
         logging.warning(
-            f'A {test} value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}')
+            f'>>A {test} value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
         return np.nan
 
     if np.isnan(n0):
