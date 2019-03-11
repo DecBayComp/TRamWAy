@@ -17,6 +17,15 @@ tramway.utils.contour module
     :show-inheritance:
 
 
+tramway.utils.crop module
+-------------------------
+
+.. automodule:: tramway.utils.crop
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.utils.inferencemap module
 ---------------------------------
 

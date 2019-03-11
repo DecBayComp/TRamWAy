@@ -27,10 +27,11 @@ and can be applied with the :func:`~tramway.helper.inference.infer` helper funct
 	maps = infer(cells, 'DV')
 
 
-However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed diffusivities are low and the experimental localization error is not properly set.
+However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed diffusivities are low and the experimental localization error is also low.
 
-An argument that should be first considered in an attempt to deal with runtime errors is `localization_error` (or equivalently the ``-e`` command-line option).
-The inference may indeed hit an error because of this value being too small.
+An argument that should be first considered in an attempt to deal with runtime errors is `min_diffusivity`.
+
+Another important argument that can help is `localization_error` or `sigma` or `sigma2`.
 See also the `Common parameters and default values`_ section.
 
 
@@ -243,17 +244,17 @@ Common parameters and default values
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All the methods use :math:`\sigma = 0.03 \textrm{µm}` as default value for the experimental localization error.
-This parameter is defined by the experimental setup and can be set in |tramway| with the ``-e`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
+This parameter is defined by the experimental setup and can be set in |tramway| with the ``--sigma`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
 
 Compare::
 
-	> tramway -i example.rwa infer dd -e 0.01 -l DD_sigma_10nm
+	> tramway -i example.rwa infer dd --sigma 0.01 -l DD_sigma_10nm
 
 .. code-block:: python
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'dd', localization_error=0.01, output_label='DD_sigma_10nm')
+	infer('example.rwa', 'dd', sigma=0.01, output_label='DD_sigma_10nm')
 
 
 .. Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 

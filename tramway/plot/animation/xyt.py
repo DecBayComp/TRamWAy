@@ -35,7 +35,7 @@ def animate_trajectories_2d(xyt, output_file=None,
 
         bit_rate (int): movie bitrate; see also :class:`~matplotlib.animation.FFMpegWriter`.
 
-        dots_per_inch (int): dpi argument passed to :met:`~matplotlib.animation.FFMpegWriter.saving`.
+        dots_per_inch (int): dpi argument passed to :meth:`~matplotlib.animation.FFMpegWriter.saving`.
 
         play (bool): play the movie once generated.
 
@@ -156,5 +156,5 @@ def animate_trajectories_2d(xyt, output_file=None,
         pass
 
 
-__all__ = ['animate_trajectories_2d', 'animate_trajectories_2d_helper']
+__all__ = ['animate_trajectories_2d']
 

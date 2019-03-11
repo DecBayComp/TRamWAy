@@ -39,7 +39,7 @@ def animate_map_2d(_map, cells, output_file=None,
 
         bit_rate (int): movie bitrate; see also :class:`~matplotlib.animation.FFMpegWriter`.
 
-        dots_per_inch (int): dpi argument passed to :met:`~matplotlib.animation.FFMpegWriter.saving`.
+        dots_per_inch (int): dpi argument passed to :meth:`~matplotlib.animation.FFMpegWriter.saving`.
 
         play (bool): play the movie once generated.
 

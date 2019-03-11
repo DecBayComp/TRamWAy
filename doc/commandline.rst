@@ -73,7 +73,7 @@ It is recommended to scale your data adding the option ``-w``.
 
 Each method exposes specific parameters.
 Some parameters however apply after a mesh has been grown and therefore apply to all the methods.
-Some of these parameters are ``--knn`` (or shorter ``-n``), ``--radius`` (or shorter ``-r``) and ``--strict-min-location-count`` (or shorter ``-ss``).
+Some of these parameters are ``--knn`` (or ``-n`` or ``--min-nn``), ``--radius`` (or shorter ``-r``) and ``--min-n``.
 
 ``--knn`` allows to impose a lower bound on the number of points (nearest neighbours) associated with each cell of the mesh, independently of the way the mesh has been grown.
 
@@ -88,7 +88,7 @@ Values are specified in the units of the single molecule data, typically |um|.
 
 With the above two arguments, some cells may overlap.
 
-``--strict-min-location-count`` discards the cells that contain less locations than thereby specified.
+``--min-n`` discards the cells that contain less locations than thereby specified.
 Note that this filter applies before ``--knn``.
 Cells with too few locations will be discarded anyway.
 
@@ -99,9 +99,9 @@ cell centers, especially in dense areas.
 Per default it is set to the average translocation distance.
 A lower value may yield smaller cells.
 
-The following example combines specified inter-cell distance (``-d``), sparse cell removal (``-ss``) and cell expansion to a minimum location number (``-n``)::
+The following example combines specified inter-cell distance (``-d``), sparse cell removal (``--min-n``) and cell expansion to a minimum location number (``--min-nn``)::
 
-	> tramway tessellate gwr -i example.rwa -d 0.1 -ss 10 -n 30 -l gwr*
+	> tramway tessellate gwr -i example.rwa -d 0.1 --min-n 10 --min-nn 30 -l gwr*
 
 Note that, in the above two examples, the *example.rwa* file already exists and we add the meshes to the existing analysis tree.
 
