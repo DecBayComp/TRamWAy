@@ -171,15 +171,16 @@ class Infer(Helper):
             overloaded_cells = {}
             for i in cells:
                 cell = cells[i]
-                for k in maps:
-                    try:
-                        val = maps[k].loc[i].values
-                    except KeyError:
-                        val = None
-                    else:
-                        if np.isscalar(val):
-                            val = val.tolist()
-                    kwargs[k] = val
+                if self.input_maps is not None:
+                    for k in maps:
+                        try:
+                            val = maps[k].loc[i].values
+                        except KeyError:
+                            val = None
+                        else:
+                            if np.isscalar(val):
+                                val = val.tolist()
+                        kwargs[k] = val
                 overloaded_cells[i] = OverloadedCell(cell, **kwargs)
             cells.cells = overloaded_cells
         return cells
