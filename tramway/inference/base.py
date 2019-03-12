@@ -1422,7 +1422,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         # location coordinates
         points = get_var(points, coord_cols)
         # fake `final`
-        initial = final = ~np.any(np.isnan(deltas), axis=1)#np.ones(points.shape[0], dtype=bool)
+        initial = final = ~np.any(np.isnan(np.asarray(deltas)), axis=1)#np.ones(points.shape[0], dtype=bool)
         # note: the destination cell will be undefined
     else:
         if trajectory_col is None:
@@ -1536,7 +1536,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         final_cell = __f__(final)
 
     initial_point = get_point(points, initial)
-    assert not np.any(np.isnan(initial_point))
+    assert not np.any(np.isnan(np.asarray(initial_point)))
 
     if delta_cols:
         # if deltas are available, the destination cell is undefined
@@ -1549,7 +1549,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
         cols = deltas.columns
         deltas.columns = [ col[1:].lstrip() for col in cols ]
         final_point = initial_point + deltas
-        if np.any(np.isnan(final_point)):
+        if np.any(np.isnan(np.asarray(final_point))):
             for col in initial_point.columns:
                 if col not in deltas.columns:
                     if col[0] == 'd':
@@ -1559,7 +1559,7 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
             assert False # final_point contains NaNs
     else:
         final_point = get_point(points, final)
-        assert not np.any(np.isnan(final_point))
+        assert not np.any(np.isnan(np.asarray(final_point)))
     assert initial_point.shape == final_point.shape
 
     return initial_point, final_point, initial_cell, final_cell, get_point
@@ -1614,9 +1614,9 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
     coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
     has_precomputed_deltas = isinstance(coord_cols, tuple)
     if has_precomputed_deltas:
-        _nan = np.any(np.isnan(get_var(cells.points, coord_cols[0])))
+        _nan = np.any(np.isnan(np.asarray(get_var(cells.points, coord_cols[0]))))
     else:
-        _nan = np.any(np.isnan(cells.points))
+        _nan = np.any(np.isnan(np.asarray(cells.points)))
     if _nan:
         raise ValueError('NaN in location data')
     precomputed = ()
@@ -1743,7 +1743,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         else:
             points = _points = get_point(locations, i) # locations
 
-        assert not np.any(np.isnan(points))
+        assert not np.any(np.isnan(np.asarray(points)))
 
         # convex hull
         _points = np.asarray(get_var(_points, space_cols))
