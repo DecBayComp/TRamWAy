@@ -15,7 +15,6 @@ import time
 import scipy.sparse as sparse
 from collections import namedtuple, defaultdict, deque
 import traceback
-import warnings
 
 
 BFGSResult = namedtuple('BFGSResult', ('x', 'H', 'resolution', 'niter', 'f', 'df', 'projg', 'cumtime', 'err', 'diagnosis'))
@@ -226,14 +225,14 @@ def define_pprint():
         return 'f({}{})'.format(_sp, _c)
     def msg0(_i, _c, _f, _dg):
         _i = str(_i)
-        return 'At iterate {}{}\t{}= {}{:E} \tproj g = {:E}\n'.format(
+        return 'At iterate {}{}\t{}= {}{:E} \tproj g = {:E}'.format(
             ' ' * max(0, 3 - len(_i)), _i,
             format_component(_c),
             ' ' if 0 <= _f else '', _f, _dg)
     def msg1(_i, _c, _f0, _f1, _dg=None):
         _i = str(_i)
         _df = _f1 - _f0
-        return 'At iterate {}{}\t{}= {}{:E} \tdf= {}{:E}{}\n'.format(
+        return 'At iterate {}{}\t{}= {}{:E} \tdf= {}{:E}{}'.format(
             ' ' * max(0, 3 - len(_i)), _i,
             format_component(_c),
             ' ' if 0 <= _f1 else '', _f1,
@@ -253,7 +252,7 @@ def define_pprint():
                 _args = (_exc_type, _exc_msg)
         if _c:
             _args = (_c,) + _args
-        msg = ''.join(('At iterate {}{}\t', ':  '.join(['{}'] * len(_args)), '\n'))
+        msg = ''.join(('At iterate {}{}\t', ':  '.join(['{}'] * len(_args))))
         _i = str(_i)
         return msg.format(' ' * max(0, 3 - len(_i)), _i, *_args)
     return msg0, msg1, msg2
@@ -542,6 +541,8 @@ def define_component(__global__, independent_components, memory, newton, gradien
             return self.__proxied__.in_gradient_subspace(*args, **kwargs)
         def in_descent_subspace(self, *args, **kwargs):
             return self.__proxied__.in_descent_subspace(*args, **kwargs)
+        def _format(self, msg, *args):
+            return ('in component {}: '+msg).format(self.i, *args)
     # inverse Hessian matrix
     Pair = namedtuple('Pair', ('s', 'y', 'rho', 'gamma'))
     class AbstractInverseHessianBlock(LocalSubspaceProxy):
@@ -728,17 +729,17 @@ def define_component(__global__, independent_components, memory, newton, gradien
         def commit(self, s):
             c = Component(self) # fails if `i` is not set
             if self.x is None:
-                raise ValueError('parameter vector `x` not defined')
+                raise ValueError(self._format('parameter vector `x` not defined'))
             #if self.s is None:
             #    raise ValueError('parameter update `s` not defined')
             c._x = np.array(self.x)
             if c.descent_subspace is None:
                 if len(s) != self.n:
-                    raise ValueError('wrong size for parameter update `s`')
+                    raise ValueError(self._format('wrong size for parameter update `s`; `s` has size {}; full space is {}-dimensional', len(s), self.n))
                 c._x += s
             else:
                 if len(s) != c.descent_subspace_size:
-                    raise ValueError('parameter update `s` is not in descent subspace')
+                    raise ValueError(self._format('parameter update `s` is not in descent subspace; `s` has size {}; descent subspace has size {}', len(s), c.descent_subspace_size))
                 c._x[c.subspace_map] += s
             return c
         def push(self, _x=None):
@@ -746,7 +747,7 @@ def define_component(__global__, independent_components, memory, newton, gradien
                 _x = __global__.x
             __x = self.x
             if __x is None:
-                raise RuntimeError('no parameters are defined')
+                raise RuntimeError(self._format('no parameters are defined'))
             if __x.size == _x.size:
                 if __x is not _x:
                     _x[...] = __x
@@ -762,6 +763,100 @@ def define_component(__global__, independent_components, memory, newton, gradien
             def __g__(self, x, subspace=None, update=False):
                 return Component.__g__(self, x, subspace, gradient_covariate, update)
         return Component1
+
+
+def _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace,
+        args, bounds, _sum, gradient_sum, gradient_covariate):
+    _all = None
+    if not callable(fun):
+        raise TypeError('fun is not callable')
+    if not isinstance(x0, np.ndarray):
+        raise TypeError('x0 is not a numpy.ndarray')
+    if not callable(component):
+        if isinstance(component, int):
+            if component == 0:
+                component = lambda k: 0
+            elif 0 < component:
+                m = component
+                def mk_component(m):
+                    components = np.arange(m)
+                    def _component(k):
+                        _i = k % m
+                        if _i == 0:
+                            np.random.shuffle(components)
+                        return components[_i]
+                    return _component
+                component = mk_component(m)
+            else:
+                raise ValueError('wrong number of components')
+        else:
+            raise TypeError('component is not callable')
+    if not callable(covariate):
+        raise TypeError('covariate is not callable')
+    if gradient_subspace is None:
+        gradient_subspace = lambda i: _all
+    elif not callable(gradient_subspace):
+        raise TypeError('gradient_subspace is not callable')
+    if descent_subspace is None:
+        descent_subspace = lambda i: _all
+    elif not callable(descent_subspace):
+        raise TypeError('descent_subspace is not callable')
+    if not callable(_sum):
+        raise TypeError('_sum is not callable')
+    if gradient_sum is None:
+        gradient_sum = _sum
+    elif not callable(gradient_sum):
+        raise TypeError('gradient_sum is not callable')
+
+    # bounds
+    if bounds:
+        lower_bound, upper_bound = np.full_like(x0, -np.inf), np.full_like(x0, np.inf)
+        any_lower_bound = any_upper_bound = False
+        for i, _bs in enumerate(bounds):
+            _lb, _ub = _bs
+            if _lb not in (None, -np.inf, np.nan):
+                any_lower_bound = True
+                lower_bound[i] = _lb
+            if _ub not in (None, np.inf, np.nan):
+                any_upper_bound = True
+                upper_bound[i] = _ub
+        if not any_lower_bound:
+            lower_bound = None
+        if not any_upper_bound:
+            upper_bound = None
+        if any_lower_bound or any_upper_bound:
+            bounds = (lower_bound, upper_bound)
+        else:
+            bounds = None
+        #if bounds and c < 1:
+        #    warnings.warn('c < 1; bounds may be violated')
+
+    return component, gradient_subspace, descent_subspace, bounds, gradient_sum
+
+
+def _ls_args(step_scale, ls_step_max, ls_iter_max, ls_armijo_max, ls_wolfe, newton):
+    if step_scale <= 0 or 1 < step_scale:
+        raise ValueError('expected: 0 < step_scale <= 1')
+    ls_kwargs = {}
+    if ls_step_max:
+        ls_kwargs['step_max'] = ls_step_max
+    if ls_iter_max:
+        ls_kwargs['iter_max'] = ls_iter_max
+    if ls_armijo_max:
+        ls_kwargs['armijo_max'] = ls_armijo_max
+    if ls_wolfe:
+        try:
+            c2, c3 = ls_wolfe
+        except TypeError:
+            c2 = c3 = ls_wolfe
+        ls_kwargs['c3'] = c3
+    elif newton:
+        c2 = .9
+    else:
+        c2 = .1
+    ls_kwargs['c2'] = c2
+
+    return ls_kwargs
 
 
 def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, descent_subspace,
@@ -888,7 +983,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
         newton (bool): quasi-Newton (BFGS) mode; if `False`, use vanilla gradient descent instead.
 
-        verbose (bool): verbose mode.
+        verbose (bool or logging.Logger): verbose mode or logger.
 
     Returns:
 
@@ -896,80 +991,31 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
     See also :class:`SparseFunction` and :func:`wolfe_line_search`.
     """
-    _all = None
-    if not callable(fun):
-        raise TypeError('fun is not callable')
-    if not isinstance(x0, np.ndarray):
-        raise TypeError('x0 is not a numpy.ndarray')
-    if not callable(component):
-        if isinstance(component, int):
-            if component == 0:
-                component = lambda k: 0
-            elif 0 < component:
-                m = component
-                def mk_component(m):
-                    components = np.arange(m)
-                    def _component(k):
-                        _i = k % m
-                        if _i == 0:
-                            np.random.shuffle(components)
-                        return components[_i]
-                    return _component
-                component = mk_component(m)
-            else:
-                raise ValueError('wrong number of components')
-        else:
-            raise TypeError('component is not callable')
-    if not callable(covariate):
-        raise TypeError('covariate is not callable')
-    if gradient_subspace is None:
-        gradient_subspace = lambda i: _all
-    elif not callable(gradient_subspace):
-        raise TypeError('gradient_subspace is not callable')
-    if descent_subspace is None:
-        descent_subspace = lambda i: _all
-    elif not callable(descent_subspace):
-        raise TypeError('descent_subspace is not callable')
-    if not callable(_sum):
-        raise TypeError('_sum is not callable')
-    if gradient_sum is None:
-        gradient_sum = _sum
-    elif not callable(gradient_sum):
-        raise TypeError('gradient_sum is not callable')
     # logging
+    if verbose:
+        import logging
+        if isinstance(verbose, logging.Logger):
+            logger = verbose
+            verbose = True
+        else:
+            logger = logging.getLogger(__name__)
+            logger.setLevel(logging.DEBUG)
+            _console = logging.StreamHandler()
+            _console.setFormatter(logging.Formatter('%(message)s\n'))
+            logger.addHandler(_console)
     if verbose:
         msg0, msg1, msg2 = define_pprint()
         cumt = 0.
         t0 = time.time()
-    #
-    n = x0.size
+    # initial checks
+    component, gradient_subspace, descent_subspace, bounds, gradient_sum = \
+            _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace,
+                    args, bounds, _sum, gradient_sum, gradient_covariate)
     # working copy of the parameter vector
     x = x0
-    x = np.array(x0)
-    # bounds
-    if bounds:
-        lower_bound, upper_bound = np.full_like(x0, -np.inf), np.full_like(x0, np.inf)
-        any_lower_bound = any_upper_bound = False
-        for i, _bs in enumerate(bounds):
-            _lb, _ub = _bs
-            if _lb not in (None, -np.inf, np.nan):
-                any_lower_bound = True
-                lower_bound[i] = _lb
-            if _ub not in (None, np.inf, np.nan):
-                any_upper_bound = True
-                upper_bound[i] = _ub
-        if not any_lower_bound:
-            lower_bound = None
-        if not any_upper_bound:
-            upper_bound = None
-        if any_lower_bound or any_upper_bound:
-            bounds = (lower_bound, upper_bound)
-        else:
-            bounds = None
-        #if bounds and c < 1:
-        #    warnings.warn('c < 1; bounds may be violated')
-    # component
+    n = x0.size
 
+    # component
     __global__ = SparseFunction(x, covariate, gradient_subspace, descent_subspace, eps, fun, _sum, args, regul, bounds, gradient_initial_step)
     Component = define_component(__global__, independent_components, memory, newton, gradient_covariate)
     C = _defaultdict(Component)
@@ -980,48 +1026,33 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             c.push() # update the full parameter vector
         return _push
     push = mk_push(C)
-    ls_kwargs = {}
-    if ls_step_max:
-        ls_kwargs['step_max'] = ls_step_max
-    if ls_iter_max:
-        ls_kwargs['iter_max'] = ls_iter_max
-    if ls_armijo_max:
-        ls_kwargs['armijo_max'] = ls_armijo_max
-    if ls_wolfe:
-        try:
-            c2, c3 = ls_wolfe
-        except TypeError:
-            c2 = c3 = ls_wolfe
-        ls_kwargs['c3'] = c3
-    elif newton:
-        c2 = .9
-    else:
-        c2 = .1
-    ls_kwargs['c2'] = c2
+
+    # linesearch
+    ls_kwargs = _ls_args(step_scale, ls_step_max, ls_iter_max, ls_armijo_max, ls_wolfe, newton)
     if regul:
         regul0 = regul
     if ls_regul:
         ls_regul0 = ls_regul
-    if step_scale <= 0 or 1 < step_scale:
-        raise ValueError('expected: 0 < step_scale <= 1')
     if ls_step_max_decay:
         try:
             initial_ls_step_max, final_ls_step_max = ls_step_max
         except TypeError:
             initial_ls_step_max = ls_step_max
             final_ls_step_max = initial_ls_step_max * .1
+
+    # initial values
     ls_failure_count = low_df_count = low_dg_count = 0
     if fix_ls:
         recurrent_ls_failure_count = {}
-
     f_history = []
     df_history = []
     dg_history = []
-
     i_prev = None # previous component index
     k = 0 # iteration index
+
     while True:
         try:
+
             assert x is __global__.x
             #print(x[[0, 196, 197, 210]])
             if max_iter and max_iter <= k:
@@ -1059,7 +1090,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
                         proj_ii = np.dot(s_ii, y_ii)
                         if proj_ii <= 0:
                             if verbose:
-                                print(msg2(k, i, 'PROJ G <= 0 (k-1)'))
+                                logger.debug(msg2(k, i, 'PROJ G <= 0 (k-1)'))
                             c.H.drop()
                         else:
                             c.H.update(s_ii, y_ii, proj_ii)
@@ -1078,11 +1109,12 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
                 g0 = c.in_descent_subspace(g)
 
                 # sanity check
-                if np.all(g0 == 0):
+                local_convergence = np.all(g0 == 0)
+                if local_convergence:
                     break
                 if newton and 0 <= np.dot(p, g0):
                     if verbose:
-                        print(msg2(k, i, 'PROJ G <= 0 (k)'))
+                        logger.debug(msg2(k, i, 'PROJ G <= 0 (k)'))
                     H.drop()
                     p = -H.dot(g)
                     p = c.in_descent_subspace(p)
@@ -1104,6 +1136,10 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
                     _k += 1
                 else:
                     break
+            if local_convergence:
+                if verbose:
+                    logger.info(msg2(k, i, 'LOCAL CONVERGENCE MET'))
+                continue
 
             # sanity checks
             ncomponents = len(C)
@@ -1115,7 +1151,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             new_epoch = (k + 1) % ncomponents == 0
             if s is None:
                 if verbose:
-                    print(msg2(k, i, 'LINE SEARCH FAILED'))
+                    logger.info(msg2(k, i, 'LINE SEARCH FAILED'))
                     #s, _res = s
                     #if s is None:
                     #    print(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res.upper())))
@@ -1127,7 +1163,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
                         _count = recurrent_ls_failure_count[i] = recurrent_ls_failure_count.get(i, 0) + 1
                         if fix_ls_trigger <= _count:
                             if verbose:
-                                print(msg2(k, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
+                                logger.debug(msg2(k, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
                             c.push(x)
                             fix_ls(i, x)
                             c.pull(x)
@@ -1146,7 +1182,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
                 continue
             if np.all(s == 0):
                 if verbose:
-                    print(msg2(k, i, 'NULL UPDATE'))
+                    logger.info(msg2(k, i, 'NULL UPDATE'))
                 # undo any change in the working copy of the parameter vector (default in finally block)
                 continue
 
@@ -1170,7 +1206,7 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
             if gtol is None and not newton:
                 if verbose:
-                    print(msg1(k, i, c.f, c1.f))
+                    logger.info(msg1(k, i, c.f, c1.f))
                 c = c1 # 'push' the parameter update `c1`
                 continue
 
@@ -1179,12 +1215,12 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             # sanity checks
             if h is None:
                 if verbose:
-                    print(msg2(k, i, 'GRADIENT CALCULATION FAILED (k+1)'))
+                    logger.debug(msg2(k, i, 'GRADIENT CALCULATION FAILED (k+1)'))
                 # drop c1 (default in finally block)
                 continue
             if np.allclose(g, h):
                 if verbose:
-                    print(msg2(k, i, 'NO CHANGE IN THE GRADIENT'))
+                    logger.debug(msg2(k, i, 'NO CHANGE IN THE GRADIENT'))
                 c = c1 # 'push' the parameter update...
                 continue # ...but do not update H
 
@@ -1194,14 +1230,14 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
             proj = np.dot(s, c.in_descent_subspace(y)) # s_{k}^{T} . y_{k}
             if proj <= 0:
                 if verbose:
-                    print(msg2(k, i, 'PROJ G <= 0 (k+1)'))
+                    logger.debug(msg2(k, i, 'PROJ G <= 0 (k+1)'))
                 # either drop c1 (default in finally block)...
                 # ... or drop the inverse Hessian
                 c1.H.drop()
                 c = c1 # push `c1`
                 continue
             elif verbose:
-                print(msg1(k, i, c.f, c1.f, proj))
+                logger.info(msg1(k, i, c.f, c1.f, proj))
 
             # check for convergence based on g
             if gtol is not None and ncomponents <= k: # first epoch ignores this criterion
@@ -1234,13 +1270,13 @@ def minimize_sparse_bfgs(fun, x0, component, covariate, gradient_subspace, desce
 
     if verbose:
         cumt += time.time() - t0
-        print('           * * *\n\n{}\n'.format(resolution))
+        logger.info('           * * *\n\n{}\n'.format(resolution))
         minute = floor(cumt / 60.)
         second = cumt - minute * 60.
         if minute:
-            print('Elapsed time = {:d}m{:.3f}s\n'.format(minute, second))
+            logger.info('Elapsed time = {:d}m{:.3f}s\n'.format(minute, second))
         else:
-            print('Elapsed time = {:.3f}s\n'.format(second))
+            logger.info('Elapsed time = {:.3f}s\n'.format(second))
     H = {i: C[i].H for i in C}
     return BFGSResult(x, H, resolution, k,
             f_history if f_history else None,
@@ -1312,7 +1348,7 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
                 if SAFE * err <= abs(a[u,u] - a[u-1,u-1]):
                     break
             if total_grad_j is None:
-                print('sparse_grad failed at column {}'.format(j))
+                logger.warning('sparse_grad failed at column {}'.format(j))
                 total_grad_j = 0.
             else:
                 any_ok = True

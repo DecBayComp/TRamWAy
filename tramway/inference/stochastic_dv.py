@@ -16,7 +16,6 @@ from .base import *
 from .gradient import *
 from .dv import DV
 from .optimization import *
-from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
@@ -49,17 +48,20 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
 
 
 class LocalDV(DV):
-    __slots__ = ('regions','prior_delay','_n_calls')
+    __slots__ = ('regions','prior_delay','_n_calls','_undefined_grad','_undefined_time_derivative','_logger')
 
     def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None,
         minimum_diffusivity=None, positive_diffusivity=None, prior_include=None,
-        regions=None, prior_delay=None):
+        regions=None, prior_delay=None, logger=None):
         # positive_diffusivity is for backward compatibility
         DV.__init__(self, diffusivity, potential, diffusivity_prior, potential_prior,
             minimum_diffusivity, positive_diffusivity, prior_include)
         self.regions = regions
         self.prior_delay = prior_delay
         self._n_calls = 0.
+        self._undefined_grad = set()
+        self._undefined_time_derivative = set()
+        self._logger = logger
 
     def region(self, i):
         return self.regions[i]
@@ -106,6 +108,28 @@ class LocalDV(DV):
         else:
                 prior = DV.diffusivity_prior(self, i)
         return prior
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            import logging
+            self._logger = logging.getLogger(__name__)
+            self._logger.setLevel(logging.DEBUG)
+            _console = logging.StreamHandler()
+            _console.setFormatter(logging.Formatter('%(message)s'))
+            self._logger.addHandler(_console)
+        return self._logger
+
+    def undefined_grad(self, i, feature=''):
+        if i not in self._undefined_grad:
+            self._undefined_grad.add(i)
+            self.logger.warning('grad{}({}) is not defined'.format(feature, i))
+
+    def undefined_time_derivative(self, i, feature=''):
+        if i not in self._undefined_time_derivative:
+            self._undefined_time_derivative.add(i)
+            self.logger.warning('d{}({})/dt failed'.format(feature, i))
+
 
 
 def make_regions(cells, index, reverse_index, size=1):
@@ -154,7 +178,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     #print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
     #print('{}\t{}\t{}'.format(i+1, *gradV))
     if gradV is None or np.any(np.isnan(gradV)):
-        warn('gradV({}) is not defined'.format(i), RuntimeWarning)
+        dv.undefined_grad(i, 'V')
         gradV = np.zeros(cell.dim)
 
     # various posterior terms
@@ -195,14 +219,14 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
         if D_prior and D_time_prior:
             dDdt = cells.time_derivative(i, D, reverse_index)
             if dDdt is None:
-                warn('time_derivative({}, D) failed'.format(i), RuntimeWarning)
+                dv.undefined_time_derivative(i, 'D')
             else:
                 # assume fixed-duration time window
                 time_priors += D_prior * D_time_prior * dDdt * dDdt
         if V_prior and V_time_prior:
             dVdt = cells.time_derivative(i, V, reverse_index)
             if dVdt is None:
-                warn('time_derivative({}, V) failed'.format(i), RuntimeWarning)
+                dv.undefined_time_derivative(i, 'V')
             else:
                 time_priors += V_prior * V_time_prior * dVdt * dVdt
 
@@ -212,7 +236,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     #    print((i, raw_posterior, standard_priors, Dj, V[j], n, gradV, [V[_j] for _j in cells.neighbours(i)]))
 
     if verbose:
-        print((i, raw_posterior, standard_priors, time_priors))
+        logger.debug((i, raw_posterior, standard_priors, time_priors))
     if posterior_info is not None:
         if iter_num is None:
             info = [i, raw_posterior, result]
@@ -306,7 +330,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     if not stochastic:
         y0 = sum( local_dv_neg_posterior(j, dv.combined, *args[:-1]) for j in range(m) )
         if verbose:
-            print('At X0\tactual posterior= {}\n'.format(y0))
+            dv.logger.info('At X0\tactual posterior= {}\n'.format(y0))
         args = args + (y0,)
 
     # keyword arguments to `minimize_sparse_bfgs`
@@ -403,7 +427,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         F = pd.DataFrame(np.stack(F, axis=0), index=index_,
             columns=[ 'force ' + col for col in cells.space_cols ])
     else:
-        warn('not any cell is suitable for evaluating the local force', RuntimeWarning)
+        dv.logger.warning('not any cell is suitable for evaluating the local force')
         F = pd.DataFrame(np.zeros((0, len(cells.space_cols)), dtype=V.dtype),
             columns=[ 'force ' + col for col in cells.space_cols ])
     DVF = DVF.join(F)
