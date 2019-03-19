@@ -50,6 +50,7 @@ setup(
         'tramway.inference',
         'tramway.inference.bayes_factors',
         'tramway.feature',
+        'tramway.feature.single_traj',
         'tramway.plot',
         'tramway.plot.animation',
         'tramway.plot.tk',
