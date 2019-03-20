@@ -381,9 +381,9 @@ def RW_HMM(T_max=1, dt=1e-2, D=np.array([0.001, 0.1]),
         if i % nb_short == 0:
             X[i//nb_short] = Xi
             state = np.random.choice(nstate, size=1, p=T[state]).item()
-            states[i] = state
+            states[i//nb_short] = state
     t = np.linspace(0, nb_point*dt, nb_point, endpoint=False)
-    data = np.concatenate((np.expand_dims(t, axis=1), X, state), axis=1)
+    data = np.concatenate((np.expand_dims(t, axis=1), X, states), axis=1)
     return pd.DataFrame(data=data, columns=(['t'] + SPACE_COLS[:dim] +
                                             ['state']))
 

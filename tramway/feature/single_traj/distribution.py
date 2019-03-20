@@ -263,7 +263,7 @@ def generate_distribution(distribution, nb_point, **kwargs):
         d_scale = kwargs['d_l']
         tau_scale = d_scale * (1 + alpha) / (alpha * (1/2 + 1 / (alpha - 1)))
         return distrib_long_tail_cst_before_cut(tau_scale, alpha, nb_point)[0]
-    elif nature_distribution == "alpha_stable":
+    elif distribution == "alpha_stable":
         args = (kwargs['alpha'], 0, kwargs['c_alpha_levy'],
                 0, nb_point-1)
         return np.abs(distribution_alpha_levy_stable(*args))

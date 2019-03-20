@@ -15,6 +15,8 @@
 This module regroups helper functions for random walk simulations
 """
 
+import numpy as np
+
 SPACE_COLS = ['x', 'y', 'z']
 
 
