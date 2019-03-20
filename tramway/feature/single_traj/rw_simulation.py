@@ -98,7 +98,7 @@ def RW_exp_dist_anomalous_time(T_max=1, dt=1e-2, d_l=0.1, alpha=1.5, d_tau=0.1,
                                nature_distribution="lomax", X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="exp", d_l=d_l,
                 distribution_time=nature_distribution, alpha_time=alpha,
-                d_tau=d_tau, d_tau_max=d_tau_max, v=v, X_init=X_init, dim=dim
+                d_tau=d_tau, d_tau_max=d_tau_max, v=v, X_init=X_init, dim=dim,
                 c_scale_alpha_stable_t=c_scale_alpha_stable)
 
 
