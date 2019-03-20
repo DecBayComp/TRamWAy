@@ -341,10 +341,10 @@ def Ornstein_Uhlenbeck_update(T_max=1, dt=1e-2, D=0.1, d_confinement=0.2,
 
 # Hidden Markov Model of diffusion, brownian movement.
 
-def HMM_gen_diffusion(T_max=1, dt=1e-2, D=np.array([0.001, 0.1]),
-                      T=np.array([[0.9, 0.1], [0.1, 0.9]]),
-                      p_init=np.array([0.5, 0.5]), v=None,
-                      nb_short=1, X_init=0, dim=2):
+def RW_HMM(T_max=1, dt=1e-2, D=np.array([0.001, 0.1]),
+           T=np.array([[0.9, 0.1], [0.1, 0.9]]),
+           p_init=np.array([0.5, 0.5]), v=None,
+           nb_short=1, X_init=0, dim=2):
     """
     Generate diffusive random walk with diffusion following a markov model.
 
@@ -368,9 +368,11 @@ def HMM_gen_diffusion(T_max=1, dt=1e-2, D=np.array([0.001, 0.1]),
     nb_tot = (nb_point - 1) * nb_short
     dt_short = dt/nb_short
     X = np.zeros((nb_point, dim)) + np.array(normalize_init(X_init, dim))
+    states = np.zeros((nb_point, 1))
     Xi = X[0].copy()
     nstate = len(p_init)
     state = np.random.choice(nstate, size=1, p=p_init).item()
+    states[0] = state
     if v is None:
         v = np.zeros((nstate, dim))
     for i in range(1, nb_tot+1):
@@ -379,9 +381,11 @@ def HMM_gen_diffusion(T_max=1, dt=1e-2, D=np.array([0.001, 0.1]),
         if i % nb_short == 0:
             X[i//nb_short] = Xi
             state = np.random.choice(nstate, size=1, p=T[state]).item()
+            states[i] = state
     t = np.linspace(0, nb_point*dt, nb_point, endpoint=False)
-    data = np.concatenate((np.expand_dims(t, axis=1), X), axis=1)
-    return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
+    data = np.concatenate((np.expand_dims(t, axis=1), X, state), axis=1)
+    return pd.DataFrame(data=data, columns=(['t'] + SPACE_COLS[:dim] +
+                                            ['state']))
 
 
 # Confined movement.

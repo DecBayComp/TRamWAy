@@ -176,7 +176,7 @@ def fractional_correlated_noise(dt=0.025, H=1, nb_point=100):
     HH = 2 * H
     t = np.arange(nb_point) * dt
     d = np.abs(t[:, np.newaxis] - t[np.newaxis, :])
-    covariance = (np.abs(d-1)**HH + (d+1)**HH - 2*d**HH) * dt**HH * 0.5
+    covariance = (np.abs(d-dt)**HH + (d+dt)**HH - 2*d**HH) * 0.5
     y = np.random.randn(nb_point)
     L = np.linalg.cholesky(covariance)
     return np.dot(L, y)
