@@ -16,6 +16,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+from matplotlib.lines import Line2D
 import mpl_toolkits.mplot3d as mp3d
 
 
@@ -78,7 +79,7 @@ def visualize_random_walk(RW, color=True, colorbar=True):
 
 def visualize_rw_hmm(RW):
     dim = len(set(RW.columns).intersection({'x', 'y', 'z'}))
-    nstates = rw.state.max()
+    nstates = RW.state.max()
     dict_state_color = {}
     for k in range(int(nstates)+1):
         dict_state_color[k] = list({'b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'})[k]
@@ -92,8 +93,7 @@ def visualize_rw_hmm(RW):
                             colors=[dict_state_color[x] for x in RW.state])
         line = ax.add_collection(lc)
         ax.axis('square')
-        manual_legend = [Line2D([0], [0], marker='o', markersize=6, color='w',
-                                markerfacecolor=v,
+        manual_legend = [Line2D([0], [0], marker='_', markersize=6, color=v,
                                 label=f'diffusion type {k+1}')
                          for k, v in dict_state_color.items()]
         ax.legend(handles=manual_legend, loc=0)
@@ -106,8 +106,7 @@ def visualize_rw_hmm(RW):
                             colors=[dict_state_color[x] for x in RW.state])
         line = ax.add_collection(lc)
         ax.axis('square')
-        manual_legend = [Line2D([0], [0], marker='o', markersize=6, color='w',
-                                markerfacecolor=v,
+        manual_legend = [Line2D([0], [0], marker='_', markersize=6, color=v,
                                 label=f'diffusion type {k+1}')
                          for k, v in dict_state_color.items()]
         ax.legend(handles=manual_legend, loc=0)
@@ -122,8 +121,7 @@ def visualize_rw_hmm(RW):
                                                  for x in RW.state])
         line = ax.add_collection(lc)
         ax.axis('square')
-        manual_legend = [Line2D([0], [0], marker='o', markersize=6, color='w',
-                                markerfacecolor=v,
+        manual_legend = [Line2D([0], [0], marker='_', markersize=6, color=v,
                                 label=f'diffusion type {k+1}')
                          for k, v in dict_state_color.items()]
         ax.legend(handles=manual_legend, loc=0)

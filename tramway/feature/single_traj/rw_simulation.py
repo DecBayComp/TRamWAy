@@ -214,6 +214,9 @@ def RW_FBM(T_max=1, dt=1e-2, corr_type="frac", sigma=0.5, H=0.55,
         "wood_chan"}.
     sigma : float, a scaling parameter.
     H : fractionnarity.
+        ! If corr_type = "exp", H controls the fractionarity with a
+        different range of values : H need to get into the thousands to
+        have the same fractionarity as H ~ 0.3 with corr_type = "frac".
     v : drift, list of size dim.
     X_init : float or list, initial position of the random walk.
     dim : int, in {1,2,3}, the dimension of the random walk.
@@ -438,6 +441,30 @@ def RW_circular_confinement(T_max=1, dt=1e-2, D=0.1, d_wall=0.2, nb_short=1,
 def RW_DD(T_max=1, dt=1e-2, nb_short=10, X_init=0, dim=2,
           mode_diffusion="chubynsky_slater", sigma_bruit=0.1, g_bruit=0.1,
           D_init=0.05, tau_bruit=5, n_dimension=2):
+    """
+    Generate diffusive random walk with diffusion itself following a random
+    process.
+
+    Parameters
+    ----------
+    T_max : float, the total time computed for which the random walk is
+        computed.
+    dt : float, time between each point output.
+    nb_short : int,  the number of points used between each point output, to
+        avoid accumulating noise.
+    X_init : float or list, initial position of the random walk.
+    dim : int, in {1,2,3}, the dimension of the random walk.
+    mode_diffusion : string, the type of random process that diffusion follows
+        Must be in {"chubynsky_slater", "langevin_square", "CIR"}.
+    sigma_bruit : parameter equivalent to the diffusion in the random process
+        of the diffusion.
+    g_bruit : drift parameter in the random process of the diffusion.
+    D_init : initial value taken by the diffusion of the random walk.
+    tau_bruit : controls how much diffusion is above 0.
+    n_dimension : dimension of the diffusion returned in case we want to
+        generate a multi dimensional Diffusion process (with the langevin
+        square distribution).
+    """
     nb_point = int(T_max/dt)
     nb_tot = (nb_point-1) * nb_short
     dt_short = dt/nb_short
@@ -469,7 +496,129 @@ def RW_DD(T_max=1, dt=1e-2, nb_short=10, X_init=0, dim=2,
 # Volume 59, June 2017, Pages 37-50
 # (slight modification)
 
-def RW_SAW(nb_point=100, dt=1e-2, dr=1e-2, dim=2, bias=-1):
+
+# MISC functions with a global prm
+
+def construction_sommets_graphe(pt_base, pt, d):
+    global Graphe
+    if d == 0:
+        pt.reverse()
+        pt = tuple(pt)
+        if pt not in Dico_Des_Points:
+            Graphe[pt] = []
+    else:
+        for dep in [-1, 0, 1]:
+            construction_sommets_graphe(pt_base, pt + [pt_base[d - 1] + dep],
+                                        d - 1)
+
+
+def construction_aretes_graphe(dim):
+    global Graphe
+    for v1 in Graphe:
+        for v2 in Graphe:
+            if norme_manhattan(moinss(v1, v2, dim)) == 1:
+                Graphe[v1].append(v2)
+                Graphe[v2].append(v1)
+    return Graphe
+
+
+def calcul_nombres_infinis(dim, Deplacements):
+    global Graphe
+    pt_courant = Liste_Des_Points[-1]
+    num_voisin = 0
+    Graphe = {}
+    resul = []
+    while num_voisin < 2 * dim:
+        candidat = pluss(pt_courant, Deplacements[num_voisin], dim)
+        som = -1
+        if candidat not in Dico_Des_Points:
+            som = 0
+            for ind in range(dim):
+                petit_pt = enleve_coord(candidat, ind)
+                if petit_pt not in Les_Minmax[ind]:
+                    som += 2
+                elif (candidat[ind] < Les_Minmax[ind][petit_pt][0] or
+                      (candidat[ind] > Les_Minmax[ind][petit_pt][1])):
+                    som += 1
+            if som == 0 and candidat not in Dico_Ariane:
+                if Graphe == {}:
+                    construction_sommets_graphe(pt_courant, [], dim)
+                    Graphe = construction_aretes_graphe(dim)
+                    dest = intersection(Graphe, Dico_Ariane)
+                chem = chemin(candidat, dest, Graphe)
+                if chem is None:
+                    som = -1
+        resul.append(som)
+        num_voisin += 1
+    return resul
+
+
+# Self Avoiding Random Walk useful functions
+
+
+def nouveau_fil(pt_base):
+    global Liste_Ariane
+    global Dico_Ariane
+    Liste_Ariane = [pt_base]
+    Dico_Ariane = {pt_base: 0}
+
+
+def racourcir_fil(index):
+    while len(Liste_Ariane) > index:
+        del Dico_Ariane[Liste_Ariane.pop()]
+
+
+def ajout_dans_fil(pt):
+    Dico_Ariane[tuple(pt)] = len(Liste_Ariane)
+    Liste_Ariane.append(tuple(pt))
+
+
+def insert_point(pt, dim):
+    Liste_Des_Points.append(pt)
+    Dico_Des_Points[pt] = None
+    for index in range(dim):
+        petit_pt = enleve_coord(pt, index)
+        if petit_pt not in Les_Minmax[index]:
+            Les_Minmax[index][petit_pt] = [pt[index], pt[index]]
+        elif pt[index] < Les_Minmax[index][petit_pt][0]:
+            Les_Minmax[index][petit_pt][0] = pt[index]
+        elif pt[index] > Les_Minmax[index][petit_pt][1]:
+            Les_Minmax[index][petit_pt][1] = pt[index]
+
+
+def ajout_point(bias, dim, Deplacements):
+    global Graphe
+    pt_courant = Liste_Des_Points[-1]
+    les_probas = calcul_proba(calcul_nombres_infinis(dim, Deplacements),
+                              bias, dim)
+    num_voisin = np.random.choice(les_probas)
+    candidat = pluss(pt_courant, Deplacements[num_voisin], dim)
+    for index in range(dim):
+        petit_pt = enleve_coord(candidat, index)
+        if ((petit_pt not in Les_Minmax[index]) or
+                (candidat[index] > Les_Minmax[index][petit_pt][1])):
+            insert_point(candidat, dim)
+            nouveau_fil(voisin(candidat, index, 1))
+            break
+        elif candidat[index] < Les_Minmax[index][petit_pt][0]:
+            insert_point(candidat, dim)
+            nouveau_fil(voisin(candidat, index, -1))
+            break
+    else:
+        if candidat in Dico_Ariane:
+            insert_point(candidat, dim)
+            racourcir_fil(Dico_Ariane[candidat])
+        else:
+            dest = intersection(Graphe, Dico_Ariane)
+            chem = chemin(candidat, dest, Graphe)
+            insert_point(candidat, dim)
+            racourcir_fil(Dico_Ariane[chem[0]] + 1)
+            for pt in chem[1: -1]:
+                ajout_dans_fil(pt)
+
+
+def RW_SAW(T_max=1, dt=1e-2, dr=1e-2, dim=2, bias=-1):
+    nb_point = int(T_max/dt)
     global Liste_Des_Points
     global Dico_Des_Points
     global Liste_Ariane
