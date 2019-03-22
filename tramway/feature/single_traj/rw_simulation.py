@@ -25,7 +25,7 @@ from .rw_misc import *
 
 # Continous time random walks
 
-def RW_brownian(T_max=1, dt=1e-2, D=0.1, nb_short=1, X_init=0, dim=2):
+def RW_brownian(T_max=1, dt=1e-2, D=0.1, nb_short=1, v=None, X_init=0, dim=2):
     """
     Generates simple pure diffusive random walk.
 
@@ -45,7 +45,8 @@ def RW_brownian(T_max=1, dt=1e-2, D=0.1, nb_short=1, X_init=0, dim=2):
     dt_short = dt/nb_short
     Xi = np.random.randn(nb_tot, dim)
     X_init = normalize_init(X_init, dim)
-    X = np.cumsum(np.sqrt(2*D*dt_short)*Xi, axis=0) + np.array(X_init)
+    drift = np.array(normalize_init(v, dim)) * dt * np.ones((nb_point-1, dim))
+    X = np.cumsum(np.sqrt(2*D*dt_short)*Xi, axis=0) + np.array(X_init) + drift
     X = X[::nb_short]
     X = np.insert(X, 0, X_init, axis=0)
     t = np.arange(nb_point)*dt
@@ -53,23 +54,23 @@ def RW_brownian(T_max=1, dt=1e-2, D=0.1, nb_short=1, X_init=0, dim=2):
     return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
 
 
-def RW_exp_dist(T_max=1, dt=1e-2, d_l=0.1, X_init=0, dim=2):
+def RW_exp_dist(T_max=1, dt=1e-2, d_l=0.1, v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="exp", d_l=d_l,
                 distribution_time="cst", v=v, X_init=X_init, dim=dim)
 
 
-def RW_const_dist(T_max=1, dt=1e-2, d_l=0.1, X_init=0, dim=2):
+def RW_const_dist(T_max=1, dt=1e-2, d_l=0.1, v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="uni", d_l=d_l,
                 distribution_time="cst", v=v, X_init=X_init, dim=dim)
 
 
-def RW_gauss_dist(T_max=1, dt=1e-2, d_l=0.1, X_init=0, dim=2):
+def RW_gauss_dist(T_max=1, dt=1e-2, d_l=0.1, v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="exp", d_l=d_l,
                 distribution_time="cst", v=v, X_init=X_init, dim=dim)
 
 
 def RW_exp_dist_exp_temps(T_max=1, dt=1e-2, d_l=0.1,
-                          d_tau=1e-2, X_init=0, dim=2):
+                          d_tau=1e-2, v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="exp", d_l=d_l,
                 distribution_time="exp", d_tau=d_tau, v=v, X_init=X_init,
                 dim=dim)
@@ -77,7 +78,7 @@ def RW_exp_dist_exp_temps(T_max=1, dt=1e-2, d_l=0.1,
 
 def RW_anomalous_dist(T_max=1, dt=1e-2, alpha=1.5, d_scale=0.1,
                       c_scale_alpha_stable=1, nature_distribution="lomax",
-                      X_init=0, dim=2):
+                      v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space=nature_distribution,
                 c_scale_alpha_stable_x=c_scale_alpha_stable,
                 d_l=d_l, alpha_space=alpha, d_jump_max=d_jump_max,
@@ -85,7 +86,7 @@ def RW_anomalous_dist(T_max=1, dt=1e-2, alpha=1.5, d_scale=0.1,
 
 
 def RW_anomalous_with_cut_dists(T_max=1, dt=1e-2, alpha=1.5, d_scale=0.1,
-                                d_jump_max=1,
+                                d_jump_max=1, v=None,
                                 nature_distribution="constant_tail_cut",
                                 X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space=nature_distribution,
@@ -94,7 +95,7 @@ def RW_anomalous_with_cut_dists(T_max=1, dt=1e-2, alpha=1.5, d_scale=0.1,
 
 
 def RW_exp_dist_anomalous_time(T_max=1, dt=1e-2, d_l=0.1, alpha=1.5, d_tau=0.1,
-                               c_scale_alpha_stable=1,
+                               c_scale_alpha_stable=1, v=None,
                                nature_distribution="lomax", X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="exp", d_l=d_l,
                 distribution_time=nature_distribution, alpha_time=alpha,
@@ -105,7 +106,7 @@ def RW_exp_dist_anomalous_time(T_max=1, dt=1e-2, d_l=0.1, alpha=1.5, d_tau=0.1,
 def RW_exp_dist_anomalous_with_cut_time(T_max=1, dt=1e-2, d_l=0.1, alpha=1.5,
                                         d_tau=0.1, d_tau_max=1,
                                         nature_distribution="lomax_cut",
-                                        X_init=0, dim=2):
+                                        v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="exp", d_l=d_l,
                 distribution_time=nature_distribution, alpha_time=alpha,
                 d_tau=d_tau, d_tau_max=d_tau_max, v=v, X_init=X_init, dim=dim)
@@ -114,16 +115,17 @@ def RW_exp_dist_anomalous_with_cut_time(T_max=1, dt=1e-2, d_l=0.1, alpha=1.5,
 def RW_gauss_dist_anomalous_with_cut_time(T_max=1, dt=1e-2, d_l=0.1, alpha=1.5,
                                           d_tau=0.1, d_tau_max=1,
                                           nature_distribution="lomax_cut",
-                                          X_init=0, dim=2):
+                                          v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="gauss", d_l=d_l,
                 distribution_time=nature_distribution, alpha_time=alpha,
                 d_tau=d_tau, d_tau_max=d_tau_max, v=v, X_init=X_init, dim=dim)
 
 
 def RW_const_dist_anomalous_time(T_max=1, dt=1e-2, d_l=0.1, alpha=1.5,
-                                 d_tau=0.1, c_scale_alpha_stable=1,
+                                 d_tau=0.1, d_tau_max=1,
+                                 c_scale_alpha_stable=1,
                                  nature_distribution="lomax",
-                                 X_init=0, dim=2):
+                                 v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space="uni", d_l=d_l,
                 distribution_time=nature_distribution, alpha_time=alpha,
                 d_tau=d_tau, d_tau_max=d_tau_max, v=v, X_init=X_init, dim=dim,

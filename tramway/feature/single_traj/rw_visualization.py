@@ -129,3 +129,25 @@ def visualize_rw_hmm(RW):
         ax.set_xlim(rmin, rmax)
         ax.set_ylim(rmin, rmax)
         ax.set_zlim(rmin, rmax)
+
+
+def plot_convex_hull(XY, hull, imax):
+    """Plots a convex hull
+    """
+    plt.figure()
+    plt.plot(XY[:, 0], XY[:, 1], linewidth=0.5)
+    for simplex in hull.simplices[:-1]:
+        plt.plot(XY[simplex, 0], XY[simplex, 1], 'r-')
+    plt.plot(XY[hull.simplices[-1], 0],
+             XY[hull.simplices[-1], 1], 'r-', label='Convex hull')
+    plt.scatter(XY[hull.vertices, 0], XY[hull.vertices, 1], s=10,
+                color='red', label='Nodes of the convex hull')
+    # max_distance
+    n = len(hull.vertices)
+    p1, p2 = imax//n, imax % n
+    plt.plot(XY[hull.vertices][[p1, p2], 0], XY[hull.vertices]
+             [[p1, p2], 1], 'r--', label='max distance')
+    plt.legend()
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.axis('square')

@@ -246,7 +246,7 @@ def generate_distribution(distribution, nb_point, **kwargs):
     This function is used to generate distributions.
     """
     if distribution == 'exp':
-        return distribution_exp(1 / kwargs['d_l'], nb_point)
+        return distribution_exp(nb_point, 1 / kwargs['d_l'])
     elif distribution == 'uni':
         return np.random.uniform(0, kwargs['d_l'], nb_point)
     elif distribution == 'gauss':

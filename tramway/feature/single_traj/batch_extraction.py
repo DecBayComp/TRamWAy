@@ -15,3 +15,16 @@
 This module is where functions processing (extracting features) from random
 walks are defined.
 """
+
+import numpy as np
+import pandas as pd
+
+from .rw_features import *
+
+
+def extract_features(RWs):
+    df_trajs = RWs.groupby('n')
+    n_trajs = df_trajs.agg('count').count().x.astype(int)
+    features = [get_all_features(RandomWalk(group))
+                for id_g, group in df_trajs]
+    return features
