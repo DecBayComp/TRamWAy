@@ -16,8 +16,11 @@ This module is where functions creating multiple random walks at a time are
 defined.
 """
 
+import multiprocessing as mp
+
 import numpy as np
 import pandas as pd
+import tqdm
 
 from .rw_simulation import *
 
@@ -47,7 +50,7 @@ def generate_random_number(type_n, type_gen, a, b=None):
             return np.random.randint(a, b+1)
         elif type_gen == 'exp':
             return (10**(np.random.rand() * (np.log10(b)-np.log10(a)) +
-                    np.log10(a))).astype(int)
+                         np.log10(a))).astype(int)
         else:
             raise TypeError(f'Unrecognized type : {type_gen}')
     elif type_n == 'str':
@@ -103,3 +106,28 @@ def rw_feature_generator(n, types=[(RW_gauss_dist,
         rw = types[rw_id_type][0](**rw_dict_prms)
         rw_dict_prms['func_name'] = types[rw_id_type][0].__name__
         yield (i, rw, rw_dict_prms)
+
+
+def create_random_rw(args):
+    ps, types = args
+    rw_id_type = np.random.choice(len(types), p=ps)
+    rw_dict_prms = {}
+    for prm, val in types[rw_id_type][1].items():
+        rw_dict_prms[prm] = generate_random_number(*val)
+    rw = types[rw_id_type][0](**rw_dict_prms)
+    rw_dict_prms['func_name'] = types[rw_id_type][0].__name__
+    return (rw, rw_dict_prms)
+
+
+def create_batch_rw(n=100, ps=[1], nb_process=4,
+                    types=[(RW_gauss_dist,
+                            {'d_l': ('float', 'exp', 0.01, 0.1),
+                             'T_max': ('float', 'exp', 0.1, 1)})]):
+    with mp.Pool(nb_process) as p:
+        raw_data = list(tqdm.tqdm_notebook(
+            p.imap(create_random_rw, [(ps, types)] * n), total=n))
+    RW_data = [rw[0] for rw in raw_data]
+    RW_prm = {i: rw[1] for i, rw in enumerate(raw_data)}
+    for i, rw in enumerate(RW_data):
+        RW_data[i]['n'] = i
+    return pd.concat(RW_data).reset_index(drop=True), RW_prm

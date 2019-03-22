@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import scipy
 import scipy.spatial
+import scipy.stats
 from scipy.optimize import root_scalar as root_finder
 
 from .rw_visualization import plot_convex_hull
@@ -213,7 +214,7 @@ class RandomWalk():
 
     def feat_pdf(self, id_min=None, id_max=None, n_samples=30):
         tau, pdf_stats = self.stats_pdf(id_min, id_max, n_samples)
-        keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean', 
+        keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
                 'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var',
                 'pdf_mean_skewness', 'pdf_var_skewness',
                 'pdf_mean_kurtosis', 'pdf_var_kurtosis']

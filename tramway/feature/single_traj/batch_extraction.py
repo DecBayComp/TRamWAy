@@ -16,15 +16,30 @@ This module is where functions processing (extracting features) from random
 walks are defined.
 """
 
+import multiprocessing as mp
+
 import numpy as np
 import pandas as pd
+import tqdm
 
 from .rw_features import *
 
 
-def extract_features(RWs):
+def extract_features(RWs, nb_process=4):
     df_trajs = RWs.groupby('n')
     n_trajs = df_trajs.agg('count').count().x.astype(int)
-    features = [get_all_features(RandomWalk(group))
-                for id_g, group in df_trajs]
-    return features
+    list_RWobj = [RandomWalk(group)
+                  for _, group in tqdm.tqdm_notebook(df_trajs,
+                                                     total=n_trajs,
+                                                     desc='creating objects')]
+    if nb_process is None:
+        print('here')
+        raw_features = list(map(get_all_features, tqdm.tqdm_notebook(
+                        list_RWobj, total=n_trajs,
+                        desc='extracting features')))
+    else:
+        with mp.Pool(nb_process) as p:
+            raw_features = list(tqdm.tqdm_notebook(
+                    p.imap(get_all_features, list_RWobj),
+                    total=n_trajs, desc='extracing features'))
+    return pd.DataFrame.from_dict(raw_features)
