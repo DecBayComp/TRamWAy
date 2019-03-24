@@ -25,10 +25,10 @@ import tqdm
 from .rw_features import *
 
 
-def extract_features(RWs, nb_process=4):
+def extract_features(RWs, nb_process=4, func_feat_process=None):
     df_trajs = RWs.groupby('n')
     n_trajs = df_trajs.agg('count').count().x.astype(int)
-    list_RWobj = [RandomWalk(group)
+    list_RWobj = [RandomWalk(group, zero_time=True)
                   for _, group in tqdm.tqdm_notebook(df_trajs,
                                                      total=n_trajs,
                                                      desc='creating objects')]
@@ -42,4 +42,9 @@ def extract_features(RWs, nb_process=4):
             raw_features = list(tqdm.tqdm_notebook(
                     p.imap(get_all_features, list_RWobj),
                     total=n_trajs, desc='extracing features'))
-    return pd.DataFrame.from_dict(raw_features)
+    df = pd.DataFrame.from_dict(raw_features)
+    if func_feat_process is not None:
+        df.apply()
+    return df
+
+

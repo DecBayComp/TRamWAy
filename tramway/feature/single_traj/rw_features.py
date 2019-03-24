@@ -92,12 +92,14 @@ def _ergodicity_estimator_v2(X, w=2):
 
 class RandomWalk():
 
-    def __init__(self, RW_df):
+    def __init__(self, RW_df, zero_time=False):
         self.data = RW_df
         self.dims = set(RW_df.columns).intersection({'x', 'y', 'z'})
         self.length = len(self.data)
         self.position = self.data.loc[:, list(self.dims)].values
         self.t = self.data.t.values
+        if zero_time:
+            self.t -= self.data.t.min()
         self.dt_vec = self.t[1:] - self.t[:-1]
         self.is_dt_cst = (np.var(self.dt_vec) < 1e-10)
         self.dt = self.dt_vec[0]
@@ -380,7 +382,15 @@ class RandomWalk():
         return {'gaussian_grad': mean_grad, 'gaussian_mean': mean_gauss}
 
     def get_all_features(self, id_min=None, id_max=None, n_samples=30):
-        return {**self.feat_angle(id_min, id_max),
+        meta_info = {
+            'size': self.length,
+            'dt': self.dt,
+            'is_dt_cst': self.is_dt_cst,
+            't_min': self.t.min(),
+            't_max': self.t.max()
+        }
+        return {**meta_info,
+                **self.feat_angle(id_min, id_max),
                 **self.feat_drift(id_min, id_max),
                 **self.feat_ergodicity(id_min, id_max),
                 **self.feat_escape_time(id_min, id_max),

@@ -27,8 +27,8 @@ from .rw_simulation import *
 
 def generate_random_number(type_n, type_gen, a, b=None):
     """
-    Useful function that can output different random numbers based on the
-    parameters given
+    Useful function that outputs a randomly generated number or string
+    depending on the given parameters
 
     Parameters
     ----------
@@ -72,19 +72,15 @@ def rw_feature_generator(n, types=[(RW_gauss_dist,
     ----------
     n : int, the number of random walks we want to generate.
     type : list that describes which random walks we generate.
-        Each item is tuple with 2 elements.
-        - The first is the function (see RW_gen_pd_cleaner) which characterizes
+        Each item is a tuple with 2 elements.
+        - The first is the function (see rw_simulation) which characterizes
         which type of random walk it produces.
         - The second is a dictionary whose keys are the parameters we want to
         pass to the random walk function and values the parameters describing
         how those parameter values are generated with `generate_random_number`.
-    ps : parameter passed to `np.random.choice` as p, probability of choosing
-        some element of types.
-    ns : int, parameter of the feature extraction process.
-    flist : list of functions that extract features from the generated random
-        walk.
-    get_rw : bool, whether we want to return the random walk generated (if not
-        only the features and random walk parameters are returned).
+    ps : parameter passed to `np.random.choice` as p, should have same
+        dimension as type. Controls the probability distribution of choosing
+        some type.
 
     Yields
     ------
@@ -109,6 +105,20 @@ def rw_feature_generator(n, types=[(RW_gauss_dist,
 
 
 def create_random_rw(args):
+    """Returns a tuple of the simulated random walk and the parameters of the
+    simulation a probability distribution of possible random walks.
+
+    Parameters
+    ----------
+    args : tuple of (ps (list or None or int, should be accepted by
+        np.random.choice as the p parameter), types (see
+        "rw_feature_generator")).
+    
+    Returns
+    -------
+    rw : pandas DataFrame of the position/time of the simulated random walk.
+    rw_dict_prms : dict of the parameters of the simulated random walk.
+    """
     ps, types = args
     rw_id_type = np.random.choice(len(types), p=ps)
     rw_dict_prms = {}
@@ -123,9 +133,40 @@ def create_batch_rw(n=100, ps=[1], nb_process=4,
                     types=[(RW_gauss_dist,
                             {'d_l': ('float', 'exp', 0.01, 0.1),
                              'T_max': ('float', 'exp', 0.1, 1)})]):
-    with mp.Pool(nb_process) as p:
-        raw_data = list(tqdm.tqdm_notebook(
-            p.imap(create_random_rw, [(ps, types)] * n), total=n))
+    """Function which uses multiprocessing to rapidly create multiple random
+    walks.
+
+    Parameters
+    ----------
+    n : int, the number of random walks we want to generate.
+    ps : parameter passed to `np.random.choice` as p, should have same
+        dimension as type. Controls the probability distribution of choosing
+        some type.
+    nb_process : number of CPU processes used simultaneous (makes use of
+        multiprocessing built-in Python module).
+    type : list that describes which random walks we generate.
+        Each item is a tuple with 2 elements.
+        - The first is the function (see rw_simulation) which characterizes
+        which type of random walk it produces.
+        - The second is a dictionary whose keys are the parameters we want to
+        pass to the random walk function and values the parameters describing
+        how those parameter values are generated with `generate_random_number`.
+    
+
+    Returns
+    -------
+    - pandas DataFrame of the simulated random walks.
+    - dictionary of dictionaries. Each key is the index of the random walk,
+        each value is a dictionary of the values taken by the parameters of the
+        random walk.
+    """
+    if nb_process is None:
+        raw_data = list(map(create_random_rw,
+                            tqdm.tqdm_notebook([(ps, types)] * n)))
+    else:
+        with mp.Pool(nb_process) as p:
+            raw_data = list(tqdm.tqdm_notebook(
+                p.imap(create_random_rw, [(ps, types)] * n), total=n))
     RW_data = [rw[0] for rw in raw_data]
     RW_prm = {i: rw[1] for i, rw in enumerate(raw_data)}
     for i, rw in enumerate(RW_data):
