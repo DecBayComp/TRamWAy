@@ -23,6 +23,9 @@ from .distribution import *
 from .rw_misc import *
 
 
+FRACTAL_DIR = 'C:\\Users\\Maxime\\Documents\\Fractals'
+
+
 # Continous time random walks
 
 def RW_brownian(T_max=1, dt=1e-2, D=0.1, nb_short=1, v=None, X_init=0, dim=2):
@@ -661,3 +664,31 @@ def RW_SAW(T_max=1, dt=1e-2, dr=1e-2, dim=2, bias=-1):
     t = np.arange(nb_point)*dt
     data = np.stack((t,) + tuple(X[:, i] for i in range(dim))).T
     return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
+
+
+def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
+                          fractal_name=None, sigma=1e-3):
+    try:
+        motif = np.load(f'{FRACTAL_DIR}\{fractal_name}.npy')
+    except:
+        print('Could not load fractal, try to create fractal with pattern {}'
+              .format(fractal_name))
+    nb_point = int(T_max/dt)
+    X = np.zeros((nb_point, 2), dtype=int)
+    X[0] = int(np.floor(motif.shape[0]/2))
+    for i in range(1, nb_point):
+        i_init = X[i-1, 0]
+        j_init = X[i-1, 1]
+        k, l, keep_going = update_position(motif, i_init, j_init)
+        if keep_going:
+            X[i, 0] = k
+            X[i, 1] = l
+        else:
+            break
+    noise_ = sigma * np.random.randn(nb_point, 2)
+    X = (X - X[0, :] + normalize_init(X_init, 2)) * dr + noise_
+    drift = np.array(normalize_init(v, 2)) * dt * np.ones((nb_point-1, 2))
+    X[1:] += drift.cumsum(axis=0)
+    t = np.arange(nb_point)*dt
+    data = np.stack((t,) + tuple(X[:, i] for i in range(2))).T
+    return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:2])

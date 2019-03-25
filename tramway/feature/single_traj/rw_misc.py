@@ -265,3 +265,111 @@ def calcul_proba(tab, bias, dim):
                 resul.extend([coordinate] * (-bias + (2 * dim) - 1 -
                                              tab[coordinate]))
     return resul
+
+
+# For Random Walks on Pattern : Pattern creation
+
+
+PATTERN_SIERPINSKI = {
+    "classic": np.array([[1, 1, 0],
+                         [1, 1, 1],
+                         [0, 1, 0]]),
+    "butterfly": np.array([[1, 1, 0],
+                           [1, 1, 1],
+                           [0, 1, 1]]),
+    "stairs": np.array([[1, 0, 0],
+                        [1, 1, 0],
+                        [1, 1, 1]]),
+    "cross5": np.array([[1, 1, 1, 1, 1],
+                        [1, 0, 1, 0, 1],
+                        [1, 1, 1, 1, 1],
+                        [1, 0, 1, 0, 1],
+                        [1, 1, 1, 1, 1]]),
+    "square5": np.array([[0, 1, 1, 1, 0],
+                         [0, 1, 1, 1, 0],
+                         [1, 1, 1, 1, 1],
+                         [0, 1, 1, 1, 0],
+                         [0, 1, 1, 1, 0]]),
+    "square5_full": np.array([[0, 1, 1, 1, 0],
+                              [1, 0, 1, 0, 1],
+                              [1, 1, 1, 1, 1],
+                              [1, 0, 1, 0, 1],
+                              [0, 1, 1, 1, 0]]),
+    "cheese5": np.array([[1, 0, 1, 0, 1],
+                         [1, 1, 1, 1, 1],
+                         [1, 1, 1, 1, 1],
+                         [1, 1, 1, 1, 1],
+                         [1, 0, 1, 0, 1]])
+}
+
+
+def sierpinski_carpet_deterministic_generator(global_iteration=4,
+                                              nature="classic",
+                                              path_output=None):
+    base_pattern = PATTERN_SIERPINSKI[nature]
+    base_size = base_pattern.shape[0]
+    n_2 = int(np.floor(base_size/2))
+    matrice_zeros = np.zeros((base_size, base_size), dtype=int)
+    pattern = base_pattern
+    for _ in range(global_iteration):
+        ll = pattern.shape[0]
+        pattern_new = np.zeros((base_size * ll, base_size * ll))
+        for i in range(ll):
+            for j in range(ll):
+                i_mean = (i)*base_size + base_size - (n_2+1)
+                j_mean = (j)*base_size + base_size - (n_2+1)
+                if pattern[i, j] == 0:
+                    pattern_new[i_mean-n_2:i_mean+n_2+1,
+                                j_mean-n_2:j_mean+n_2+1] = matrice_zeros
+                else:
+                    pattern_new[i_mean-n_2:i_mean+n_2+1,
+                                j_mean-n_2:j_mean+n_2+1] = base_pattern
+        pattern = pattern_new
+    if path_output is not None:
+        np.save(path_output, pattern)
+    return pattern
+
+
+def generate_the_fractals_and_save_them(DIR, types=[(7, "classic"),
+                                                    (7, "butterfly"),
+                                                    (5, "cross5"),
+                                                    (5, "square5_full"),
+                                                    (5, "cheese5")]):
+    for (num_iter, type_name) in types:
+        sierpinski_carpet_deterministic_generator(
+            global_iteration=num_iter,
+            nature=type_name,
+            path_output=f'{DIR}\{type_name}')
+
+
+def update_position(motif, i_init, j_init):
+    keep_going = True
+    counter = 0
+    output_loc = np.zeros((4, 2), dtype=int)
+
+    if motif[i_init+1, j_init] == 1:
+        output_loc[counter, 0] = i_init+1
+        output_loc[counter, 1] = j_init
+        counter += 1
+    if motif[i_init, j_init+1] == 1:
+        output_loc[counter, 0] = i_init
+        output_loc[counter, 1] = j_init+1
+        counter += 1
+    if motif[i_init-1, j_init] == 1:
+        output_loc[counter, 0] = i_init-1
+        output_loc[counter, 1] = j_init
+        counter += 1
+    if motif[i_init, j_init-1] == 1:
+        output_loc[counter, 0] = i_init
+        output_loc[counter, 1] = j_init-1
+        counter += 1
+
+    if counter == 0:
+        k = 0
+        l = 0
+        keep_going = False
+    else:
+        counter_alea = np.random.randint(counter)
+        k = output_loc[counter_alea, 0]
+        l = output_loc[counter_alea, 1]
+    return k, l, keep_going
