@@ -68,7 +68,6 @@ def extract_features(RWs, nb_process=4, func_feat_process=None):
                                                      total=n_trajs,
                                                      desc='creating objects')]
     if nb_process is None:
-        print('here')
         raw_features = list(map(get_all_features, tqdm.tqdm_notebook(
             list_RWobj, total=n_trajs,
             desc='extracting features')))

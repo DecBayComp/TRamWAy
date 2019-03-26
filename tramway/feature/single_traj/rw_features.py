@@ -108,7 +108,7 @@ def _ergodicity_estimator(X):
     denom = 1 if denom < 1e-8 else denom
     V = diff / denom
     Cst = np.abs(np.mean(np.exp(1j * V)))**2
-    n_array = np.unique(np.linspace(1, len(V)-1, min(len(V), 20)).astype(int))
+    n_array = np.unique(np.linspace(1, len(V)-1, min(len(V), 7)).astype(int))
     E = np.array([(np.mean(np.exp(1j * (V[n:] - V[:-n]))) -
                    Cst) if n > 0 else 1 - Cst
                   for n in n_array])
@@ -122,7 +122,7 @@ def _ergodicity_estimator_v2(X, w=2):
     """
     N = len(X)
     Cst = 1/N - 1/(N*(N+1)) * np.abs(np.mean(np.exp(1j * w * (X - X[0]))))**2
-    n_array = np.unique(np.linspace(1, N-1, min(N, 20)).astype(int))
+    n_array = np.unique(np.linspace(1, N-1, min(N, 7)).astype(int))
     E = np.array([np.mean(np.exp(1j * w * (X[n:] - X[:-n]))) + Cst
                   for n in n_array])
     return np.mean(E)
@@ -301,10 +301,14 @@ class RandomWalk():
         subDabs = self.get_sub_Dabs(id_min, id_max)
         tau_int = np.unique(np.geomspace(1, len(subDabs)-1, num=n_samples,
                                          endpoint=False).astype(int))
-        pdf_stats = [scipy.stats.describe(np.diagonal(subDabs, offset=i))
-                     for i in tau_int]
-        pdf_stats = np.array([[x.mean, x.variance, x.skewness, x.kurtosis]
-                              for x in pdf_stats])
+        # pdf_stats = [scipy.stats.describe(np.diagonal(subDabs, offset=i))
+        #              for i in tau_int]
+        # pdf_stats = np.array([[x.mean, x.variance, x.skewness, x.kurtosis]
+        #                       for x in pdf_stats])
+        pdf_stats = np.stack(([np.mean(np.diagonal(subDabs, offset=i))
+                              for i in tau_int],
+                              [np.var(np.diagonal(subDabs, offset=i))
+                              for i in tau_int])).T
         return tau_int * self.dt, pdf_stats
 
     def feat_pdf(self, id_min=None, id_max=None, n_samples=30):
@@ -330,20 +334,24 @@ class RandomWalk():
             walk.
         """
         tau, pdf_stats = self.stats_pdf(id_min, id_max, n_samples)
+        # keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
+        #         'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var',
+        #         'pdf_mean_skewness', 'pdf_var_skewness',
+        #         'pdf_mean_kurtosis', 'pdf_var_kurtosis']
         keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
-                'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var',
-                'pdf_mean_skewness', 'pdf_var_skewness',
-                'pdf_mean_kurtosis', 'pdf_var_kurtosis']
+                'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var']
         if len(tau) > 1:
             fit_mean = scipy.stats.linregress(np.log10(tau),
                                               np.log10(pdf_stats[:, 0]))
             fit_var = scipy.stats.linregress(np.log10(tau),
                                              np.log10(pdf_stats[:, 1]))
-            mu_sk, var_sk = np.mean(pdf_stats[:, 2]), np.var(pdf_stats[:, 2])
-            mu_ku, var_ku = np.mean(pdf_stats[:, 3]), np.var(pdf_stats[:, 3])
+            # mu_sk, var_sk = np.mean(pdf_stats[:, 2]), np.var(pdf_stats[:, 2])
+            # mu_ku, var_ku = np.mean(pdf_stats[:, 3]), np.var(pdf_stats[:, 3])
+            # vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
+            #         fit_var[0], 10**fit_var[1], fit_var[2],
+            #         mu_sk, var_sk, mu_ku, var_ku]
             vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
-                    fit_var[0], 10**fit_var[1], fit_var[2],
-                    mu_sk, var_sk, mu_ku, var_ku]
+                    fit_var[0], 10**fit_var[1], fit_var[2]]
             return dict(list(zip(keys, vals)))
         else:
             return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
@@ -442,25 +450,27 @@ class RandomWalk():
                     kurtosis, straightness]
             return dict(list(zip(keys, vals)))
 
-    def feat_escape_time(self, id_min=None, id_max=None):
+    def feat_escape_time(self, id_min=None, id_max=None, method='brenth'):
         """Returns features derived from the escape time : the time at which
         we escape a distance x.
         Those features are q_i, i in {25, 50, 75}, where q_i is the distance
         from which i% of starting positions escaped from.
         """
         subDabs = self.get_sub_Dabs(id_min, id_max)
-        subDfuture = subDabs.copy()
-        mean_step = np.mean(np.diagonal(subDfuture, offset=1))
-        subDfuture[np.tril_indices(len(subDabs))] = 0
+        mean_step = np.mean(np.diagonal(subDabs, offset=1))
+        sample = np.random.permutation(len(subDabs))[:min(100, len(subDabs))]
+        sample = np.sort(sample)
+        subDabs = subDabs[sample][:, sample]
+        subDfuture = np.triu(subDabs)
         keys = ['escape_dist_q1', 'escape_dist_median', 'escape_dist_q3']
         try:
             qs = [0.25, 0.5, 0.75]
             d_qs = []
             for q in qs:
                 args = (q, subDfuture, mean_step)
-                d_qs.append(root_finder(_zero_escape_quantile, args=args,
-                                        method='bisect',
-                                        bracket=(0, 1000)).root)
+                sol = root_finder(_zero_escape_quantile, args=args,
+                                  method=method, bracket=(0, 100))
+                d_qs.append(sol.root)
             vals = np.array(d_qs) * mean_step
             return dict(list(zip(keys, vals)))
         except:
@@ -574,7 +584,7 @@ class RandomWalk():
                 **self.feat_ergodicity(id_min, id_max),
                 **self.feat_escape_time(id_min, id_max),
                 **self.feat_fractal_spectrum(id_min, id_max,
-                                             n_samples=n_samples, nR=20),
+                                             n_samples=n_samples, nR=4),
                 **self.feat_gaussianity(id_min, id_max, n_samples=n_samples),
                 **self.feat_msd(id_min, id_max, n_samples=n_samples),
                 **self.feat_pdf(id_min, id_max, n_samples=n_samples),
