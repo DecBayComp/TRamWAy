@@ -151,3 +151,90 @@ def plot_convex_hull(XY, hull, imax):
     plt.xlabel('x')
     plt.ylabel('y')
     plt.axis('square')
+
+
+def plot_embedding_with_color(mu, logvar, color, plot_every=10, name=None,
+                              square=False, s=0.1, alpha=1):
+    fig, axs = plt.subplots(figsize=(14, 6), ncols=2)
+    axs[0].scatter(mu[::plot_every, 0], mu[::plot_every, 1],
+                   c=color[::plot_every], s=s, alpha=alpha)
+    if square:
+        axs[0].axis('square')
+    axs[0].set_title('mu')
+    im = axs[1].scatter(logvar[::plot_every, 0], logvar[::plot_every, 1],
+                        c=color[::plot_every], s=s, alpha=alpha)
+    axs[1].set_title('logvar')
+    if square:
+        axs[1].axis('square')
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.90, 0.15, 0.04, 0.7])
+    cb = fig.colorbar(im, cax=cbar_ax)
+    cb.set_label(name)
+
+
+def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
+                           plot_every=10, separate_ax=False, square=False,
+                           s=0.1, alpha=1, dim=2, ax_logvar=0):
+    types = dict_type_index.keys()
+
+    if dim == 2:
+        if separate_ax:
+            mu_min, mu_max = np.min(mu, axis=0), np.max(mu, axis=0)
+            logvar_min = np.min(logvar, axis=0)
+            logvar_max = np.max(logvar, axis=0)
+            plt.figure(figsize=(16, 12))
+            for i, type_ in enumerate(types):
+                plt.subplot(2, len(types), i+1)
+                plt.scatter(mu[dict_type_index[type_], 0][::plot_every],
+                            mu[dict_type_index[type_], 1][::plot_every],
+                            s=s, alpha=alpha)
+                plt.axis((mu_min[0], mu_max[0], mu_min[1], mu_max[1]))
+                plt.title(f'mu {type_}')
+            for i, type_ in enumerate(types):
+                plt.subplot(2, len(types), i+1+len(types))
+                plt.scatter(logvar[dict_type_index[type_], 0][::plot_every],
+                            logvar[dict_type_index[type_], 1][::plot_every],
+                            s=s, alpha=alpha)
+                plt.axis((logvar_min[0], logvar_max[0],
+                          logvar_min[1], logvar_max[1]))
+                plt.title(f'logvar {type_}')
+            plt.tight_layout()
+        else:
+            plt.figure(figsize=(14, 6))
+            plt.subplot(121)
+            for type_ in types:
+                plt.scatter(mu[dict_type_index[type_], 0][::plot_every],
+                            mu[dict_type_index[type_], 1][::plot_every],
+                            label=type_, s=s, alpha=alpha)
+            plt.legend(markerscale=1/s)
+            if square:
+                plt.axis('square')
+            plt.title('Repartition of different types (mu)')
+            plt.subplot(122)
+            for type_ in types:
+                plt.scatter(logvar[dict_type_index[type_], 0][::plot_every],
+                            logvar[dict_type_index[type_], 1][::plot_every],
+                            label=type_, s=s, alpha=alpha)
+            plt.legend(markerscale=1/s)
+            plt.title('Repartition of different types (logvars)')
+            if square:
+                plt.axis('square')
+            plt.tight_layout()
+
+    if dim == 3:
+        fig = plt.figure(figsize=(14, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        for type_ in types:
+            ax.scatter(mu[dict_type_index[type_], 0][::plot_every],
+                       mu[dict_type_index[type_], 1][::plot_every],
+                       logvar[dict_type_index[type_],
+                              ax_logvar][::plot_every],
+                       label=type_, s=s, alpha=alpha)
+        ax.set_xlabel('mu_x')
+        ax.set_ylabel('mu_y')
+        if ax_logvar == 0:
+            ax.set_zlabel('logvar_x')
+        else:
+            ax.set_zlabel('logvar_y')
+        ax.legend(markerscale=1/s)
+        ax.set_title('Repartition of different types')

@@ -84,7 +84,7 @@ def RW_anomalous_dist(T_max=1, dt=1e-2, alpha=1.5, d_scale=0.1,
                       v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space=nature_distribution,
                 c_scale_alpha_stable_x=c_scale_alpha_stable,
-                d_l=d_l, alpha_space=alpha, d_jump_max=d_jump_max,
+                d_l=d_scale, alpha_space=alpha, d_jump_max=d_jump_max,
                 distribution_time="cst", v=v, X_init=X_init, dim=dim)
 
 
@@ -93,7 +93,7 @@ def RW_anomalous_with_cut_dists(T_max=1, dt=1e-2, alpha=1.5, d_scale=0.1,
                                 nature_distribution="constant_tail_cut",
                                 X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space=nature_distribution,
-                d_l=d_l, alpha_space=alpha, d_jump_max=d_jump_max,
+                d_l=d_scale, alpha_space=alpha, d_jump_max=d_jump_max,
                 distribution_time="cst", v=v, X_init=X_init, dim=dim)
 
 

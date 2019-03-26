@@ -23,10 +23,13 @@ import scipy.spatial
 import scipy.stats
 from scipy.optimize import root_scalar as root_finder
 
-from .rw_visualization import plot_convex_hull
+from .visualization import plot_convex_hull
 
 
 def _regularize_idminmax(id_min, id_max, N):
+    """Helper function ; makes sure that 0 <= id_min < id_max <= N and return
+    id_min=0 and id_max=N if those variables are None.
+    """
     if id_min is None:
         id_min = 0
     else:
@@ -48,15 +51,40 @@ def _regularize_idminmax(id_min, id_max, N):
 
 
 def _escape_rate(future_dists, mean_step, x):
+    """Computes the proportion of times the random walk was able to escape a
+    ball centered on the current position with radius x times mean_step.
+    For each time step i, we evaluate the maximum distance between future
+    positions at time steps j > 0. If this distance is greater than
+    x * mean_step, time step i accounts for 1 in the mean. Else it accounts for
+    0.
+
+    Parameters
+    ----------
+    future_dists : N*N ndarray of distances between the random walk at times i
+        and j. The lower tridiagonal matrix is null.
+    mean_step : scalar, the mean step size of the random walk.
+    x : scalar.
+
+    Returns
+    -------
+    float, between 0 and 1, the proportion of times the random walk escaped.
+    """
     return np.count_nonzero(np.argmax(future_dists > x * mean_step,
                                       axis=1)) / future_dists.shape[0]
 
 
 def _zero_escape_quantile(x, r, future_dists, mean_step):
+    """Helper function that is positive if the escape rate (see above function)
+    is superior to the scalar r.
+    """
     return _escape_rate(future_dists, mean_step, x) - r
 
 
 def _Dq(Dabs, q, n_R=10, Rmax=0.5):
+    """Computes the fractal spectrum function evaluated at q.
+    Source : Effective multifractal spectrum of a random walk,
+             Berthelsen et al., 1994, equation 1 of related paper.
+    """
     Rmax = min(Rmax, np.max(Dabs))
     Rmin = Rmax / 4
     # Log x samples despite linear fit : because we attach more confidence to
@@ -71,8 +99,14 @@ def _Dq(Dabs, q, n_R=10, Rmax=0.5):
 
 
 def _ergodicity_estimator(X):
+    """Ergodicity estimation, close to 0 for ergodic processes
+    Source : Ergodicity breaking on the neuronal surface emerges from
+             random switching between diffusive states, Weron et al., 2017.
+    """
     diff = (X[1:] - X[:-1])
-    V = diff / np.sqrt(np.mean(diff**2))
+    denom = np.sqrt(np.mean(diff**2))
+    denom = 1 if denom < 1e-8 else denom
+    V = diff / denom
     Cst = np.abs(np.mean(np.exp(1j * V)))**2
     n_array = np.unique(np.linspace(1, len(V)-1, min(len(V), 20)).astype(int))
     E = np.array([(np.mean(np.exp(1j * (V[n:] - V[:-n]))) -
@@ -82,6 +116,10 @@ def _ergodicity_estimator(X):
 
 
 def _ergodicity_estimator_v2(X, w=2):
+    """Ergodicity estimation, close to 0 for ergodic processes
+    Source : Ergodicity breaking on the neuronal surface emerges from
+             random switching between diffusive states, Weron et al., 2017.
+    """
     N = len(X)
     Cst = 1/N - 1/(N*(N+1)) * np.abs(np.mean(np.exp(1j * w * (X - X[0]))))**2
     n_array = np.unique(np.linspace(1, N-1, min(N, 20)).astype(int))
@@ -91,7 +129,29 @@ def _ergodicity_estimator_v2(X, w=2):
 
 
 class RandomWalk():
+    """Class which helps compute features of random walks.
 
+    Parameters
+    ----------
+    RW_df : pandas DataFrame of the time - position of the random walk
+    zero_time : bool, optional. Whether to make sure that the starting point
+        time is 0 (features expect the random walk to start at 0).
+
+    Attributes
+    ----------
+    data : copy of RW_df
+    dims : set, dimensions of the random walk (in {'x', 'y', 'z'})
+    length : size of the random walk
+    position : numpy values of the positions of the random walk
+    t : numpy values of the times of the random walk
+    dt_vec : numpy vector of time steps
+    is_dt_cst : bool, if time steps are cst
+    dt : float, first time step
+    Dvec : numpy array of size length * length * len(dims).
+        Element (i,j) is the vector position[i] - position[j]
+    Dabs : numpy array of size length * length
+        Element (i,j) is the distance between position[i] and position[j]
+    """
     def __init__(self, RW_df, zero_time=False):
         self.data = RW_df
         self.dims = set(RW_df.columns).intersection({'x', 'y', 'z'})
@@ -109,6 +169,8 @@ class RandomWalk():
     def __len__(self):
         return self.length
 
+    # Those functions are used to extract sub attributes of the random walks.
+    # Will be used when using time windowing feature extraction.
     def get_sub_time(self, id_min, id_max):
         id_min, id_max = _regularize_idminmax(id_min, id_max, self.length)
         return self.t[id_min:id_max]
@@ -153,17 +215,19 @@ class RandomWalk():
 
     def temporal_msd(self, id_min=None, id_max=None, n_samples=30):
         """Computes the temporal mean squared deviation of the random walk
-        between indices imin and imax.
+        between indices id_min and id_max.
 
         Parameters
         ----------
-        RW : RandomWalk object, with size N
-        imin : int, should be between 0 and N-2
-        imax : int, should be between 2 and N
+        id_min : optional, int should be between 0 and N-1
+        id_max : optional, int should be between 1 and N
+        n_samples : optional, number of samples where we compute the temporal
+            averaged mean squared displacement.
 
         Returns
         -------
-        dict of parameters extracted from the random walk.
+        tau : times at which we computed the mean squared displacement
+        msd : mean squared displacement
         """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         tau_int = np.unique(np.geomspace(1, len(subDabs), num=n_samples,
@@ -173,16 +237,31 @@ class RandomWalk():
         return tau_int * self.dt, msd
 
     def feat_msd(self, id_min=None, id_max=None, n_samples=30):
-        """Computes the alpha and diffusion (D) coefficients :
+        """Computes the alpha and diffusion (D) coefficients defined by the
+        relation between the temporal averaged mean squared displacement and
+        time :
         msd(dt) = 4 * D * dt ** (alpha)
+        The temporal averaged mean squared displacement is a function defined
+        as :
+            msd(\tau) = 1/(T-\tau) int_{0}^{T-\tau} (X(t+\tau) - X(t))^2
+        For a Brownian motion, msd(dt) = 4 * D * dt
+
+        Parameters
+        ----------
+        id_min : optional, int should be between 0 and N-1
+        id_max : optional, int should be between 1 and N
+        n_samples : optional, number of samples where we compute the temporal
+            averaged mean squared displacement.
         """
         tau, msd = self.temporal_msd(id_min, id_max, n_samples)
         if len(tau) > 1:
-            slope, intercept, _, _, _ = scipy.stats.linregress(np.log10(tau),
+            slope, intercept, r, _, _ = scipy.stats.linregress(np.log10(tau),
                                                                np.log10(msd))
-            return {'msd_alpha': slope, 'msd_diffusion': 10**intercept / 4}
+            return {'msd_alpha': slope, 'msd_rval': r,
+                    'msd_diffusion': 10**intercept / 4}
         else:
-            return {'msd_alpha': np.nan, 'msd_diffusion': np.nan}
+            return {'msd_alpha': np.nan, 'msd_rval': r,
+                    'msd_diffusion': np.nan}
 
     def feat_drift(self, id_min=None, id_max=None):
         """Computes the mean drift norm of the random walk, defined as ||alpha||
@@ -190,9 +269,8 @@ class RandomWalk():
 
         Parameters
         ----------
-        RW : RandomWalk object, with size N
-        imin : int, should be between 0 and N-2
-        imax : int, should be between 2 and N
+        id_min : optional, int should be between 0 and N-1
+        id_max : optional, int should be between 1 and N
 
         Returns
         -------
@@ -205,6 +283,21 @@ class RandomWalk():
         return {'drift_norm': np.linalg.norm(drift)}
 
     def stats_pdf(self, id_min=None, id_max=None, n_samples=30):
+        """Computes moments of the distribution of distances
+            ||X(t+tau) - X(t)||, for n_samples different taus.
+
+        Parameters
+        ----------
+        id_min : optional, int should be between 0 and N-1
+        id_max : optional, int should be between 1 and N
+        n_samples : optional, number of samples where we compute the moments of
+            the distribution of distances.
+
+        Returns
+        -------
+        tau : taus for which we computed the moments of ||X(t+tau) - X(t)||.
+        pdf_stats : array of shape n_samples * 4.
+        """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         tau_int = np.unique(np.geomspace(1, len(subDabs)-1, num=n_samples,
                                          endpoint=False).astype(int))
@@ -215,6 +308,27 @@ class RandomWalk():
         return tau_int * self.dt, pdf_stats
 
     def feat_pdf(self, id_min=None, id_max=None, n_samples=30):
+        """Returns features extracted from the evolution of the moments of
+        ||X(t+tau) - X(t)|| with tau.
+        Those features are :
+            - for the mean and variance :
+                - we fit alpha, beta such as mean(tau) = beta * tau ** beta
+                - we return alpha, beta and the correlation r.
+            - for the skewness and kurtosis :
+                - we return the mean and variance accross taus.
+
+        Parameters
+        ----------
+        id_min : optional, int should be between 0 and N-1
+        id_max : optional, int should be between 1 and N
+        n_samples : optional, number of samples where we compute the moments of
+            the distribution of distances.
+
+        Returns
+        -------
+        dictionary of features extracted from the estimated PDF of the random
+            walk.
+        """
         tau, pdf_stats = self.stats_pdf(id_min, id_max, n_samples)
         keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
                 'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var',
@@ -235,6 +349,15 @@ class RandomWalk():
             return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
 
     def convex_hull(self, id_min=None, id_max=None, display=False):
+        """Returns the area, perimeter and maximum distance between 2 positions
+        of the random walk.
+        Makes used of the scipy.spatial function ConvexHull.
+
+        Parameters
+        ----------
+        id_min : optional, int should be between 0 and N-1
+        id_max : optional, int should be between 1 and N
+        """
         subposition = self.get_sub_position(id_min, id_max)
         hull = scipy.spatial.ConvexHull(subposition)
         area, perimeter = hull.volume, hull.area
@@ -257,17 +380,28 @@ class RandomWalk():
         return np.array([[a, c], [c, b]])
 
     def asymmetry(self, id_min=None, id_max=None):
+        """Returns a feature which controls how assymetric the random walk is.
+        May help to detect drift.
+        """
         T = self.gyration_tensor(id_min, id_max)
         l1, l2 = np.linalg.eigvals(T)
         return - np.log(1 - (l1 - l2)**2 / (2 * (l1 + l2)**2))
 
     def efficiency(self, id_min=None, id_max=None):
+        """Returns a feature which controls how efficient the random walk was
+        at going from the starting point to the ending point.
+        May help to detect drift.
+        """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         num = subDabs[0, -1]**2
         denom = np.sum(np.diagonal(subDabs, offset=1)**2)
         return num / denom
 
     def kurtosis(self, id_min=None, id_max=None):
+        """Source : J. A. Helmuth, C. J. Burckhardt, P. Koumoutsakos,
+        U. F. Greber, and I. F. Sbalzarini, Journal of Structural Biology 159,
+        347 (2007).
+        """
         X = self.get_sub_position(id_min, id_max)
         T = self.gyration_tensor(id_min, id_max)
         w, v = np.linalg.eig(T)
@@ -277,11 +411,22 @@ class RandomWalk():
         return np.mean((xp - xpm)**4) / xpstd**4
 
     def straightness(self, id_min=None, id_max=None):
+        """Returns straightness, much like efficiency feature, but with
+        absolute distances (not squared).
+        """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         rs = np.diagonal(subDabs, offset=1)
         return subDabs[0, -1] / np.sum(rs)
 
     def feat_shape(self, id_min=None, id_max=None):
+        """Regroups all features related to the shape of the random walk into
+        a single function.
+
+        Parameters
+        ----------
+        id_min : optional, int should be between 0 and N-1
+        id_max : optional, int should be between 1 and N
+        """
         id_min, id_max = _regularize_idminmax(id_min, id_max, self.length)
         keys = ['area', 'perimeter', 'max_dist', 'asymmetry',
                 'efficiency', 'kurtosis', 'straightness']
@@ -298,6 +443,11 @@ class RandomWalk():
             return dict(list(zip(keys, vals)))
 
     def feat_escape_time(self, id_min=None, id_max=None):
+        """Returns features derived from the escape time : the time at which
+        we escape a distance x.
+        Those features are q_i, i in {25, 50, 75}, where q_i is the distance
+        from which i% of starting positions escaped from.
+        """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         subDfuture = subDabs.copy()
         mean_step = np.mean(np.diagonal(subDfuture, offset=1))
@@ -317,11 +467,21 @@ class RandomWalk():
             return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
 
     def feat_angle(self, id_min=None, id_max=None):
+        """Returns moments related to the distribution of angles.
+        """
         subvec = np.diagonal(self.get_sub_Dvec(id_min, id_max),
                              offset=-1)
-        unit_vec = subvec / np.linalg.norm(subvec, axis=0)[np.newaxis, :]
+        vecnorm = np.linalg.norm(subvec, axis=0)
+        no_mvt = vecnorm < 1e-6
+        vecnorm[no_mvt] = 1
+        unit_vec = subvec / vecnorm[np.newaxis, :]
         prod = np.sum(unit_vec[:, :-1] * unit_vec[:, 1:], axis=0)
         angles = np.arccos(np.clip(prod, -1.0, 1.0))
+        undefined_angle = no_mvt[:-1]
+        undefined_angle[-1] *= no_mvt[-1]
+        nb_undefined = np.sum(undefined_angle)
+        angles[undefined_angle] = np.random.uniform(0, np.pi,
+                                                    size=nb_undefined)
         moments = scipy.stats.describe(angles)
         return {'angle_mean': moments.mean, 'angle_var': moments.variance,
                 'angle_skewness': moments.skewness,
@@ -329,6 +489,11 @@ class RandomWalk():
                 'angle_min': moments.minmax[0], 'angle_max': moments.minmax[1]}
 
     def feat_step_autocorr(self, id_min=None, id_max=None, n_samples=30):
+        """Returns moments of the distribution of the autocorrelation function
+        defined as :
+            corr(tau) = E_t[(d(t) - E[d])(d(t+tau) - E[d])] / Var(d(t))
+        with d the vector of single step distances.
+        """
         steps = self.get_sub_steps(id_min, id_max)
         n = len(steps)
         mean_step, var_step = np.mean(steps), np.var(steps)
@@ -347,6 +512,11 @@ class RandomWalk():
 
     def feat_fractal_spectrum(self, id_min=None, id_max=None,
                               n_samples=30, nR=20, qs=None):
+        """Computes a feature derived from the fractal spectrum function
+        evaluated at q. This feature is the derivative of the function at q=0.
+        Source : Effective multifractal spectrum of a random walk,
+                Berthelsen et al., 1994, equation 1 of related paper.
+        """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         n = len(subDabs)
         chosen_points = np.random.permutation(n)[:min(n, n_samples)]
@@ -361,6 +531,10 @@ class RandomWalk():
             return Dq
 
     def feat_ergodicity(self, id_min=None, id_max=None):
+        """Ergodicity estimation features, close to 0 for ergodic processes
+        Source : Ergodicity breaking on the neuronal surface emerges from
+                random switching between diffusive states, Weron et al., 2017.
+        """
         subposition = self.get_sub_position(id_min, id_max)
         vecs = [subposition[:, i] for i in range(len(self.dims))]
         Fs1 = np.abs(np.array(list(map(_ergodicity_estimator, vecs))))
@@ -370,6 +544,11 @@ class RandomWalk():
         return {**type1, **type2}
 
     def feat_gaussianity(self, id_min=None, id_max=None, n_samples=30):
+        """Gaussianity estimation.
+        Source : Ernst, D., Köhler, J., & Weiss, M. (2014). Probing the type of
+        anomalous diffusion with single-particle tracking.
+        Physical Chemistry Chemical Physics, 16(17), 7686-7691.
+        """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         ns = np.unique(np.linspace(1, len(subDabs)-1, n_samples).astype(int))
         gauss_n = np.zeros(len(ns))
