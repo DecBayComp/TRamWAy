@@ -154,8 +154,8 @@ def plot_convex_hull(XY, hull, imax):
 
 
 def plot_embedding_with_color(mu, logvar, color, plot_every=10, name=None,
-                              square=False, s=0.1, alpha=1):
-    fig, axs = plt.subplots(figsize=(14, 6), ncols=2)
+                              square=False, s=0.1, alpha=1, figsize=(9, 6)):
+    fig, axs = plt.subplots(figsize=figsize, ncols=2)
     axs[0].scatter(mu[::plot_every, 0], mu[::plot_every, 1],
                    c=color[::plot_every], s=s, alpha=alpha)
     if square:
@@ -174,7 +174,7 @@ def plot_embedding_with_color(mu, logvar, color, plot_every=10, name=None,
 
 def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
                            plot_every=10, separate_ax=False, square=False,
-                           s=0.1, alpha=1, dim=2, ax_logvar=0):
+                           s=0.1, alpha=1, dim=2, ax_logvar=0, figsize=(9, 6)):
     types = dict_type_index.keys()
 
     if dim == 2:
@@ -182,7 +182,7 @@ def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
             mu_min, mu_max = np.min(mu, axis=0), np.max(mu, axis=0)
             logvar_min = np.min(logvar, axis=0)
             logvar_max = np.max(logvar, axis=0)
-            plt.figure(figsize=(16, 12))
+            plt.figure(figsize=figsize)
             for i, type_ in enumerate(types):
                 plt.subplot(2, len(types), i+1)
                 plt.scatter(mu[dict_type_index[type_], 0][::plot_every],
@@ -200,7 +200,7 @@ def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
                 plt.title(f'logvar {type_}')
             plt.tight_layout()
         else:
-            plt.figure(figsize=(14, 6))
+            plt.figure(figsize=figsize)
             plt.subplot(121)
             for type_ in types:
                 plt.scatter(mu[dict_type_index[type_], 0][::plot_every],
@@ -222,7 +222,7 @@ def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
             plt.tight_layout()
 
     if dim == 3:
-        fig = plt.figure(figsize=(14, 8))
+        fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111, projection='3d')
         for type_ in types:
             ax.scatter(mu[dict_type_index[type_], 0][::plot_every],

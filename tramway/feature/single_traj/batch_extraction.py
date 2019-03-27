@@ -84,6 +84,8 @@ def extract_features(RWs, nb_process=4, func_feat_process=None, chunksize=10):
                 total=n_trajs,
                 desc='creating objects and extracting features'))
     df = pd.DataFrame.from_dict(raw_features)
+    df['n'] = RWs.n.unique()
+    df.set_index('n', inplace=True)
     if func_feat_process is not None:
         df = func_feat_process(df)
     return df

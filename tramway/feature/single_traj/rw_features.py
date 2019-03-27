@@ -24,6 +24,7 @@ import scipy.stats
 from scipy.optimize import root_scalar as root_finder
 
 from .visualization import plot_convex_hull
+from .rw_misc import rw_is_useless
 
 
 def _regularize_idminmax(id_min, id_max, N):
@@ -108,11 +109,15 @@ def _ergodicity_estimator(X):
     denom = 1 if denom < 1e-8 else denom
     V = diff / denom
     Cst = np.abs(np.mean(np.exp(1j * V)))**2
-    n_array = np.unique(np.linspace(1, len(V)-1, min(len(V), 7)).astype(int))
-    E = np.array([(np.mean(np.exp(1j * (V[n:] - V[:-n]))) -
-                   Cst) if n > 0 else 1 - Cst
-                  for n in n_array])
-    return np.mean(E)
+    if len(V) > 1:
+        n_array = np.unique(np.linspace(
+            1, len(V)-1, min(len(V), 7)).astype(int))
+        E = np.array([(np.mean(np.exp(1j * (V[n:] - V[:-n]))) -
+                       Cst) if n > 0 else 1 - Cst
+                      for n in n_array])
+        return np.mean(E)
+    else:
+        return np.nan
 
 
 def _ergodicity_estimator_v2(X, w=2):
@@ -152,19 +157,23 @@ class RandomWalk():
     Dabs : numpy array of size length * length
         Element (i,j) is the distance between position[i] and position[j]
     """
+
     def __init__(self, RW_df, zero_time=False):
-        self.data = RW_df
-        self.dims = set(RW_df.columns).intersection({'x', 'y', 'z'})
-        self.length = len(self.data)
-        self.position = self.data.loc[:, list(self.dims)].values
-        self.t = self.data.t.values
-        if zero_time:
-            self.t -= self.data.t.min()
-        self.dt_vec = self.t[1:] - self.t[:-1]
-        self.is_dt_cst = (np.var(self.dt_vec) < 1e-10)
-        self.dt = self.dt_vec[0]
-        self.Dvec = self.position[:, np.newaxis] - self.position[np.newaxis, :]
-        self.Dabs = np.linalg.norm(self.Dvec, axis=2)
+        self.rw_is_useless = rw_is_useless(RW_df)
+        if not self.rw_is_useless:
+            self.data = RW_df
+            self.dims = set(RW_df.columns).intersection({'x', 'y', 'z'})
+            self.length = len(self.data)
+            self.position = self.data.loc[:, list(self.dims)].values
+            self.t = self.data.t.values
+            if zero_time:
+                self.t -= self.data.t.min()
+            self.dt_vec = self.t[1:] - self.t[:-1]
+            self.is_dt_cst = (np.var(self.dt_vec) < 1e-10)
+            self.dt = self.dt_vec[0]
+            self.Dvec = (self.position[:, np.newaxis] -
+                         self.position[np.newaxis, :])
+            self.Dabs = np.linalg.norm(self.Dvec, axis=2)
 
     def __len__(self):
         return self.length
@@ -207,13 +216,14 @@ class RandomWalk():
         dict of moments of the random variable of the size of single steps.
         """
         steps = self.get_sub_steps(id_min, id_max)
-        moments = scipy.stats.describe(steps)
+        moments = scipy.stats.describe(steps, ddof=0)
         return {'step_mean': moments.mean, 'step_var': moments.variance,
                 'step_skewness': moments.skewness,
                 'step_kurtosis': moments.kurtosis,
                 'step_min': moments.minmax[0], 'step_max': moments.minmax[1]}
 
-    def temporal_msd(self, id_min=None, id_max=None, n_samples=30):
+    def temporal_msd(self, id_min=None, id_max=None,
+                     n_samples=30, sampling='log', use_all=False):
         """Computes the temporal mean squared deviation of the random walk
         between indices id_min and id_max.
 
@@ -223,6 +233,13 @@ class RandomWalk():
         id_max : optional, int should be between 1 and N
         n_samples : optional, number of samples where we compute the temporal
             averaged mean squared displacement.
+        sampling : string, optional ; if 'log', log spacing of taus. Shown to
+            increase the accuracy of the alpha / diffusion parameters.
+        use_all : bool, optional ;
+            if True, max tau is N
+            else, max_tau is min(N, max(N/2, 10))
+            use_all = False increases the accuracy as high n values are less
+            precise.
 
         Returns
         -------
@@ -230,13 +247,23 @@ class RandomWalk():
         msd : mean squared displacement
         """
         subDabs = self.get_sub_Dabs(id_min, id_max)
-        tau_int = np.unique(np.geomspace(1, len(subDabs), num=n_samples,
-                                         endpoint=False).astype(int))
+        # To avoid (if possible) using too many taus with little nb of points
+        if use_all:
+            max_n = len(subDabs)
+        else:
+            max_n = min(len(subDabs), max(len(subDabs)/2, 10))
+        if sampling == 'log':
+            tau_int = np.unique(np.geomspace(1, max_n, num=n_samples,
+                                             endpoint=False).astype(int))
+        else:
+            tau_int = np.unique(np.linspace(1, max_n, num=n_samples,
+                                            endpoint=False).astype(int))
         msd = np.array([np.mean(np.diagonal(subDabs, offset=i)**2)
                         for i in tau_int])
         return tau_int * self.dt, msd
 
-    def feat_msd(self, id_min=None, id_max=None, n_samples=30):
+    def feat_msd(self, id_min=None, id_max=None, n_samples=30,
+                 sampling='log', use_all=False):
         """Computes the alpha and diffusion (D) coefficients defined by the
         relation between the temporal averaged mean squared displacement and
         time :
@@ -253,14 +280,15 @@ class RandomWalk():
         n_samples : optional, number of samples where we compute the temporal
             averaged mean squared displacement.
         """
-        tau, msd = self.temporal_msd(id_min, id_max, n_samples)
+        tau, msd = self.temporal_msd(id_min, id_max, n_samples,
+                                     sampling, use_all)
         if len(tau) > 1:
             slope, intercept, r, _, _ = scipy.stats.linregress(np.log10(tau),
                                                                np.log10(msd))
             return {'msd_alpha': slope, 'msd_rval': r,
                     'msd_diffusion': 10**intercept / 4}
         else:
-            return {'msd_alpha': np.nan, 'msd_rval': r,
+            return {'msd_alpha': np.nan, 'msd_rval': np.nan,
                     'msd_diffusion': np.nan}
 
     def feat_drift(self, id_min=None, id_max=None):
@@ -301,14 +329,14 @@ class RandomWalk():
         subDabs = self.get_sub_Dabs(id_min, id_max)
         tau_int = np.unique(np.geomspace(1, len(subDabs)-1, num=n_samples,
                                          endpoint=False).astype(int))
-        # pdf_stats = [scipy.stats.describe(np.diagonal(subDabs, offset=i))
-        #              for i in tau_int]
-        # pdf_stats = np.array([[x.mean, x.variance, x.skewness, x.kurtosis]
-        #                       for x in pdf_stats])
-        pdf_stats = np.stack(([np.mean(np.diagonal(subDabs, offset=i))
-                              for i in tau_int],
-                              [np.var(np.diagonal(subDabs, offset=i))
-                              for i in tau_int])).T
+        pdf_stats = [scipy.stats.describe(np.diagonal(subDabs, offset=i),
+                                          ddof=0) for i in tau_int]
+        pdf_stats = np.array([[x.mean, x.variance, x.skewness, x.kurtosis]
+                              for x in pdf_stats])
+        # pdf_stats = np.stack(([np.mean(np.diagonal(subDabs, offset=i))
+        #                        for i in tau_int],
+        #                       [np.var(np.diagonal(subDabs, offset=i))
+        #                        for i in tau_int])).T
         return tau_int * self.dt, pdf_stats
 
     def feat_pdf(self, id_min=None, id_max=None, n_samples=30):
@@ -334,27 +362,31 @@ class RandomWalk():
             walk.
         """
         tau, pdf_stats = self.stats_pdf(id_min, id_max, n_samples)
-        # keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
-        #         'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var',
-        #         'pdf_mean_skewness', 'pdf_var_skewness',
-        #         'pdf_mean_kurtosis', 'pdf_var_kurtosis']
         keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
-                'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var']
+                'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var',
+                'pdf_mean_skewness', 'pdf_var_skewness',
+                'pdf_mean_kurtosis', 'pdf_var_kurtosis']
+        # keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
+        #         'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var']
         if len(tau) > 1:
             fit_mean = scipy.stats.linregress(np.log10(tau),
                                               np.log10(pdf_stats[:, 0]))
-            fit_var = scipy.stats.linregress(np.log10(tau),
-                                             np.log10(pdf_stats[:, 1]))
-            # mu_sk, var_sk = np.mean(pdf_stats[:, 2]), np.var(pdf_stats[:, 2])
-            # mu_ku, var_ku = np.mean(pdf_stats[:, 3]), np.var(pdf_stats[:, 3])
-            # vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
-            #         fit_var[0], 10**fit_var[1], fit_var[2],
-            #         mu_sk, var_sk, mu_ku, var_ku]
-            vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
-                    fit_var[0], 10**fit_var[1], fit_var[2]]
-            return dict(list(zip(keys, vals)))
         else:
-            return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
+            fit_mean = np.array([np.nan, np.nan, np.nan])
+        if len(pdf_stats[:, 1][pdf_stats[:, 1] > 0]) > 1:
+            x = np.log10(tau[pdf_stats[:, 1] > 0])
+            y = np.log10(pdf_stats[:, 1][pdf_stats[:, 1] > 0])
+            fit_var = scipy.stats.linregress(x, y)
+        else:
+            fit_var = np.array([np.nan, np.nan, np.nan])
+        mu_sk, var_sk = np.mean(pdf_stats[:, 2]), np.var(pdf_stats[:, 2])
+        mu_ku, var_ku = np.mean(pdf_stats[:, 3]), np.var(pdf_stats[:, 3])
+        vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
+                fit_var[0], 10**fit_var[1], fit_var[2],
+                mu_sk, var_sk, mu_ku, var_ku]
+        # vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
+        #         fit_var[0], 10**fit_var[1], fit_var[2]]
+        return dict(list(zip(keys, vals)))
 
     def convex_hull(self, id_min=None, id_max=None, display=False):
         """Returns the area, perimeter and maximum distance between 2 positions
@@ -366,19 +398,23 @@ class RandomWalk():
         id_min : optional, int should be between 0 and N-1
         id_max : optional, int should be between 1 and N
         """
-        subposition = self.get_sub_position(id_min, id_max)
-        hull = scipy.spatial.ConvexHull(subposition)
-        area, perimeter = hull.volume, hull.area
-        hull_points = subposition[hull.vertices]
-        n = len(hull_points)
-        DX = np.broadcast_to(hull_points[:, 0], (n, n))
-        DY = np.broadcast_to(hull_points[:, 1], (n, n))
-        D = (DX - DX.T)**2 + (DY - DY.T)**2
-        imax = np.argmax(D)
-        max_dist = np.sqrt(np.max(D))
-        if display:
-            plot_convex_hull(subposition, hull, imax)
-        return area, perimeter, max_dist
+        try:
+            subposition = self.get_sub_position(id_min, id_max)
+            subposition = np.unique(subposition, axis=0)
+            hull = scipy.spatial.ConvexHull(subposition)
+            area, perimeter = hull.volume, hull.area
+            hull_points = subposition[hull.vertices]
+            n = len(hull_points)
+            DX = np.broadcast_to(hull_points[:, 0], (n, n))
+            DY = np.broadcast_to(hull_points[:, 1], (n, n))
+            D = (DX - DX.T)**2 + (DY - DY.T)**2
+            imax = np.argmax(D)
+            max_dist = np.sqrt(np.max(D))
+            if display:
+                plot_convex_hull(subposition, hull, imax)
+            return area, perimeter, max_dist
+        except:
+            return np.nan, np.nan, np.nan
 
     def gyration_tensor(self, id_min=None, id_max=None):
         X = self.get_sub_position(id_min, id_max)
@@ -391,40 +427,52 @@ class RandomWalk():
         """Returns a feature which controls how assymetric the random walk is.
         May help to detect drift.
         """
-        T = self.gyration_tensor(id_min, id_max)
-        l1, l2 = np.linalg.eigvals(T)
-        return - np.log(1 - (l1 - l2)**2 / (2 * (l1 + l2)**2))
+        try:
+            T = self.gyration_tensor(id_min, id_max)
+            l1, l2 = np.linalg.eigvals(T)
+            return - np.log(1 - (l1 - l2)**2 / (2 * (l1 + l2)**2))
+        except:
+            return np.nan
 
     def efficiency(self, id_min=None, id_max=None):
         """Returns a feature which controls how efficient the random walk was
         at going from the starting point to the ending point.
         May help to detect drift.
         """
-        subDabs = self.get_sub_Dabs(id_min, id_max)
-        num = subDabs[0, -1]**2
-        denom = np.sum(np.diagonal(subDabs, offset=1)**2)
-        return num / denom
+        try:
+            subDabs = self.get_sub_Dabs(id_min, id_max)
+            num = subDabs[0, -1]**2
+            denom = np.sum(np.diagonal(subDabs, offset=1)**2)
+            return num / denom
+        except:
+            return np.nan
 
     def kurtosis(self, id_min=None, id_max=None):
         """Source : J. A. Helmuth, C. J. Burckhardt, P. Koumoutsakos,
         U. F. Greber, and I. F. Sbalzarini, Journal of Structural Biology 159,
         347 (2007).
         """
-        X = self.get_sub_position(id_min, id_max)
-        T = self.gyration_tensor(id_min, id_max)
-        w, v = np.linalg.eig(T)
-        r = v[:, np.argmax(w)]
-        xp = np.sum(X * r, axis=1)
-        xpm, xpstd = np.mean(xp), np.std(xp)
-        return np.mean((xp - xpm)**4) / xpstd**4
+        try:
+            X = self.get_sub_position(id_min, id_max)
+            T = self.gyration_tensor(id_min, id_max)
+            w, v = np.linalg.eig(T)
+            r = v[:, np.argmax(w)]
+            xp = np.sum(X * r, axis=1)
+            xpm, xpstd = np.mean(xp), np.std(xp)
+            return np.mean((xp - xpm)**4) / xpstd**4
+        except:
+            return np.nan
 
     def straightness(self, id_min=None, id_max=None):
         """Returns straightness, much like efficiency feature, but with
         absolute distances (not squared).
         """
-        subDabs = self.get_sub_Dabs(id_min, id_max)
-        rs = np.diagonal(subDabs, offset=1)
-        return subDabs[0, -1] / np.sum(rs)
+        try:
+            subDabs = self.get_sub_Dabs(id_min, id_max)
+            rs = np.diagonal(subDabs, offset=1)
+            return subDabs[0, -1] / np.sum(rs)
+        except:
+            return np.nan
 
     def feat_shape(self, id_min=None, id_max=None):
         """Regroups all features related to the shape of the random walk into
@@ -438,17 +486,14 @@ class RandomWalk():
         id_min, id_max = _regularize_idminmax(id_min, id_max, self.length)
         keys = ['area', 'perimeter', 'max_dist', 'asymmetry',
                 'efficiency', 'kurtosis', 'straightness']
-        if id_max - id_min < 3:
-            return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
-        else:
-            area, perimeter, max_dist = self.convex_hull(id_min, id_max)
-            asymmetry = self.asymmetry(id_min, id_max)
-            efficiency = self.efficiency(id_min, id_max)
-            kurtosis = self.kurtosis(id_min, id_max)
-            straightness = self.straightness(id_min, id_max)
-            vals = [area, perimeter, max_dist, asymmetry, efficiency,
-                    kurtosis, straightness]
-            return dict(list(zip(keys, vals)))
+        area, perimeter, max_dist = self.convex_hull(id_min, id_max)
+        asymmetry = self.asymmetry(id_min, id_max)
+        efficiency = self.efficiency(id_min, id_max)
+        kurtosis = self.kurtosis(id_min, id_max)
+        straightness = self.straightness(id_min, id_max)
+        vals = [area, perimeter, max_dist, asymmetry, efficiency,
+                kurtosis, straightness]
+        return dict(list(zip(keys, vals)))
 
     def feat_escape_time(self, id_min=None, id_max=None, method='brenth'):
         """Returns features derived from the escape time : the time at which
@@ -463,18 +508,26 @@ class RandomWalk():
         subDabs = subDabs[sample][:, sample]
         subDfuture = np.triu(subDabs)
         keys = ['escape_dist_q1', 'escape_dist_median', 'escape_dist_q3']
-        try:
-            qs = [0.25, 0.5, 0.75]
-            d_qs = []
-            for q in qs:
-                args = (q, subDfuture, mean_step)
-                sol = root_finder(_zero_escape_quantile, args=args,
-                                  method=method, bracket=(0, 100))
-                d_qs.append(sol.root)
-            vals = np.array(d_qs) * mean_step
-            return dict(list(zip(keys, vals)))
-        except:
-            return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
+        qs = [0.25, 0.5, 0.75]
+        d_qs = []
+        for q in qs:
+            # We have to check if the random walk is not too much immobile
+            # to make sure that at least q% of points finally move, so that
+            # the solver has 2 a=0 and b such that f(a) > 0 (and f(b) > 0)
+            frac_move = (np.unique(subDfuture, axis=1).shape[1] /
+                         subDfuture.shape[0])
+            if q < frac_move:
+                try:
+                    args = (q, subDfuture, mean_step)
+                    sol = root_finder(_zero_escape_quantile, args=args,
+                                      method=method, bracket=(0, 100))
+                    d_qs.append(sol.root)
+                except:
+                    d_qs.append(np.nan)
+            else:
+                d_qs.append(0)
+        vals = np.array(d_qs) * mean_step
+        return dict(list(zip(keys, vals)))
 
     def feat_angle(self, id_min=None, id_max=None):
         """Returns moments related to the distribution of angles.
@@ -485,18 +538,33 @@ class RandomWalk():
         no_mvt = vecnorm < 1e-6
         vecnorm[no_mvt] = 1
         unit_vec = subvec / vecnorm[np.newaxis, :]
-        prod = np.sum(unit_vec[:, :-1] * unit_vec[:, 1:], axis=0)
-        angles = np.arccos(np.clip(prod, -1.0, 1.0))
-        undefined_angle = no_mvt[:-1]
-        undefined_angle[-1] *= no_mvt[-1]
-        nb_undefined = np.sum(undefined_angle)
-        angles[undefined_angle] = np.random.uniform(0, np.pi,
-                                                    size=nb_undefined)
-        moments = scipy.stats.describe(angles)
-        return {'angle_mean': moments.mean, 'angle_var': moments.variance,
-                'angle_skewness': moments.skewness,
-                'angle_kurtosis': moments.kurtosis,
-                'angle_min': moments.minmax[0], 'angle_max': moments.minmax[1]}
+        keys = ['angle_mean', 'angle_var', 'angle_skewness',
+                'angle_kurtosis', 'angle_min', 'angle_max']
+        if unit_vec.shape[1] > 1:
+            prod = np.sum(unit_vec[:, :-1] * unit_vec[:, 1:], axis=0)
+            angles = np.arccos(np.clip(prod, -1.0, 1.0))
+            undefined_angle = no_mvt[:-1]
+            if len(undefined_angle) > 0:
+                undefined_angle[-1] *= no_mvt[-1]
+            nb_undefined = np.sum(undefined_angle)
+            angles[undefined_angle] = np.random.uniform(0, np.pi,
+                                                        size=nb_undefined)
+            moments = scipy.stats.describe(angles, ddof=0)
+            vals = [moments.mean, moments.variance, moments.skewness,
+                    moments.kurtosis, moments.minmax[0], moments.minmax[1]]
+            return dict(list(zip(keys, vals)))
+        else:
+            return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
+
+    def autocorr(self, tau_int, id_min=None, id_max=None, n_samples=30):
+        steps = self.get_sub_steps(id_min, id_max)
+        n = len(steps)
+        mean_step, var_step = np.mean(steps), np.var(steps)
+        if len(steps) > tau_int:
+            return np.mean((steps[tau_int:] - mean_step) *
+                           (steps[:-tau_int] - mean_step)) / var_step
+        else:
+            return np.nan
 
     def feat_step_autocorr(self, id_min=None, id_max=None, n_samples=30):
         """Returns moments of the distribution of the autocorrelation function
@@ -507,18 +575,15 @@ class RandomWalk():
         steps = self.get_sub_steps(id_min, id_max)
         n = len(steps)
         mean_step, var_step = np.mean(steps), np.var(steps)
-        tau_int = np.unique(np.linspace(1, n, num=n_samples, endpoint=False)
-                            .astype(int))
-        correlations = np.array([np.sum(((steps[i:] - mean_step) *
-                                         (steps[:-i] - mean_step)), axis=0)
-                                 for i in tau_int])
-        moments = scipy.stats.describe(correlations / (n * var_step))
-        return {'autocorr_mean': moments.mean,
-                'autocorr_var': moments.variance,
-                'autocorr_skewness': moments.skewness,
-                'autocorr_kurtosis': moments.kurtosis,
-                'autocorr_min': moments.minmax[0],
-                'autocorr_max': moments.minmax[1]}
+        keys = ['autocorr_1', 'autocorr_2', 'autocorr_3']
+        autocorrs = np.ones(3) * np.nan
+        if var_step > 0:
+            for i in range(1, 4):
+                if len(steps) > i:
+                    autocov = np.mean((steps[i:] - mean_step) *
+                                      (steps[:-i] - mean_step))
+                    autocorrs[i-1] = autocov / var_step
+        return dict(list(zip(keys, autocorrs)))
 
     def feat_fractal_spectrum(self, id_min=None, id_max=None,
                               n_samples=30, nR=20, qs=None):
@@ -529,13 +594,16 @@ class RandomWalk():
         """
         subDabs = self.get_sub_Dabs(id_min, id_max)
         n = len(subDabs)
-        chosen_points = np.random.permutation(n)[:min(n, n_samples)]
+        chosen_points = np.sort(np.random.permutation(n)[:min(n, n_samples)])
         subDabs_sampled = subDabs[chosen_points]
         if qs is None:
-            D_inf = _Dq(subDabs_sampled, -1.5, n_R=nR)
-            D_sup = _Dq(subDabs_sampled, 1.5, n_R=nR)
-            Dqgrad0 = 1/3 * (D_sup - D_inf)
-            return {'frac_grad0': Dqgrad0}
+            try:
+                D_inf = _Dq(subDabs_sampled, -1.5, n_R=nR)
+                D_sup = _Dq(subDabs_sampled, 1.5, n_R=nR)
+                Dqgrad0 = 1/3 * (D_sup - D_inf)
+                return {'frac_grad0': Dqgrad0}
+            except:
+                return {'frac_grad0': np.nan}
         else:
             Dq = [_Dq(subDabs_sampled, q, n_R=nR) for q in qs]
             return Dq
@@ -571,26 +639,31 @@ class RandomWalk():
         return {'gaussian_grad': mean_grad, 'gaussian_mean': mean_gauss}
 
     def get_all_features(self, id_min=None, id_max=None, n_samples=30):
-        meta_info = {
-            'size': self.length,
-            'dt': self.dt,
-            'is_dt_cst': self.is_dt_cst,
-            't_min': self.t.min(),
-            't_max': self.t.max()
-        }
-        return {**meta_info,
-                **self.feat_angle(id_min, id_max),
-                **self.feat_drift(id_min, id_max),
-                **self.feat_ergodicity(id_min, id_max),
-                **self.feat_escape_time(id_min, id_max),
-                **self.feat_fractal_spectrum(id_min, id_max,
-                                             n_samples=n_samples, nR=4),
-                **self.feat_gaussianity(id_min, id_max, n_samples=n_samples),
-                **self.feat_msd(id_min, id_max, n_samples=n_samples),
-                **self.feat_pdf(id_min, id_max, n_samples=n_samples),
-                **self.feat_shape(id_min, id_max),
-                **self.feat_step(id_min, id_max),
-                **self.feat_step_autocorr(id_min, id_max, n_samples=n_samples)}
+        if self.rw_is_useless:
+            return {}
+        else:
+            meta_info = {
+                'size': self.length,
+                'dt': self.dt,
+                'is_dt_cst': self.is_dt_cst,
+                't_min': self.t.min(),
+                't_max': self.t.max()
+            }
+            return {**meta_info,
+                    **self.feat_angle(id_min, id_max),
+                    **self.feat_drift(id_min, id_max),
+                    **self.feat_ergodicity(id_min, id_max),
+                    **self.feat_escape_time(id_min, id_max),
+                    **self.feat_fractal_spectrum(id_min, id_max,
+                                                 n_samples=n_samples, nR=4),
+                    **self.feat_gaussianity(id_min, id_max,
+                                            n_samples=n_samples),
+                    **self.feat_msd(id_min, id_max, n_samples=n_samples),
+                    **self.feat_pdf(id_min, id_max, n_samples=n_samples),
+                    **self.feat_shape(id_min, id_max),
+                    **self.feat_step(id_min, id_max),
+                    **self.feat_step_autocorr(id_min, id_max,
+                                              n_samples=n_samples)}
 
 
 def feat_step(RW, id_min=None, id_max=None):

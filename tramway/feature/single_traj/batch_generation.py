@@ -23,6 +23,7 @@ import pandas as pd
 import tqdm
 
 from .rw_simulation import *
+from .rw_misc import rw_is_useless
 
 
 def generate_random_number(type_n, type_gen, a, b=None):
@@ -113,7 +114,7 @@ def create_random_rw(args):
     args : tuple of (ps (list or None or int, should be accepted by
         np.random.choice as the p parameter), types (see
         "rw_feature_generator")).
-    
+
     Returns
     -------
     rw : pandas DataFrame of the position/time of the simulated random walk.
@@ -151,7 +152,6 @@ def create_batch_rw(n=100, ps=[1], nb_process=4,
         - The second is a dictionary whose keys are the parameters we want to
         pass to the random walk function and values the parameters describing
         how those parameter values are generated with `generate_random_number`.
-    
 
     Returns
     -------
@@ -167,8 +167,10 @@ def create_batch_rw(n=100, ps=[1], nb_process=4,
         with mp.Pool(nb_process) as p:
             raw_data = list(tqdm.tqdm_notebook(
                 p.imap(create_random_rw, [(ps, types)] * n), total=n))
-    RW_data = [rw[0] for rw in raw_data]
+    RW_data = [(traj, rw[0])
+               for traj, rw in enumerate(raw_data) if not rw_is_useless(rw[0])]
     RW_prm = {i: rw[1] for i, rw in enumerate(raw_data)}
-    for i, rw in enumerate(RW_data):
-        RW_data[i]['n'] = i
+    for i, (traj, rw) in enumerate(RW_data):
+        rw['n'] = traj
+        RW_data[i] = rw
     return pd.concat(RW_data).reset_index(drop=True), RW_prm

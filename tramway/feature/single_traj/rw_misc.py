@@ -20,6 +20,16 @@ import numpy as np
 SPACE_COLS = ['x', 'y', 'z']
 
 
+def rw_is_useless(rw):
+    is_immobile = True
+    n = 0
+    while 2**n <= len(rw):
+        if len(rw.iloc[:2**n].x.unique()) > 1:
+            return False
+        n += 1
+    return is_immobile
+
+
 def normalize_init(X, dim):
     """
     Small function to normalize the starting point of the random walk.
