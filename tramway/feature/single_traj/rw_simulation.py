@@ -68,7 +68,7 @@ def RW_const_dist(T_max=1, dt=1e-2, d_l=0.1, v=None, X_init=0, dim=2):
 
 
 def RW_gauss_dist(T_max=1, dt=1e-2, d_l=0.1, v=None, X_init=0, dim=2):
-    return CTRW(T_max=T_max, dt=dt, distribution_space="exp", d_l=d_l,
+    return CTRW(T_max=T_max, dt=dt, distribution_space="gauss", d_l=d_l,
                 distribution_time="cst", v=v, X_init=X_init, dim=dim)
 
 

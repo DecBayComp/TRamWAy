@@ -17,6 +17,7 @@ Useful functions
 
 import glob
 import pickle
+import os
 
 import tqdm
 import pandas as pd
@@ -26,19 +27,43 @@ def extract_i(file):
     return file.split('\\')[3].split('_')[2].split('.')[0]
 
 
-def concat_job_files(job_name, df_path='Y:\data\df', dict_path='Y:\data\dict'):
+def concat_job_files(job_name, output_dir, output_name,
+                     df_path='Y:\data\df', dict_path='Y:\data\dict',
+                     rw_path='Y:\data\rws'):
     dfs = []
     prms = {}
+    rws = []
+    rws_paths = glob.glob(f'{rw_path}\df_{job_name}_*')
     df_paths = glob.glob(f'{df_path}\df_{job_name}_*')
     dict_paths = glob.glob(f'{dict_path}\dict_{job_name}_*')
-    for df_path, dict_path in tqdm.tqdm_notebook(zip(df_paths, dict_paths),
-                                                 total=len(df_paths)):
+    for rw_path, df_path, dict_path in tqdm.tqdm_notebook(
+            zip(rws_paths, df_paths, dict_paths), total=len(df_paths)):
         try:
+            rws.append(pd.read_csv(rw_path, index_col=0))
             dfs.append(pd.read_csv(df_path, index_col=0))
             with open(dict_path, 'rb') as handle:
                 dict_i = pickle.load(handle)
             prms = {**prms, **dict_i}
+            os.remove(rw_path)
+            os.remove(df_path)
+            os.remove(dict_path)
         except:
             print(f'Could not add file {extract_i(df_path)}')
-    df = pd.concat(dfs, sort=True)
-    return prms, df
+    df = pd.concat(dfs, sort=True).reset_index()
+    rws = pd.concat(rws).reset_index()
+    rws.to_feather(f'{output_dir}\\RWs_{output_name}.feather')
+    df.to_feather(f'{output_dir}\\features_{output_name}.feather')
+    with open(f'{output_dir}\\prms_{output_name}.pickle', 'wb') as f:
+        pickle.dump(prms, f)
+
+
+def load(Dir, name, trajs=True):
+    path = f'{Dir}\\features_{name}.feather'
+    df_feat = pd.read_feather(path).set_index('index')
+    with open(f'{Dir}\\prms_{name}.pickle', 'rb') as f:
+        prms = pickle.load(f)
+    if trajs:
+        RWs = pd.read_feather(f'{Dir}\\RWs_{name}.feather').set_index('index')
+        return prms, df_feat, RWs
+    else:
+        return prms, df_feat
