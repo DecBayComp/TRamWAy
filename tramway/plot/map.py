@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -22,7 +22,6 @@ from tramway.tessellation import *
 from tramway.inference import Distributed
 from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
-import matplotlib.pyplot as plt
 import scipy.spatial
 import scipy.sparse as sparse
 from warnings import warn
@@ -132,8 +131,8 @@ def cell_to_polygon(c, X, voronoi=None, bounding_box=None, region_point=None, re
 
 
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
-        delaunay=False, colorbar=True, alpha=None, colormap=None, xlim=None, ylim=None,
-        **kwargs):
+        delaunay=False, colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
+        xlim=None, ylim=None, **kwargs):
     """
     Plot a 2D scalar map as a colourful image.
 
@@ -141,7 +140,8 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
         cells (CellStats or Distributed): spatial description of the cells
 
-        values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
+        values (pandas.DataFrame or numpy.ndarray): feature value at each cell,
+            that will be represented as a colour
 
         aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
 
@@ -160,6 +160,8 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
             :func:`~matplotlib.pyplot.colorbar`;
             setting colorbar to '*nice*' allows to produce a colorbar close to the figure
             of the same size as the figure
+
+        unit/clabel (str): colorbar label, usually the unit of displayed feature
 
         alpha (float): alpha value of the cells
 
@@ -278,12 +280,13 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
             except:
                 print('warning: {}'.format(msg))
             scalar_map[np.isnan(scalar_map)] = 0
-    except TypeError as e: # help debug
+    except TypeError: # help debug
         print(scalar_map)
         print(scalar_map.dtype)
-        raise e
+        raise
 
     if figure is None:
+        import matplotlib.pyplot as plt
         figure = plt.gcf() # before PatchCollection
     if axes is None:
         axes = figure.gca()
@@ -293,8 +296,12 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if alpha is None:
             alpha = .9
         patch_kwargs['alpha'] = alpha
-    if colormap is not None and 'cmap' not in patch_kwargs:
-        patch_kwargs['cmap'] = colormap
+    if colormap is not None:
+        cmap = patch_kwargs.get('cmap', None)
+        if cmap is None:
+            patch_kwargs['cmap'] = colormap
+        elif colormap != cmap:
+            warn('both cmap and colormap arguments are passed with different values', RuntimeWarning)
     patches = PatchCollection(polygons, linewidth=linewidth, **patch_kwargs)
     patches.set_array(scalar_map)
     if clim is not None:
@@ -322,24 +329,33 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
     if aspect is not None:
         axes.set_aspect(aspect)
 
-    if colorbar=='nice':
-        # make the colorbar closer to the plot and same size
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        try:
-            gca_bkp = plt.gca()
-            divider = make_axes_locatable(figure.gca())
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            figure.colorbar(patches, cax=cax)
-            plt.sca(gca_bkp)
-        except AttributeError as e:
-            warn(e.args[0], RuntimeWarning)
-    elif colorbar:
-        if not isinstance(colorbar, dict):
-            colorbar = {}
-        try:
-            figure.colorbar(patches, **colorbar)
-        except AttributeError as e:
-            warn(e.args[0], RuntimeWarning)
+    if colorbar:
+        if colorbar=='nice':
+            # make the colorbar closer to the plot and same size
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            try:
+                plt
+            except NameError:
+                import matplotlib.pyplot as plt
+            try:
+                gca_bkp = plt.gca()
+                divider = make_axes_locatable(figure.gca())
+                cax = divider.append_axes("right", size="5%", pad=0.05)
+                _colorbar = figure.colorbar(patches, cax=cax)
+                plt.sca(gca_bkp)
+            except AttributeError as e:
+                warn(e.args[0], RuntimeWarning)
+        else:
+            if not isinstance(colorbar, dict):
+                colorbar = {}
+            try:
+                _colorbar = figure.colorbar(patches, ax=axes, **colorbar)
+            except AttributeError as e:
+                warn(e.args[0], RuntimeWarning)
+        if clabel:
+            unit = clabel
+        if unit:
+            _colorbar.set_label(unit)
 
     return obj
 
@@ -400,6 +416,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
             warn('cannot compute the amplitude; setting `overlay` to True', RuntimeWarning)
             overlay = True
     if figure is None:
+        import matplotlib.pyplot as plt
         figure = plt.gcf()
     if axes is None:
         axes = figure.gca()

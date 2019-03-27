@@ -22,15 +22,16 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name': 'smooth.df',
+setup = {'name': ('standard.df', 'smooth.df'),
     'provides': 'df',
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
-        ('diffusivity_prior',   ('-d', dict(type=float, default=1., help='prior on the diffusivity'))),
+        ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
         ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
+        ('tol',             dict(type=float, help='tolerance for scipy minimizer')),
         ('epsilon',         dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)))),
     'cell_sampling': 'group'}
 
@@ -60,10 +61,11 @@ def smooth_df_neg_posterior(x, df, cells, sigma2, diffusivity_prior,
         ndsd = np.sum(dr_minus_drift_dt * dr_minus_drift_dt, axis=1)
         result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
         # priors
-        gradD = cells.grad(i, D, reverse_index, **grad_kwargs) # spatial gradient of the local diffusivity
-        if gradD is not None:
-            # `grad_sum` memoizes and can be called several times at no extra cost
-            result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
+        if diffusivity_prior:
+            gradD = cells.grad(i, D, reverse_index, **grad_kwargs) # spatial gradient of the local diffusivity
+            if gradD is not None:
+                # `grad_sum` memoizes and can be called several times at no extra cost
+                result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
         if potential_prior:
             result += potential_prior * cells.grad_sum(i, F * F)
     if jeffreys_prior:
@@ -71,7 +73,7 @@ def smooth_df_neg_posterior(x, df, cells, sigma2, diffusivity_prior,
     return result
 
 
-def infer_smooth_DF(cells, diffusivity_prior=1., potential_prior=None,
+def infer_smooth_DF(cells, diffusivity_prior=None, potential_prior=None,
         jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, **kwargs):
 
     # initial values

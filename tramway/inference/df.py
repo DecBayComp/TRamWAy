@@ -22,11 +22,14 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'arguments': OrderedDict((
+setup = {'name':    ('degraded.df', 'df'),
+        #'provides': 'df',
+        'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
-        ('debug',       dict(action='store_true'))))}
+        ('debug',       dict(action='store_true')))),
+        'cell_sampling':    'individual'}
 
 
 def df_neg_posterior(x, df, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivity):
@@ -90,6 +93,10 @@ def infer_DF(cells, localization_error=None, jeffreys_prior=False, min_diffusivi
             # sanity checks
             if not bool(cell):
                 raise ValueError('empty cells')
+            if cell.dr.shape[1] == 0:
+                raise ValueError('translocation array has no column')
+            if cell.dt.shape[1:]:
+                raise ValueError('time deltas are structured in multiple dimensions')
             # ensure that translocations are properly oriented in time
             if not np.all(0 < cell.dt):
                 warn('translocation dts are non-positive', RuntimeWarning)

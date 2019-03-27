@@ -7,7 +7,7 @@ This step consists of inferring the values of parameters of the local dynamics i
 These parameters are diffusivity, force, diffusive drift and potential energy.
 
 The inference usually consists of minimizing a cost function.
-It can be perfomed in each cell independently (e.g. :ref:`D <inference_d>`, :ref:`DF <inference_df>` and :ref:`DD <inference_dd>` with no smoothing) or jointly in all or some cells (e.g. :ref:`DV <inference_dv>`).
+It can be perfomed in each cell independently (e.g. :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>` in their *degraded* variants) or jointly in all or some cells (e.g. :ref:`DV <inference_dv>`).
 
 Because the parameters are estimated for each cell, the resulting parameter values can be rendered as quantitative maps.
 
@@ -16,9 +16,8 @@ Basic usage
 -----------
 
 The *tramway* command features the :ref:`infer <commandline_inference>` sub-command that handles this step.
-The available inference modes are :ref:`D <inference_d>`, :ref:`DF <inference_df>`, 
-:ref:`DD <inference_dd>` and :ref:`DV <inference_dv>` 
-(also referred to as :ref:`(D) <inference_d>`, :ref:`(D,F) <inference_df>`, :ref:`(D,Drift) <inference_dd>` and :ref:`(D,V) <inference_dv>` respectively in `InferenceMAP`_) 
+The available inference modes are :ref:`D <inference_d>`, :ref:`DD <inference_dd>`, :ref:`DF <inference_df>` and :ref:`DV <inference_dv>` 
+(also referred to as :ref:`(D) <inference_d>`, :ref:`(D,Drift) <inference_dd>`, :ref:`(D,F) <inference_df>` and :ref:`(D,V) <inference_dv>` respectively in `InferenceMAP`_) 
 and can be applied with the :func:`~tramway.helper.inference.infer` helper function:
 
 .. code-block:: python
@@ -28,10 +27,11 @@ and can be applied with the :func:`~tramway.helper.inference.infer` helper funct
 	maps = infer(cells, 'DV')
 
 
-However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed diffusivities are low and the experimental localization error is not properly set.
+However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed diffusivities are low and the experimental localization error is also low.
 
-An argument that should be first considered in an attempt to deal with runtime errors is `localization_error` (or equivalently the ``-e`` command-line option).
-The inference may indeed hit an error because of this value being too small.
+An argument that should be first considered in an attempt to deal with runtime errors is `min_diffusivity`.
+
+Another important argument that can help is `localization_error` or `sigma` or `sigma2`.
 See also the `Common parameters and default values`_ section.
 
 
@@ -52,9 +52,6 @@ can be implemented as follows:
 Concepts
 --------
 
-Inference
-^^^^^^^^^
-
 |tramway| uses the Bayesian inference technique that was first described in [Masson09]_ and implemented in `InferenceMAP`_. 
 
 The motion of single particles is modeled with an overdamped Langevin equation:
@@ -69,7 +66,7 @@ with :math:`\textbf{r}` the particle location,
 :math:`D` the local diffusion coefficient and 
 :math:`\xi(t)` a Gaussian noise term.
 
-The model additionally assumes :math:`\textbf{F}(\textbf{r}) = - \nabla V(\textbf{r})` 
+The :ref:`DV <inference_dv>` model additionally assumes :math:`\textbf{F}(\textbf{r}) = - \nabla V(\textbf{r})` 
 with :math:`V(\textbf{r})` the local potential energy.
 
 The associated Fokker-Planck equation, which governs the temporal evolution of the particle transition probability :math:`P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1)` is given by:
@@ -88,7 +85,7 @@ upon which the general solution to that equation is a Gaussian distribution desc
 
 with :math:`i` the index for the cell, :math:`(\textbf{r}_1, t_1)` and :math:`(\textbf{r}_2, t_2)` two points in cell :math:`i` and :math:`\sigma` the experimental localization error.
 
-The probability of local parameters :math:`D_i` and :math:`V_i` is calculated from the set of local translocations :math:`T_i=\{( \Delta\textbf{r}_j, \Delta t_j )\}_j` applying Bayes' rule:
+The probability of the local parameters :math:`D_i` and :math:`V_i` is calculated from the set of local translocations :math:`T_i=\{( \Delta\textbf{r}_j, \Delta t_j )\}_j` applying Bayes' rule:
 
 .. math::
 
@@ -102,44 +99,17 @@ and assuming:
 
 :math:`P(D,V|T)` is the *posterior probability*, :math:`P(D,V)` is the *prior probability* and :math:`P(T)` is the evidence which is treated as a normalization constant.
 
-For each cell, :math:`P(D,V|T)` is optimized for the model parameters :math:`D` and :math:`V` or :math:`\textbf{F}`.
+Models other than :ref:`DV <inference_dv>` follow the same rule, with :math:`V` substituted by other model parameters.
+
+All the *standard* inference modes optimize the total posterior :math:`P(\textbf{D},...|T) = \prod_i P(D,...|T)`.
+The optimization considers all the cells and corresponding parameters at the same time.
+
+A degraded variant is available for the methods that do not necessarily imply the calculation of spatial gradients, namely :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>`.
+
+In the degraded mode, :math:`P(D,...|T)` is optimized for each cell independently.
 
 
 .. [Masson09] Masson J.-B., Casanova D., Türkcan S., Voisinne G., Popoff M.R., Vergassola M. and Alexandrou A. (2009) Inferring maps of forces inside cell membrane microdomains, *Physical Review Letters* 102(4):048103
-
-
-Maps
-^^^^
-
-The maps are available as :class:`~tramway.inference.base.Maps` objects that expose a `pandas.DataFrame`-like interface with "column" names such as '*diffusivity*', '*potential*' and '*force*'.
-
-``maps['force']`` for 2D space-only data will typically return a :class:`~pandas.DataFrame` with two columns '*force x*' and '*force y*', where *x* and *y* refers to the space dimensions.
-
-
-Distributed cells
-^^^^^^^^^^^^^^^^^
-
-The :func:`~tramway.helper.inference.infer` function prepares the :class:`~tramway.tessellation.base.CellStats` partition (see the :ref:`tessellation` section) before the inference is run.
-
-Cells are represented by either :class:`~tramway.inference.base.Locations` or :class:`~tramway.inference.base.Translocations` objects. 
-Both types of objects derivate from the :class:`~tramway.inference.base.Cell` class.
-
-These cell objects are distributed in a :class:`~tramway.inference.base.Distributed` object.
-The :class:`~tramway.inference.base.Distributed` class controls how the cells and the associated (trans-)locations are passed to the inference algorithm.
-
-For example cells can be grouped in subsets of cells.
-In this case the top :class:`~tramway.inference.base.Distributed` object will contain other :class:`~tramway.inference.base.Distributed` objects that will in turn contain :class:`~tramway.inference.base.Cell` objects.
-
-The main routine of an inference plugin receives a :class:`~tramway.inference.base.Distributed` object and can:
-
-* iterate over the contained cells (:class:`~tramway.inference.base.Distributed` features a dict-like interface),
-* take benefit from the cell adjacency matrix (attribute :attr:`~tramway.inference.base.Distributed.adjacency`)
-* and other convenience calculations such as gradient components (method :meth:`~tramway.inference.base.Distributed.grad`) that can be summed (method :meth:`~tramway.inference.base.Distributed.grad_sum`).
-
-
-The :meth:`~tramway.inference.base.Distributed.run` applies the inference routine on the defined subsets of cells.
-It handles the multi-processing logic and combines the regional maps into a full map.
-The number of workers (or processes) can be set with the `worker_count` argument.
 
 
 Methods
@@ -162,19 +132,19 @@ Some of them are listed below:
      - fast
      - | diffusivity
 
-   * - :ref:`DF <inference_df>`
-     - | :math:`D`
-       | :math:`\textbf{F}` [#a]_
-     - fast
-     - | diffusivity
-       | force
-
    * - :ref:`DD <inference_dd>`
      - | :math:`D`
        | :math:`\frac{\textbf{F}}{\gamma}` [#a]_
      - fast
      - | diffusivity
        | drift
+
+   * - :ref:`DF <inference_df>`
+     - | :math:`D`
+       | :math:`\textbf{F}` [#a]_
+     - fast
+     - | diffusivity
+       | force
 
    * - :ref:`DV <inference_dv>`
      - | :math:`D`
@@ -204,7 +174,32 @@ The posterior probability used to infer the diffusivity :math:`D_i` in cell :mat
 
 The *D* inference mode is well-suited to freely diffusing molecules and the rapid characterization of the diffusivity.
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *smooth.d* mode instead of *d*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *standard.d* mode instead of *d*/*degraded.d*.
+
+.. _inference_dd:
+
+*DD* inference
+^^^^^^^^^^^^^^
+
+*DD* stands for *Diffusivity and Drift*.
+
+This mode is very similar to the :ref:`DF mode <inference_df>` mode. 
+The whole drift :math:`\frac{\textbf{F}}{\gamma}` is optimized instead of the force :math:`\textbf{F}`. 
+This may offer increased stability in the optimization. 
+Indeed the contribution of the drift to the objective function does not depend directly on the simultaneously estimated diffusivity.
+
+The maximized posterior probability is given by:
+
+.. math::
+
+	P(D_i, \frac{\textbf{F}_i}{\gamma_i} | T_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \frac{\textbf{F}_i}{\gamma_i}\Delta t_j/k_BT\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+
+Although the force :math:`\textbf{F}_i` and friction coefficient :math:`\gamma_i` appear in the above expression, they are not explicitly evaluated. 
+The drift :math:`\frac{\textbf{F}_i}{\gamma_i}` is treated as an indivisible variable.
+
+The *DD* inference mode is well-suited to active processes (e.g. active transport phenomena).
+
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *standard.dd* mode instead of *dd*/*degraded.dd*.
 
 .. _inference_df:
 
@@ -223,32 +218,7 @@ The posterior probability used to infer the local diffusivity :math:`D_i` and fo
 The *DF* inference mode is well-suited to mapping local force components, especially in the presence of non-potential forces (e.g. a rotational component).
 This mode allows for the rapid characterization of the diffusivity and directional biases of the trajectories.
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *smooth.df* mode instead of *df*.
-
-.. _inference_dd:
-
-*DD* inference
-^^^^^^^^^^^^^^
-
-*DD* stands for *Diffusivity and Drift*.
-
-This mode is very similar to the :ref:`DF mode <inference_df>` mode. 
-The whole drift :math:`\frac{\textbf{F}}{\gamma}` is optimized instead of the force :math:`\textbf{F}`. 
-This may offer increased stability in the optimization. 
-Indeed the contribution of the drift to the objective function does not depend directly on the simultaneously explored diffusivity.
-
-The maximized posterior probability is given by:
-
-.. math::
-
-	P(D_i, \frac{\textbf{F}_i}{\gamma_i} | T_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \frac{\textbf{F}_i}{\gamma_i}\Delta t_j/k_BT\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
-
-Although the force :math:`\textbf{F}_i` and friction coefficient :math:`\gamma_i` appear in the above expression, they are not explicitly evaluated. 
-The drift :math:`\frac{\textbf{F}_i}{\gamma_i}` is treated as an indivisible variable.
-
-The *DD* inference mode is well-suited to active processes (e.g. active transport phenomena).
-
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *smooth.dd* mode instead of *dd*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *standard.df* mode instead of *df*/*degraded.df*.
 
 
 .. _inference_dv:
@@ -274,24 +244,24 @@ Common parameters and default values
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All the methods use :math:`\sigma = 0.03 \textrm{µm}` as default value for the experimental localization error.
-This parameter is defined by the experimental setup and can be set in |tramway| with the ``-e`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
+This parameter is defined by the experimental setup and can be set in |tramway| with the ``--sigma`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
 
 Compare::
 
-	> tramway -i example.rwa infer dd -e 0.01 -l DD_sigma_10nm
+	> tramway -i example.rwa infer dd --sigma 0.01 -l DD_sigma_10nm
 
 .. code-block:: python
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'DD', localization_error=0.01, output_label='DD_sigma_10nm')
+	infer('example.rwa', 'dd', sigma=0.01, output_label='DD_sigma_10nm')
 
 
-Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 
-If the Jeffreys' prior is requested, then this minimum default value is :math:`0.01`. 
-This can be overwritten with the ``--min-diffusivity`` command-line option or the `min_diffusivity` argument to :func:`~tramway.helper.inference.infer`.
+.. Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 
+.. If the Jeffreys' prior is requested, then this minimum default value is :math:`0.01`. 
+.. This can be overwritten with the ``--min-diffusivity`` command-line option or the `min_diffusivity` argument to :func:`~tramway.helper.inference.infer`.
 
-Note that in some cases it can be beneficial to allow negative values for the diffusivity.
+.. Note that in some cases it can be beneficial to allow negative values for the diffusivity.
 
 If no specific prior is defined, a uniform prior is used by default.
 
@@ -321,11 +291,11 @@ Its value varies depending on the inference mode. Compare:
    * - :ref:`D <inference_d>`
      - :math:`\frac{1}{\left(D_i\overline{\Delta t}_i + \sigma^2\right)^2}`
 
-   * - :ref:`DF <inference_df>`
-     - :math:`\frac{D_i^2}{\left(D_i\overline{\Delta t}_i + \sigma^2\right)^2}`
-
    * - :ref:`DD <inference_dd>`
      - :math:`\frac{1}{\left(D_i\overline{\Delta t}_i + \sigma^2\right)^2}`
+
+   * - :ref:`DF <inference_df>`
+     - :math:`\frac{D_i^2}{\left(D_i\overline{\Delta t}_i + \sigma^2\right)^2}`
 
    * - :ref:`DV <inference_dv>`
      - :math:`\frac{D_i^2}{\left(D_i\overline{\Delta t}_i + \sigma^2\right)^2}`
@@ -340,7 +310,7 @@ Compare::
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'DD', jeffreys_prior=True, output_label='DD_jeffreys')
+	infer('example.rwa', 'standard.dd', jeffreys_prior=True, output_label='DD_jeffreys')
 
 
 Note that with this prior the default minimum diffusivity value is :math:`0.01`. 
@@ -356,8 +326,10 @@ A smoothing (improper) prior penalizes the gradients of the inferred parameters.
 It is meant to reinforce the physical plausibility of the inferred maps. 
 For example, in certain situations we do not expect large changes in the diffusion coefficient between neighbouring cells.
 
-|tramway| features variants for the :ref:`D <inference_d>`, :ref:`DF <inference_df>` and :ref:`DD <inference_dd>` inference modes that add a smoothing factor :math:`P_S(\textbf{D})` for the diffusivity.
-These variants are available as the respective alternative plugins: *smooth.d*, *smooth.df*, *smooth.dd*.
+|tramway| features *degraded* and *standard* variants for the :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>` inference modes.
+The *standard* variants add an optional smoothing factor :math:`P_S(\textbf{D})` for the diffusivity.
+
+These variants are available as the respective plugins: *standard.d* (or *smooth.d*), *standard.df* (or *smooth.df*), *standard.dd* (or *smooth.dd*).
 
 This prior multiplies with the original expression of the posterior probability and penalizes all the diffusivity gradients. 
 :math:`P_S` is a function of the diffusivity at all the cells, hence the vectorial notation :math:`\textbf{D}` for the diffusivity.
@@ -366,7 +338,7 @@ The maximized probability becomes:
 
 .. math::
 
-	P^*(D_i, ... | T_i) = P(D_i, ... | T_i) P_S(\textbf{D})
+	P^*(\textbf{D}, ... | T) = P_S(\textbf{D}) \prod_i P(D_i, ... | T_i)
 
 with:
 
@@ -378,13 +350,13 @@ with:
 The :math:`\mu` parameter can be set with the ``-d`` command-line option or the `diffusivity_prior` argument to :func:`~tramway.helper.inference.infer`.
 Compare::
 
-	> tramway -i example.rwa infer smooth.dd -d 1 -l DD_d_1
+	> tramway -i example.rwa infer standard.dd -d 1 -l DD_d_1
 
 .. code-block:: python
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'smooth.dd', diffusivity_prior=1., output_label='DD_d_1')
+	infer('example.rwa', 'standard.dd', diffusivity_prior=1., output_label='DD_d_1')
 
 
 
@@ -395,6 +367,68 @@ Note that the :ref:`DV <inference_dv>` inference mode readily features this smoo
 	P_S(\textbf{V}) = \textrm{exp}\left(-\lambda\sum_i ||\nabla V_i||^2\right)
 
 Similarly to :math:`\mu`, the :math:`\lambda` parameter can be set with the ``-v`` command-line option or the `potential_prior` argument to :func:`~tramway.helper.inference.infer`.
+
+
+Implementation details
+----------------------
+
+Maps
+^^^^
+
+The maps are available as :class:`~tramway.inference.base.Maps` objects that expose a `pandas.DataFrame`-like interface with "column" names such as '*diffusivity*', '*potential*' and '*force*'.
+
+``maps['force']`` for 2D space-only data will typically return a :class:`~pandas.DataFrame` with two columns '*force x*' and '*force y*', where *x* and *y* refers to the space dimensions.
+
+
+Distributed cells
+^^^^^^^^^^^^^^^^^
+
+The :func:`~tramway.helper.inference.infer` function prepares the :class:`~tramway.tessellation.base.CellStats` partition (see the :ref:`tessellation` section) before the inference is run.
+
+Cells are represented by either :class:`~tramway.inference.base.Locations` or :class:`~tramway.inference.base.Translocations` objects. 
+Both types of objects derivate from the :class:`~tramway.inference.base.Cell` class.
+
+These cell objects are grouped together in a dict-like :class:`~tramway.inference.base.Distributed` object.
+The :class:`~tramway.inference.base.Distributed` class controls how the cells and the associated (trans-)locations are passed to the inference algorithm.
+
+For example cells can be grouped in subsets of cells.
+In this case the top :class:`~tramway.inference.base.Distributed` object will contain other :class:`~tramway.inference.base.Distributed` objects that will in turn contain :class:`~tramway.inference.base.Cell` objects.
+
+The main routine of an inference plugin receives a :class:`~tramway.inference.base.Distributed` object and can:
+
+* iterate over the contained cells (:class:`~tramway.inference.base.Distributed` features a dict-like interface),
+* take benefit from the cell adjacency matrix (attribute :attr:`~tramway.inference.base.Distributed.adjacency`)
+* and other convenience calculations such as gradient components (method :meth:`~tramway.inference.base.Distributed.grad`) that can be summed (method :meth:`~tramway.inference.base.Distributed.grad_sum`).
+
+
+The :meth:`~tramway.inference.base.Distributed.run` applies the inference routine on the defined subsets of cells.
+It handles the multi-processing logic and combines the regional maps into a full map.
+The number of workers (or processes) can be set with the `worker_count` argument.
+
+
+.. _inference_bayes_factor:
+
+Force testing
+-------------
+
+In every cell, the inferred drift can be compared against the effect of diffusivity gradients.
+
+The `bayes_factor`_ module calculates the odds (the probability ratio) of having an actual active force
+over the probability that diffusivity gradients can explain the observed drift.
+The user-specified `B_threshold` threshold sets the required level of evidence.
+Values above `B_threshold` indicate the presence of an active force,
+and values below `1/B_threshold` indicate that diffusivity gradients are the moste likely explanation of the observed drift.
+The values in-between indicate that a conclusion cannot be reached at the required level of evidence.
+
+The `bayes_factor`_ plugin generates 3 additional maps:
+
+* `lg_B`: current Bayes factor value
+* `force`: ternary map for the presence of an active force (``-1``: no force, ``0``: insufficient evidence, ``1``: force)
+* `min_n`: given the supplied total force and diffusivity gradient estimates are correct, returns a number of points to be collected in the current bin, so as to reach the required level of evidence.
+
+The `bayes_factor`_ plugin operates on top of a diffusivity map that must be inferred first, preferably with the *d.conj_prior* plugin.
+
+The current version of the `bayes_factor`_ plugin does not test the drift or force inferred by plugins such as :ref:`DD <inference_dd>`, :ref:`DF <inference_df>` or :ref:`DV <inference_dv>`.
 
 
 .. Advanced usage

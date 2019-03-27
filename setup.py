@@ -6,7 +6,7 @@ from os import path
 
 # requirements moved to requirements.txt
 install_requires = []#'six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
-extras_require = {}
+extras_require = {'animate': ['opencv-python', 'tqdm']}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']
 
@@ -19,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.3.2',
+    version = '0.3.6',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -33,6 +33,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
     keywords = '',
     package_dir = {'tramway': 'tramway'},
@@ -50,6 +51,7 @@ setup(
         'tramway.inference.bayes_factors',
         'tramway.feature',
         'tramway.plot',
+        'tramway.plot.animation',
         'tramway.plot.tk',
         'tramway.helper',
         'tramway.helper.simulation',

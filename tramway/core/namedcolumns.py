@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -31,7 +31,7 @@ def isstructured(x):
         bool: ``True`` if input argument ``x`` has named columns.
 
     """
-    if isinstance(x, pd.DataFrame) or isinstance(x, pd.Series):
+    if isinstance(x, (pd.Series, pd.DataFrame)):
         return True
     else:
         try:
@@ -80,10 +80,21 @@ def splitcoord(varnames, asstr=True):
             vs[_str(v)].append(v)
     return vs
 
+def expandcoord(varname, dim):
+    if dim < 1:
+        raise ValueError('`dim` is lower than 1')
+    elif dim == 1:
+        return [varname]
+    elif dim <= 3:
+        return [ '{} {}'.format(varname, c) for c in 'xyz'[:dim] ]
+    else:
+        return [ '{} x{:d}'.format(varname, c) for c in range(dim) ]
+
 
 __all__ = [
     'isstructured',
     'columns',
     'splitcoord',
+    'expandcoord',
     ]
 

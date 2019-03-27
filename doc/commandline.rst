@@ -10,7 +10,30 @@ The input data are tracking data of single molecules, stored in a text file.
 
 The extension of input data files will usually be |txt|, |xyt| or |trxyt| but this is not required.
 
-We will first import an example |trxyt| file and sample the molecule locations in a step referred to as "tessellation", before we perform the inference and feature extraction.
+The trajectories from an example |trxyt| file can be visualized with the following command::
+
+    > tramway -v animate trajectories -i example.trxyt
+
+The *tramway* command is followed by the *animate* subcommand, itself followed by the *trajectories* subsubcommand.
+
+``-i`` stands for *input file* and can be omitted as long as the file path comes last in the command.
+
+``-v`` stands for *verbose* and is a flag that does not take any argument after.
+
+Equivalent commands are::
+
+    > tramway -i example.trxyt animate trajectories -v
+    > tramway animate trajectories -v example.trxyt
+
+Note that it is recommended to specify the time step with the ``--time-step`` (or ``-s``) option.
+In the absence of this option as in the above example, *tramway animate trajectories* will try to determine the inter-frame duration, but some floating-point precision error may occur.
+
+The documentation for the *animate* and *animate trajectories* subcommands can be printed using the ``-h`` flag::
+
+    > tramway animate -h
+    > tramway animate trajectories -h
+
+We will first import the example |trxyt| file and bin the molecule locations in a step referred to as *tessellation*, before we perform the inference.
 
 Note that there is no standalone import.
 Molecule locations and trajectories should always be sampled in a way or another.
@@ -50,7 +73,7 @@ It is recommended to scale your data adding the option ``-w``.
 
 Each method exposes specific parameters.
 Some parameters however apply after a mesh has been grown and therefore apply to all the methods.
-Some of these parameters are ``--knn`` (or shorter ``-n``), ``--radius`` (or shorter ``-r``) and ``--strict-min-location-count`` (or shorter ``-ss``).
+Some of these parameters are ``--knn`` (or ``-n`` or ``--min-nn``), ``--radius`` (or shorter ``-r``) and ``--min-n``.
 
 ``--knn`` allows to impose a lower bound on the number of points (nearest neighbours) associated with each cell of the mesh, independently of the way the mesh has been grown.
 
@@ -65,7 +88,7 @@ Values are specified in the units of the single molecule data, typically |um|.
 
 With the above two arguments, some cells may overlap.
 
-``--strict-min-location-count`` discards the cells that contain less locations than thereby specified.
+``--min-n`` discards the cells that contain less locations than thereby specified.
 Note that this filter applies before ``--knn``.
 Cells with too few locations will be discarded anyway.
 
@@ -76,9 +99,9 @@ cell centers, especially in dense areas.
 Per default it is set to the average translocation distance.
 A lower value may yield smaller cells.
 
-The following example combines specified inter-cell distance (``-d``), sparse cell removal (``-ss``) and cell expansion to a minimum location number (``-n``)::
+The following example combines specified inter-cell distance (``-d``), sparse cell removal (``--min-n``) and cell expansion to a minimum location number (``--min-nn``)::
 
-	> tramway tessellate gwr -i example.rwa -d 0.1 -ss 10 -n 30 -l gwr*
+	> tramway tessellate gwr -i example.rwa -d 0.1 --min-n 10 --min-nn 30 -l gwr*
 
 Note that, in the above two examples, the *example.rwa* file already exists and we add the meshes to the existing analysis tree.
 
@@ -130,9 +153,11 @@ Inferring diffusivity and other parameters
 
 Inferring diffusivity and force with the *DF* mode::
 
-	> tramway infer df -i example.rwa -L kmeans -l df-map*
+	> tramway infer standard.df -i example.rwa -L kmeans -l df-map*
 
-Other inference modes are *D* (``d``), *DD* (``dd``) and *DV* (``dv``).
+Other inference modes are *D* (``standard.d``), *DD* (``standard.dd``) and *DV* (``dv``).
+
+*D*, *DD* and *DF* have *degraded* variants, respectively: ``degraded.d``, ``degraded.dd`` and ``degraded.df``.
 
 A common parameter is the localization error, which default value is :math:`\sigma = 0.03 \textrm{µm}`.
 See the :ref:`Common parameters section <inference_parameters>` to learn more about it.
@@ -152,7 +177,9 @@ Visualizing maps
 
 2D maps can be plotted with::
 
-	> tramway draw map -i example.rwa -L gwr1,dv-map0
+	> tramway draw map -i example.rwa -L gwr1,dv-map0 --feature force
+
+If the mapped feature to be drawn is not specified, *tramway draw map* will make a figure for each of the mapped features.
 
 One can overlay the locations as white dots with high transparency over maps colored with one of the *matplotlib* supported colormaps (see also https://matplotlib.org/users/colormaps.html)::
 
@@ -184,10 +211,10 @@ The extracted map can be plotted just like any map::
 	> tramway draw map -i example.rwa -L kmeans,df-map0,curl_2
 
 
-Final analysis tree
--------------------
+Inspecting an *rwa* file
+------------------------
 
-To sum up this primer, the content of the *example.rwa* file that results from all the above steps is dumped below::
+The content of the *example.rwa* file that results from all the above steps can be superficially inspected as below::
 
 	> tramway dump -i example.rwa
 
@@ -200,5 +227,57 @@ To sum up this primer, the content of the *example.rwa* file that results from a
 			'gwr1' <class 'tramway.tessellation.base.CellStats'>
 				'dv-map0' <class 'tramway.inference.base.Maps'>
 
+As mentioned before, some analysis artefacts can be inspected specifying the corresponding label.
 
+The *dump* subcommand can also export some analysis artefacts for use in **InferenceMAP** using the ``--cluster`` (for spatial meshes) and ``--vmesh`` (for maps) options.
+Learn more from the *tramway dump* help::
+
+    > tramway dump -h
+
+
+.. _commandline_time:
+
+Segmenting time
+---------------
+
+The *tramway tessellate* command features temporal windowing as an addition to spatial binning.
+Let us consider the following example::
+
+    > tramway -i example.trxyt -o example2.rwa tessellate gwr --knn 10 --time-window-duration 2 --time-window-shift 0.2
+
+Note first that we are making a new *rwa* file with the ``-o`` flag.
+We could have kept on working on the existing *rwa* file with ``-i example.rwa`` instead of ``-i example.trxyt -o example2.rwa``.
+
+Note second that we do not specify any label for the resulting sampling of the locations.
+Of course we could have done so.
+
+In the example above, we bin the locations using the *gwr* spatial tessellation method.
+At the spatial binning step, all the locations considered independently of their onset time.
+
+Temporal windowing comes next and requires the ``--time-window-duration`` argument followed by the duration of the window in seconds.
+
+Optionally, the time shift between successive segments can be specified with the ``--time-window-shift`` argument.
+In the above example every pair of successive segments will share a 90% overlap (1800 ms).
+The default is a shift equal to the duration, so that there is no overlap.
+
+At the inference step, the temporal sampling is transparent::
+
+    > tramway -i example2.rwa infer ddrift
+
+Note that drawing the spatial mesh or the inferred map now requires the index of a time segment to be specified::
+
+    > tramway -i example2.rwa draw cells --segment 0
+    > tramway -i example2.rwa draw map --feature drift --segment 0
+
+A movie can also be generated out of the inferred maps::
+
+    > tramway -v -i example2.rwa animate map --feature drift
+
+Note that *tramway animate map* requires a mapped feature to be specified unless a single feature is found.
+
+This actually generates a temporary *mp4* file.
+To keep the generated file, an output file name has to be specified with the ``-o`` option.
+
+*tramway animate map* can also subsample in time with the ``--time-step`` (or ``-s``) option.
+Overlapping segments will be averaged wrt the distance from the segment centers.
 

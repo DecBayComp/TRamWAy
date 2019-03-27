@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -13,6 +13,7 @@
 
 import os.path
 from .base import *
+from .gradient import *
 from tramway.core.plugin import Plugins
 
 

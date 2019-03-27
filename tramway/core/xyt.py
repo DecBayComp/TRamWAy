@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -18,6 +18,7 @@ import pandas as pd
 import warnings
 import itertools
 from .exceptions import *
+import re
 
 
 def _translocations(df, sort=True): # very slow; may soon be deprecated
@@ -38,21 +39,28 @@ def translocations(df, sort=False):
     xyz = ['x', 'y']
     if 'z' in df.columns:
         xyz.append('z')
-    ixyz = xyz + [i]
-    jump = df[ixyz].diff()
-    #df[xyz] = jump[xyz]
-    #df = df[jump[i] != 0]
-    #return df
-    jump = jump[jump[i] == 0][xyz]
+    dxyz = [ 'd'+col for col in xyz ]
+    if all( col in df.columns for col in dxyz ):
+        jump = df[dxyz]
+    else:
+        ixyz = xyz + [i]
+        jump = df[ixyz].diff()
+        #df[xyz] = jump[xyz]
+        #df = df[jump[i] != 0]
+        #return df
+        jump = jump[jump[i] == 0][xyz]
     return jump#np.sqrt(np.sum(jump * jump, axis=1))
 
 
-def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False, verbose=False,
-        reset_origin=False):
+def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
+        reset_origin=False, header=None, **kwargs):
     """
     Load trajectory files.
 
-    Files are loaded with :func:`~pandas.read_table` with explicit column names.
+    Files are loaded with :func:`~pandas.read_csv` and should have the same number of columns
+    and either none or all files should exhibit a single-line header.
+
+    Default column names are 'n', 'x', 'y' and 't'.
 
     Arguments:
 
@@ -70,14 +78,25 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
             Apply to time and space columns. Default column names are 'x', 'y', 'z'
             and 't'. A sequence overrides the default.
 
+        header (bool): if defined, a single-line header is expected in the file(s);
+            if ``False``, ignore the header;
+            if ``True``, overwrite the `columns` argument with names from the header;
+            if undefined, check whether a header is present and, if so, act as ``True``.
+
     Returns:
 
         pandas.DataFrame or list or tuple: trajectories as one or multiple DataFrames;
             if `tuple` (with *return_paths*), the trajectories are first, the list
             of filepaths second.
+
+    Extra keyword arguments are passed to :func:`~pandas.read_csv`.
     """
+    if columns is not None and header is True:
+        raise ValueError('both column names and header are defined')
     #if 'n' not in columns:
     #    raise ValueError("trajectory index should be denoted 'n'")
+    if 'sep' not in kwargs and 'delimiter' not in kwargs:
+        kwargs['delim_whitespace'] = True
     if not isinstance(path, list):
         path = [path]
     paths = []
@@ -93,7 +112,27 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
         try:
             if verbose:
                 print('loading file: {}'.format(f))
-            dff = pd.read_table(f, names=columns)
+            if header is False:
+                if columns is None:
+                    columns = ['n', 'x', 'y', 't']
+                kwargs['names'] = columns
+                dff = pd.read_csv(f, header=0, **kwargs)
+            else:
+                with open(f, 'r') as fd:
+                    first_line = fd.readline()
+                if re.search(r'[a-df-zA-DF-Z_]', first_line):
+                    if columns is None:
+                        columns = first_line.split()
+                    kwargs['names'] = columns
+                    dff = pd.read_csv(f, header=0, **kwargs)
+                elif header is True:
+                    dff = pd.read_csv(f, header=0, **kwargs)
+                    columns = dff.columns
+                else:
+                    if columns is None:
+                        columns = ['n', 'x', 'y', 't']
+                    kwargs['names'] = columns
+                    dff = pd.read_csv(f, **kwargs)
         except OSError:
             warnings.warn(f, FileNotFoundWarning)
         else:
@@ -108,7 +147,7 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
                             print(sample.loc[conflicting])
                         except:
                             pass
-                        raise ValueError("some indices refer to multiple simultaneous trajectories in table: '{}'".format(f))
+                        raise ValueError("some simultaneous locations are associated to a same trajectory: '{}'".format(f))
                     else:
                         warnings.warn(EfficiencyWarning("table '{}' is not properly ordered".format(f)))
                     # faster sort
@@ -123,6 +162,8 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
                 if dff['n'].min() < index_max:
                     dff['n'] += index_max
                     index_max = dff['n'].max()
+            if np.any(dff.isnull().values.all(axis=0)):
+                raise ValueError('too many specified columns: {}'.format(columns))
             df.append(dff)
     if reset_origin:
         if reset_origin == True:
@@ -140,27 +181,36 @@ def load_xyt(path, columns=['n', 'x', 'y', 't'], concat=True, return_paths=False
         return df
 
 
-def crop(points, box, by=None):
+def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False):
     """
     Remove locations outside a bounding box.
 
     When a location is discarded, the corresponding trajectory is splitted into two distinct
     trajectories.
 
+    Important: the locations of any given trajectory should be contiguous and ordered.
+
     Arguments:
 
         locations (pandas.DataFrame): locations with trajectory indices in column 'n',
-            times in column 't' and coordinates in the other columns
+            times in column 't' and coordinates in the other columns;
+            delta columns are ignored
 
-        box (array-like): origin and size of the bounding box
+        box (array-like): origin and size of the space bounding box
 
         by (str): for translocations only;
-            '*start*': crop by translocation starting point; keep the associated
-            destination points;
-            '*stop*': crop by translocation destination point; keep the associated
+            '*start*' or '*origin*': crop by translocation origin; keep the associated destinations;
+            '*stop*' or '*destination*': crop by translocation destinations; keep the associated
             origins;
             trajectories with a single non-terminal point outside the bounding box are
             not splitted
+
+        add_deltas (bool): add 'dx', 'dy', ..., 'dt' columns is they are not already present;
+            deltas are associated to the translocation origins
+
+        keep_nans (bool): adding deltas generates NaN; keep them
+
+        no_deltas (bool): do not consider any column as deltas
 
     Returns:
 
@@ -171,28 +221,47 @@ def crop(points, box, by=None):
     support_lower_bound = box[:dim]
     support_size = box[dim:]
     support_upper_bound = support_lower_bound + support_size
-    coord_cols = [ c for c in points.columns if c not in ['n', 't'] ]
+    not_coord_cols = ['n', 't']
+    if no_deltas:
+        delta_cols = []
+    else:
+        delta_cols = [ c for c in points.columns \
+                if c[0]=='d' and c[1:] != 'n' and c[1:] in points.columns ]
+        not_coord_cols += delta_cols
+    coord_cols = [ c for c in points.columns if c not in not_coord_cols ]
+    if len(coord_cols) != dim:
+        raise ValueError('the bounding box has dimension {} while the following coordinate columns were found: {}'.format(dim, coord_cols))
     within = np.all(np.logical_and(support_lower_bound <= points[coord_cols].values,
         points[coord_cols].values <= support_upper_bound), axis=1)
-    if by:
+    if add_deltas or by:
         paired_dest = points['n'].diff().values==0
         paired_src = np.r_[paired_dest[1:], False]
-        if by == 'start':
+    points = points.copy()
+    if add_deltas:
+        cols_with_deltas = [ c[1:] for c in delta_cols ]
+        cols_to_diff = [ c for c in points.columns if c not in ['n']+cols_with_deltas ]
+        deltas = points[cols_to_diff].diff().shift(-1)
+        deltas = deltas[paired_src]
+        deltas.columns = [ 'd'+c for c in cols_to_diff ]
+        points = points.join(deltas)
+    if by:
+        if by in ('start', 'origin'):
             within[paired_dest] |= within[paired_src]
-        elif by == 'stop':
+        elif by in ('stop', 'destination'):
             within[paired_src] |= within[paired_dest]
         else:
             raise ValueError('unsupported value for argument `by`')
-    points = points.copy()
     if 'n' in points.columns:
         points['n'] += np.cumsum(np.logical_not(within), dtype=points.index.dtype)
         single_point = 0 < points['n'].diff().values[1:]
         single_point[:-1] = np.logical_and(single_point[:-1], single_point[1:])
         ok = np.r_[True, np.logical_not(single_point)]
-        points = points.iloc[ok]
+        points = points[ok]
         within = within[ok]
-        points['n'] -= (points['n'].diff() - 1).clip_lower(0).cumsum()
-    points = points.iloc[within]
+        points['n'] -= (points['n'].diff().fillna(0).astype(int) - 1).clip(lower=0).cumsum()
+    points = points[within]
+    if not keep_nans:
+        points.dropna(inplace=True)
     points.index = np.arange(points.shape[0])
     return points
 

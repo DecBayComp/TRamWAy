@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -49,7 +49,7 @@ class TimeLattice(Tessellation):
     * setting `time_lattice` unsets `cell_label`, `cell_adjacency` and `adjacency_label`
     * setting `spatial_mesh` unsets `cell_centers`, `cell_label`, `cell_adjacency` and `adjacency_label`, `cell_volume`
     * `cell_centers`, `cell_volume` and `split_frames` are available only when `spatial_mesh`
-    is defined
+        is defined
 
     """
     __slots__ = ('_spatial_mesh', '_time_lattice', 'time_edge', '_cell_centers', '_cell_volume',
@@ -62,7 +62,7 @@ class TimeLattice(Tessellation):
             time_dimension=None):
         Tessellation.__init__(self, scaler) # scaler is ignored
         self._time_lattice = segments
-        self.time_edge = time_label
+        self.time_edge = None if time_label in ((), []) else time_label
         self._cell_adjacency = None
         self._cell_label = None
         self._adjacency_label = None
@@ -80,6 +80,12 @@ class TimeLattice(Tessellation):
         self.cell_label = None
         self.cell_adjacency = None
         self.adjacency_label = None
+        if isinstance(segments, list):
+            segments = np.array(segments)
+        # ensure that single segments are encoded as single-row matrices
+        if not segments.shape[1:]:
+            assert segments.shape[0] == 2
+            segments = segments[np.newaxis,:]
         self._time_lattice = segments
 
     @property
@@ -96,8 +102,10 @@ class TimeLattice(Tessellation):
         self.cell_volume = None
 
     def tessellate(self, points, **kwargs):
-        if self.time_edge is None:
-            if self.time_dimension is not None:
+        if self.time_edge in (None, (), []):
+            if self.time_dimension is None:
+                self.time_edge = None
+            else:
                 self.time_edge = bool(self.time_dimension)
         elif self.time_dimension is None:
             self.time_dimension = bool(self.time_edge)
@@ -206,14 +214,17 @@ class TimeLattice(Tessellation):
         if self._cell_adjacency is None:
             nsegments = self.time_lattice.shape[0]
 
-            try:
-                past_edge, future_edge = self.time_edge
-            except (TypeError, ValueError):
-                past_edge = future_edge = self.time_edge
-            if past_edge is False:
-                past_edge = None
-            if future_edge is False:
-                future_edge = None
+            if self.time_edge in (None, (), []):
+                self.time_edge = past_edge = future_edge = None
+            else:
+                try:
+                    past_edge, future_edge = self.time_edge
+                except (TypeError, ValueError):
+                    past_edge = future_edge = self.time_edge
+                if past_edge is False:
+                    past_edge = None
+                if future_edge is False:
+                    future_edge = None
 
             if self.spatial_mesh is None:
                 cell_ids = np.arange(nsegments)
@@ -300,12 +311,15 @@ class TimeLattice(Tessellation):
                         shape=(ncells, ncells))
                     edge_ptr += active_cells.size
 
-                blocks = [[A, future] + [None] * (nsegments - 2)]
-                for k in range(1, nsegments - 1):
-                    blocks.append([None] * (k - 1) + [past, A, future] + \
-                        [None] * (nsegments - 2 - k))
-                blocks.append([None] * (nsegments - 2) + [past, A])
-                self._cell_adjacency = sparse.bmat(blocks, format='csr')
+                if nsegments == 1:
+                    self._cell_adjacency = A
+                else:
+                    blocks = [[A, future] + [None] * (nsegments - 2)]
+                    for k in range(1, nsegments - 1):
+                        blocks.append([None] * (k - 1) + [past, A, future] + \
+                            [None] * (nsegments - 2 - k))
+                    blocks.append([None] * (nsegments - 2) + [past, A])
+                    self._cell_adjacency = sparse.bmat(blocks, format='csr')
 
                 if past_edge is True:
                     if future_edge != edge_max + 1:

@@ -17,9 +17,9 @@ import traceback
 import random
 
 
-py2_hash, py3_hash = '2jt8AJy5', '0OpZ1WMS'
+py2_hash, py3_hash = 'dLy2DLhW', 'xq8ybcry'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '181015'
+data_update = '190218'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
@@ -217,19 +217,19 @@ class TestInference(object):
         assert not out
 
     def test_d(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'd -j', 'd0')
+        self.common(tmpdir, datadir, 'degraded.d -j', 'd0')
     def test_df(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'df -j', 'df0')
+        self.common(tmpdir, datadir, 'degraded.df -j', 'df0')
     def test_dd(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'dd -j', 'dd0')
+        self.common(tmpdir, datadir, 'degraded.dd -j', 'dd0')
     def test_dv0(self, tmpdir, datadir):
         self.common(tmpdir, datadir, 'dv -j --max-iter 10', 'dv0')
     def test_dv1(self, tmpdir, datadir):
         self.common(tmpdir, datadir, 'dv -d 1 -v 1 --max-iter 10', 'dv1')
     def test_smooth_d(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'smooth.d -j --max-iter 10', 'd1')
+        self.common(tmpdir, datadir, 'standard.d -j --max-iter 10', 'd1')
     def test_smooth_df(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'smooth.df -j --max-iter 10', 'df1')
+        self.common(tmpdir, datadir, 'standard.df -j --max-iter 10', 'df1')
     def test_smooth_dd(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'smooth.dd -j --max-iter 10', 'dd1')
+        self.common(tmpdir, datadir, 'standard.dd -j --max-iter 10', 'dd1')
 

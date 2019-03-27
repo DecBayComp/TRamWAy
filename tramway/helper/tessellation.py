@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -119,6 +119,8 @@ class Tessellate(Helper):
             rel_avg_distance = 2.
 
         if ref_distance is None:
+            if 'n' not in self.xyt_data.columns:
+                raise ValueError('please specify ref_distance')
             transloc_xy = np.asarray(translocations(self.xyt_data))
             if transloc_xy.shape[0] == 0:
                 raise ValueError('no translocation found')
@@ -142,7 +144,7 @@ class Tessellate(Helper):
             min_probability = float(min_location_count) / n_pts
         else:
             min_probability = None
-        if not avg_location_count:
+        if avg_location_count is None:
             if min_location_count is None:
                 avg_location_count = 80 # former default value
             else:
@@ -174,8 +176,9 @@ class Tessellate(Helper):
 
     def parse_args(self, params, knn=None, radius=None,
             rel_max_size=None, rel_max_volume=None, \
-            time_window_duration=None, time_window_shift=None, time_window_options=None, \
-            **kwargs):
+            time_window_duration=None, time_window_shift=None, \
+            enable_time_regularization=False, time_window_options=None, \
+            min_n=None, **kwargs):
         for ignored in ['max_level']:
             try:
                 if self.tessellation_kwargs[ignored] is None:
@@ -199,6 +202,12 @@ class Tessellate(Helper):
                 self.time_window_kwargs['shift'] = time_window_shift
             if time_window_options:
                 self.time_window_kwargs.update(time_window_options)
+            if enable_time_regularization:
+                time_dimension = self.time_window_kwargs.get('time_dimension', None)
+                if time_dimension is False:
+                    warn('`enable_time_regularization={}` and `time_dimension={}` are not compatible'.format(enable_time_regularization, time_dimension), RuntimeWarning)
+                elif time_dimension is None:
+                    self.time_window_kwargs['time_dimension'] = True
 
         ref_distance = params['ref_distance']
         _filter_f = self.partition_kwargs.get('filter', None)
@@ -257,6 +266,8 @@ class Tessellate(Helper):
                 self.partition_kwargs['min_location_count'] = min_location_count
             if 'metric' not in self.partition_kwargs:
                 self.partition_kwargs['metric'] = 'euclidean'
+        if min_n is not None:
+            self.partition_kwargs['min_location_count'] = min_n
 
     def tessellate(self, comment=None, verbose=None):
         if comment is None:
@@ -325,6 +336,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         min_location_count=None, avg_location_count=None, max_location_count=None, \
         rel_max_size=None, rel_max_volume=None, \
         time_window_duration=None, time_window_shift=None, time_window_options=None, \
+        enable_time_regularization=False,
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
         force=None, return_analyses=False, \
         load_options=None, tessellation_options=None, partition_options=None, save_options=None, \
@@ -343,7 +355,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     This may change in a future version.
 
     Arguments:
-        xyt_data (str or matrix):
+        xyt_data (str or pandas.DataFrame):
             Path to a *.trxyt* or *.rwa* file or raw data in the shape of
             :class:`pandas.DataFrame`.
 
@@ -427,7 +439,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
             Maximum cell volume (or surface area in 2D) as a number of `ref_distance`.
             Cells of excess volume are ignored so as the associated locations.
 
-        strict_min_location_count (int):
+        strict_min_location_count/min_n (int):
             Minimum number of points per cell in the eventual partition. Cells with
             insufficient points are ignored so as the associated locations.
 
@@ -453,6 +465,9 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         time_window_options (dict):
             Extra arguments for time windowing.
             See also the :mod:`~tramway.tessellation.window` plugin.
+
+        enable_time_regularization (bool):
+            Equivalent to ``time_window_options['time_dimension'] = enable_time_regularization``.
 
         input_label (str):
             Label for the input tessellation for nesting tessellations.
@@ -545,7 +560,8 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     helper.parse_args(params, knn=knn, radius=radius, \
         rel_max_size=rel_max_size, rel_max_volume=rel_max_volume, \
         time_window_duration=time_window_duration, time_window_shift=time_window_shift, \
-        time_window_options=time_window_options, **kwargs)
+        time_window_options=time_window_options, enable_time_regularization=enable_time_regularization, \
+        **kwargs)
 
     cells = helper.tessellate(comment=comment)
     cells.param.update(kwargs)
@@ -555,7 +571,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     helper.save_analyses(output_file, force=force, **save_options)
 
     if return_analyses:
-        return self.analyses
+        return helper.analyses
     else:
         return cells
 
@@ -588,7 +604,7 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
     This may change in a future version.
 
     Arguments:
-        xyt_data (str or matrix):
+        xyt_data (str or pandas.DataFrame):
             Path to a *.trxyt* or *.rwa* file or raw data in the shape of
             :class:`pandas.DataFrame`.
 
@@ -907,6 +923,8 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
         colnames.append('z')
     if time_scale:
         colnames.append('t')
+        if scaler is None:
+            raise ValueError('no scaling defined')
         scaler.factor = [('t', time_scale)]
 
     # distinguish between tessellation and partition arguments
@@ -1130,7 +1148,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
     Plots a spatial representation of the tessellation and partition if data are 2D.
 
     Arguments:
-        cells (str or CellStats or Analyses):
+        cells (str or CellStats or tramway.core.analyses.base.Analyses):
             Path to a *.rwa* file or :class:`~tramway.tessellation.CellStats`
             instance or analysis tree; files and analysis trees may require
             `label`/`input_label` to be defined.
@@ -1310,7 +1328,10 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                     warn('cannot plot multiple segments in a single `cell_plot` call', RuntimeWarning)
                 segment = segment.pop()
                 print('plotting segment {}'.format(segment))
-            t0, t1 = cells.tessellation.time_lattice[segment]
+            try:
+                t0, t1 = cells.tessellation.time_lattice[segment]
+            except IndexError:
+                raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(cells.tessellation.time_lattice)-1))
             ts = xyt[time_col]
             if isinstance(ts, (pd.Series, pd.DataFrame)):
                 ts = ts.values

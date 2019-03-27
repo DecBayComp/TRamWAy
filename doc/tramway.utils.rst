@@ -17,6 +17,15 @@ tramway.utils.contour module
     :show-inheritance:
 
 
+tramway.utils.crop module
+-------------------------
+
+.. automodule:: tramway.utils.crop
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.utils.inferencemap module
 ---------------------------------
 
@@ -25,4 +34,21 @@ tramway.utils.inferencemap module
     :undoc-members:
     :show-inheritance:
 
+
+tramway.utils.trajviz module
+----------------------------
+
+.. automodule:: tramway.utils.trajviz
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.utils.mapviz module
+---------------------------
+
+.. automodule:: tramway.utils.mapviz
+    :members:
+    :undoc-members:
+    :show-inheritance:
 

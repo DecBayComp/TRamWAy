@@ -36,7 +36,7 @@ setup = {'arguments': OrderedDict((
         ('grad',        dict(help="gradient; any of 'grad1', 'gradn'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',         ()))),
-    'cell_sampling': 'group'}
+    'cell_sampling': 'connected'}
 
 
 class DV(ChainArray):
@@ -221,7 +221,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
             warn('cannot properly initialize energy potentials', RuntimeWarning)
             density[density == 0] = np.min(density[0 < density])
         V_initial = np.log(np.max(density)) - np.log(density)
-    dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity, ~border)
+    dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity)
     posteriors = []
 
     # gradient options

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2018-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -17,6 +17,8 @@ from tramway.core.hdf5 import *
 from tramway.inference import *
 from .base import *
 import tramway.inference as inference # inference.plugins
+import tramway.tessellation.time
+import tramway.inference.time
 from tramway.helper.tessellation import *
 from warnings import warn
 import os
@@ -69,10 +71,16 @@ class Infer(Helper):
         else:
             if not isinstance(cells, CellStats) or cells.tessellation is None:
                 raise ValueError('no cells found')
+            has_time_linking = isinstance(cells.tessellation, tramway.tessellation.time.TimeLattice) \
+                    and bool(cells.tessellation.time_dimension)
             # prepare the data for the inference
             distributed_kwargs = {}
+            if new_cell is None and has_time_linking:
+                new_cell = tramway.inference.time.DynamicTranslocations
             if new_group is None:
-                if merge_threshold_count:
+                if has_time_linking:
+                    new_group = tramway.inference.time.DynamicCells
+                elif merge_threshold_count:
                     new_group = DistributeMerge
                     distributed_kwargs['new_group_kwargs'] = \
                         {'min_location_count': merge_threshold_count}
@@ -123,16 +131,27 @@ class Infer(Helper):
         return _map
 
     def overload_cells(self, cells):
-        input_variables = ()
-        if self.input_maps is not None:
-            input_variables = tuple(self.input_maps.variables)
-            maps = { v: self.input_maps[v] for v in input_variables }
-        output_variables = self.setup.get('returns', [])
-        if isinstance(output_variables, (tuple, list, frozenset, set)):
-            output_variables = tuple(output_variables)
+        if self.input_maps is None:
+            input_features = ()
         else:
-            output_variables = (output_variables,)
-        if input_variables or output_variables:
+            input_features = []
+            for input_feature in self.input_maps.features:
+                # check `input_feature` can be an identifier
+                try:
+                    class _BreakMe(object):
+                        __slots__ = input_feature
+                except TypeError:
+                    pass
+                else:
+                    input_features.append(input_feature)
+            input_features = tuple(input_features)
+            maps = { v: self.input_maps[v] for v in input_features }
+        output_features = self.setup.get('returns', [])
+        if isinstance(output_features, (tuple, list, frozenset, set)):
+            output_features = tuple(output_features)
+        else:
+            output_features = (output_features,)
+        if input_features or output_features:
             any_cell = cells.any_cell()
             cell_type = type(any_cell)
             try:
@@ -140,27 +159,28 @@ class Infer(Helper):
             except AttributeError:
                 attrs = Lazy.__slots__ + Local.__slots__ + Cell.__slots__ + cell_type.__slots__
             class OverloadedCell(cell_type):
-                __slots__ = input_variables + output_variables
+                __slots__ = input_features + output_features
                 def __init__(self, cell, **kwargs):
                     for attr in attrs:
                         setattr(self, attr, getattr(cell, attr))
-                    for attr in input_variables:
+                    for attr in input_features:
                         setattr(self, attr, kwargs[attr])
-                    for attr in output_variables:
+                    for attr in output_features:
                         setattr(self, attr, None)
             kwargs = {}
             overloaded_cells = {}
             for i in cells:
                 cell = cells[i]
-                for k in maps:
-                    try:
-                        val = maps[k].loc[i].values
-                    except KeyError:
-                        val = None
-                    else:
-                        if np.isscalar(val):
-                            val = val.tolist()
-                    kwargs[k] = val
+                if self.input_maps is not None:
+                    for k in maps:
+                        try:
+                            val = maps[k].loc[i].values
+                        except KeyError:
+                            val = None
+                        else:
+                            if np.isscalar(val):
+                                val = val.tolist()
+                        kwargs[k] = val
                 overloaded_cells[i] = OverloadedCell(cell, **kwargs)
             cells.cells = overloaded_cells
         return cells
@@ -181,7 +201,7 @@ class Infer(Helper):
     def infer(self, cells, worker_count=None, profile=None, min_diffusivity=None, \
             localization_error=None, sigma=None, sigma2=None, \
             diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
-            comment=None, verbose=None, **kwargs):
+            comment=None, verbose=None, snr_extensions=False, **kwargs):
         if verbose is None:
             verbose = self.verbose
         mode = self.name
@@ -204,10 +224,22 @@ class Infer(Helper):
             kwargs['profile'] = profile
         x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
 
+        ret = {}
         if isinstance(x, tuple):
-            maps = Maps(x[0], mode=mode, posteriors=x[1])
-            if x[2:]:
-                maps.other = x[2:] # Python 3 only
+            if isinstance(x[1], pd.DataFrame):
+                maps = Maps(x[0], mode=mode, posteriors=x[1])
+                if x[2:]:
+                    try:
+                        maps.other = x[2:] # Python 3 only
+                    except:
+                        warn('failed to store output arguments: {}'.format(x[2:]), RuntimeWarning)
+                        if verbose:
+                            print(traceback.format_exc())
+            else:
+                maps = Maps(x[0], mode=mode)
+                ret = x[1]
+                if x[2:]:
+                    warn('ignoring output arguments: {}'.format(x[2:]), RuntimeWarning)
         else:
             maps = Maps(x, mode=mode)
 
@@ -220,25 +252,32 @@ class Infer(Helper):
             print('{} mode: elapsed time: {}ms'.format(mode, int(round(runtime*1e3))))
         maps.runtime = runtime
 
+        for attr in ret:
+            maps.defattr(attr, ret[attr])
+
+        if snr_extensions:
+            maps = inference.snr.add_snr_extensions(cells, maps, get_grad_kwargs(**kwargs))
+
         if self.analyses is not None:
             self.insert_analysis(maps, comment=comment)
 
         return maps
 
 
-def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
+def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=False, \
     localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
     max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
     merge_threshold_count=False, \
     grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
-    return_cells=None, profile=None, force=None, inplace=False, **kwargs):
+    return_cells=None, profile=None, force=None, inplace=False, snr_extensions=False, **kwargs):
     """
     Inference helper.
 
     Arguments:
 
-        cells (str or CellStats or Analyses): data partition or path to partition file
+        cells (str or CellStats or tramway.core.analyses.base.Analyses):
+            data partition or path to partition file
 
         mode (str or callable): plugin name; see for example
             :mod:`~tramway.inference.d` (``'d'``),
@@ -293,7 +332,8 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
             '*gradn*'
 
         input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
-            object in `cells` if the latter is an `Analyses` or filepath
+            object in `cells` if the latter is an :class:`~tramway.core.analyses.base.Analyses`
+            or filepath
 
         output_label (str): label for the resulting analysis instance
 
@@ -308,6 +348,8 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
             tuple elements as input arguments.
 
         inplace (bool): replace the input analysis by the output one.
+
+        snr_extensions (bool): add snr extensions for Bayes factor calculation.
 
     Returns:
 
@@ -324,9 +366,10 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
     if mode in ('D', 'DF', 'DD', 'DV'):
         mode = mode.lower()
+        #warn('inference mode: please use degraded.{} instead'.format(mode), PendingDeprecationWarning)
     helper.plugin(mode)
     _map = helper.distribute(new_cell=new_cell, \
-            new_group=constructor if new_group is None else new_group, cell_sampling=None, \
+            new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
             merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
             dilation=dilation, grad=grad)
     _map = helper.overload_cells(_map)
@@ -342,7 +385,7 @@ def infer1(cells, mode='D', output_file=None, partition={}, verbose=False, \
     maps = helper.infer(_map, worker_count=worker_count, profile=profile, \
         min_diffusivity=min_diffusivity, localization_error=localization_error, \
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-        jeffreys_prior=jeffreys_prior, **kwargs)
+        jeffreys_prior=jeffreys_prior, snr_extensions=snr_extensions, **kwargs)
 
     helper.save_analyses(output_file, force=force)
 
@@ -368,7 +411,8 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
     Arguments:
 
-        cells (str or CellStats or Analyses): data partition or path to partition file
+        cells (str or CellStats or tramway.core.analyses.base.Analyses):
+            data partition or path to partition file
 
         mode (str or callable): plugin name; see for example
             :mod:`~tramway.inference.d` (``'d'``),
@@ -423,7 +467,8 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
             '*gradn*'
 
         input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
-            object in `cells` if the latter is an `Analyses` or filepath
+            object in `cells` if the latter is an :class:`~tramway.core.analyses.base.Analyses`
+            or filepath
 
         output_label (str): label for the resulting analysis instance
 
@@ -640,7 +685,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
-    alpha=None, point_style=None, variable=None, segment=None, \
+    alpha=None, point_style=None, feature=None, variable=None, segment=None, \
     label=None, input_label=None, mode=None, title=True, \
     **kwargs):
     """
@@ -648,7 +693,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
     Arguments:
 
-        maps (str or Analyses or pandas.DataFrame or Maps): maps as a path to a rwa map file,
+        maps (str or tramway.core.analyses.base.Analyses or pandas.DataFrame or Maps):
+            maps as a path to a rwa map file,
             an analysis tree, a dataframe or a :class:`Maps`;
             filepaths and analysis trees may require `label` (or equivalently `input_label`)
             to be defined; dataframes and encapsulated maps require `cells` to be defined
@@ -684,7 +730,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
         point_style (dict): if defined, points are overlaid
 
-        variable (str): variable name (e.g. 'diffusivity', 'force')
+        feature/variable (str): feature name (e.g. 'diffusivity', 'force')
 
         segment (int): segment index;
             if multiple time segments were defined, show only this segment
@@ -694,7 +740,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         mode (bool or str): inference mode; can be ``False`` so that mode information from
             files, analysis trees and encapsulated maps are not displayed
 
-        title (bool or str): add titles to the figures, based on the variable name and
+        title (bool or str): add titles to the figures, based on the feature name and
             inference mode
 
         xlim (array-like): min and max values for the x-axis; this argument is keyworded only
@@ -705,7 +751,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
     Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
     :func:`~tramway.plot.map.field_map_2d`.
-    They can be dictionnaries with variable names as keys and the corresponding values for the
+    They can be dictionnaries with feature names as keys and the corresponding values for the
     parameters.
 
     """
@@ -714,7 +760,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     if isinstance(maps, tuple):
         warn('`maps` as (CellStats, str, DataFrame) tuple are deprecated', DeprecationWarning)
         cells, mode, maps = maps
-    elif isinstance(maps, (pd.DataFrame, Maps)):
+    elif isinstance(maps, (pd.DataFrame, Maps, pd.Series)):
         if cells is None:
             raise ValueError('`cells` is not defined')
     elif isinstance(maps, Analyses):
@@ -764,6 +810,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if mode != False:
             mode = maps.mode
         maps = maps.maps
+    elif isinstance(maps, pd.Series):
+        maps = pd.DataFrame(maps.values, index=maps.index, columns=['unknown feature'])
     if isinstance(cells, Distributed):
         # fix for rwa-0.5 OrderedDict
         cells.cells = collections.OrderedDict((k, cells[k]) for k in range(max(cells.keys())+1) if k in cells )
@@ -842,22 +890,45 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figs = []
     nfig = 0
 
-    all_vars = splitcoord(maps.columns)
-    if isinstance(variable, (frozenset, set, tuple, list)):
-        all_vars = { v: all_vars[v] for v in variable }
-    elif variable is not None:
-        all_vars = { variable: all_vars[variable] }
+    if feature is None:
+        feature = variable
+    all_vars = dict(splitcoord(maps.columns)) # not a defaultdict
+    if isinstance(feature, (frozenset, set, tuple, list)):
+        all_vars = { v: all_vars[v] for v in feature }
+    elif feature is not None:
+        all_vars = { feature: all_vars[feature] }
+
+    standard_kwargs = {}
+    differential_kwargs = {}
+    for kw in kwargs:
+        arg = kwargs[kw]
+        if isinstance(arg, dict):
+            keys = arg.keys()
+        elif isinstance(arg, pd.Series):
+            keys = arg.index
+        elif isinstance(arg, pd.DataFrame):
+            keys = arg.columns
+        else:
+            keys = ()
+        if 0 < len(keys) and all(key in all_vars for key in keys):
+            differential_kwargs[kw] = arg
+        else:
+            standard_kwargs[kw] = arg
+    kwargs = standard_kwargs
+
     scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
     scalar_vars = [ (v, scalar_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 1 ]
 
     for col, short_name in scalar_vars:
 
-        col_kwargs = {}
-        for a in kwargs:
-            if isinstance(kwargs[a], (dict, pd.Series, pd.DataFrame)) and col in kwargs[a]:
-                col_kwargs[a] = kwargs[a][col]
+        col_kwargs = dict(standard_kwargs)
+        for kw in differential_kwargs:
+            try:
+                arg = differential_kwargs[kw][col]
+            except KeyError:
+                pass
             else:
-                col_kwargs[a] = kwargs[a]
+                col_kwargs[kw] = arg
 
         if new_fig or figs:
             fig = mplt.figure(figsize=figsize, dpi=dpi)
@@ -883,8 +954,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         # split time segments, if any
         if with_segments:
             if 'clim' not in col_kwargs:
-                col_kwargs['clim'] = [_map.values.min(), _map.values.max()]
-            _map = _cells.tessellation.split_frames(_map)[segment]
+                col_kwargs['clim'] = [_map.min(), _map.max()]
+            _map = _cells.tessellation.split_frames(_map)
+            try:
+                _map = _map[segment]
+            except IndexError:
+                raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(_map)-1))
 
         tplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
@@ -926,12 +1001,14 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     for name, short_name in vector_vars:
         cols = all_vars[name]
 
-        var_kwargs = {}
-        for a in kwargs:
-            if isinstance(kwargs[a], (dict, pd.Series, pd.DataFrame)) and name in kwargs[a]:
-                var_kwargs[a] = kwargs[a][name]
+        var_kwargs = dict(standard_kwargs)
+        for kw in differential_kwargs:
+            try:
+                arg = differential_kwargs[kw][name]
+            except KeyError:
+                pass
             else:
-                var_kwargs[a] = kwargs[a]
+                var_kwargs[kw] = arg
 
         if new_fig or figs:
             fig = mplt.figure(figsize=figsize, dpi=dpi)

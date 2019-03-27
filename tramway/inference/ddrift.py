@@ -22,11 +22,13 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name': ('dd', 'ddrift'),
+setup = {'name': ('degraded.dd', 'degraded.ddrift', 'dd', 'ddrift'),
+    #'provides': ('dd', 'ddrift'),
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
-        ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed'))))}
+        ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')))),
+        'cell_sampling':    'individual'};
 
 
 def dd_neg_posterior(x, dd, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivity):
@@ -71,12 +73,19 @@ def infer_DD(cells, localization_error=None, jeffreys_prior=False, min_diffusivi
         return inferred
     else: # single cell
         cell = cells
+        # sanity checks
         if not bool(cell):
             raise ValueError('empty cells')
+        if cell.dr.shape[1] == 0:
+            raise ValueError('translocation array has no column')
+        if cell.dt.shape[1:]:
+            raise ValueError('time deltas are structured in multiple dimensions')
+        # ensure that translocations are properly oriented in time
         if not np.all(0 < cell.dt):
             warn('translocation dts are non-positive', RuntimeWarning)
             cell.dr[cell.dt < 0] *= -1.
             cell.dt[cell.dt < 0] *= -1.
+        #
         dt_mean = np.mean(cell.dt)
         D_initial = np.mean(cell.dr * cell.dr) / (2. * dt_mean)
         initial_drift = np.zeros(cell.dim, dtype=D_initial.dtype)

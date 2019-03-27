@@ -25,7 +25,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import numpy as np
 import pandas as pd
-from tramway.core.hdf5 import load_rwa, HDF5Store, peek_maps
+try:
+    from tramway.core.hdf5 import load_rwa, HDF5Store, peek_maps
+except ImportError: # Sphinx?
+    pass
 import tramway.core.hdf5.compat
 from tramway.core.analyses import *
 from tramway.tessellation import CellStats
