@@ -71,16 +71,30 @@ def apply_angle_dists(dist, angle, dim):
     """
     if dim == 1:
         X = dist * angle
-        return np.expand_dims(X, axis=0)
+        return X[:, np.newaxis]
     elif dim == 2:
         X = dist * np.cos(angle)
         Y = dist * np.sin(angle)
-        return np.vstack((X, Y))
+        return np.vstack((X, Y)).T
     elif dim == 3:
         X = dist * np.sin(angle[0]) * np.cos(angle[1])
         Y = dist * np.sin(angle[0]) * np.sin(angle[1])
         Z = dist * np.cos(angle[0])
-        return np.vstack((X, Y, Z))
+        return np.vstack((X, Y, Z)).T
+
+
+# # Deprecated : factor 10 gained with new implementation, which also requires
+# # less space.
+# def regularize_times(X_raw, t_raw, t_regular):
+#     diff_t = t_regular[:, np.newaxis] - t_raw[np.newaxis, :]
+#     indice_array = (np.argmin(diff_t >= 0, axis=1) - 1)
+#     imin = np.argmin(indice_array)
+#     if indice_array[imin] == -1:
+#         t_regular = t_regular[:imin]
+#         X = X_raw[indice_array[:imin]]
+#     else:
+#         X = X_raw[indice_array]
+#     return X, t_regular
 
 
 def regularize_times(X_raw, t_raw, t_regular):
@@ -104,15 +118,18 @@ def regularize_times(X_raw, t_raw, t_regular):
         shorter than the t_regular input if the maximum time in t_raw is higher
         than the maximum time in the input t_regular.
     """
-    diff_t = t_regular[:, np.newaxis] - t_raw[np.newaxis, :]
-    indice_array = (np.argmin(diff_t >= 0, axis=1) - 1)
-    imin = np.argmin(indice_array)
-    if indice_array[imin] == -1:
-        t_regular = t_regular[:imin]
-        X = X_raw[indice_array[:imin]]
-    else:
-        X = X_raw[indice_array]
-    return X, t_regular
+    id_regu = 1
+    id_raw = 0
+    t_r = t_raw[id_raw]
+    id_raw_into_regu = [0]
+    while id_regu < len(t_regular):
+        t_regu = t_regular[id_regu]
+        while t_r < t_regu:
+            id_raw += 1
+            t_r = t_raw[id_raw]
+        id_raw_into_regu.append(id_raw)
+        id_regu += 1
+    return X_raw[id_raw_into_regu], t_regular
 
 
 # For confined movement (RW_circular_confinement)

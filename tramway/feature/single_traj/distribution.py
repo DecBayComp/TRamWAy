@@ -172,7 +172,7 @@ def exponential_correlated_noise(dt=0.025, lambda_=1, nb_point=100):
     return np.dot(L, y)
 
 
-def fractional_correlated_noise(dt=0.025, H=1, nb_point=100):
+def fractional_correlated_noise(dt=0.025, H=0.55, nb_point=100, matrix=False):
     HH = 2 * H
     t = np.arange(nb_point) * dt
     d = np.abs(t[:, np.newaxis] - t[np.newaxis, :])
@@ -275,6 +275,24 @@ def generate_distribution(distribution, nb_point, **kwargs):
         return distrib_long_tail_with_cut_cst_other_cut(*prms)[0]
     elif distribution == 'cst':
         return np.ones(nb_point) * kwargs['d_l']
+
+
+def generate_times(distribution, nb_point, T_max, dt, alpha=1.5,
+                   d_tau=0.02, d_tau_max=1, dim=2, c_scale_alpha_stable_t=1):
+    if distribution == "cst":
+        t = np.linspace(0, nb_point*dt, nb_point, endpoint=False)
+    else:
+        t = generate_distribution(distribution, nb_point - 1, alpha=alpha,
+                                  d_l=d_tau, d_max=d_tau_max, dim=dim,
+                                  c_alpha_levy=c_scale_alpha_stable_t)
+        while np.sum(t) < T_max:
+            t_add = generate_distribution(distribution, nb_point - 1,
+                                          alpha=alpha,
+                                          d_l=d_tau, d_max=d_tau_max, dim=dim,
+                                          c_alpha_levy=c_scale_alpha_stable_t)
+            t = np.concatenate((t, t_add))
+        t = np.insert(t.cumsum(), 0, 0)
+    return t
 
 
 # For diffusing diffusivity

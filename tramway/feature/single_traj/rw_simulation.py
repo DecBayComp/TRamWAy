@@ -84,7 +84,7 @@ def RW_anomalous_dist(T_max=1, dt=1e-2, alpha=1.5, d_scale=0.1,
                       v=None, X_init=0, dim=2):
     return CTRW(T_max=T_max, dt=dt, distribution_space=nature_distribution,
                 c_scale_alpha_stable_x=c_scale_alpha_stable,
-                d_l=d_scale, alpha_space=alpha, d_jump_max=d_jump_max,
+                d_l=d_scale, alpha_space=alpha,
                 distribution_time="cst", v=v, X_init=X_init, dim=dim)
 
 
@@ -178,29 +178,27 @@ def CTRW(T_max=1, dt=1e-2,
     dim : int, in {1,2,3}, the dimension of the random walk.
     """
     nb_point = int(T_max/dt)
+    # Generates a vector t such that t[-1] > T ==> len(t) >= nb_point
+    t = generate_times(distribution_time, nb_point, T_max, dt,
+                       alpha=alpha_time,
+                       d_tau=d_tau, d_tau_max=d_tau_max, dim=dim,
+                       c_scale_alpha_stable_t=c_scale_alpha_stable_t)
+    raw_length = len(t)
     distances = generate_distribution(distribution_space,
-                                      nb_point - 1, alpha=alpha_space,
+                                      raw_length - 1, alpha=alpha_space,
                                       d_l=d_l, d_max=d_jump_max, dim=dim,
                                       c_alpha_levy=c_scale_alpha_stable_x)
-    random_angles = distrib_random_angle(nb_point-1, dim=dim)
+    random_angles = distrib_random_angle(raw_length-1, dim=dim)
     X = apply_angle_dists(distances, random_angles, dim)
     normed_pos_init = np.array(normalize_init(X_init, dim))
-    drift = np.array(normalize_init(v, dim)) * dt * np.ones((nb_point-1, dim))
-    X = X.cumsum(axis=1).T + normed_pos_init + drift
+    drift = np.array(normalize_init(v, dim)) * dt * np.ones(X.shape)
+    X = X.cumsum(axis=0) + normed_pos_init + drift
     X = np.concatenate((np.expand_dims(normed_pos_init, axis=0), X), axis=0)
-    if distribution_time == "cst":
-        t = np.linspace(0, nb_point*dt, nb_point, endpoint=False)
-    else:
-        times = generate_distribution(distribution_time,
-                                      nb_point - 1, alpha=alpha_time,
-                                      d_l=d_tau, d_max=d_tau_max, dim=dim,
-                                      c_alpha_levy=c_scale_alpha_stable_t)
-        times = np.insert(times.cumsum(), 0, 0)
+    if distribution_time != "cst":
         t_regularized = np.linspace(0, T_max, nb_point, endpoint=False)
-        X, t = regularize_times(X, times, t_regularized)
+        X, t = regularize_times(X, t, t_regularized)
     data = np.concatenate((np.expand_dims(t, axis=1), X), axis=1)
     return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
-
 
 # Fractional random walks.
 

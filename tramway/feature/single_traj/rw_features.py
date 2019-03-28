@@ -523,7 +523,7 @@ class RandomWalk():
                                       method=method, bracket=(0, 100))
                     d_qs.append(sol.root)
                 except:
-                    d_qs.append(np.nan)
+                    d_qs.append(0)
             else:
                 d_qs.append(0)
         vals = np.array(d_qs) * mean_step
