@@ -27,7 +27,7 @@ def extract_i(file):
     return file.split('\\')[3].split('_')[2].split('.')[0]
 
 
-def concat_job_files(job_name, output_dir, output_name,
+def concat_job_files(job_name, output_dir, output_name, get_rws=True,
                      df_path='Y:\data\df', dict_path='Y:\data\dict',
                      rw_path='Y:\data\rws'):
     dfs = []
@@ -39,19 +39,21 @@ def concat_job_files(job_name, output_dir, output_name,
     for rw_path, df_path, dict_path in tqdm.tqdm_notebook(
             zip(rws_paths, df_paths, dict_paths), total=len(df_paths)):
         try:
-            rws.append(pd.read_csv(rw_path, index_col=0))
+            if get_rws:
+                rws.append(pd.read_csv(rw_path, index_col=0))
+                os.remove(rw_path)
             dfs.append(pd.read_csv(df_path, index_col=0))
             with open(dict_path, 'rb') as handle:
                 dict_i = pickle.load(handle)
             prms = {**prms, **dict_i}
-            os.remove(rw_path)
             os.remove(df_path)
             os.remove(dict_path)
         except:
             print(f'Could not add file {extract_i(df_path)}')
     df = pd.concat(dfs, sort=True).reset_index()
-    rws = pd.concat(rws).reset_index()
-    rws.to_feather(f'{output_dir}\\RWs_{output_name}.feather')
+    if get_rws:
+        rws = pd.concat(rws).reset_index()
+        rws.to_feather(f'{output_dir}\\RWs_{output_name}.feather')
     df.to_feather(f'{output_dir}\\features_{output_name}.feather')
     with open(f'{output_dir}\\prms_{output_name}.pickle', 'wb') as f:
         pickle.dump(prms, f)
@@ -59,11 +61,11 @@ def concat_job_files(job_name, output_dir, output_name,
 
 def load(Dir, name, trajs=True):
     path = f'{Dir}\\features_{name}.feather'
-    df_feat = pd.read_feather(path).set_index('index')
+    df_feat = pd.read_feather(path)
     with open(f'{Dir}\\prms_{name}.pickle', 'rb') as f:
         prms = pickle.load(f)
     if trajs:
-        RWs = pd.read_feather(f'{Dir}\\RWs_{name}.feather').set_index('index')
+        RWs = pd.read_feather(f'{Dir}\\RWs_{name}.feather')
         return prms, df_feat, RWs
     else:
         return prms, df_feat

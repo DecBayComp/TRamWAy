@@ -132,9 +132,9 @@ def distribution_alpha_levy_stable(alpha=1.5, beta=1, c=1, mu=0,
     mu ]-infty .. infty[
     """
 
-    U = np.random.uniform(-math.pi/2., math.pi/2., nb_point)
-    W = distribution_exp(1., nb_point)
-    ksi = -beta * np.tan(math.pi*alpha/2.)
+    U = np.random.uniform(-np.pi/2., np.pi/2., nb_point)
+    W = distribution_exp(nb_point, 1)
+    ksi = -beta * np.tan(np.pi*alpha/2.)
 
     if alpha != 1:
         eta = 1./alpha*np.arctan(-ksi)
@@ -147,13 +147,13 @@ def distribution_alpha_levy_stable(alpha=1.5, beta=1, c=1, mu=0,
         tau = c*tau + mu
 
     else:
-        eta = math.pi/2.
+        eta = np.pi/2.
         term1 = 1./eta
-        term2 = (math.pi/2. + beta * U)*np.tan(U)
-        term3 = beta*np.log((math.pi/2*W*np.cos(U))/(math.pi/2 + beta*U))
+        term2 = (np.pi/2. + beta * U)*np.tan(U)
+        term3 = beta*np.log((np.pi/2*W*np.cos(U))/(np.pi/2 + beta*U))
 
         tau = term1*(term2 - term3)
-        tau = c*tau + 2/math.pi*beta*c*np.log(c) + mu
+        tau = c*tau + 2/np.pi*beta*c*np.log(c) + mu
 
     return tau
 
@@ -202,7 +202,7 @@ def correlation_fractional_t_s(dt=0.025, sigma=1, H=0.25, t_s=0):
 
 
 def correlation_exponential(sigma=1, lambda_=1, t=0, s=1):
-    return sigma_ * math.exp(-lambda_ * np.absolute(t-s))
+    return sigma_ * np.exp(-lambda_ * np.absolute(t-s))
 
 
 def fractional_correlated_noise_wood_chan(dt=0.025, sigma=0.5,
@@ -248,12 +248,14 @@ def generate_distribution(distribution, nb_point, **kwargs):
     if distribution == 'exp':
         return distribution_exp(nb_point, 1 / kwargs['d_l'])
     elif distribution == 'uni':
-        return np.random.uniform(0, kwargs['d_l'], nb_point)
+        return np.random.uniform(0, 2 * kwargs['d_l'], nb_point)
     elif distribution == 'gauss':
         if kwargs['dim'] == 1:
             return np.random.normal(0, kwargs['d_l'], nb_point)
         else:
-            return np.abs(np.random.normal(0, kwargs['d_l'], nb_point))
+            cst = np.sqrt(np.pi / 2)
+            # cst = 1
+            return np.abs(np.random.normal(0, kwargs['d_l'] * cst, nb_point))
     elif distribution == 'lomax':
         alpha = kwargs['alpha']
         lambda_ = kwargs['d_l'] * (alpha - 1) if alpha > 1 else 1
@@ -264,8 +266,7 @@ def generate_distribution(distribution, nb_point, **kwargs):
         tau_scale = d_scale * (1 + alpha) / (alpha * (1/2 + 1 / (alpha - 1)))
         return distrib_long_tail_cst_before_cut(tau_scale, alpha, nb_point)[0]
     elif distribution == "alpha_stable":
-        args = (kwargs['alpha'], 0, kwargs['c_alpha_levy'],
-                0, nb_point-1)
+        args = (kwargs['alpha'], 0, kwargs['c_alpha_levy'], 0, nb_point)
         return np.abs(distribution_alpha_levy_stable(*args))
     elif distribution == 'lomax_cut':
         prms = (kwargs['alpha'], kwargs['d_l'], kwargs['d_max'], nb_point)

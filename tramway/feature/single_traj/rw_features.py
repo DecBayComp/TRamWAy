@@ -423,6 +423,18 @@ class RandomWalk():
         c = np.mean((X[:, 0] - Xm[0]) * (X[:, 1] - Xm[1]))
         return np.array([[a, c], [c, b]])
 
+    def asphericity(self, id_min=None, id_max=None):
+        try:
+            X = self.get_sub_position(id_min, id_max)
+            v = X - np.mean(X, axis=0)
+            T = v.T @ v / v.shape[1]
+            eig_vals = np.linalg.eigvals(T)
+            num = (eig_vals[1] - eig_vals[0])**2
+            denom = np.sum(eig_vals)**2
+            return np.real(num / denom)
+        except:
+            return np.nan
+
     def asymmetry(self, id_min=None, id_max=None):
         """Returns a feature which controls how assymetric the random walk is.
         May help to detect drift.
@@ -484,15 +496,16 @@ class RandomWalk():
         id_max : optional, int should be between 1 and N
         """
         id_min, id_max = _regularize_idminmax(id_min, id_max, self.length)
-        keys = ['area', 'perimeter', 'max_dist', 'asymmetry',
+        keys = ['area', 'perimeter', 'max_dist', 'asymmetry', 'asphericity',
                 'efficiency', 'kurtosis', 'straightness']
         area, perimeter, max_dist = self.convex_hull(id_min, id_max)
+        asphericity = self.asphericity(id_min, id_max)
         asymmetry = self.asymmetry(id_min, id_max)
         efficiency = self.efficiency(id_min, id_max)
         kurtosis = self.kurtosis(id_min, id_max)
         straightness = self.straightness(id_min, id_max)
-        vals = [area, perimeter, max_dist, asymmetry, efficiency,
-                kurtosis, straightness]
+        vals = [area, perimeter, max_dist, asymmetry, asphericity,
+                efficiency, kurtosis, straightness]
         return dict(list(zip(keys, vals)))
 
     def feat_escape_time(self, id_min=None, id_max=None, method='brenth'):
@@ -566,7 +579,7 @@ class RandomWalk():
         else:
             return np.nan
 
-    def feat_step_autocorr(self, id_min=None, id_max=None, n_samples=30):
+    def feat_step_autocorr(self, id_min=None, id_max=None):
         """Returns moments of the distribution of the autocorrelation function
         defined as :
             corr(tau) = E_t[(d(t) - E[d])(d(t+tau) - E[d])] / Var(d(t))
@@ -662,8 +675,7 @@ class RandomWalk():
                     **self.feat_pdf(id_min, id_max, n_samples=n_samples),
                     **self.feat_shape(id_min, id_max),
                     **self.feat_step(id_min, id_max),
-                    **self.feat_step_autocorr(id_min, id_max,
-                                              n_samples=n_samples)}
+                    **self.feat_step_autocorr(id_min, id_max)}
 
 
 def feat_step(RW, id_min=None, id_max=None):
@@ -694,9 +706,8 @@ def feat_angle(RW, id_min=None, id_max=None):
     return RW.feat_angle(id_min=id_min, id_max=id_max)
 
 
-def feat_step_autocorr(RW, id_min=None, id_max=None, n_samples=30):
-    return RW.feat_step_autocorr(id_min=id_min, id_max=id_max,
-                                 n_samples=n_samples)
+def feat_step_autocorr(RW, id_min=None, id_max=None):
+    return RW.feat_step_autocorr(id_min=id_min, id_max=id_max)
 
 
 def feat_fractal_spectrum(RW, id_min=None, id_max=None, n_samples=30,

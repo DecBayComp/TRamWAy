@@ -166,10 +166,10 @@ def plot_embedding_with_color(mu, logvar, color, plot_every=10, name=None,
     axs[1].set_title('logvar')
     if square:
         axs[1].axis('square')
+    fig.suptitle(name)
     fig.subplots_adjust(right=0.85)
     cbar_ax = fig.add_axes([0.90, 0.15, 0.04, 0.7])
-    cb = fig.colorbar(im, cax=cbar_ax)
-    cb.set_label(name)
+    fig.colorbar(im, cax=cbar_ax)
 
 
 def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
