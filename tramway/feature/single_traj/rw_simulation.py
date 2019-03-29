@@ -23,7 +23,8 @@ from .distribution import *
 from .rw_misc import *
 
 
-FRACTAL_DIR = 'C:\\Users\\Maxime\\Documents\\Fractals'
+FRACTAL_DIR = ('Z:\\LAB_shared_stuff\\Maxime_Duval\\single_rw\\'
+               'Fractal_pattern\\patterns')
 
 
 # Continous time random walks
@@ -664,26 +665,30 @@ def RW_SAW(T_max=1, dt=1e-2, dr=1e-2, dim=2, bias=-1):
     return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
 
 
-def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
-                          fractal_name=None, sigma=1e-3):
+def load_motif_into_memory(fractal_name):
+    global MOTIF
     try:
-        motif = np.load(f'{FRACTAL_DIR}\{fractal_name}.npy')
+        MOTIF = np.load(f'{FRACTAL_DIR}\{fractal_name}.npy')
     except:
         print('Could not load fractal, try to create fractal with pattern {}'
               .format(fractal_name))
+
+
+def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
+                          noise_frac=0.2):
     nb_point = int(T_max/dt)
     X = np.zeros((nb_point, 2), dtype=int)
-    X[0] = int(np.floor(motif.shape[0]/2))
+    X[0] = int(np.floor(MOTIF.shape[0]/2))
     for i in range(1, nb_point):
         i_init = X[i-1, 0]
         j_init = X[i-1, 1]
-        k, l, keep_going = update_position(motif, i_init, j_init)
+        k, l, keep_going = update_position(MOTIF, i_init, j_init)
         if keep_going:
             X[i, 0] = k
             X[i, 1] = l
         else:
             break
-    noise_ = sigma * np.random.randn(nb_point, 2)
+    noise_ = noise_frac * dr * np.random.randn(nb_point, 2)
     X = (X - X[0, :] + normalize_init(X_init, 2)) * dr + noise_
     drift = np.array(normalize_init(v, 2)) * dt * np.ones((nb_point-1, 2))
     X[1:] += drift.cumsum(axis=0)
