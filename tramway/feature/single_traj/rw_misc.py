@@ -21,6 +21,9 @@ SPACE_COLS = ['x', 'y', 'z']
 
 
 def rw_is_useless(rw):
+    """Checks if the random walk is useless by checking that is has two or more
+    different positions.
+    """
     is_immobile = True
     n = 0
     while 2**n <= len(rw):

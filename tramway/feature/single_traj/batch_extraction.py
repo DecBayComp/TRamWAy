@@ -61,11 +61,33 @@ def feature_processing(c_drop={'t_max', 't_min', 'size', 'is_dt_cst', 'dt'},
 
 
 def get_features_from_group(args):
+    """Function introduced to allow the parametrization of the feature
+    extraction : the bool zero_time, if True, makes sure that the starting time
+    of the random walk is 0.
+    Single parameter to be able to use this function with multiprocessing imap.
+    """
     RW_df, zero_time = args
     return get_all_features(RandomWalk(RW_df, zero_time=zero_time))
 
 
-def extract_features(RWs, nb_process=4, func_feat_process=None, chunksize=10):
+def extract_features(RWs, nb_process=4, func_feat_process=None):
+    """Extracts features from a pandas DataFrame collecting different
+    trajectories of random walks.
+
+    Parameters
+    ----------
+    RWs : pandas DataFrame. Columns : n (Index of the random walk), t, and
+        dimensions (x, and/or, y, and/or z).
+    nb_process : int or None. Number of processes to use if not None.
+    func_feat_process : function to apply to raw features extracted from the
+        random walk. Use case : to get rid of unused features in the VAE.
+    
+    Returns
+    -------
+    df : pandas DataFrame of the features extracted from trajectories.
+        Index is the id of the trajectory, columns are the names of the
+        features extracted.
+    """
     df_trajs = RWs.groupby('n')
     n_trajs = df_trajs.agg('count').count().x.astype(int)
     if nb_process is None:
@@ -92,6 +114,9 @@ def extract_features(RWs, nb_process=4, func_feat_process=None, chunksize=10):
 
 
 def create_and_extract(args):
+    """Function that extracts features from a single random walk.
+    Used fro multiprocessing with a generator.
+    """
     i, rw, rw_dict_prms = args
     rw_feat = get_all_features(RandomWalk(rw, zero_time=True))
     rw_feat['n'] = i
@@ -99,6 +124,9 @@ def create_and_extract(args):
 
 
 def create_and_extract_with_rw(args):
+    """Function that extracts features from a single random walk.
+    Used fro multiprocessing with a generator.
+    """
     i, rw, rw_dict_prms = args
     rw_feat = get_all_features(RandomWalk(rw, zero_time=True))
     rw_feat['n'] = i
@@ -111,6 +139,42 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
                                        'T_max': ('float', 'exp', 0.1, 1)})],
                       ps=[1], get_rw=False,
                       nb_process=None, func_feat_process=None):
+    """Creates and directly extracts features from specified types of random
+    walks. Avoids the creation of a pandas DataFrame of the trajectories :
+    useful for lowering the RAM usage.
+
+    Parameters
+    ----------
+    n : int, the number of trajectories we want to generate.
+    type : list that describes which random walks we generate.
+        Each item is a tuple with 2 elements.
+        - The first is the function (see rw_simulation) which characterizes
+        which type of random walk it produces.
+        - The second is a dictionary whose keys are the parameters we want to
+        pass to the random walk function and values the parameters describing
+        how those parameter values are generated with `generate_random_number`.
+    ps : parameter passed to `np.random.choice` as p, should have same
+        dimension as type. Controls the probability distribution of choosing
+        some type.
+    get_rw : bool, optional. Whether we want to retrieve trajectories or not.
+    nb_process : int or None. If int, the number of processes to use to benefit
+        from parallelization.
+    func_feat_process : function to apply to raw features extracted from the
+        random walk. Use case : to get rid of unused features in the VAE.
+    
+    Returns
+    -------
+    df : pandas DataFrame of the features extracted from trajectories.
+        Index is the id of the trajectory, columns are the names of the
+        features extracted.
+    rw_prms : dict that carries info on each trajectory generated. Each value
+        is the index in df of the trajectory, each key is a dictionary
+        of the parameters used to generate the random walk (except for
+        default parameters). It also carries the name of the function which
+        generated the random walk.
+    df_rws : None or pandas DataFrame depending on get_rw, raw data of the
+        trajectories.
+    """
     rw_generator = rw_feature_generator(n, types=types, ps=ps)
     desc = 'creating and extracting rws features'
     map_func = create_and_extract_with_rw if get_rw else create_and_extract

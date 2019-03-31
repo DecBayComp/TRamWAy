@@ -26,7 +26,8 @@ import tqdm
 
 
 class TabDataset(torch.utils.data.Dataset):
-
+    """torch Dataset subclass. Performs 0 mean and 1 variance on features.
+    """
     def __init__(self, df, c_drop={}):
         self.Features = list(set(df.columns).difference(c_drop))
         self.df = df.loc[:, self.Features].dropna().sort_index(axis=1)
@@ -45,6 +46,20 @@ class TabDataset(torch.utils.data.Dataset):
 
 
 class VAE(nn.Module):
+    """
+    Neural network as seen in Kingma, D. P., & Welling, M. (2013).
+    Auto-encoding variational bayes. arXiv preprint arXiv:1312.6114.
+
+    Parameters
+    ----------
+    input_dim : int, dimension of vectors we want to compress.
+    hidden_dims : list of int, dimension(s) of the hidden layers of the neural
+        network.
+    latent_dim : int, dimension of the latent space on which we compress input
+        vectors.
+    ps : list of float between 0 and 1, dropout rates at each layer. Should
+        have the same dimension as hidden_dims.
+    """
     def __init__(self, input_dim, hidden_dims, latent_dim, ps):
         super(VAE, self).__init__()
         assert len(hidden_dims) == len(ps), 'dropouts and hidden dims must'

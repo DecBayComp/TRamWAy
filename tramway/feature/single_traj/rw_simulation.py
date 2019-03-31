@@ -23,6 +23,8 @@ from .distribution import *
 from .rw_misc import *
 
 
+# Directory of saved fractal patterns (to avoid generating them each time
+# we want a random walk).
 FRACTAL_DIR = ('Z:\\LAB_shared_stuff\\Maxime_Duval\\single_rw\\'
                'Fractal_pattern\\patterns')
 
@@ -622,6 +624,18 @@ def ajout_point(bias, dim, Deplacements):
 
 
 def RW_SAW(T_max=1, dt=1e-2, dr=1e-2, dim=2, bias=-1):
+    """Generates a self avoiding random walk. This random walk nevers crosses a
+    path where it has been.
+
+    Parameters
+    ----------
+    T_max : float, the total time computed for which the random walk is
+        computed.
+    dt : float, time between each point output.
+    dr : float, scale of the random walk.
+    dim : int, in {1,2,3}, the dimension of the random walk.
+    bias : scalar, somewhat corresponds to drift.
+    """
     nb_point = int(T_max/dt)
     global Liste_Des_Points
     global Dico_Des_Points
@@ -676,6 +690,24 @@ def load_motif_into_memory(fractal_name):
 
 def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
                           noise_frac=0.2):
+    """Generates a random walk which moves on a fractal pattern. We add noise
+    to make it look more realistic
+
+    Parameters
+    ----------
+    T_max : float, the total time computed for which the random walk is
+        computed.
+    dt : float, time between each point output.
+    dr : float, scale of the random walk.
+    X_init : float or list, initial position of the random walk.
+    v : drift, list of size dim.
+    noise_frac : float > 0. The fraction of the movement which is due to noise.
+        In practise, we add a gaussian noise with standard deviation equal to
+        dr * noise_frac.
+
+    Note : dim is fixed at 2 at the moment, but could be generalized to higher
+        dimensions by changing patterns and the function update_position.
+    """
     nb_point = int(T_max/dt)
     X = np.zeros((nb_point, 2), dtype=int)
     X[0] = int(np.floor(MOTIF.shape[0]/2))
