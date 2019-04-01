@@ -41,6 +41,7 @@ setup(
         'tramway.core',
         'tramway.core.analyses',
         'tramway.core.hdf5',
+        'tramway.core.parallel',
         'tramway.tessellation',
         'tramway.tessellation.grid',
         'tramway.tessellation.gwr',

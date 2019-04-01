@@ -256,7 +256,8 @@ def _local_dv_neg_posterior(*args, **kwargs):
 def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None,
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
-    export_centers=False, verbose=True, superlocal=False, stochastic=True, x0=None,
+    export_centers=False, verbose=True, superlocal=False, stochastic=True,
+    x0=None, D0=None, V0=None,
     return_struct=False, posterior_max_count=1000,
     **kwargs):
     """
@@ -287,20 +288,35 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         D_bounds = [(None, None)] * D_initial.size
     # V initial values
     if x0 is None:
-        try:
-            if compatibility:
-                raise Exception # skip to the except block
-            volume = [ cells[i].volume for i in index ]
-        except:
-            V_initial = -np.log(n / np.max(n))
-        else:
-            density = n / np.array([ np.inf if v is None else v for v in volume ])
-            density[density == 0] = np.min(density[0 < density])
-            V_initial = np.log(np.max(density)) - np.log(density)
+        if V0 is None:
+            try:
+                if compatibility:
+                    raise Exception # skip to the except block
+                volume = [ cells[i].volume for i in index ]
+            except:
+                V_initial = -np.log(n / np.max(n))
+            else:
+                density = n / np.array([ np.inf if v is None else v for v in volume ])
+                density[density == 0] = np.min(density[0 < density])
+                V_initial = np.log(np.max(density)) - np.log(density)
     else:
         if x0.size != 2 * D_initial.size:
             raise ValueError('wrong size for x0')
         D_initial, V_initial = x0[:int(x0.size/2)], x0[int(x0.size/2):]
+    if D0 is not None:
+        if np.isscalar(D0):
+            D_initial[...] = D0
+        elif D0.size == D_initial.size:
+            D_initial = D0
+        else:
+            raise ValueError('wrong size for D0')
+    if V0 is not None:
+        if np.isscalar(V0):
+            V_initial = np.full(D_initial.size, V0)
+        elif V0.size == D_initial.size:
+            V_initial = V0
+        else:
+            raise ValueError('wrong size for V0')
 
     dv = LocalDV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity,
         prior_delay=prior_delay)
@@ -400,7 +416,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     if ls_step_max_decay:
         sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-2
+        sbfgs_kwargs['ftol'] = 1e-4
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
