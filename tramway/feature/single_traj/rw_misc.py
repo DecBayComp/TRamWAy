@@ -16,6 +16,7 @@ This module regroups helper functions for random walk simulations
 """
 
 import numpy as np
+import tqdm
 
 SPACE_COLS = ['x', 'y', 'z']
 
@@ -227,7 +228,7 @@ def distance_euclidean(pt1, pt2, dim):
     resul = 0
     for coordinate in range(dim):
         resul += ((pt1[coordinate] - pt2[coordinate]) ** 2)
-    return math.sqrt(resul)
+    return np.sqrt(resul)
 
 
 # Create network
@@ -403,3 +404,84 @@ def update_position(motif, i_init, j_init):
         k = output_loc[counter_alea, 0]
         l = output_loc[counter_alea, 1]
     return k, l, keep_going
+
+
+# For random walks on trees. (Diffusion-limited aggregation)
+
+def update_step(i, j):
+    p_i_or_j = np.random.rand()
+    move = np.random.randint(0, 2) * 2 - 1
+    if p_i_or_j < 0.5:
+        i += move
+    else:
+        j += move
+    return i, j
+
+
+def define_seed(tree):
+    x, y = zip(*tree.keys())
+    x_min, x_max, y_min, y_max = min(x), max(x), min(y), max(y)
+    xc, yc = (x_min+x_max)*1/2, (y_min+y_max)*1/2
+    r = np.power(np.power((x_max-x_min)/2, 2) +
+                 np.power((y_max-y_min)/2, 2), 0.5)
+    return (xc, yc), r
+
+
+def get_initial_pos_on_circle(xc, yc, r):
+    theta = 2. * np.pi * np.random.random()
+    x0 = int(xc + r*np.cos(theta))
+    y0 = int(yc + r*np.sin(theta))
+    return x0, y0
+
+
+def rw(tree, epsilon=5):
+    (xc, yc), r = define_seed(tree)
+    x, y = get_initial_pos_on_circle(xc, yc, r)
+    while True:
+        x, y = update_step(x, y)
+        if np.sqrt((x-xc)**2 + (y-yc)**2) > r + epsilon:
+            break
+        if (((x-1, y) in tree) or ((x+1, y) in tree) or
+                ((x, y-1) in tree) or ((x, y+1) in tree)):
+            tree[(x, y)] = len(tree)
+            break
+    return tree
+
+
+def get_raw_size(tree):
+    list_tree = np.array(list(tree), dtype=int)
+    i_min, i_max = np.min(list_tree[:, 0]), np.max(list_tree[:, 0])
+    j_min, j_max = np.min(list_tree[:, 1]), np.max(list_tree[:, 1])
+    return int(np.floor(np.max([j_max - j_min + 1, i_max - i_min + 1])))
+
+
+def grow(tree=None, n_trial_max=100, n_eff_min=100):
+    if tree is None:
+        tree = {(0, 0): 0}
+    i = 0
+    pbar = tqdm.tqdm_notebook()
+    while (i < n_trial_max and get_raw_size(tree) < n_eff_min):
+        tree = rw(tree)
+        i += 1
+        pbar.update(1)
+    pbar.close()
+    print(f'n_eff = {get_raw_size(tree)}, i = {i}')
+    return tree
+
+
+def generate_the_DLA(n_trial_max=1000, growth=1.25, n_eff_min=100):
+    tree = grow(tree=None, n_trial_max=n_trial_max, n_eff_min=n_eff_min)
+    list_tree = np.array(list(tree), dtype=int)
+    n_eff = int(get_raw_size(tree) * growth)
+    n_eff_2 = int(np.floor(n_eff/2))
+    DLA_array = np.zeros((n_eff, n_eff))
+    list_tree = list_tree + [n_eff_2, n_eff_2]
+    DLA_array[list_tree[:, 0], list_tree[:, 1]] = 1
+    return DLA_array
+
+
+def generate_and_save_DLA(DIR, name_output="DLA", n_trial_max=1000,
+                          n_eff_min=100, growth=1.25):
+    DLA_array = generate_the_DLA(n_trial_max=n_trial_max, growth=growth,
+                                 n_eff_min=n_eff_min)
+    np.save(f'{DIR}\{name_output}', DLA_array)

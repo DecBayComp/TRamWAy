@@ -81,7 +81,7 @@ def extract_features(RWs, nb_process=4, func_feat_process=None):
     nb_process : int or None. Number of processes to use if not None.
     func_feat_process : function to apply to raw features extracted from the
         random walk. Use case : to get rid of unused features in the VAE.
-    
+
     Returns
     -------
     df : pandas DataFrame of the features extracted from trajectories.
@@ -161,7 +161,7 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
         from parallelization.
     func_feat_process : function to apply to raw features extracted from the
         random walk. Use case : to get rid of unused features in the VAE.
-    
+
     Returns
     -------
     df : pandas DataFrame of the features extracted from trajectories.
