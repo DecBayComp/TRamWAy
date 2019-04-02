@@ -141,7 +141,7 @@ class Worker(multiprocessing.Process):
         self.feedback = return_queue
         self.args = args
         self.kwargs = kwargs
-    def get_task(self):
+    def get_task(self, *args, **kwargs):
         """ Listen to the scheduler and get a job step to be run.
 
         The job step is loaded with the worker-local copy of the synchronized workspace.
@@ -165,6 +165,11 @@ class Worker(multiprocessing.Process):
             status (any): extra information that :meth:`Scheduler.stop` will receive.
 
         """
+        try:
+            update.set_extensions(self.workspace.pop_extension_updates())
+        except:
+            raise
+            pass
         update.unset_workspace() # free memory space
         if self.update is not None:
             self.update.put(update)
@@ -233,12 +238,12 @@ class Scheduler(object):
     def draw(self, k):
         return k
     def locked(self, step):
-        return step.step_id in self.active or \
-                np.any(self.resource_lock[step.resource_id])
+        return step.resource_id in self.active or \
+                np.any(self.resource_lock[step.resources])
     def lock(self, step):
-        self.resource_lock[step.resource_id] = True
+        self.resource_lock[step.resources] = True
     def unlock(self, step):
-        self.resource_lock[step.resource_id] = False
+        self.resource_lock[step.resources] = False
     @property
     def available_slots(self):
         """
@@ -256,7 +261,7 @@ class Scheduler(object):
             step (JobStep): job step.
 
         """
-        self.active[step.step_id] = k
+        self.active[step.resource_id] = k
         self.lock(step)
         step.unset_workspace() # free memory
         self.task_queue.put((k, step))
@@ -273,7 +278,7 @@ class Scheduler(object):
         #step.set_workspace(self.workspace) # reload workspace
         self.workspace.update(step) # `update` reloads the workspace into `step`
         assert step.get_workspace() is not None
-        i = step.step_id
+        i = step.resource_id
         self.task[i] = step
         k = self.active.pop(i)
         if self.stop(k, i, status):
@@ -374,36 +379,36 @@ class Workspace(object):
         data_array (array-like): working copy of the parameter vector.
 
     """
-    __slots__ = ('data_array',)
+    __slots__ = ('data_array', )
     def __init__(self, data_array):
         self.data_array = data_array
     def __len__(self):
         return len(self.data_array)
     def update(self, step):
         step.set_workspace(self)
+    def resources(self, step):
+        return step.resources
 
 abc.Workspace.register(Workspace)
 
 
 class JobStep(object):
-    """ Job step.
+    """ Job step data.
 
-    Job steps contain all the necessary data and is editable so that a completed
-    job step is still a job step object to be pushed as an update.
+    A job step object contains all the necessary input data for a job step
+    to be performed as well as the output data resulting from the step completion.
 
-    A job step operates on a part of the common workspace data,
-    and multiple steps can operate simultaneously in the same workspace in a distributed fashion.
+    A job step object merely contains a reference to a shared workspace.
 
-    A job step locks the target piece of data and operates on it.
-    Related model parameters are updated in the shared workspace.
+    The `resource_id` attribute refers to a series of the job steps that operate
+    on the same subset of resource items.
 
-    `step_id` is not an iteration number, but an index that uniquely indentifies
-    the target piece of data in the workspace.
-    Multiple job steps may have the same `step_id` but they cannot run at once.
+    Multiple steps can operate simultaneously in the same workspace in a distributed fashion
+    provided that they do not compete for the same resources.
 
-    `resource_id` is an index array that designates the units of data to be processed.
-    The attribute allows to lock these items of data, which determines which steps can be
-    run simultaneously.
+    `resources` is an index array that designates the items of shared data to be accessed.
+    This attribute is used by `Scheduler` to lock the required items of data,
+    which determines which steps can be run simultaneously.
     """
     __slots__ = ('_id', '_workspace')
     def __init__(self, _id, workspace=None):
@@ -419,8 +424,11 @@ class JobStep(object):
     def workspace_set(self):
         return self._workspace is not None
     @property
-    def step_id(self):
+    def resource_id(self):
         return self._id
+    @property
+    def resources(self):
+        return self.get_workspace().resources(self)
 
 abc.JobStep.register(JobStep)
 

@@ -698,9 +698,9 @@ class Distributed(Local):
             fargs = (function, args, kwargs)
             if profile:
                 fargs = (profile, fargs)
-                cells = [ (i, self.cells[i]) for i in self.cells if bool(self.cells[i]) ]
+                cells = [ (i, self.cells[i]) for i in self.cells ]#if bool(self.cells[i]) ]
             else:
-                cells = [ self.cells[i] for i in self.cells if bool(self.cells[i]) ]
+                cells = [ self.cells[i] for i in self.cells ]#if bool(self.cells[i]) ]
             if six.PY3:
                 if profile:
                     _run = __profile_run__
@@ -1567,9 +1567,11 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
 
 def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         new_cell_kwargs={}, new_group_kwargs={}, fuzzy_kwargs={},
-        new=None, verbose=False):
+        new=None, include_empty_cells=False, verbose=False):
     """
     Build a `Distributed`-like object from a :class:`~tramway.tessellation.base.CellStats` object.
+
+    Cells with no (trans-)locations are discarded in addition to those with null or negative label.
 
     Arguments:
 
@@ -1590,6 +1592,8 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         fuzzy_kwargs (dict): keyword arguments for `fuzzy`.
 
         new (callable): legacy argument; use `new_group` instead.
+
+        include_empty_cells (bool): do not discard cells with no (trans-)locations.
 
     `fuzzy` takes a :class:`~tramway.tessellation.base.Tessellation` object, a cell index (`int`),
     location coordinates (array-like), cell indices (array-like or callable) and the *get_point*
@@ -1699,10 +1703,16 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         space_cols = [ col for col in space_cols if col not in delta_cols ]
 
     # pre-select cells
-    if cells.tessellation.cell_label is None:
-        J = 0 < cells.location_count
+    if include_empty_cells:
+        if cells.tessellation.cell_label is None:
+            J = np.ones(cells.location_count.shape, dtype=bool)
+        else:
+            J = 0 < cells.tessellation.cell_label
     else:
-        J = np.logical_and(0 < cells.location_count, 0 < cells.tessellation.cell_label)
+        if cells.tessellation.cell_label is None:
+            J = 0 < cells.location_count
+        else:
+            J = np.logical_and(0 < cells.location_count, 0 < cells.tessellation.cell_label)
 
     # select (with the fuzzy filter) and pre-build cells
     _fuzzy, data, hull = {}, {}, {}
@@ -1760,7 +1770,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             raise
             warn(str(e), RuntimeWarning)
 
-        if points.size == 0:
+        if not include_empty_cells and points.size == 0:
             J[j] = False
         else:
             if are_translocations:

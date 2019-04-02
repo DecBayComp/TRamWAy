@@ -351,16 +351,81 @@ class SparseFunction(parallel.Workspace):
         self.regul = regul
         self.bounds = bounds
         self.h0 = h0
+        # extensions
+        self._arg_extensions = {}
+        for k, a in enumerate(args):
+            if isinstance(a, parallel.abc.WorkspaceExtension):
+                self._arg_extensions[k] = a
+        #self._kwarg_extensions = {}
+        #for k in kwargs:
+        #    a = kwargs[k]
+        #    if isinstance(a, parallel.abc.WorkspaceExtension):
+        #        self._kwarg_extensions[k] = a
+
     @property
     def x(self):
         return self.data_array
     def update(self, component):
         #component.__global__ = self
         parallel.Workspace.update(self, component)
+        self.push_extension_updates(component.get_extensions())
         component.push()
         #self.x[component.descent_subspace] = component.x
-    #def subspace(self, component):
-    #    return component.gradient_subspace
+    def push_extension_updates(self, updates):
+        if updates:
+            #arg_updates, kwarg_updates = updates
+            arg_updates = updates
+            for k in arg_updates:
+                update = arg_updates[k]
+                extension = self._arg_extensions[k]
+                extension.push_workspace_update(update)
+            #for k in kwarg_updates:
+            #    update = kwarg_updates[k]
+            #    extension = self._kwarg_extensions[k]
+            #    extension.push_workspace_update(update)
+    def pop_extension_updates(self):
+        arg_updates = {}
+        for k in self._arg_extensions:
+            extension = self._arg_extensions[k]
+            arg_updates[k] = extension.pop_workspace_update()
+        updates = arg_updates
+        return updates
+
+def extend_global(__global__, independent_components, memory, newton, gradient_covariate):
+    """ Add attributes to the workspace.
+
+    Arguments:
+
+        __global__ (SparseFunction): parameter singleton (modified inplace).
+
+        independent_components (bool): whether the curvature information is maintained for each
+            component independently.
+
+        memory (int): number of update pairs for inverse Hessian approximation.
+
+        newton (bool): whether to operate as a quasi-Newton algorithm with Cauchy point estimation.
+
+        gradient_covariate (callable): see also :func:`minimize_sparse_bfgs`.
+
+    """
+    # choose an implementation
+    if not newton:
+        __global__.inverse_hessian_block = GradientDescent
+    elif independent_components:
+        if memory:
+            __global__.memory = memory
+            __global__.inverse_hessian_block = LimitedMemoryInverseHessianBlock
+        else:
+            __global__.inverse_hessian_block = IndependentInverseHessianBlock
+    else:
+        # just ignore
+        #if memory:
+        #    raise NotImplementedError('`memory` requires `indepdendent_components`')
+        __global__.H = sparse.lil_matrix((x.size, x.size))
+        __global__.inverse_hessian_block = InverseHessianBlockView
+    # component
+    if gradient_covariate is not None:
+        __global__.gradient_covariate = gradient_covariate
 
 
 class LocalSubspace(parallel.abc.JobStep):
@@ -386,7 +451,7 @@ class LocalSubspaceSingleton(parallel.JobStep):
         self._gradient_subspace_size = None
         self._descent_subspace_size = None
     @property
-    def resource_id(self):
+    def resources(self):
         return self.gradient_subspace
     @property
     def __global__(self):
@@ -402,12 +467,12 @@ class LocalSubspaceSingleton(parallel.JobStep):
         return self.__global__.x.size
     @property
     def i(self):
-        if self.step_id is None:
+        if self.resource_id is None:
             raise ValueError('component attribute `i` is not set')
-        return self.step_id
+        return self.resource_id
     @i.setter
     def i(self, i):
-        if (self.step_id is None) != (i != self.step_id): # _i is None xor i != _i
+        if (self.resource_id is None) != (i != self.resource_id): # _i is None xor i != _i
             warn('`i` is supposed to be read-only', RuntimeWarning)
             self._id = i
             self._subspace_map = None
@@ -526,17 +591,20 @@ class LocalSubspaceProxy(object):
         else:
             self.__proxied__ = LocalSubspaceSingleton(i, *args, **kwargs)
     @property
-    def step_id(self):
-        return self.__proxied__.step_id
-    @property
     def resource_id(self):
         return self.__proxied__.resource_id
+    @property
+    def resources(self):
+        return self.__proxied__.resources
     def get_workspace(self):
         return self.__proxied__.get_workspace()
     def set_workspace(self, ws):
         self.__proxied__.set_workspace(ws)
     def unset_workspace(self):
         self.__proxied__.unset_workspace()
+    @property
+    def workspace_set(self):
+        return self.__proxied__.workspace_set
     @property
     def __global__(self):
         return self.__proxied__.__global__
@@ -686,13 +754,14 @@ class Component(LocalSubspaceProxy):
     """
     From `__global__` requires `fun`, `_sum` and `args`.
     """
-    __slots__ = ('_x', '_f', '_g', '_H')
+    __slots__ = ('_x', '_f', '_g', '_H', '_workspace_extensions')
     def __init__(self, i, *args, **kwargs):
         LocalSubspaceProxy.__init__(self, i, *args, **kwargs)
-        self._x = None # gradient-active components only
+        self._x = None # gradient-active elements only
         self._f = None
-        self._g = None # gradient-active components only
+        self._g = None # gradient-active elements only
         self._H = None
+        self._workspace_extensions = None
     @property
     def x(self):
         return self._x
@@ -726,7 +795,10 @@ class Component(LocalSubspaceProxy):
         if subspace is None:
             subspace = self.gradient_subspace
         if covariate is None:
-            covariate = self.covariate
+            try:
+                covariate = self.gradient_covariate
+            except AttributeError:
+                covariate = self.covariate
         _total_g, _partial_g = sparse_grad(self.__global__.fun, _x, covariate,
                 subspace, self.__global__.args, self.__global__.sum, self.__global__.regul,
                 self.__global__.bounds, self.__global__.h0)
@@ -776,51 +848,11 @@ class Component(LocalSubspaceProxy):
             _x[self.gradient_subspace] = __x
         else:
             raise self._size_error
+    def get_extensions(self):
+        return self._workspace_extensions
+    def set_extensions(self, ext):
+        self._workspace_extensions = ext
 
-def define_component(__global__, independent_components, memory, newton, gradient_covariate):
-    """ Generate base classes.
-
-    Arguments:
-
-        __global__ (SparseFunction): parameter singleton.
-
-        independent_components (bool): whether the curvature information is maintained for each
-            component independently.
-
-        memory (int): number of update pairs for inverse Hessian approximation.
-
-        newton (bool): whether to operate as a quasi-Newton algorithm with Cauchy point estimation.
-
-        gradient_covariate (callable): see also :func:`minimize_sparse_bfgs`.
-
-    Returns:
-
-        type: Component class.
-    """
-    # choose an implementation
-    if not newton:
-        __global__.inverse_hessian_block = GradientDescent
-    elif independent_components:
-        if memory:
-            __global__.memory = memory
-            __global__.inverse_hessian_block = LimitedMemoryInverseHessianBlock
-        else:
-            __global__.inverse_hessian_block = IndependentInverseHessianBlock
-    else:
-        # just ignore
-        #if memory:
-        #    raise NotImplementedError('`memory` requires `indepdendent_components`')
-        __global__.H = sparse.lil_matrix((x.size, x.size))
-        __global__.inverse_hessian_block = InverseHessianBlockView
-    # component
-    if gradient_covariate is None:
-        return Component
-    else:
-        class Component1(Component):
-            __slots__ = ()
-            def __g__(self, x, subspace=None, update=False):
-                return Component.__g__(self, x, subspace, gradient_covariate, update)
-        return Component1
 
 
 def _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace,
@@ -923,7 +955,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         max_iter=None, regul=None, regul_decay=1e-5, ls_regul=None, ls_step_max=None,
         ls_step_max_decay=None, ls_iter_max=None,
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
-        gradient_initial_step=1e-8,
+        gradient_initial_step=1e-8, Component=Component,
         independent_components=True, newton=True, verbose=False):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
@@ -1036,6 +1068,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         fix_ls_trigger (int): minimum number of iterations with successive linesearch failures on a
             given component for `fix_ls` to be triggered.
 
+        Component (type): component constructor.
+
         independent_components (bool): whether to represent the local inverse Hessian submatrix
             for a component independently of the other components.
 
@@ -1070,7 +1104,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     # component
     __global__ = SparseFunction(x0, covariate, gradient_subspace, descent_subspace,
             eps, fun, _sum, args, regul, bounds, gradient_initial_step)
-    Component = define_component(__global__, independent_components, memory, newton, gradient_covariate)
+    extend_global(__global__, independent_components, memory, newton, gradient_covariate)
     C = _defaultdict(Component, __global__)
 
     sched = SBFGSScheduler(__global__, C, component,
@@ -1106,7 +1140,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         minute = floor(cumt / 60.)
         second = cumt - minute * 60.
         if minute:
-            logger.info('Elapsed time = {:d}m{:.3f}s\n'.format(minute, second))
+            logger.info('Elapsed time = {:.0f}m{:.3f}s\n'.format(minute, second))
         else:
             logger.info('Elapsed time = {:.3f}s\n'.format(second))
 
@@ -1161,7 +1195,7 @@ class SBFGSScheduler(parallel.Scheduler):
                 del self.paused[i]
             else:
                 self.paused[i] = t - 1
-            print('skipping {}'.format(i))
+            #print('skipping {}'.format(i))
             i = None
         return i
 
@@ -1945,5 +1979,5 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
 
 minimize_sparse_bfgs = minimize_sparse_bfgs1
 
-__all__ = [ 'BFGSResult', 'minimize_sparse_bfgs', 'SparseFunction', 'wolfe_line_search', 'sparse_grad' ]
+__all__ = [ 'BFGSResult', 'minimize_sparse_bfgs', 'minimize_sparse_bfgs0', 'minimize_sparse_bfgs1', 'SparseFunction', 'wolfe_line_search', 'sparse_grad' ]
 

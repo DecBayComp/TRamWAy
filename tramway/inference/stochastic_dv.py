@@ -16,6 +16,7 @@ from .base import *
 from .gradient import *
 from .dv import DV
 from .optimization import *
+from tramway.core import parallel
 from math import pi, log
 import numpy as np
 import pandas as pd
@@ -48,7 +49,8 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
 
 
 class LocalDV(DV):
-    __slots__ = ('regions','prior_delay','_n_calls','_undefined_grad','_undefined_time_derivative','_logger')
+    __slots__ = ('regions','prior_delay','_n_calls','_undefined_grad','_undefined_time_derivative',
+            '_update_undefined_grad','_update_undefined_time_derivative','_logger')
 
     def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None,
         minimum_diffusivity=None, positive_diffusivity=None, prior_include=None,
@@ -61,6 +63,8 @@ class LocalDV(DV):
         self._n_calls = 0.
         self._undefined_grad = set()
         self._undefined_time_derivative = set()
+        self._update_undefined_grad = set()
+        self._update_undefined_time_derivative = set()
         self._logger = logger
 
     def region(self, i):
@@ -123,13 +127,27 @@ class LocalDV(DV):
     def undefined_grad(self, i, feature=''):
         if i not in self._undefined_grad:
             self._undefined_grad.add(i)
+            self._update_undefined_grad.add(i)
             self.logger.warning('grad{}({}) is not defined'.format(feature, i))
 
     def undefined_time_derivative(self, i, feature=''):
         if i not in self._undefined_time_derivative:
             self._undefined_time_derivative.add(i)
+            self._update_undefined_time_derivative.add(i)
             self.logger.warning('d{}({})/dt failed'.format(feature, i))
 
+    def pop_workspace_update(self):
+        try:
+            return self._update_undefined_grad, self._update_undefined_time_derivative
+        finally:
+            self._update_undefined_grad, self._update_undefined_time_derivative = set(), set()
+
+    def push_workspace_update(self, update):
+        undefined_grad, undefined_time_derivative = update
+        self._undefined_grad.update(undefined_grad)
+        self._undefined_time_derivative.update(undefined_time_derivative)
+
+parallel.abc.WorkspaceExtension.register(LocalDV)
 
 
 def make_regions(cells, index, reverse_index, size=1):
