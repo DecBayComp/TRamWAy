@@ -36,7 +36,7 @@ class StarQueue(object):
     children processes.
     The `StarConn` objects are the actual queues.
     """
-    __slots__ = ('deck',)
+    __slots__ = 'deck',
     def __init__(self, n, variant=multiprocessing.Queue, **kwargs):
         self.deck = []
         queues = [ variant(**kwargs) for _ in range(n) ]
@@ -52,7 +52,7 @@ class StarQueue(object):
             raise RuntimeError('too many consumers')
 
 class StarConn(queue.Queue):
-    __slots__ = ('input', 'output')
+    __slots__ = 'input', 'output'
     def __init__(self, input_queue=None, output_queues=None):
         queue.Queue.__init__(self)
         self.input = input_queue
@@ -165,11 +165,8 @@ class Worker(multiprocessing.Process):
             status (any): extra information that :meth:`Scheduler.stop` will receive.
 
         """
-        try:
-            update.set_extensions(self.workspace.pop_extension_updates())
-        except:
-            raise
-            pass
+        if isinstance(update, abc.VehicleJobStep):
+            update.push_updates(self.workspace.pop_extension_updates())
         update.unset_workspace() # free memory space
         if self.update is not None:
             self.update.put(update)
@@ -371,7 +368,38 @@ class Scheduler(object):
         return False
 
 
-class Workspace(object):
+class ProtoWorkspace(object):
+    __slots__ = '_extensions',
+    def __init__(self, args=()):
+        self._extensions = {}
+        if args:
+            self.identify_extensions(args)
+    def update(self, step):
+        step.set_workspace(self)
+        if isinstance(step, abc.VehicleJobStep):
+            self.push_extension_updates(step.pop_updates())
+    def resources(self, step):
+        return step.resources
+    def identify_extensions(self, args):
+        for k, a in enumerate(args):
+            if isinstance(a, abc.WorkspaceExtension):
+                self._extensions[k] = a
+    def push_extension_updates(self, updates):
+        for k in updates:
+            update = updates[k]
+            extension = self._extensions[k]
+            extension.push_workspace_update(update)
+    def pop_extension_updates(self):
+        updates = {}
+        for k in self._extensions:
+            extension = self._extensions[k]
+            updates[k] = extension.pop_workspace_update()
+        return updates
+
+abc.ExtendedWorkspace.register(ProtoWorkspace)
+
+
+class Workspace(ProtoWorkspace):
     """ Parameter singleton.
 
     Attributes:
@@ -379,17 +407,12 @@ class Workspace(object):
         data_array (array-like): working copy of the parameter vector.
 
     """
-    __slots__ = ('data_array', )
-    def __init__(self, data_array):
+    __slots__ = 'data_array',
+    def __init__(self, data_array, *args):
+        ProtoWorkspace.__init__(self, args)
         self.data_array = data_array
     def __len__(self):
         return len(self.data_array)
-    def update(self, step):
-        step.set_workspace(self)
-    def resources(self, step):
-        return step.resources
-
-abc.Workspace.register(Workspace)
 
 
 class JobStep(object):
@@ -400,7 +423,7 @@ class JobStep(object):
 
     A job step object merely contains a reference to a shared workspace.
 
-    The `resource_id` attribute refers to a series of the job steps that operate
+    The `resource_id` attribute refers to a series of job steps that operate
     on the same subset of resource items.
 
     Multiple steps can operate simultaneously in the same workspace in a distributed fashion
@@ -410,7 +433,7 @@ class JobStep(object):
     This attribute is used by `Scheduler` to lock the required items of data,
     which determines which steps can be run simultaneously.
     """
-    __slots__ = ('_id', '_workspace')
+    __slots__ = '_id', '_workspace'
     def __init__(self, _id, workspace=None):
         self._id = _id
         self._workspace = workspace
@@ -433,5 +456,46 @@ class JobStep(object):
 abc.JobStep.register(JobStep)
 
 
-__all__ = [ 'StarConn', 'StarQueue', 'Workspace', 'JobStep', 'Worker', 'Scheduler', 'abc' ]
+class UpdateVehicle(object):
+    """ Not instanciable! Introduced for __slots__-enabled multiple inheritance.
+
+    Example usage, in the case class ``B`` implements (abc.) `VehicleJobStep` and
+    class ``A`` can only implement (abc.) `JobStep` and not inherit from `VehiculeJobStep`::
+
+        class A:
+            __slots__ = 'a',
+        abc.JobStep.register(A)
+        class B(A, UpdateVehicle):
+            __slots__ = ('b', ) + VehicleJobStep.__slots__
+            def __init__(self, a, b):
+                A.__init__(self, a)
+                UpdateVehicle.__init__(self)
+                self.b = b
+        abc.VehicleJobStep.register(B)
+
+    `VehicleJobStep` brings the slots, `UpdateVehicle` brings the implementation (methods)
+    and `abc.VehicleJobStep` the typing required by `Workspace` and `Worker` to handle ``B``
+    as a `VehicleJobStep`.
+    """
+    __slots__ = ()
+    def __init__(self):
+        self._updates = {}
+    def pop_updates(self):
+        try:
+            return self._updates
+        finally:
+            self._updates = {}
+    def push_updates(self, updates):
+        self._updates = updates
+
+class VehicleJobStep(JobStep, UpdateVehicle):
+    __slots__ = '_updates',
+    def __init__(self, _id, workspace=None):
+        JobStep.__init__(self, _id, workspace)
+        UpdateVehicle.__init__(self)
+
+abc.VehicleJobStep.register(VehicleJobStep)
+
+
+__all__ = [ 'StarConn', 'StarQueue', 'ProtoWorkspace', 'Workspace', 'JobStep', 'UpdateVehicle', 'VehicleJobStep', 'Worker', 'Scheduler', 'abc' ]
 

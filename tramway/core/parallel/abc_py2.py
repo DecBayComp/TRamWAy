@@ -17,50 +17,6 @@ from __future__ import absolute_import
 from abc import *
 
 
-class Workspace:
-    """ Parameter singleton.
-
-    A computation will typically instanciates a unique workspace that will be
-    embedded in and shared between multiple :class:`JobStep` instances.
-
-    It embarks resources that a job step may access.
-    """
-    __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def update(self, step):
-        """ Update the workspace with a completed job step.
-
-        Arguments:
-
-            step (JobStep): completed job step.
-
-        May be implemented as follows::
-
-            step.set_workspace(self)
-
-        """
-        raise NotImplementedError('abstract method')
-
-    @abstractmethod
-    def __len__(self):
-        """ `int`: Total number of resource items."""
-        raise NotImplementedError('abstract method')
-
-    @abstractmethod
-    def resources(self, step):
-        """ May be implemented as follows::
-
-            return step.resources
-
-        See also: `JobStep.resources`."""
-        raise NotImplementedError('abstract method')
-
-    #@abstractmethod
-    #def set_extensions(self, extensions):
-    #    raise NotImplementedError('abstract method')
-
-
 class JobStep:
     """ Job step data.
 
@@ -111,7 +67,48 @@ class JobStep:
         raise NotImplementedError('abstract ro property')
 
 
+class Workspace:
+    """ Parameter singleton.
+
+    A computation will typically instanciates a unique workspace that will be
+    embedded in and shared between multiple :class:`JobStep` instances.
+
+    It embarks resources that a job step may access.
+    """
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def update(self, step):
+        """ Update the workspace with a completed job step.
+
+        Arguments:
+
+            step (JobStep): completed job step.
+
+        May be implemented as follows::
+
+            step.set_workspace(self)
+
+        """
+        raise NotImplementedError('abstract method')
+
+    @abstractmethod
+    def __len__(self):
+        """ `int`: Total number of resource items."""
+        raise NotImplementedError('abstract method')
+
+    @abstractmethod
+    def resources(self, step):
+        """ May be implemented as follows::
+
+            return step.resources
+
+        See also: `JobStep.resources`."""
+        raise NotImplementedError('abstract method')
+
+
 class WorkspaceExtension:
+    """ See also: `ExtendedWorkspace`."""
     __metaclass__ = ABCMeta
 
     @abstractmethod
@@ -122,5 +119,36 @@ class WorkspaceExtension:
         raise NotImplementedError('abstract method')
 
 
-__all__ = [ 'Workspace', 'JobStep', 'WorkspaceExtension' ]
+class ExtendedWorkspace(Workspace):
+    """ Workspace that listens to external objects which implement `WorkspaceExtension`
+    provided that the job step data implements `VehicleJobStep`.
+    """
+
+    @abstractmethod
+    def push_extension_updates(self, updates):
+        raise NotImplementedError('abstract method')
+
+    @abstractmethod
+    def pop_extension_updates(self, updates):
+        raise NotImplementedError('abstract method')
+
+
+class VehicleJobStep:
+    """ Job step that keeps a reference to workspace-like objects that are not part
+    of the main workspace.
+
+    Changes to these external workspace-like objects are encoded together with the
+    job step data so that it can be passed to and replayed in the other workers' workspaces.
+    """
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def pop_updates(self):
+        raise NotImplementedError('abstract method')
+    @abstractmethod
+    def push_updates(self, updates):
+        raise NotImplementedError('abstract method')
+
+
+__all__ = [ 'JobStep', 'Workspace', 'WorkspaceExtension', 'ExtendedWorkspace', 'VehicleJobStep' ]
 

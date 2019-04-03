@@ -340,7 +340,7 @@ class SparseFunction(parallel.Workspace):
     """
     def __init__(self, x, covariate, gradient_subspace, descent_subspace,
             eps, fun, _sum, args, regul, bounds, h0):
-        parallel.Workspace.__init__(self, x)
+        parallel.Workspace.__init__(self, x, *args)
         self.covariate = covariate
         self.gradient_subspace = gradient_subspace
         self.descent_subspace = descent_subspace
@@ -351,45 +351,15 @@ class SparseFunction(parallel.Workspace):
         self.regul = regul
         self.bounds = bounds
         self.h0 = h0
-        # extensions
-        self._arg_extensions = {}
-        for k, a in enumerate(args):
-            if isinstance(a, parallel.abc.WorkspaceExtension):
-                self._arg_extensions[k] = a
-        #self._kwarg_extensions = {}
-        #for k in kwargs:
-        #    a = kwargs[k]
-        #    if isinstance(a, parallel.abc.WorkspaceExtension):
-        #        self._kwarg_extensions[k] = a
 
     @property
     def x(self):
         return self.data_array
     def update(self, component):
-        #component.__global__ = self
+        #assert self.x is self._extensions[0].combined # stochastic_dv only
         parallel.Workspace.update(self, component)
-        self.push_extension_updates(component.get_extensions())
         component.push()
         #self.x[component.descent_subspace] = component.x
-    def push_extension_updates(self, updates):
-        if updates:
-            #arg_updates, kwarg_updates = updates
-            arg_updates = updates
-            for k in arg_updates:
-                update = arg_updates[k]
-                extension = self._arg_extensions[k]
-                extension.push_workspace_update(update)
-            #for k in kwarg_updates:
-            #    update = kwarg_updates[k]
-            #    extension = self._kwarg_extensions[k]
-            #    extension.push_workspace_update(update)
-    def pop_extension_updates(self):
-        arg_updates = {}
-        for k in self._arg_extensions:
-            extension = self._arg_extensions[k]
-            arg_updates[k] = extension.pop_workspace_update()
-        updates = arg_updates
-        return updates
 
 def extend_global(__global__, independent_components, memory, newton, gradient_covariate):
     """ Add attributes to the workspace.
@@ -750,18 +720,18 @@ class LimitedMemoryInverseHessianBlock(InverseHessianBlock):
     def last(self):
         return self.block[0]
 # component
-class Component(LocalSubspaceProxy):
+class Component(LocalSubspaceProxy, parallel.UpdateVehicle):
     """
     From `__global__` requires `fun`, `_sum` and `args`.
     """
-    __slots__ = ('_x', '_f', '_g', '_H', '_workspace_extensions')
+    __slots__ = ('_x', '_f', '_g', '_H') + parallel.VehicleJobStep.__slots__
     def __init__(self, i, *args, **kwargs):
         LocalSubspaceProxy.__init__(self, i, *args, **kwargs)
+        parallel.UpdateVehicle.__init__(self)
         self._x = None # gradient-active elements only
         self._f = None
         self._g = None # gradient-active elements only
         self._H = None
-        self._workspace_extensions = None
     @property
     def x(self):
         return self._x
@@ -848,11 +818,8 @@ class Component(LocalSubspaceProxy):
             _x[self.gradient_subspace] = __x
         else:
             raise self._size_error
-    def get_extensions(self):
-        return self._workspace_extensions
-    def set_extensions(self, ext):
-        self._workspace_extensions = ext
 
+parallel.abc.VehicleJobStep.register(Component)
 
 
 def _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace,
