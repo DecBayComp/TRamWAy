@@ -774,9 +774,9 @@ def feat_gaussianity(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
                                n_samples=n_samples)
 
 
-def get_all_features(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
+def get_all_features(RW, id_min=None, id_max=None, n_samples=30, old=False):
     return RW.get_all_features(id_min=id_min, id_max=id_max,
-                               n_samples=n_samples, old=False)
+                               n_samples=n_samples, old=old)
 
 
 def get_features_vector(RW, func, w, step, **kwargs):

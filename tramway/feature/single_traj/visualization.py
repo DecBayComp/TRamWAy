@@ -82,7 +82,7 @@ def visualize_rw_hmm(RW):
     nstates = RW.state.max()
     dict_state_color = {}
     for k in range(int(nstates)+1):
-        dict_state_color[k] = list({'b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'})[k]
+        dict_state_color[k] = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'][k]
 
     if dim == 1:
         fig, ax = plt.subplots()
