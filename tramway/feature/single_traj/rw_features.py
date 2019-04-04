@@ -542,7 +542,7 @@ class RandomWalk():
         vals = np.array(d_qs) * mean_step
         return dict(list(zip(keys, vals)))
 
-    def feat_angle(self, id_min=None, id_max=None):
+    def feat_angle_old(self, id_min=None, id_max=None):
         """Returns moments related to the distribution of angles.
         """
         subvec = np.diagonal(self.get_sub_Dvec(id_min, id_max),
@@ -565,6 +565,38 @@ class RandomWalk():
             moments = scipy.stats.describe(angles, ddof=0)
             vals = [moments.mean, moments.variance, moments.skewness,
                     moments.kurtosis, moments.minmax[0], moments.minmax[1]]
+            return dict(list(zip(keys, vals)))
+        else:
+            return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
+
+    def feat_angle(self, id_min=None, id_max=None):
+        """Returns variance, and first two autocorrelations of angles.
+        """
+        subvec = np.diagonal(self.get_sub_Dvec(id_min, id_max),
+                             offset=-1)
+        vecnorm = np.linalg.norm(subvec, axis=0)
+        no_mvt = vecnorm < 1e-6
+        vecnorm[no_mvt] = 1
+        unit_vec = subvec / vecnorm[np.newaxis, :]
+        keys = ['angle_var', 'angle_autocorr1', 'angle_autocorr2']
+        if unit_vec.shape[1] > 1:
+            prod = np.sum(unit_vec[:, :-1] * unit_vec[:, 1:], axis=0)
+            angles = np.arccos(np.clip(prod, -1.0, 1.0))
+            undefined_angle = no_mvt[:-1]
+            if len(undefined_angle) > 0:
+                undefined_angle[-1] *= no_mvt[-1]
+            nb_undefined = np.sum(undefined_angle)
+            angles[undefined_angle] = np.random.uniform(0, np.pi,
+                                                        size=nb_undefined)
+
+            mean_angle, var_angle = np.mean(angles), np.var(angles)
+            autocorrs_angle = [np.nan, np.nan]
+            if var_angle > 0:
+                for i in range(1, 3):
+                    autocov_angle = np.mean((angles[i:] - mean_angle) *
+                                            (angles[:-i] - mean_angle))
+                    autocorrs_angle[i-1] = autocov_angle / var_angle
+            vals = [var_angle] + autocorrs_angle
             return dict(list(zip(keys, vals)))
         else:
             return dict(list(zip(keys, np.nan * np.ones(len(keys)))))
@@ -651,19 +683,25 @@ class RandomWalk():
         mean_gauss = np.mean(gauss_n)
         return {'gaussian_grad': mean_grad, 'gaussian_mean': mean_gauss}
 
-    def get_all_features(self, id_min=None, id_max=None, n_samples=30):
+    def get_all_features(self, id_min=None, id_max=None,
+                         n_samples=30, old=False):
         if self.rw_is_useless:
             return {}
         else:
+            if old:
+                func_feat_ang = self.feat_angle_old
+            else:
+                func_feat_ang = self.feat_angle
+            id_min, id_max = _regularize_idminmax(id_min, id_max, self.length)
             meta_info = {
-                'size': self.length,
+                'size': id_max - id_min,
                 'dt': self.dt,
                 'is_dt_cst': self.is_dt_cst,
-                't_min': self.t.min(),
-                't_max': self.t.max()
+                't_min': self.t[id_min],
+                't_max': self.t[id_max-1]
             }
             return {**meta_info,
-                    **self.feat_angle(id_min, id_max),
+                    **func_feat_ang(id_min, id_max),
                     **self.feat_drift(id_min, id_max),
                     **self.feat_ergodicity(id_min, id_max),
                     **self.feat_escape_time(id_min, id_max),
@@ -677,54 +715,69 @@ class RandomWalk():
                     **self.feat_step(id_min, id_max),
                     **self.feat_step_autocorr(id_min, id_max)}
 
+    def get_features_vector(self, func, w, step, **kwargs):
+        features_time = {}
+        w2 = w / 2
+        for i in range(0, self.length - w, step):
+            features_time[(i + w2) * self.dt] = func(self, i, i + w, **kwargs)
+        return pd.DataFrame.from_dict(features_time, orient='index')
 
-def feat_step(RW, id_min=None, id_max=None):
+
+def feat_step(RW, id_min=None, id_max=None, **kwargs):
     return RW.feat_step(id_min=id_min, id_max=id_max)
 
 
-def feat_msd(RW, id_min=None, id_max=None, n_samples=30):
+def feat_msd(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
     return RW.feat_msd(id_min=id_min, id_max=id_max, n_samples=n_samples)
 
 
-def feat_drift(RW, id_min=None, id_max=None):
+def feat_drift(RW, id_min=None, id_max=None, **kwargs):
     return RW.feat_drift(id_min=id_min, id_max=id_max)
 
 
-def feat_pdf(RW, id_min=None, id_max=None, n_samples=30):
+def feat_pdf(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
     return RW.feat_pdf(id_min=id_min, id_max=id_max, n_samples=n_samples)
 
 
-def feat_shape(RW, id_min=None, id_max=None):
+def feat_shape(RW, id_min=None, id_max=None, **kwargs):
     return RW.feat_shape(id_min=id_min, id_max=id_max)
 
 
-def feat_escape_time(RW, id_min=None, id_max=None):
+def feat_escape_time(RW, id_min=None, id_max=None, **kwargs):
     return RW.feat_escape_time(id_min=id_min, id_max=id_max)
 
 
-def feat_angle(RW, id_min=None, id_max=None):
+def feat_angle_old(RW, id_min=None, id_max=None, **kwargs):
     return RW.feat_angle(id_min=id_min, id_max=id_max)
 
 
-def feat_step_autocorr(RW, id_min=None, id_max=None):
+def feat_angle(RW, id_min=None, id_max=None, **kwargs):
+    return RW.feat_angle(id_min=id_min, id_max=id_max)
+
+
+def feat_step_autocorr(RW, id_min=None, id_max=None, **kwargs):
     return RW.feat_step_autocorr(id_min=id_min, id_max=id_max)
 
 
 def feat_fractal_spectrum(RW, id_min=None, id_max=None, n_samples=30,
-                          nR=20, qs=None):
+                          nR=20, qs=None, **kwargs):
     return RW.feat_fractal_spectrum(id_min=id_min, id_max=id_max,
                                     n_samples=n_samples, nR=nR, qs=qs)
 
 
-def feat_ergodicity(RW, id_min=None, id_max=None):
+def feat_ergodicity(RW, id_min=None, id_max=None, **kwargs):
     return RW.feat_ergodicity(id_min=id_min, id_max=id_max)
 
 
-def feat_gaussianity(RW, id_min=None, id_max=None, n_samples=30):
+def feat_gaussianity(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
     return RW.feat_gaussianity(id_min=id_min, id_max=id_max,
                                n_samples=n_samples)
 
 
-def get_all_features(RW, id_min=None, id_max=None, n_samples=30):
+def get_all_features(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
     return RW.get_all_features(id_min=id_min, id_max=id_max,
-                               n_samples=n_samples)
+                               n_samples=n_samples, old=False)
+
+
+def get_features_vector(RW, func, w, step, **kwargs):
+    return RW.get_features_vector(func, w, step, **kwargs)
