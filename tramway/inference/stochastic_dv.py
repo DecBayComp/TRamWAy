@@ -217,15 +217,16 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     standard_priors, time_priors = 0., 0.
     V_prior = dv.potential_prior(j)
     if V_prior:
-        standard_priors += V_prior * cells.grad_sum(i, gradV * gradV, reverse_index)
+        deltaV = cells.local_variation(i, V, reverse_index, **grad_kwargs)
+        standard_priors += V_prior * cells.grad_sum(i, deltaV * deltaV, reverse_index)
     D_prior = dv.diffusivity_prior(j)
     if D_prior:
         D = x[:int(x.size/2)]
         # spatial gradient of the local diffusivity
-        gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
-        if gradD is not None:
+        deltaD = cells.local_variation(i, D, reverse_index, **grad_kwargs)
+        if deltaD is not None:
             # `grad_sum` memoizes and can be called several times at no extra cost
-            standard_priors += D_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
+            standard_priors += D_prior * cells.grad_sum(i, deltaD * deltaD, reverse_index)
     #print('{}\t{}\t{}'.format(i+1, D[j], result))
     if jeffreys_prior:
         if Dj <= 0:
@@ -235,14 +236,16 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     if time_prior:
         D_time_prior, V_time_prior = time_prior
         if D_prior and D_time_prior:
-            dDdt = cells.time_derivative(i, D, reverse_index)
+            # as of version 0.3.8, `time_derivative` replaced by `temporal_variation`
+            dDdt = cells.temporal_variation(i, D, reverse_index)
             if dDdt is None:
                 dv.undefined_time_derivative(i, 'D')
             else:
                 # assume fixed-duration time window
                 time_priors += D_prior * D_time_prior * dDdt * dDdt
         if V_prior and V_time_prior:
-            dVdt = cells.time_derivative(i, V, reverse_index)
+            # as of version 0.3.8, `time_derivative` replaced by `temporal_variation`
+            dVdt = cells.temporal_variation(i, V, reverse_index)
             if dVdt is None:
                 dv.undefined_time_derivative(i, 'V')
             else:

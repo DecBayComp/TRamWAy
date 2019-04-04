@@ -77,7 +77,6 @@ class DynamicCells(Distributed):
 
     def time_derivative(self, i, X, index_map=None, **kwargs):
         cell = self.cells[i]
-        # below, the measurement is renamed y and the coordinates are X
         t0 = cell.center_t
 
         # cache neighbours (indices and center locations)
@@ -144,6 +143,80 @@ class DynamicCells(Distributed):
             deriv = grad._vander(t, np.r_[x0, np.mean(x[u]), np.mean(x[v])])
 
         return deriv
+
+    def temporal_variation(self, i, X, index_map=None, **kwargs):
+        cell = self.cells[i]
+        t0 = cell.center_t
+
+        # cache neighbours (indices and center locations)
+        if not isinstance(cell.cache, dict):
+            cell.cache = {}
+        try:
+            i, adjacent, t = cell.cache['time_derivative']
+        except KeyError:
+            A = self.temporal_adjacency
+            adjacent = _adjacent = A.indices[A.indptr[i]:A.indptr[i+1]]
+            if index_map is not None:
+                adjacent = index_map[_adjacent]
+                ok = 0 <= adjacent
+                assert np.all(ok)
+                #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+            if _adjacent.size:
+                t = np.array([ self.cells[j].center_t for j in _adjacent ])
+                before, after = t<t0, t0<t
+
+                # pre-compute the "t" term
+                u, v = before, after
+                if not np.any(u):
+                    u = None
+                if not np.any(v):
+                    v = None
+
+                if u is None:
+                    if v is None:
+                        t = None
+                    else:
+                        t = 1. / (t0 - np.mean(t[v]))
+                elif v is None:
+                    t = 1. / (t0 - np.mean(t[u]))
+                else:
+                    t = np.r_[t0, np.mean(t[u]), np.mean(t[v])]
+
+                if t is not None:
+                    t = (u, v, t)
+
+            else:
+                t = None
+
+            if index_map is not None:
+                i = index_map[i]
+            cell.cache['time_derivative'] = (i, adjacent, t)
+
+        if t is None:
+            return None
+
+        x0, x = X[i], X[adjacent]
+
+        # compute the derivative
+        u, v, t = t
+        #u, v, t= before, after, t term
+        if u is None:
+            if v is None:
+                delta = 0.
+            else:
+                # 1./X = X0[j] - np.mean(X[v,j])
+                delta = (x0 - np.mean(x[v])) * t
+        elif v is None:
+            delta = (x0 - np.mean(x[u])) * t
+        else:
+            t0, tu, tv = t
+            delta = np.array([
+                (x0 - np.mean(x[u])) / (t0 - tu),
+                (x0 - np.mean(x[v])) / (t0 - tv),
+                ])
+            delta = np.sqrt(np.mean(delta * delta))
+
+        return delta
 
 
 __all__ = ['DynamicTranslocations', 'DynamicCells']

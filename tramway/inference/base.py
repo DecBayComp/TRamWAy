@@ -16,7 +16,7 @@ from tramway.core import *
 from tramway.core.exceptions import *
 from tramway.tessellation import format_cell_index, nearest_cell
 import tramway.tessellation as tessellation
-from .gradient import grad1
+from .gradient import grad1, delta1
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -410,8 +410,9 @@ class Distributed(Local):
         Returns:
 
             numpy.ndarray:
-                gradient as a vector with as many elements as there are dimensions
-                in the (trans-)location data.
+                gradient vector with as many elements as spatial dimensions.
+
+        See also :func:`grad1`.
         """
         return grad1(self, i, X, index_map, **kwargs)
 
@@ -442,6 +443,34 @@ class Distributed(Local):
             return cell.volume * np.sum(grad)
         else:
             return np.sum(grad)
+
+    def local_variation(self, i, X, index_map=None, **kwargs):
+        """
+        Local spatial variation, gradient-like, aimed at penalizing spatial variations.
+
+        See also :func:`delta1`.
+
+        As of version *0.3.8*: new; called for spatial regularization in `stochastic_dv`.
+        May become the new default for spatial regularization.
+
+        Arguments:
+
+            i (int):
+                cell index at which the gradient is evaluated.
+
+            X (numpy.ndarray):
+                vector of a scalar measurement at every cell.
+
+            index_map (numpy.ndarray):
+                index map that converts cell indices to indices in X.
+
+        Returns:
+
+            numpy.ndarray:
+                delta vector with as many elements as there are spatial dimensions.
+
+        """
+        return delta1(self, i, X, index_map, **kwargs)
 
     def flatten(self):
         def concat(arrays):
