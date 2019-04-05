@@ -718,8 +718,14 @@ class RandomWalk():
     def get_features_vector(self, func, w, step, **kwargs):
         features_time = {}
         w2 = w / 2
+        w2i = int(w2)
+        id_f = (self.length - w2i - 1) - (1 if w % 2 == 1 else 0)
         for i in range(0, self.length - w, step):
-            features_time[(i + w2) * self.dt] = func(self, i, i + w, **kwargs)
+            features_time[(i + w2i) * self.dt] = func(self, i, i + w, **kwargs)
+        for i in range(w2i):
+            features_time[i * self.dt] = features_time[w2i * self.dt]
+            id_i = (self.length - i - 1)
+            features_time[id_i * self.dt] = features_time[id_f * self.dt]
         return pd.DataFrame.from_dict(features_time, orient='index')
 
 

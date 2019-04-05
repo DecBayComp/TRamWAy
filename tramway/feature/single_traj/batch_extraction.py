@@ -28,7 +28,7 @@ from .batch_generation import *
 
 def feature_processing(c_drop={'t_max', 't_min', 'size', 'is_dt_cst', 'dt'},
                        c_lin_scale={'area'},
-                       c_sqrt_scale={'step_max', 'perimeter'}):
+                       c_sqrt_scale={'step_max', 'perimeter'}, **kwargs):
     """Feature processing function that is applied to a DataFrame of the raw
     features extracted from random walks.
 
@@ -44,20 +44,59 @@ def feature_processing(c_drop={'t_max', 't_min', 'size', 'is_dt_cst', 'dt'},
     -------
     Function that can be applied to a DataFrame.
     """
-    c_scale = c_lin_scale.union(c_sqrt_scale)
+    if 'windows' in kwargs:
+        def get_func(df, ws=list(kwargs['windows'])):
+            time_cols = [(df[f't_max_{w}'] -
+                          df[f't_min_{w}']).astype(np.float64) for w in ws]
+            c_drop_all = list(
+                map(lambda x: [x + f'_{w}' for w in ws], list(c_drop)))
+            c_drop_all = set([x for l in c_drop_all for x in l])
+            c_drop_all.add('n')
 
-    def get_func(df):
-        time_col = (df['t_max'] - df['t_min']).astype(np.float64)
-        df = df.drop(labels=list(set(df.columns).intersection(c_drop)), axis=1)
-        df_noscale = df[df.columns.difference(c_scale)]
-        df_linscale = df[c_lin_scale].add_suffix('_t')
-        df_sqrtscale = df[c_sqrt_scale].add_suffix('_sqrt')
-        df_scaled = pd.merge(df_linscale.divide(time_col, axis='index'),
-                             df_sqrtscale.divide(np.sqrt(time_col),
-                                                 axis='index'),
-                             left_index=True, right_index=True)
-        return pd.concat((df_noscale, df_scaled), axis=1).sort_index(axis=1)
-    return get_func
+            c_lin_scale_all = list(
+                map(lambda x: [x + f'_{w}' for w in ws], list(c_lin_scale)))
+            c_lin_scale_all = set([x for l in c_lin_scale_all for x in l])
+
+            c_sqrt_scale_all = list(
+                map(lambda x: [x + f'_{w}' for w in ws], list(c_sqrt_scale)))
+            c_sqrt_scale_all = set([x for l in c_sqrt_scale_all for x in l])
+
+            df = df.drop(labels=list(
+                set(df.columns).intersection(c_drop_all)), axis=1)
+            c_scale = c_lin_scale_all.union(c_sqrt_scale_all)
+            df_noscale = df[df.columns.difference(c_scale)]
+            df_linscale = [
+                df[df.columns.intersection(
+                    set([f'{x}_{w}' for x in list(c_lin_scale)]))].add_suffix(
+                    '_t') for w in ws]
+            df_sqrtscale = [df[df.columns.intersection(
+                set([f'{x}_{w}' for x in list(c_sqrt_scale)]))].add_suffix(
+                '_sqrt') for w in ws]
+            df_scaled = (pd.merge(df_linscale[i].divide(time_cols[i],
+                                                        axis='index'),
+                                  df_sqrtscale[i].divide(np.sqrt(time_cols[i]),
+                                                         axis='index'),
+                                  left_index=True, right_index=True)
+                         for i in range(len(time_cols)))
+            return pd.concat((df_noscale, *df_scaled),
+                             axis=1).sort_index(axis=1)
+        return get_func
+    else:
+        def get_func(df):
+            c_scale = c_lin_scale.union(c_sqrt_scale)
+            time_col = (df['t_max'] - df['t_min']).astype(np.float64)
+            df = df.drop(labels=list(
+                set(df.columns).intersection(c_drop)), axis=1)
+            df_noscale = df[df.columns.difference(c_scale)]
+            df_linscale = df[c_lin_scale].add_suffix('_t')
+            df_sqrtscale = df[c_sqrt_scale].add_suffix('_sqrt')
+            df_scaled = pd.merge(df_linscale.divide(time_col, axis='index'),
+                                 df_sqrtscale.divide(np.sqrt(time_col),
+                                                     axis='index'),
+                                 left_index=True, right_index=True)
+            return pd.concat((df_noscale, df_scaled),
+                             axis=1).sort_index(axis=1)
+        return get_func
 
 
 def get_features_from_group(args):
@@ -115,30 +154,35 @@ def extract_features(RWs, nb_process=4, func_feat_process=None):
 
 def create_and_extract(args):
     """Function that extracts features from a single random walk.
-    Used fro multiprocessing with a generator.
+    Used for multiprocessing with a generator.
     """
-    i, rw, rw_dict_prms = args
-    rw_feat = get_all_features(RandomWalk(rw, zero_time=True))
+    i, rw, rw_dict_prm, kwargs = args
+    if 'windows' in kwargs:
+        ws = kwargs['windows']
+        N = len(rw)
+        rw_obj = RandomWalk(rw, zero_time=True)
+        feat_scales = [get_all_features(rw_obj,
+                                        id_min=int(N/2-w/2),
+                                        id_max=int(N/2+w/2)) for w in ws]
+        rw_feat = {}
+        for i, w in enumerate(ws):
+            rw_feat.update({f'{k}_{w}': v for k, v in feat_scales[i].items()})
+    else:
+        rw_feat = get_all_features(RandomWalk(rw, zero_time=True))
+        if kwargs['get_rw']:
+            rw['n'] = i
+        else:
+            rw = None
     rw_feat['n'] = i
-    return rw_feat, rw_dict_prms, None
-
-
-def create_and_extract_with_rw(args):
-    """Function that extracts features from a single random walk.
-    Used fro multiprocessing with a generator.
-    """
-    i, rw, rw_dict_prms = args
-    rw_feat = get_all_features(RandomWalk(rw, zero_time=True))
-    rw_feat['n'] = i
-    rw['n'] = i
-    return rw_feat, rw_dict_prms, rw
+    return rw_feat, rw_dict_prm, rw
 
 
 def features_creation(n=1000, types=[(RW_gauss_dist,
                                       {'d_l': ('float', 'uni', 0.01, 0.1),
                                        'T_max': ('float', 'exp', 0.1, 1)})],
                       ps=[1], get_rw=False,
-                      nb_process=None, func_feat_process=None):
+                      nb_process=None, func_feat_process=None,
+                      **kwargs):
     """Creates and directly extracts features from specified types of random
     walks. Avoids the creation of a pandas DataFrame of the trajectories :
     useful for lowering the RAM usage.
@@ -175,17 +219,17 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
     df_rws : None or pandas DataFrame depending on get_rw, raw data of the
         trajectories.
     """
-    rw_generator = rw_feature_generator(n, types=types, ps=ps)
+    kwargs['get_rw'] = get_rw
+    rw_generator = rw_feature_generator(n, types=types, ps=ps, **kwargs)
     desc = 'creating and extracting rws features'
-    map_func = create_and_extract_with_rw if get_rw else create_and_extract
     if nb_process is None:
-        raw_data = list(map(map_func,
+        raw_data = list(map(create_and_extract,
                             tqdm.tqdm_notebook(rw_generator,
                                                total=n, desc=desc)))
     else:
         with mp.Pool(nb_process) as p:
             raw_data = list(tqdm.tqdm_notebook(
-                p.imap(map_func, rw_generator),
+                p.imap(create_and_extract, rw_generator),
                 total=n, desc=desc))
     raw_features = [raw_data[i][0] for i in range(len(raw_data))]
     rw_prms = {i: raw_data[i][1] for i in range(len(raw_data))}

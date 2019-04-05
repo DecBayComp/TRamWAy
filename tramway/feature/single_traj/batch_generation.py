@@ -65,7 +65,7 @@ def generate_random_number(type_n, type_gen, a, b=None):
 def rw_feature_generator(n, types=[(RW_gauss_dist,
                                     {'d_l': ('float', 'exp', 0.01, 0.1),
                                      'T_max': ('float', 'exp', 0.1, 1)})],
-                         ps=[1]):
+                         ps=[1], **kwargs):
     """
     Generator of random walks.
 
@@ -102,7 +102,7 @@ def rw_feature_generator(n, types=[(RW_gauss_dist,
             rw_dict_prms[prm] = generate_random_number(*val)
         rw = types[rw_id_type][0](**rw_dict_prms)
         rw_dict_prms['func_name'] = types[rw_id_type][0].__name__
-        yield (i, rw, rw_dict_prms)
+        yield (i, rw, rw_dict_prms, kwargs)
 
 
 def create_random_rw(args):
