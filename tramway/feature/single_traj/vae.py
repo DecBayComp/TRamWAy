@@ -28,6 +28,7 @@ import tqdm
 class TabDataset(torch.utils.data.Dataset):
     """torch Dataset subclass. Performs 0 mean and 1 variance on features.
     """
+
     def __init__(self, df, c_drop={}):
         self.Features = list(set(df.columns).difference(c_drop))
         self.df = df.loc[:, self.Features].dropna().sort_index(axis=1)
@@ -60,6 +61,7 @@ class VAE(nn.Module):
     ps : list of float between 0 and 1, dropout rates at each layer. Should
         have the same dimension as hidden_dims.
     """
+
     def __init__(self, input_dim, hidden_dims, latent_dim, ps):
         super(VAE, self).__init__()
         assert len(hidden_dims) == len(ps), 'dropouts and hidden dims must'
@@ -132,14 +134,16 @@ def train_vae(model, optimizer, loss_fct, data_loader, device,
             loss.backward()
             train_loss += loss.item()
             optimizer.step()
-            if batch_idx % int(len(data_loader) / disp_per_epoch) == 0:
+            if (batch_idx % int(len(data_loader) / disp_per_epoch) ==
+                    int(len(data_loader) / disp_per_epoch) - 1):
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch+1, batch_idx * len(data), len(data_loader.dataset),
                     100. * batch_idx / len(data_loader),
-                    loss.item() / len(data)))
-        avg_loss = train_loss / len(data_loader.dataset)
+                    train_loss / int(len(data_loader) / disp_per_epoch)))
+                avg_loss += train_loss
+                train_loss = 0
         print('====> Epoch: {} Average loss: {:.4f}'.format(
-            epoch+1, avg_loss))
+            epoch+1, avg_loss / disp_per_epoch))
 
 
 def get_mu_logvar(dl, model, device):

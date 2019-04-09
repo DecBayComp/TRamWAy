@@ -167,12 +167,15 @@ def create_and_extract(args):
         rw_feat = {}
         for i, w in enumerate(ws):
             rw_feat.update({f'{k}_{w}': v for k, v in feat_scales[i].items()})
+    elif 'time' in kwargs:
+        rw_feat = get_all_features(RandomWalk(rw, zero_time=True),
+                                   time_evol=True, **kwargs)
     else:
         rw_feat = get_all_features(RandomWalk(rw, zero_time=True))
-        if kwargs['get_rw']:
-            rw['n'] = i
-        else:
-            rw = None
+    if kwargs['get_rw']:
+        rw['n'] = i
+    else:
+        rw = None
     rw_feat['n'] = i
     return rw_feat, rw_dict_prm, rw
 

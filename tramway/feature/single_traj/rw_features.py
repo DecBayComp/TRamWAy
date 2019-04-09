@@ -260,7 +260,7 @@ class RandomWalk():
                                             endpoint=False).astype(int))
         msd = np.array([np.mean(np.diagonal(subDabs, offset=i)**2)
                         for i in tau_int])
-        return tau_int * self.dt, msd
+        return tau_int, msd
 
     def feat_msd(self, id_min=None, id_max=None, n_samples=30,
                  sampling='log', use_all=False):
@@ -282,6 +282,7 @@ class RandomWalk():
         """
         tau, msd = self.temporal_msd(id_min, id_max, n_samples,
                                      sampling, use_all)
+        tau = tau * self.dt
         if len(tau) > 1:
             slope, intercept, r, _, _ = scipy.stats.linregress(np.log10(tau),
                                                                np.log10(msd))
@@ -291,7 +292,7 @@ class RandomWalk():
             return {'msd_alpha': np.nan, 'msd_rval': np.nan,
                     'msd_diffusion': np.nan}
 
-    def feat_drift(self, id_min=None, id_max=None):
+    def feat_drift(self, id_min=None, id_max=None, raw_val=False, **kwargs):
         """Computes the mean drift norm of the random walk, defined as ||alpha||
         where X(t) = alpha * t.
 
@@ -308,7 +309,11 @@ class RandomWalk():
         subt = self.get_sub_time(id_min, id_max)
         drift = np.mean(((subposition[1:] - subposition[0]) /
                          subt[1:, np.newaxis]), axis=0)
-        return {'drift_norm': np.linalg.norm(drift)}
+        val = np.linalg.norm(drift)
+        if raw_val:
+            return val
+        else:
+            return {'drift_norm': val}
 
     def stats_pdf(self, id_min=None, id_max=None, n_samples=30):
         """Computes moments of the distribution of distances
@@ -388,7 +393,8 @@ class RandomWalk():
         #         fit_var[0], 10**fit_var[1], fit_var[2]]
         return dict(list(zip(keys, vals)))
 
-    def convex_hull(self, id_min=None, id_max=None, display=False):
+    def convex_hull(self, id_min=None, id_max=None, display=False,
+                    only_area=False, **kwargs):
         """Returns the area, perimeter and maximum distance between 2 positions
         of the random walk.
         Makes used of the scipy.spatial function ConvexHull.
@@ -403,16 +409,19 @@ class RandomWalk():
             subposition = np.unique(subposition, axis=0)
             hull = scipy.spatial.ConvexHull(subposition)
             area, perimeter = hull.volume, hull.area
-            hull_points = subposition[hull.vertices]
-            n = len(hull_points)
-            DX = np.broadcast_to(hull_points[:, 0], (n, n))
-            DY = np.broadcast_to(hull_points[:, 1], (n, n))
-            D = (DX - DX.T)**2 + (DY - DY.T)**2
-            imax = np.argmax(D)
-            max_dist = np.sqrt(np.max(D))
-            if display:
-                plot_convex_hull(subposition, hull, imax)
-            return area, perimeter, max_dist
+            if only_area:
+                return area
+            else:
+                hull_points = subposition[hull.vertices]
+                n = len(hull_points)
+                DX = np.broadcast_to(hull_points[:, 0], (n, n))
+                DY = np.broadcast_to(hull_points[:, 1], (n, n))
+                D = (DX - DX.T)**2 + (DY - DY.T)**2
+                imax = np.argmax(D)
+                max_dist = np.sqrt(np.max(D))
+                if display:
+                    plot_convex_hull(subposition, hull, imax)
+                return area, perimeter, max_dist
         except:
             return np.nan, np.nan, np.nan
 
@@ -423,7 +432,7 @@ class RandomWalk():
         c = np.mean((X[:, 0] - Xm[0]) * (X[:, 1] - Xm[1]))
         return np.array([[a, c], [c, b]])
 
-    def asphericity(self, id_min=None, id_max=None):
+    def asphericity(self, id_min=None, id_max=None, **kwargs):
         try:
             X = self.get_sub_position(id_min, id_max)
             v = X - np.mean(X, axis=0)
@@ -459,7 +468,7 @@ class RandomWalk():
         except:
             return np.nan
 
-    def kurtosis(self, id_min=None, id_max=None):
+    def kurtosis(self, id_min=None, id_max=None, **kwargs):
         """Source : J. A. Helmuth, C. J. Burckhardt, P. Koumoutsakos,
         U. F. Greber, and I. F. Sbalzarini, Journal of Structural Biology 159,
         347 (2007).
@@ -684,7 +693,7 @@ class RandomWalk():
         return {'gaussian_grad': mean_grad, 'gaussian_mean': mean_gauss}
 
     def get_all_features(self, id_min=None, id_max=None,
-                         n_samples=30, old=False):
+                         n_samples=30, old=False, time_evol=False, **kwargs):
         if self.rw_is_useless:
             return {}
         else:
@@ -700,20 +709,23 @@ class RandomWalk():
                 't_min': self.t[id_min],
                 't_max': self.t[id_max-1]
             }
-            return {**meta_info,
-                    **func_feat_ang(id_min, id_max),
-                    **self.feat_drift(id_min, id_max),
-                    **self.feat_ergodicity(id_min, id_max),
-                    **self.feat_escape_time(id_min, id_max),
-                    **self.feat_fractal_spectrum(id_min, id_max,
-                                                 n_samples=n_samples, nR=4),
-                    **self.feat_gaussianity(id_min, id_max,
-                                            n_samples=n_samples),
-                    **self.feat_msd(id_min, id_max, n_samples=n_samples),
-                    **self.feat_pdf(id_min, id_max, n_samples=n_samples),
-                    **self.feat_shape(id_min, id_max),
-                    **self.feat_step(id_min, id_max),
-                    **self.feat_step_autocorr(id_min, id_max)}
+            feats = {**meta_info,
+                     **func_feat_ang(id_min, id_max),
+                     **self.feat_drift(id_min, id_max),
+                     **self.feat_ergodicity(id_min, id_max),
+                     **self.feat_escape_time(id_min, id_max),
+                     **self.feat_fractal_spectrum(id_min, id_max,
+                                                  n_samples=n_samples, nR=4),
+                     **self.feat_gaussianity(id_min, id_max,
+                                             n_samples=n_samples),
+                     **self.feat_msd(id_min, id_max, n_samples=n_samples),
+                     **self.feat_pdf(id_min, id_max, n_samples=n_samples),
+                     **self.feat_shape(id_min, id_max),
+                     **self.feat_step(id_min, id_max),
+                     **self.feat_step_autocorr(id_min, id_max)}
+            if time_evol:
+                feats.update(get_features_time(self, **kwargs))
+            return feats
 
     def get_features_vector(self, func, w, step, **kwargs):
         features_time = {}
@@ -737,12 +749,31 @@ def feat_msd(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
     return RW.feat_msd(id_min=id_min, id_max=id_max, n_samples=n_samples)
 
 
+def temporal_msd(RW, id_min=None, id_max=None,
+                 n_samples=30, sampling='log', use_all=False):
+    return RW.temporal_msd(id_min=id_min, id_max=id_max,
+                           n_samples=n_samples, sampling='log', use_all=False)
+
+
 def feat_drift(RW, id_min=None, id_max=None, **kwargs):
-    return RW.feat_drift(id_min=id_min, id_max=id_max)
+    return RW.feat_drift(id_min=id_min, id_max=id_max, **kwargs)
 
 
 def feat_pdf(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
     return RW.feat_pdf(id_min=id_min, id_max=id_max, n_samples=n_samples)
+
+
+def convex_hull(RW, id_min=None, id_max=None, display=False, **kwargs):
+    return RW.convex_hull(id_min=id_min, id_max=id_max, display=display,
+                          **kwargs)
+
+
+def kurtosis(RW, id_min=None, id_max=None, **kwargs):
+    return RW.kurtosis(id_min=id_min, id_max=id_max, **kwargs)
+
+
+def asphericity(RW, id_min=None, id_max=None, **kwargs):
+    return RW.asphericity(id_min=id_min, id_max=None, **kwargs)
 
 
 def feat_shape(RW, id_min=None, id_max=None, **kwargs):
@@ -780,10 +811,58 @@ def feat_gaussianity(RW, id_min=None, id_max=None, n_samples=30, **kwargs):
                                n_samples=n_samples)
 
 
-def get_all_features(RW, id_min=None, id_max=None, n_samples=30, old=False):
+def get_all_features(RW, id_min=None, id_max=None, n_samples=30,
+                     old=False, time_evol=False, **kwargs):
     return RW.get_all_features(id_min=id_min, id_max=id_max,
-                               n_samples=n_samples, old=old)
+                               n_samples=n_samples, old=old,
+                               time_evol=time_evol, **kwargs)
 
 
 def get_features_vector(RW, func, w, step, **kwargs):
     return RW.get_features_vector(func, w, step, **kwargs)
+
+
+def mean_through_time(func, RW_obj, n, **kwargs):
+    N = len(RW_obj)
+    delta_ts = np.unique(np.geomspace(kwargs['start'], N-1, n)).astype(int)
+    vals_ts = []
+    for dt in delta_ts:
+        vals_ts.append(np.mean(np.array([func(RW_obj, i, i+dt, **kwargs)
+                                         for i in range(N-dt)])))
+    vmax = func(RW_obj, 0, N, **kwargs)
+    return delta_ts, np.array(vals_ts)/vmax
+
+
+def get_features_time(RW, n_t_samples=10, **kwargs):
+    N = len(RW)
+    Tmax = RW.t.max()
+    dict_feat_vals = {}
+    times = np.unique(np.geomspace(1, N-1, n_t_samples)).astype(int)
+    msd = np.array([np.mean(np.diagonal(RW.Dabs, offset=i)**2)
+                    for i in times])
+    msd /= Tmax
+    dict_feat_vals['msd'] = msd
+    times = np.unique(np.geomspace(1, N-2, n_t_samples)).astype(int)
+    autocorrs = np.array([RW.autocorr(t, id_min=0, id_max=N, n_samples=30)
+                          for t in times])
+    dict_feat_vals['autocorrs'] = autocorrs
+    ds = RW.get_sub_steps(0, N)
+    steps_chosen = np.linspace(0, N-2, 10).astype(int)
+    cum_step = np.cumsum(ds / np.sum(ds))[steps_chosen]
+    dict_feat_vals['cum_step'] = cum_step
+    _, cvhs = mean_through_time(convex_hull, RW, n=n_t_samples, **kwargs)
+    dict_feat_vals['cvhs'] = cvhs
+    _, kurts = mean_through_time(kurtosis, RW, n=n_t_samples, **kwargs)
+    dict_feat_vals['kurts'] = kurts
+    _, asphericities = mean_through_time(asphericity, RW,
+                                         n=n_t_samples, **kwargs)
+    dict_feat_vals['asphericities'] = asphericities
+    _, drift = mean_through_time(feat_drift, RW,
+                                 n=n_t_samples, **kwargs)
+    dict_feat_vals['drift'] = drift
+    prms = {}
+    for feature, vals in dict_feat_vals.items():
+        prms.update(dict(list(zip([f'{feature}_{i}'
+                                   for i in range(1, n_t_samples+1)],
+                                  vals))))
+    return prms
