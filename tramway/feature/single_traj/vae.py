@@ -106,7 +106,8 @@ class VAE(nn.Module):
     def decode(self, z):
         h3 = F.dropout(F.relu(self.fc_latout(z)), p=self.ps[-1])
         h3 = self.fc_dec(h3)
-        return torch.sigmoid(self.fc_out(h3))
+        # return torch.sigmoid(self.fc_out(h3))
+        return self.fc_out(h3)
 
     def forward(self, x):
         mu, logvar = self.encode(x)
@@ -115,9 +116,10 @@ class VAE(nn.Module):
 
 
 def loss_function_vae(recon_x, x, mu, logvar):
-    BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
+    # BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
+    BCE = F.mse_loss(recon_x, x, reduction='sum')
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return BCE + KLD
+    return BCE + KLD, BCE, KLD
 
 
 def train_vae(model, optimizer, loss_fct, data_loader, device,
@@ -125,14 +127,19 @@ def train_vae(model, optimizer, loss_fct, data_loader, device,
     for epoch in tqdm.tqdm_notebook(range(nb_epochs)):
         model.train()
         train_loss = 0
+        avg_loss = 0
+        BCE_loss = 0
+        KLD_loss = 0
         for batch_idx, data in tqdm.tqdm_notebook(enumerate(data_loader),
                                                   total=len(data_loader)):
             data = data.to(device)
             optimizer.zero_grad()
             recon_batch, mu, logvar = model(data)
-            loss = loss_fct(recon_batch, data, mu, logvar)
+            loss, BCE, KLD = loss_fct(recon_batch, data, mu, logvar)
             loss.backward()
             train_loss += loss.item()
+            BCE_loss += BCE
+            KLD_loss += KLD
             optimizer.step()
             if (batch_idx % int(len(data_loader) / disp_per_epoch) ==
                     int(len(data_loader) / disp_per_epoch) - 1):
@@ -140,10 +147,15 @@ def train_vae(model, optimizer, loss_fct, data_loader, device,
                     epoch+1, batch_idx * len(data), len(data_loader.dataset),
                     100. * batch_idx / len(data_loader),
                     train_loss / int(len(data_loader) / disp_per_epoch)))
+                print('Mean BCE : {0:.6f}, Mean KLD : {1:.6f}'.format(
+                    (BCE_loss / int(len(data_loader) / disp_per_epoch)),
+                    (KLD_loss / int(len(data_loader) / disp_per_epoch))))
                 avg_loss += train_loss
                 train_loss = 0
+                BCE_loss = 0
+                KLD_loss = 0  
         print('====> Epoch: {} Average loss: {:.4f}'.format(
-            epoch+1, avg_loss / disp_per_epoch))
+            epoch+1, avg_loss / len(data_loader)))
 
 
 def get_mu_logvar(dl, model, device):
