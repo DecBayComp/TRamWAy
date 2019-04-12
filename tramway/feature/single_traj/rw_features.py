@@ -862,6 +862,9 @@ def get_features_time(RW, n_t_samples=10, **kwargs):
     dict_feat_vals['drift'] = drift
     prms = {}
     for feature, vals in dict_feat_vals.items():
+        if feature != 'autocorrs':
+            vals = np.log(vals)
+            feature += '_log'
         prms.update(dict(list(zip([f'{feature}_{i}'
                                    for i in range(1, n_t_samples+1)],
                                   vals))))

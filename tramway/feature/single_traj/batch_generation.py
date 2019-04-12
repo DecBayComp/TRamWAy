@@ -162,15 +162,21 @@ def create_batch_rw(n=100, ps=[1], nb_process=4,
     """
     if nb_process is None:
         raw_data = list(map(create_random_rw,
-                            tqdm.tqdm_notebook([(ps, types)] * n)))
+                            tqdm.tqdm_notebook([(ps, types)] * n,
+                                               desc='generating RWs')))
     else:
         with mp.Pool(nb_process) as p:
             raw_data = list(tqdm.tqdm_notebook(
-                p.imap(create_random_rw, [(ps, types)] * n), total=n))
+                p.imap(create_random_rw, [(ps, types)] * n),
+                total=n, desc='generating RWs'))
     RW_data = [(traj, rw[0])
-               for traj, rw in enumerate(raw_data) if not rw_is_useless(rw[0])]
-    RW_prm = {i: rw[1] for i, rw in enumerate(raw_data)}
-    for i, (traj, rw) in enumerate(RW_data):
+               for traj, rw in tqdm.tqdm_notebook(
+                   enumerate(raw_data), total=len(raw_data),
+                   desc='checking usefulness') if not rw_is_useless(rw[0])]
+    RW_prm = {i: rw[1] for i, rw in tqdm.tqdm_notebook(
+            enumerate(raw_data), total=len(raw_data), desc='extracting prms')}
+    for i, (traj, rw) in tqdm.tqdm_notebook(
+            enumerate(RW_data), total=len(RW_data), desc='assigning traj id'):
         rw['n'] = traj
         RW_data[i] = rw
     return pd.concat(RW_data).reset_index(drop=True), RW_prm

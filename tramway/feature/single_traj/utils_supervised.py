@@ -146,7 +146,7 @@ class RWDataset(torch.utils.data.Dataset):
                      for w in self.windows])
         scale_prms = tuple([torch.tensor(
             list(self.scale_prm[w][traj].values())).float()
-                            for w in self.windows])
+            for w in self.windows])
         meta_prms = torch.tensor(list(self.meta_prm[traj].values())).float()
         y = self.get_y_func(self.prms[traj])
         # y = 1 if self.prms[traj]['func_name'] == 'RW_brownian' else 0
@@ -183,10 +183,13 @@ class conv_layer(nn.Module):
 
 class RWNet(nn.Module):
     def __init__(self, hidden_dims, supervised=True, windows=[100, 10],
-                 scale_size=1, out_cnn_size=50, meta_size=2, output_size=1):
+                 scale_size=1, out_cnn_size=50, meta_size=2,
+                 output_size_softmax=1, output_size_linear=0):
         super(RWNet, self).__init__()
         self.hidden_dims = hidden_dims
-        self.output_size = output_size
+        self.output_size_softmax = output_size_softmax
+        self.output_size_linear = output_size_linear
+        self.output_size = self.output_size_softmax + self.output_size_linear
         self.supervised = supervised
         self.windows = windows
 
@@ -214,9 +217,13 @@ class RWNet(nn.Module):
                                 (meta_prms,)), dim=1)
         feat_out_fc = self.fc(feat_in_fc)
         if self.supervised:
-            if self.output_size == 1:
-                return torch.squeeze(torch.sigmoid(self.fc_mu(feat_out_fc)))
-            else:
+            if self.output_size_linear == 0:
                 return torch.squeeze(F.softmax(self.fc_mu(feat_out_fc), dim=1))
+            else:
+                raw_activ = self.fc_mu(feat_out_fc)
+                return torch.cat((
+                            F.softmax(raw_activ[:, :self.output_size_softmax]),
+                            raw_activ[:, self.output_size_softmax:]), dim=1)
+
         else:
             return self.fc_mu(feats), self.fc_logvar(feats)

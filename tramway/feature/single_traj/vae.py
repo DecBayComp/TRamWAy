@@ -153,7 +153,7 @@ def train_vae(model, optimizer, loss_fct, data_loader, device,
                 avg_loss += train_loss
                 train_loss = 0
                 BCE_loss = 0
-                KLD_loss = 0  
+                KLD_loss = 0
         print('====> Epoch: {} Average loss: {:.4f}'.format(
             epoch+1, avg_loss / len(data_loader)))
 
