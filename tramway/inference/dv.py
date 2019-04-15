@@ -34,6 +34,7 @@ setup = {'arguments': OrderedDict((
                     dict(action='store_true', help='InferenceMAP compatible'))),
         ('epsilon',         dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
         ('grad',        dict(help="gradient; any of 'grad1', 'gradn'")),
+        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta1'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',         ()))),
     'cell_sampling': 'connected'}
@@ -199,9 +200,89 @@ def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
     return result - y0
 
 
+def ns_dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
+        index, reverse_index, grad_kwargs, y0, verbose, posteriors):
+    """
+    Similar to :func:`dv_neg_posterior`.
+    *ns* stands for non-stochastic.
+    This naming derives from the smoothing priors featuring an alternative
+    spatial "gradient" implemented using
+    :meth:`~tramway.inference.base.Distributed.local_variation` instead of
+    :meth:`~tramway.inference.base.Distributed.grad`.
+    """
+    if verbose:
+        t = time.time()
+
+    # extract `D` and `V`
+    dv.update(x)
+    D = dv.D
+    V = dv.V
+    #
+
+    if dv.minimum_diffusivity is not None:
+        observed_min = np.min(D)
+        if observed_min < dv.minimum_diffusivity and \
+                not np.isclose(observed_min, dv.minimum_diffusivity):
+            warn(DiffusivityWarning(observed_min, dv.minimum_diffusivity))
+    noise_dt = sigma2
+
+    # for all cell
+    raw_posterior = priors = 0.
+    for j, i in enumerate(index):
+        cell = cells[i]
+        n = len(cell) # number of translocations
+
+        # spatial gradient of the local potential energy
+        gradV = cells.grad(i, V, reverse_index, **grad_kwargs)
+        #print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
+        #print('{}\t{}\t{}'.format(i+1, *gradV))
+        if gradV is None:
+            continue
+
+        # various posterior terms
+        #print(cell.dt)
+        D_dt = D[j] * cell.dt
+        denominator = 4. * (D_dt + noise_dt)
+        dr_minus_drift = cell.dr + np.outer(D_dt, gradV)
+        # non-directional squared displacement
+        ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
+        res = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
+        if np.isnan(res):
+            #print('isnan')
+            continue
+        raw_posterior += res
+
+        # priors
+        potential_prior = dv.potential_prior(j)
+        if potential_prior:
+            # spatial variation of the local potential
+            deltaV = cells.local_variation(i, V, reverse_index, **grad_kwargs)
+            if deltaV is not None:
+                priors += potential_prior * cells.grad_sum(i, deltaV * deltaV, reverse_index)
+        diffusivity_prior = dv.diffusivity_prior(j)
+        if diffusivity_prior:
+            # spatial variation of the local diffusivity
+            deltaD = cells.local_variation(i, D, reverse_index, **grad_kwargs)
+            if deltaD is not None:
+                # `grad_sum` memoizes and can be called several times at no extra cost
+                priors += diffusivity_prior * cells.grad_sum(i, deltaD * deltaD, reverse_index)
+        #print('{}\t{}\t{}'.format(i+1, D[j], result))
+    if jeffreys_prior:
+        priors += 2. * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
+
+    result = raw_posterior + priors
+    posteriors.append([raw_posterior, result])
+
+    if verbose:
+        print('objective: {}\t time: {}ms'.format(result, int(round((time.time() - t) * 1e3))))
+
+    return result - y0
+
+
 def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
-    export_centers=False, verbose=True, compatibility=False, **kwargs):
+    export_centers=False, verbose=True, compatibility=False, \
+    D0=None, V0=None, rgrad=None, **kwargs):
 
     localization_error = cells.get_localization_error(kwargs, 0.03, True)
 
@@ -209,18 +290,33 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
     #min_diffusivity = None
-    try:
-        if compatibility:
-            raise Exception # skip to the except block
-        volume = [ cells[i].volume for i in index ]
-    except:
-        V_initial = -np.log(n / np.max(n))
-    else:
-        density = n / np.array([ np.inf if v is None else v for v in volume ])
-        if any( v is None for v in volume ):
-            warn('cannot properly initialize energy potentials', RuntimeWarning)
+    # V initial values
+    if V0 is None:
+        try:
+            if compatibility:
+                raise Exception # skip to the except block
+            volume = [ cells[i].volume for i in index ]
+        except:
+            V_initial = -np.log(n / np.max(n))
+        else:
+            density = n / np.array([ np.inf if v is None else v for v in volume ])
             density[density == 0] = np.min(density[0 < density])
-        V_initial = np.log(np.max(density)) - np.log(density)
+            V_initial = np.log(np.max(density)) - np.log(density)
+    else:
+        if np.isscalar(V0):
+            V_initial = np.full(D_initial.size, V0)
+        elif V0.size == D_initial.size:
+            V_initial = V0
+        else:
+            raise ValueError('wrong size for V0')
+    if D0 is not None:
+        if np.isscalar(D0):
+            D_initial[...] = D0
+        elif D0.size == D_initial.size:
+            D_initial = D0
+        else:
+            raise ValueError('wrong size for D0')
+
     dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity)
     posteriors = []
 
@@ -263,7 +359,13 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     args = args + (y0, 1 < int(verbose), posteriors)
 
     # run the optimization routine
-    result = minimize(dv_neg_posterior, dv.combined, args=args, bounds=bounds, options=options)
+    if rgrad in ('delta','delta1'):
+        fun = ns_dv_neg_posterior
+    else:
+        if rgrad is not None:
+            warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
+        fun = dv_neg_posterior
+    result = minimize(fun, dv.combined, args=args, bounds=bounds, options=options)
     if not (result.success or verbose):
         warn('{}'.format(result.message), OptimizationWarning)
 

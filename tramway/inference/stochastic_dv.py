@@ -218,7 +218,8 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     V_prior = dv.potential_prior(j)
     if V_prior:
         deltaV = cells.local_variation(i, V, reverse_index, **grad_kwargs)
-        standard_priors += V_prior * cells.grad_sum(i, deltaV * deltaV, reverse_index)
+        if deltaV is not None:
+            standard_priors += V_prior * cells.grad_sum(i, deltaV * deltaV, reverse_index)
     D_prior = dv.diffusivity_prior(j)
     if D_prior:
         D = x[:int(x.size/2)]
@@ -242,14 +243,14 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
                 dv.undefined_time_derivative(i, 'D')
             else:
                 # assume fixed-duration time window
-                time_priors += D_prior * D_time_prior * dDdt * dDdt
+                time_priors += D_prior * D_time_prior * np.sum(dDdt * dDdt)
         if V_prior and V_time_prior:
             # as of version 0.3.8, `time_derivative` replaced by `temporal_variation`
             dVdt = cells.temporal_variation(i, V, reverse_index)
             if dVdt is None:
                 dv.undefined_time_derivative(i, 'V')
             else:
-                time_priors += V_prior * V_time_prior * dVdt * dVdt
+                time_priors += V_prior * V_time_prior * np.sum(dVdt * dVdt)
 
     priors = standard_priors + time_priors
     result = raw_posterior + priors
@@ -278,7 +279,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
     export_centers=False, verbose=True, superlocal=False, stochastic=True,
-    x0=None, D0=None, V0=None,
+    D0=None, V0=None, x0=None,
     return_struct=False, posterior_max_count=1000,
     **kwargs):
     """
@@ -321,6 +322,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
                 density[density == 0] = np.min(density[0 < density])
                 V_initial = np.log(np.max(density)) - np.log(density)
     else:
+        warn('`x0` is deprecated; please use `D0` and `V0` instead', DeprecationWarning)
         if x0.size != 2 * D_initial.size:
             raise ValueError('wrong size for x0')
         D_initial, V_initial = x0[:int(x0.size/2)], x0[int(x0.size/2):]
@@ -437,7 +439,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     if ls_step_max_decay:
         sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-4
+        sbfgs_kwargs['ftol'] = 1e-3
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,

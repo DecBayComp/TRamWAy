@@ -113,7 +113,27 @@ class TimeLattice(Tessellation):
             self.spatial_mesh.tessellate(points, **kwargs)
 
     def cell_index(self, points, *args, **kwargs):
+        """
+        In addition to the arguments to :meth:`~tramway.tessellation.base.Tessellation.cell_index`
+        for the underlying spatial tessellation:
+
+        Arguments:
+
+            time_col (int or str): column name; default is '*t*'; keyword-argument only.
+
+            time_knn (int or tuple): ``min_nn`` minimum number of nearest "neighbours"
+                of the time segment center, or ``(min_nn, max_nn)`` minimum and maximum
+                numbers of nearest neighbours in time; keyword-argument only.
+
+        `knn` and `time_knn` are not compatible.
+        """
         exclude = kwargs.pop('exclude_cells_by_location_count', None)
+        # time knn
+        time_knn = kwargs.pop('time_knn', None)
+        if time_knn is not None:
+            knn = kwargs.pop('knn', None)
+            if knn is not None:
+                raise NotImplementedError('`knn` and `time_knn` are not compatible')
         # extract the timestamps
         time_col = kwargs.pop('time_col', 't')
         if isstructured(points):
@@ -143,34 +163,109 @@ class TimeLattice(Tessellation):
         if exclude:
             location_count = np.zeros(count_shape, dtype=int)
         ps, cs = [], []
-        for t in range(nsegments):
-            t0, t1 = time[t]
-            segment = np.logical_and(t0 <= ts, ts < t1)
-            pts, = np.nonzero(segment)
-            if pts.size:
-                if self.spatial_mesh is None:
-                    ids = np.full_like(pts, t)
+        if time_knn is None:
+            for t in range(nsegments):
+                t0, t1 = time[t]
+                segment = np.logical_and(t0 <= ts, ts < t1)
+                pts, = np.nonzero(segment)
+                if pts.size:
+                    if self.spatial_mesh is None:
+                        ids = np.full_like(pts, t)
+                    else:
+                        if isinstance(points, pd.DataFrame):
+                            points_t = points.iloc[segment]
+                        else:
+                            points_t = points[segment]
+                        ids = self.spatial_mesh.cell_index(points_t, *args, **kwargs)
+                        if isinstance(ids, np.ndarray):
+                            pass
+                        elif isinstance(ids, tuple):
+                            _pts, ids = ids
+                            pts = pts[_pts]
+                        else:
+                            raise NotImplementedError
+                        if exclude:
+                            vs, count = np.unique(ids, return_counts=True)
+                            location_count[vs, t] = count
+                        ids += t * ncells
+                    #if isinstance(points, DataFrame):
+                    #       pts = points.index.values[pts] # NO!
+                    ps.append(pts)
+                    cs.append(ids)
+        else:
+            if not callable(time_knn):
+                try:
+                    _min_n, _max_n = time_knn
+                except TypeError:
+                    _min_n, _max_n = time_knn, None
                 else:
-                    if isinstance(points, pd.DataFrame):
-                        points_t = points.iloc[segment]
+                    if _min_n is not None and _max_n is not None and _max_n < _min_n:
+                        raise ValueError('time_nn_min > time_nn_max')
+            _strict_min_n = kwargs.get('min_location_count', None)
+            if _strict_min_n is None:
+                _strict_min_n = 0
+            if self.spatial_mesh is None:
+                for t in range(nsegments):
+                    if callable(time_knn):
+                        _min_n, _max_n = time_knn(t)
+                        # assert _min_n <= _max_n
+                    t0, t1 = time[t]
+                    segment = np.logical_and(t0 <= ts, ts < t1)
+                    _n = np.count_nonzero(segment)
+                    if _n < _strict_min_n:
+                        continue
+                    if _max_n and _n < _max_n:
+                        _ts = np.abs(ts[segment] - .5 * (t0 + t1))
+                        _i = np.argsort(_ts)
+                        _segment = np.zeros(_n, dtype=segment.dtype)
+                        _segment[_i[:_max_n]] = True
+                        segment[segment] = _segment
+                    elif _min_n and _n < _min_n:
+                        _ts = np.abs(ts - .5 * (t0 + t1))
+                        _i = np.argsort(_ts)
+                        segment[_i[:_min_n]] = True
+                    pts, = segment.nonzero()
+                    if 0 < pts.size:
+                        ps.append(pts)
+                        cs.append(np.full(pts.shape, t))
+            else:
+                ids = self.spatial_mesh.cell_index(points, *args, **kwargs)
+                if isinstance(ids, np.ndarray):
+                    pts = None
+                elif isinstance(ids, tuple):
+                    pts, ids = ids
+                else:
+                    raise NotImplementedError
+                for i in range(ncells):#np.unique(ids):
+                    if pts is None:
+                        pts_i, = (ids==i).nonzero()
                     else:
-                        points_t = points[segment]
-                    ids = self.spatial_mesh.cell_index(points_t, *args, **kwargs)
-                    if isinstance(ids, np.ndarray):
-                        pass
-                    elif isinstance(ids, tuple):
-                        _pts, ids = ids
-                        pts = pts[_pts]
-                    else:
-                        raise NotImplementedError
-                    if exclude:
-                        vs, count = np.unique(ids, return_counts=True)
-                        location_count[vs, t] = count
-                    ids += t * ncells
-                #if isinstance(points, DataFrame):
-                #       pts = points.index.values[pts] # NO!
-                ps.append(pts)
-                cs.append(ids)
+                        pts_i = pts[ids==i]
+                    ts_i = ts[pts_i]
+                    for t in range(nsegments):
+                        if callable(time_knn):
+                            _min_n, _max_n = time_knn(i,t) # i= space cell index, t= time segment index
+                            # assert _min_n <= _max_n
+                        t0, t1 = time[t]
+                        segment = np.logical_and(t0 <= ts_i, ts_i < t1)
+                        _n = np.count_nonzero(segment)
+                        if _n < _strict_min_n:
+                            continue
+                        if _max_n and _n < _max_n:
+                            _ts = np.abs(ts_i[segment] - .5 * (t0 + t1))
+                            _i = np.argsort(_ts)
+                            _segment = np.zeros(_n, dtype=segment.dtype)
+                            _segment[_i[:_max_n]] = True
+                            segment[segment] = _segment
+                        elif _min_n and _n < _min_n:
+                            _ts = np.abs(ts_i - .5 * (t0 + t1))
+                            _i = np.argsort(_ts)
+                            segment[_i[:_min_n]] = True
+                        pts_t, = segment.nonzero()
+                        if 0 < pts_t.size:
+                            pts_t = pts_i[pts_t]
+                            ps.append(pts_t)
+                            cs.append(np.full(pts_t.shape, t * ncells + i))
         if ps:
             if exclude and not count_shape[1:]:
                 ok = exclude(location_count)

@@ -268,9 +268,10 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
     """
     Local gradient by 2 degree polynomial interpolation along each dimension independently.
 
-    Considering spatial coordinate $x$, bin $i$ and its neighbour bins $\mathcel{N}_i$:
+    Considering spatial coordinate :math:`x`, bin :math:`i` and its neighbour bins :math:`\mathcel{N}_i`:
 
-        $$
+    .. math::
+
         \left.X'_i\right|_x = \left\{
             \begin{array}{ll}
                 \frac{X_i - \overline{X}_{\mathcal{N}_i}}{x_i - \overline{x}_{\mathcal{N}_i}} &
@@ -283,7 +284,6 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
                     \end{array} \right] . \left[ \begin{array}{c} a \\ b \\ c \end{array} \right] = \left[ \begin{array}{c}\overline{X}_{\mathcal{N}_i^-} \\ X_i \\ \overline{X}_{\mathcal{N}_i^+}\end{array} \right] \textrm{ otherwise } \\
             \end{array}
         \right.
-        $$
 
     Claims cache variable *grad1*.
 
@@ -332,7 +332,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
 
         selection_angle (float):
             top angle of the neighbour selection hypercones;
-            should be in the [0.5, 1.0[ range.
+            should be in the :math:`[0.5, 1.0[` range.
             Incompatible with `eps`.
 
     Returns:
@@ -430,9 +430,10 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
     Local spatial variation.
 
     Similar to `grad1`.
-    Considering spatial coordinate $x$, bin $i$ and its neighbour bins $\mathcel{N}_i$:
+    Considering spatial coordinate :math:`x`, bin :math:`i` and its neighbour bins :math:`\mathcel{N}_i`:
 
-        $$
+    .. math::
+
         \left.\Delta X_i\right|_x = \left\{
             \begin{array}{ll}
                 \frac{X_i - \overline{X}_{\mathcal{N}_i}}{x_i - \overline{x}_{\mathcal{N}_i}} &
@@ -441,7 +442,6 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
                     \textrm{ otherwise } \\
             \end{array}
         \right.
-        $$
 
     Also claims cache variable *grad1* in a compatible way.
 
@@ -531,21 +531,21 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                delta_j = 0.
+                delta_j = [0., 0.]
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
-                delta_j = (y0 - np.mean(y[v])) * Xj
+                delta_j = [0., (y0 - np.mean(y[v])) * Xj]
         elif v is None:
             # 1./Xj = X0[j] - np.mean(X[u,j])
-            delta_j = (y0 - np.mean(y[u])) * Xj
+            delta_j = [(y0 - np.mean(y[u])) * Xj, 0.]
         else:
             # Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
             x0, xu, xv = Xj
-            delta_j = np.array([
+            delta_j = [
                 (y0 - np.mean(y[u])) / (x0 - xu),
                 (y0 - np.mean(y[v])) / (x0 - xv),
-                ])
-            delta_j = np.sqrt(np.mean(delta_j * delta_j))
+                ]
+            #delta_j = np.mean(np.abs(delta_j))
         delta.append(delta_j)
 
     return np.array(delta)

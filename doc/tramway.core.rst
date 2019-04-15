@@ -111,6 +111,15 @@ tramway.core.namedcolumns module
     :show-inheritance:
 
 
+tramway.core.parallel package
+-----------------------------
+
+.. automodule:: tramway.core.parallel
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.core.plugin module
 --------------------------
 

@@ -97,7 +97,7 @@ class Tessellate(Helper):
             distance=None, ref_distance=None, \
             rel_min_distance=None, rel_avg_distance=None, rel_max_distance=None, \
             min_location_count=None, avg_location_count=None, max_location_count=None, \
-            knn=None, radius=None, verbose=None):
+            knn=None, radius=None, time_knn=None, verbose=None):
         if verbose is None:
             verbose = self.verbose
         transloc_length = min_distance = avg_distance = max_distance = None
@@ -178,7 +178,7 @@ class Tessellate(Helper):
             rel_max_size=None, rel_max_volume=None, \
             time_window_duration=None, time_window_shift=None, \
             enable_time_regularization=False, time_window_options=None, \
-            min_n=None, **kwargs):
+            min_n=None, time_knn=None, **kwargs):
         for ignored in ['max_level']:
             try:
                 if self.tessellation_kwargs[ignored] is None:
@@ -254,13 +254,15 @@ class Tessellate(Helper):
             self.partition_kwargs['filter'] = _filter_fghi
             if 'filter_descriptors_only' not in self.partition_kwargs:
                 self.partition_kwargs['filter_descriptors_only'] = True
-        if not (knn is None and radius is None):
+        if not (knn is None and radius is None and time_knn is None):
             if knn is not None:
                 self.partition_kwargs['knn'] = knn
             if radius is not None:
                 if 'radius' in self.partition_kwargs:
                     warn('overwriting `radius`', RuntimeWarning)
                 self.partition_kwargs['radius'] = radius
+            if time_knn is not None:
+                self.partition_kwargs['time_knn'] = time_knn
             if 'min_location_count' not in self.partition_kwargs:
                 min_location_count = params['min_location_count']
                 self.partition_kwargs['min_location_count'] = min_location_count
@@ -336,7 +338,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         min_location_count=None, avg_location_count=None, max_location_count=None, \
         rel_max_size=None, rel_max_volume=None, \
         time_window_duration=None, time_window_shift=None, time_window_options=None, \
-        enable_time_regularization=False,
+        enable_time_regularization=False, time_knn=None, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
         force=None, return_analyses=False, \
         load_options=None, tessellation_options=None, partition_options=None, save_options=None, \
@@ -469,6 +471,11 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         enable_time_regularization (bool):
             Equivalent to ``time_window_options['time_dimension'] = enable_time_regularization``.
 
+        time_knn (int or pair of ints):
+            ``min_nn`` minimum number of nearest "neighbours" of the time segment center,
+            or ``(min_nn, max_nn)`` minimum and maximum numbers of nearest neighbours in time.
+            See also :meth:`~tramway.tessellation.time.TimeLattice.cell_index`.
+
         input_label (str):
             Label for the input tessellation for nesting tessellations.
 
@@ -556,8 +563,8 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         rel_min_distance=rel_min_distance, rel_avg_distance=rel_avg_distance, \
         rel_max_distance=rel_max_distance, \
         min_location_count=min_location_count, avg_location_count=avg_location_count, \
-        max_location_count=max_location_count, knn=knn, radius=radius)
-    helper.parse_args(params, knn=knn, radius=radius, \
+        max_location_count=max_location_count, knn=knn, radius=radius, time_knn=time_knn)
+    helper.parse_args(params, knn=knn, radius=radius, time_knn=time_knn, \
         rel_max_size=rel_max_size, rel_max_volume=rel_max_volume, \
         time_window_duration=time_window_duration, time_window_shift=time_window_shift, \
         time_window_options=time_window_options, enable_time_regularization=enable_time_regularization, \

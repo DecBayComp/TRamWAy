@@ -65,7 +65,7 @@ class Infer(Helper):
 
     def distribute(self, new_cell=None, new_group=None, cell_sampling=None,
             include_empty_cells=False, merge_threshold_count=False,
-            max_cell_count=None, dilation=None, grad=None):
+            max_cell_count=None, dilation=None, grad=None, rgrad=None):
         cells = self.cells
         if isinstance(cells, Distributed):
             _map = cells
@@ -201,7 +201,7 @@ class Infer(Helper):
 
     def infer(self, cells, worker_count=None, profile=None, min_diffusivity=None, \
             localization_error=None, sigma=None, sigma2=None, \
-            diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
+            diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, rgrad=None, \
             comment=None, verbose=None, snr_extensions=False, **kwargs):
         if verbose is None:
             verbose = self.verbose
@@ -223,6 +223,8 @@ class Infer(Helper):
             kwargs['returns'] = self.setup['returns']
         if profile:
             kwargs['profile'] = profile
+        if rgrad:
+            kwargs['rgrad'] = rgrad
         x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
 
         ret = {}
@@ -270,7 +272,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, \
     include_empty_cells=False, cell_sampling=None, merge_threshold_count=False, \
-    grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
+    grad=None, rgrad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
     return_cells=None, profile=None, force=None, inplace=False, snr_extensions=False, **kwargs):
     """
     Inference helper.
@@ -334,6 +336,12 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
             :meth:`~tramway.inference.base.Distributed.grad`) or any of '*grad1*',
             '*gradn*'
 
+        rgrad (None or 'delta' or 'delta1'): alternative space/time "gradient" implementation
+            for the regularization priors;
+            if defined, inference modes that would otherwise use
+            :meth:`~tramway.inference.base.Distributed.grad` will use
+            :meth:`~tramway.inference.base.Distributed.local_variation` instead
+
         input_label (list): label path to the input :class:`~tramway.tessellation.base.Tessellation`
             object in `cells` if the latter is an :class:`~tramway.core.analyses.base.Analyses`
             or filepath
@@ -375,7 +383,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
             new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
             include_empty_cells=include_empty_cells, \
             merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
-            dilation=dilation, grad=grad)
+            dilation=dilation, grad=grad, rgrad=rgrad)
     _map = helper.overload_cells(_map)
 
     if store_distributed:
@@ -389,7 +397,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     maps = helper.infer(_map, worker_count=worker_count, profile=profile, \
         min_diffusivity=min_diffusivity, localization_error=localization_error, \
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-        jeffreys_prior=jeffreys_prior, snr_extensions=snr_extensions, **kwargs)
+        jeffreys_prior=jeffreys_prior, rgrad=rgrad, snr_extensions=snr_extensions, **kwargs)
 
     helper.save_analyses(output_file, force=force)
 

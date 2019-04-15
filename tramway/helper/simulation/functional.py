@@ -194,6 +194,8 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         _lifetime = np.rint(_lifetime / time_step).astype(int) + 1
         _lifetime = _lifetime[min_step_count <= _lifetime]
         time_support.append((t, _lifetime))
+        if _lifetime.size == 0:
+            continue
         _lifetimes, _count = np.unique(_lifetime, return_counts=True)
         _lifetime = np.zeros(_lifetimes.max(), dtype=_count.dtype)
         _lifetime[_lifetimes-1] = _count
