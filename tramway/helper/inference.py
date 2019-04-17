@@ -63,8 +63,9 @@ class Infer(Helper):
             self.analyses = extract_analyses(self.analyses, labels)
         return data
 
-    def distribute(self, new_cell=None, new_group=None, cell_sampling=None, \
-            merge_threshold_count=False, max_cell_count=None, dilation=None, grad=None):
+    def distribute(self, new_cell=None, new_group=None, cell_sampling=None,
+            include_empty_cells=False, merge_threshold_count=False,
+            max_cell_count=None, dilation=None, grad=None):
         cells = self.cells
         if isinstance(cells, Distributed):
             _map = cells
@@ -101,7 +102,7 @@ class Infer(Helper):
                             return grad(self, *args, **kwargs)
                     new_group = Distr
             detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group,
-                    **distributed_kwargs)
+                    include_empty_cells=include_empty_cells, **distributed_kwargs)
 
             if cell_sampling is None:
                 try:
@@ -267,8 +268,8 @@ class Infer(Helper):
 def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=False, \
     localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
     max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
-    store_distributed=False, new_cell=None, new_group=None, constructor=None, cell_sampling=None, \
-    merge_threshold_count=False, \
+    store_distributed=False, new_cell=None, new_group=None, constructor=None, \
+    include_empty_cells=False, cell_sampling=None, merge_threshold_count=False, \
     grad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
     return_cells=None, profile=None, force=None, inplace=False, snr_extensions=False, **kwargs):
     """
@@ -318,6 +319,8 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
 
         constructor (callable): **deprecated**; see also :func:`~tramway.inference.base.distributed`;
             please use `new_group` instead
+
+        include_empty_cells (bool): do not discard cells with no (trans-)locations
 
         cell_sampling (str): either ``None``, ``'individual'``, ``'group'`` or
             ``'connected'``; may ignore `max_cell_count` and `dilation`
@@ -370,6 +373,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     helper.plugin(mode)
     _map = helper.distribute(new_cell=new_cell, \
             new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
+            include_empty_cells=include_empty_cells, \
             merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
             dilation=dilation, grad=grad)
     _map = helper.overload_cells(_map)
