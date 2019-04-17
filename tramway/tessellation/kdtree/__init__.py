@@ -142,7 +142,7 @@ class KDTreeMesh(Voronoi):
         # (adjacency[i,0], adjacency[i,1], i)
 
         # quick and dirty Voronoi construction: vertices are introduced as many times as they
-        # appear in a ridge, and as many ridges are introduced as four times the number of 
+        # appear in a ridge, and as many ridges are introduced as four times the number of
         # centers. In a second step, duplicate vertices are removed.
         def unique_rows(data, *args, **kwargs):
             uniq = np.unique(data.view(data.dtype.descr * data.shape[1]), *args, **kwargs)
@@ -184,6 +184,8 @@ class KDTreeMesh(Voronoi):
     def freeze(self):
         self.dichotomy = None
 
+    def delete_cell(self, i, adjacency_label=True, metric='chebyshev', pack_indices=True):
+        Voronoi.delete_cell(self, i, adjacency_label, metric, pack_indices)
 
 
 setup = {

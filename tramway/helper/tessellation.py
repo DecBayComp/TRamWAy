@@ -1240,7 +1240,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             labels = input_label
         else:
             labels, label = label, None
-        if not labels:
+        if not (labels or labels is 0):
             labels = ()
         elif not isinstance(labels, (tuple, list)):
             labels = (labels, )

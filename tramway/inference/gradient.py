@@ -41,6 +41,7 @@ def gradn(cells, i, X, index_map=None):
         array:
             local gradient vector with as many elements as there are dimensions
             in the (trans-)location data.
+
     """
     cell = cells[i]
 
@@ -268,22 +269,22 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
     """
     Local gradient by 2 degree polynomial interpolation along each dimension independently.
 
-    Considering spatial coordinate :math:`x`, bin :math:`i` and its neighbour bins :math:`\mathcel{N}_i`:
+    Considering spatial coordinate :math:`x`, bin :math:`i` and its neighbour bins :math:`\\mathcal{N}_i`:
 
     .. math::
 
-        \left.X'_i\right|_x = \left\{
-            \begin{array}{ll}
-                \frac{X_i - \overline{X}_{\mathcal{N}_i}}{x_i - \overline{x}_{\mathcal{N}_i}} &
-                    \textrm{ if either } \mathcal{N}_i^- \textrm{ or } \mathcal{N}_i^+ \textrm{ is } \emptyset \\
-                b + 2 c x_{i} & \textrm{ with }
-                    \left[ \begin{array}{ccc}
-                        1 & \overline{x}_{\mathcal{N}_i^-} & \overline{x}_{\mathcal{N}_i^-}^2 \\
-                        1 & x_i & x_i^2 \\
-                        1 & \overline{x}_{\mathcal{N}_i^+} & \overline{x}_{\mathcal{N}_i^+}^2
-                    \end{array} \right] . \left[ \begin{array}{c} a \\ b \\ c \end{array} \right] = \left[ \begin{array}{c}\overline{X}_{\mathcal{N}_i^-} \\ X_i \\ \overline{X}_{\mathcal{N}_i^+}\end{array} \right] \textrm{ otherwise } \\
-            \end{array}
-        \right.
+        \\left.X'_i\\right|_x = \\left\\{
+            \\begin{array}{ll}
+                \\frac{X_i - \\overline{X}_{\\mathcal{N}_i}}{x_i - \\overline{x}_{\\mathcal{N}_i}} &
+                    \\textrm{ if either } \\mathcal{N}_i^- \\textrm{ or } \\mathcal{N}_i^+ \\textrm{ is } \\emptyset \\\\
+                b + 2 c x_{i} & \\textrm{ with }
+                    \\left[ \\begin{array}{ccc}
+                        1 & \\overline{x}_{\\mathcal{N}_i^-} & \\overline{x}_{\\mathcal{N}_i^-}^2 \\\\
+                        1 & x_i & x_i^2 \\\\
+                        1 & \\overline{x}_{\\mathcal{N}_i^+} & \\overline{x}_{\\mathcal{N}_i^+}^2
+                    \\end{array} \\right] . \\left[ \\begin{array}{c} a \\\\ b \\\\ c \\end{array} \\right] = \\left[ \\begin{array}{c}\\overline{X}_{\\mathcal{N}_i^-} \\\\ X_i \\\\ \\overline{X}_{\\mathcal{N}_i^+}\\end{array} \\right] \\textrm{ otherwise } \\\\
+            \\end{array}
+        \\right.
 
     Claims cache variable *grad1*.
 
@@ -430,18 +431,18 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
     Local spatial variation.
 
     Similar to `grad1`.
-    Considering spatial coordinate :math:`x`, bin :math:`i` and its neighbour bins :math:`\mathcel{N}_i`:
+    Considering spatial coordinate :math:`x`, bin :math:`i` and its neighbour bins :math:`\\mathcal{N}_i`:
 
     .. math::
 
-        \left.\Delta X_i\right|_x = \left\{
-            \begin{array}{ll}
-                \frac{X_i - \overline{X}_{\mathcal{N}_i}}{x_i - \overline{x}_{\mathcal{N}_i}} &
-                    \textrm{ if either } \mathcal{N}_i^- \textrm{ or } \mathcal{N}_i^+ \textrm{ is } \emptyset \\
-                \sqrt\frac{1}{2}\left( \left|\frac{X_i - \overline{X}_{\mathcal{N}_i^-}}{x_i - \overline{x}_{\mathcal{N}_i^-}}\right|^2 + \left|\frac{\overline{X}_{\mathcal{N}_i^+} - X_i}{\overline{x}_{\mathcal{N}_i^+} - x_i}\right|^2 \right) &
-                    \textrm{ otherwise } \\
-            \end{array}
-        \right.
+        \\left.\\Delta X_i\\right|_x = \\left\\{
+            \\begin{array}{ll}
+                \\frac{X_i - \\overline{X}_{\\mathcal{N}_i}}{x_i - \\overline{x}_{\\mathcal{N}_i}} &
+                    \\textrm{ if either } \\mathcal{N}_i^- \\textrm{ or } \\mathcal{N}_i^+ \\textrm{ is } \emptyset \\\\
+                \\sqrt\\frac{1}{2}\\left( \\left|\\frac{X_i - \\overline{X}_{\\mathcal{N}_i^-}}{x_i - \\overline{x}_{\\mathcal{N}_i^-}}\\right|^2 + \\left|\\frac{\\overline{X}_{\\mathcal{N}_i^+} - X_i}{\\overline{x}_{\\mathcal{N}_i^+} - x_i}\\right|^2 \\right) &
+                    \\textrm{ otherwise } \\\\
+            \\end{array}
+        \\right.
 
     Also claims cache variable *grad1* in a compatible way.
 

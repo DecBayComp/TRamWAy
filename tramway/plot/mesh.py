@@ -211,8 +211,8 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
                 # js.index(b) will fail if a and b are not adjacent
                 edge_ix = adjacency.data[adjacency.indptr[a]+js.index(b)]
             except (ValueError, IndexError):
-                print(traceback.format_exc())
                 print("vertices {} and {} do not match with a ridge".format(u, v))
+                print(traceback.format_exc())
                 continue
         if cells.tessellation.adjacency_label is not None:
             try:
@@ -505,6 +505,14 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
         cells = cells.tessellation
     # common plotting logic
     def text(x, y, i):
+        if np.isnan(x) or np.isnan(y):
+            import warnings
+            warnings.warn('nan coordinate', RuntimeWarning)
+            return
+        elif np.isinf(x) or np.isinf(y):
+            import warnings
+            warnings.warn('inf coordinate', RuntimeWarning)
+            return
         h = plt.text(x, y, str(i+1 if shift_indices else i), **kwargs)
         handles.append(h)
     # CellStats and Tessellation
