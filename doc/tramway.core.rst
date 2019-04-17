@@ -120,6 +120,15 @@ tramway.core.parallel package
     :show-inheritance:
 
 
+tramway.core.parallel.abc module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.core.parallel.abc
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.core.plugin module
 --------------------------
 

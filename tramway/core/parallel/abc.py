@@ -77,7 +77,7 @@ class Workspace(metaclass=ABCMeta):
 
         Arguments:
 
-            step (JobStep): completed job step.
+            step (tramway.core.parallel.JobStep): completed job step.
 
         May be implemented as follows::
 
@@ -97,12 +97,12 @@ class Workspace(metaclass=ABCMeta):
 
             return step.resources
 
-        See also: `JobStep.resources`."""
+        See also: :attr:`JobStep.resources`."""
         raise NotImplementedError('abstract method')
 
 
 class WorkspaceExtension(metaclass=ABCMeta):
-    """ See also: `ExtendedWorkspace`."""
+    """ See also: :class:`ExtendedWorkspace`."""
     @abstractmethod
     def pop_workspace_update(self):
         raise NotImplementedError('abstract method')
@@ -112,8 +112,8 @@ class WorkspaceExtension(metaclass=ABCMeta):
 
 
 class ExtendedWorkspace(Workspace):
-    """ Workspace that listens to external objects which implement `WorkspaceExtension`
-    provided that the job step data implements `VehicleJobStep`.
+    """ Workspace that listens to external objects which implement :class:`WorkspaceExtension`
+    provided that the job step data implements :class:`VehicleJobStep`.
     """
 
     @abstractmethod

@@ -435,14 +435,14 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
 
     .. math::
 
-        \\left.\\Delta X_i\\right|_x = \\left\\{
+        \\left.\\Delta X_i\\right|_x = \\left(
             \\begin{array}{ll}
-                \\frac{X_i - \\overline{X}_{\\mathcal{N}_i}}{x_i - \\overline{x}_{\\mathcal{N}_i}} &
-                    \\textrm{ if either } \\mathcal{N}_i^- \\textrm{ or } \\mathcal{N}_i^+ \\textrm{ is } \emptyset \\\\
-                \\sqrt\\frac{1}{2}\\left( \\left|\\frac{X_i - \\overline{X}_{\\mathcal{N}_i^-}}{x_i - \\overline{x}_{\\mathcal{N}_i^-}}\\right|^2 + \\left|\\frac{\\overline{X}_{\\mathcal{N}_i^+} - X_i}{\\overline{x}_{\\mathcal{N}_i^+} - x_i}\\right|^2 \\right) &
-                    \\textrm{ otherwise } \\\\
+                \\frac{X_i - \\overline{X}_{\\mathcal{N}_i^-}}{x_i - \\overline{x}_{\\mathcal{N}_i^-}} &
+                    \\textrm{ or } 0 \\textrm{ if } \\mathcal{N}_i^- \\textrm{ is } \\emptyset \\\\
+                \\frac{X_i - \\overline{X}_{\\mathcal{N}_i^+}}{x_i - \\overline{x}_{\\mathcal{N}_i^+}} &
+                    \\textrm{ or } 0 \\textrm{ if } \\mathcal{N}_i^+ \\textrm{ is } \\emptyset \\\\
             \\end{array}
-        \\right.
+        \\right)
 
     Also claims cache variable *grad1* in a compatible way.
 

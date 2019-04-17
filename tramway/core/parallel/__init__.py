@@ -32,9 +32,9 @@ class StarQueue(object):
     by every processes but the sender.
     This is useful to send asynchronous updates between processes in a distributed setting.
 
-    A `StarQueue` is instanciated first, and then `StarConn` objects are delt to
-    children processes.
-    The `StarConn` objects are the actual queues.
+    A :class:`StarQueue` is instanciated first, and then :class:`StarConn` objects are delt
+    to children processes.
+    The :class:`StarConn` objects are the actual queues.
     """
     __slots__ = 'deck',
     def __init__(self, n, variant=multiprocessing.Queue, **kwargs):
@@ -111,7 +111,7 @@ class StarConn(queue.Queue):
 class Worker(multiprocessing.Process):
     """ Worker that runs job steps.
 
-    The `target` method may be implemented following the pattern below::
+    The :meth:`target` method may be implemented following the pattern below::
 
         class MyWorker(Worker):
             def target(self, *args, **kwargs):
@@ -148,7 +148,7 @@ class Worker(multiprocessing.Process):
 
         Returns:
 
-            int, JobStep: step/iteration number, job step object.
+            int, tramway.core.parallel.JobStep: step/iteration number, job step object.
 
         """
         k, task = self.tasks.get()
@@ -160,7 +160,7 @@ class Worker(multiprocessing.Process):
 
         Arguments:
 
-            update (JobStep): completed job step.
+            update (tramway.core.parallel.JobStep): completed job step.
 
             status (any): extra information that :meth:`Scheduler.stop` will receive.
 
@@ -255,7 +255,7 @@ class Scheduler(object):
 
             k (int): step/iteration number.
 
-            step (JobStep): job step.
+            step (tramway.core.parallel.JobStep): job step.
 
         """
         self.active[step.resource_id] = k
@@ -317,7 +317,8 @@ class Scheduler(object):
         """
         Start the workers, send and get job steps back and check for stop criteria.
 
-        Returns ``True`` on normal completion, ``False`` on interruption (SystemExit, KeyboardInterrupt).
+        Returns ``True`` on normal completion, ``False`` on interruption
+        (:class:`SystemExit`, :class:`KeyboardInterrupt`).
         """
         for w in self.workers:
             w.start()
@@ -430,7 +431,7 @@ class JobStep(object):
     provided that they do not compete for the same resources.
 
     `resources` is an index array that designates the items of shared data to be accessed.
-    This attribute is used by `Scheduler` to lock the required items of data,
+    This attribute is used by :class:`Scheduler` to lock the required items of data,
     which determines which steps can be run simultaneously.
     """
     __slots__ = '_id', '_workspace'
@@ -459,8 +460,9 @@ abc.JobStep.register(JobStep)
 class UpdateVehicle(object):
     """ Not instanciable! Introduced for __slots__-enabled multiple inheritance.
 
-    Example usage, in the case class ``B`` implements (abc.) `VehicleJobStep` and
-    class ``A`` can only implement (abc.) `JobStep` and not inherit from `VehiculeJobStep`::
+    Example usage, in the case class ``B`` implements (abc.) :class:`VehicleJobStep` and
+    class ``A`` can only implement (abc.) :class:`JobStep` and not
+    inherit from :class:`VehiculeJobStep`::
 
         class A:
             __slots__ = 'a',
@@ -473,9 +475,9 @@ class UpdateVehicle(object):
                 self.b = b
         abc.VehicleJobStep.register(B)
 
-    `VehicleJobStep` brings the slots, `UpdateVehicle` brings the implementation (methods)
-    and `abc.VehicleJobStep` the typing required by `Workspace` and `Worker` to handle ``B``
-    as a `VehicleJobStep`.
+    :class:`VehicleJobStep` brings the slots, :class:`UpdateVehicle` brings the implementation
+    (methods) and :class:`abc.VehicleJobStep` the typing required by :class:`Workspace` and
+    :class:`Worker` to handle ``B`` as a :class:`VehicleJobStep`.
     """
     __slots__ = ()
     def __init__(self):

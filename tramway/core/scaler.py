@@ -23,8 +23,8 @@ class Scaler(object):
     It initializes itself with the first provided sample (in :meth:`scale_point`), and then applies
     the same transformation to the next samples.
 
-    A default `Scaler()` instance does not scale. However, initialization still takes place so that
-    :meth:`scaled` properly works.
+    A default ``Scaler()`` instance does not scale. However, initialization still takes place
+    so that :meth:`scaled` properly works.
 
     It manages a constraint in the calculation of the scaling parameters, forcing a common factors
     over a subset of dimensions. Attribute :attr:`euclidean` controls the selection of this subset.
