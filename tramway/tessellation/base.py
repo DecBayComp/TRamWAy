@@ -726,12 +726,18 @@ class Tessellation(Lazy):
         Returns:
             numpy.ndarray: indices of the neighbour cells of cell *i*.
         """
-        A = self.cell_adjacency
-        if sparse.isspmatrix_lil(A):
-            return A.rows[i]
-        elif ~sparse.isspmatrix_csr(A):
-            A = A.tocsr()
-        return A.indices[A.indptr[i]:A.indptr[i+1]]
+        try:
+            A = self.cell_adjacency
+            if sparse.isspmatrix_lil(A):
+                return A.rows[i]
+            elif ~sparse.isspmatrix_csr(A):
+                A = A.tocsr()
+            return A.indices[A.indptr[i]:A.indptr[i+1]]
+        except IndexError:
+            if 0 <= i and i < self.number_of_cells:
+                raise
+            else:
+                raise IndexError('cell index {} is out of bounds (0,{})'.format(i, self.number_of_cells-1))
 
     def contour(self, cell, distance=1, fallback=False, adjacency=None, **kwargs):
         """
@@ -1248,7 +1254,10 @@ class Voronoi(Delaunay):
                         cell_volume[i] = hull.volume
                     continue
 
-                js = set(js.tolist())
+                if isinstance(js, np.ndarray):
+                    js = set(js.tolist())
+                else:
+                    js = set(js)
                 simplices = []
                 while js:
                     j = js.pop()
@@ -1258,7 +1267,7 @@ class Voronoi(Delaunay):
                         if k in js:
                             simplices.append((j, k))
 
-                if len(simplices) != self.cell_vertices[i].size:
+                if len(simplices) != len(_js):
                     # missing vertices are at infinite distance;
                     # take instead the convex hull of the local vertices plus
                     # the center of the cell (ideally all the points in the cell)
@@ -1268,15 +1277,19 @@ class Voronoi(Delaunay):
                         cell_volume[i] = hull.volume
                     continue
 
-                assert bool(simplices) # `simplices` is not empty
-                cell_volume[i] = 0.
-                for j, k in simplices:
-                    v = self._vertices[j] if isinstance(j, int) else j
-                    w = self._vertices[k] if isinstance(k, int) else k
-                    cell_volume[i] += .5 * abs(\
-                            (v[0] - u[0]) * (w[1] - u[1]) - \
-                            (w[0] - u[0]) * (v[1] - u[1]) \
-                        )
+                if simplices: # `simplices` is not empty
+                    cell_volume[i] = 0.
+                    for j, k in simplices:
+                        v = self._vertices[j] if isinstance(j, int) else j
+                        w = self._vertices[k] if isinstance(k, int) else k
+                        cell_volume[i] += .5 * abs(\
+                                (v[0] - u[0]) * (w[1] - u[1]) - \
+                                (w[0] - u[0]) * (v[1] - u[1]) \
+                            )
+                elif ~np.isinf(self._cell_centers[i,0]):
+                    # cells with no vertices and which center coordinates are infinite
+                    # are deleted cells
+                    raise RuntimeError('cell {} has no boundaries'.format(i))
             self._cell_volume = self.scaler.unscale_surface_area(cell_volume)
         return self.__returnlazy__('cell_volume', self._cell_volume)
 
@@ -1542,16 +1555,22 @@ class Voronoi(Delaunay):
             _indices = _vmap[_a.indices]
             self._vertex_adjacency = sparse.csr_matrix((_a.data,_indices,_indptr), shape=(_nv,_nv))
 
-            if isinstance(self._cell_vertices, dict):
-                if _delete_cell is None:
+        if isinstance(self._cell_vertices, dict):
+            if _delete_cell is None:
+                if _delete_vertex is not None:
                     self._cell_vertices = { i: _vmap[self._cell_vertices[i]] for i in self._cell_vertices }
-                else:
-                    self._cell_vertices = { i: _vmap[self._cell_vertices[i]] for i in self._cell_vertices if _c[i] }
+            elif _delete_vertex is None:
+                self._cell_vertices = { _cmap[i]: self._cell_vertices[i] for i in self._cell_vertices if _c[i] }
             else:
-                if _delete_cell is None:
+                self._cell_vertices = { _cmap[i]: _vmap[self._cell_vertices[i]] for i in self._cell_vertices if _c[i] }
+        else:
+            if _delete_cell is None:
+                if _delete_vertex is not None:
                     self._cell_vertices = [ _vmap[vs] for vs in self._cell_vertices ]
-                else:
-                    self._cell_vertices = [ _vmap[vs] for keep, vs in zip(_c, self._cell_vertices) if keep ]
+            elif _delete_vertex is None:
+                self._cell_vertices = [ vs for keep, vs in zip(_c, self._cell_vertices) if keep ]
+            else:
+                self._cell_vertices = [ _vmap[vs] for keep, vs in zip(_c, self._cell_vertices) if keep ]
 
 
 
