@@ -2255,4 +2255,4 @@ __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps'
     'DistributeMerge',
     'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']
 
->>>>>>> master
+
