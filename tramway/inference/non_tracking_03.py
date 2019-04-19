@@ -408,7 +408,7 @@ class NonTrackingInferrer:
         if self._verbose == 0:
             pass
         elif self._verbose >= level:
-            print(string, end_)
+            print(string, end=end_)
         else:
             pass
 
@@ -575,7 +575,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
 
     def smoothed_posterior(self, D):
         D = abs(D)
-        print(D, end='')
+        self.vprint(3, D, end_='')
         ''' Nelder-Mead does not have positivity constraints for D_in, so we might find a negative value.
             'smoothedPosterior' is implemented to be symmetric, so that we should still find the optimum.'''
         self._working_diffusivities = self._final_diffusivities  # the most up-to-date parameters
@@ -603,7 +603,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             posterior = mlnL
         else:
             posterior = mlnL + self.smoothing_prior()
-        self.vprint(2, f"{posterior}")
+        self.vprint(3, f"{posterior}")
         return posterior
 
     # -----------------------------------------------------------------------------
@@ -739,7 +739,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         :return: the minus log-likelihood between frame frame_index and frame frame_index+1
         """
         self.vprint(3, f"call: marginal_minusLogLikelihood, frame_index={frame_index}")
-        print(".", end='')
+        self.vprint(3, ".", end_='')
         M_index_to_infer = self._particle_count[self._index_to_infer, frame_index + 1].astype(int)
         N_index_to_infer = self._particle_count[self._index_to_infer, frame_index].astype(int)
         M = np.sum(self._particle_count[self._region_indices, frame_index + 1]).astype(int)
@@ -760,7 +760,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
     def marginal_minusLogLikelihood_multiFrame(self):
         '''Minus-log-likelihood marginalized over possible graphs and assignments using BP.'''
         self.vprint(3, f"call: marginal_minusLogLikelihood_multiFrame")
-        print("*", end='')
+        self.vprint(2, "*", end_='')
         mlnL = 0
         for frame_index, dr in enumerate(self._drs):
             # print(f"frame_index={frame_index} \t dr={dr}")
