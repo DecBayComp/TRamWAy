@@ -46,6 +46,7 @@ def non_tracking_03(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=0.2, metho
                                    scheme=method['scheme'],
                                    method=method['method'],
                                    distribution=method['distribution'],
+                                   temperature=method['temperature'],
                                    parallel=method['parallel'],
                                    hij_init_takeLast=method['hij_init_takeLast'],
                                    p_off=p_off, mu_on=mu_on,
@@ -76,7 +77,8 @@ class NonTrackingInferrer:
 
     def __init__(self, cells, dt, gamma=0.8, smoothing_factor=0, optimizer='NM', tol=1e-3, epsilon=1e-8, maxiter=10000,
                  phantom_particles=1, messages_type='CLV', chemPot='None', chemPot_gamma=1, chemPot_mu=1, scheme='1D',
-                 method='BP', distribution='gaussian', parallel=1, hij_init_takeLast=False, p_off=0, mu_on=0, starting_diffusivities=[1],
+                 method='BP', distribution='gaussian', temperature=1, parallel=1, hij_init_takeLast=False, p_off=0,
+                 mu_on=0, starting_diffusivities=[1],
                  starting_drifts=[0, 0], inference_mode='D', cells_to_infer='all', minlnL=-100, verbose=1):
         """
         :param cells: An object of type 'Distributed' containing the data tessellated into cells
@@ -97,7 +99,8 @@ class NonTrackingInferrer:
         :param scheme: The dimension-reducing optimization scheme. Can be '1D' or '2D'
         :param method: The marginalization method to use. Can be 'MPA' or 'BP'
         :param distribution: The likelihood-distribution to use. Can be 'gaussian' or 'rayleigh'
-        :param parallel: Boolean. If True, we use the parallel implementation. If False, we use the sequential implementation
+        :param temperature: The temperature of the BP (beta in the notes)
+        :param parallel: Boolean. If `True`, we use the parallel implementation. If False, we use the sequential implementation
         :param hij_init_takeLast: NOT YET IMPLEMENTED Boolean. If True, then we initialize h_ij to its last value at the previous BP
         :param dt: The time step between frames
         :param p_off: The probability of a particle disappearing
@@ -134,6 +137,7 @@ class NonTrackingInferrer:
         self._smoothing_factor = smoothing_factor
         self._tol = tol
         self._maxiter = maxiter
+        self._temperature = temperature
         self._chemPot_gamma = chemPot_gamma
         self._epsilon = epsilon
         self._chemPot_mu = chemPot_mu
@@ -183,7 +187,7 @@ class NonTrackingInferrer:
         self.vprint(1,
                     f"Starting inference with methods: \n\tmethod={self._method} \n\tscheme={self._scheme} \n\toptimizer={self._optimizer} \n\tdistribution={self._distribution} \n\tparallel={self._parallel} \n\thij_init_takeLast={self._hij_init_takeLast} \n\tchemPot={self._chemPot} \n\tmessages_type={self._messages_type} \n\tinference_mode={self._inference_mode} \n\tphantom_particles={self._phantom_particles}")
         self.vprint(1,
-                    f"The tuning is: \n\tgamma={self._gamma} \n\tsmoothing_factor={self._smoothing_factor} \n\ttol={self._tol} \n\tmaxiter={self._maxiter} \n\tchemPot_gamma={self._chemPot_gamma} \n\tchemPot_mu={self._chemPot_mu} \n\tepsilon={self._epsilon} \n\tminlnL={self._minlnL}")
+                    f"The tuning is: \n\tgamma={self._gamma} \n\tsmoothing_factor={self._smoothing_factor} \n\ttol={self._tol} \n\tmaxiter={self._maxiter} \n\ttemperature={self._temperature} \n\tchemPot_gamma={self._chemPot_gamma} \n\tchemPot_mu={self._chemPot_mu} \n\tepsilon={self._epsilon} \n\tminlnL={self._minlnL}")
         self.vprint(1, f"Inference will be done on cells {self._cells_to_infer}")
         self.vprint(1, f"p_off is {self._p_off},\tmu_on={self._mu_on}")
 
@@ -290,11 +294,9 @@ class NonTrackingInferrer:
         parent_attributes = (
             self._cells, self._dt, self._gamma, self._smoothing_factor, self._optimizer, self._tol, self._epsilon,
             self._maxiter, self._phantom_particles, self._messages_type, self._chemPot, self._chemPot_gamma,
-            self._chemPot_mu, self._scheme, self._method, self._distribution, self._parallel, self._hij_init_takeLast,
-            self._p_off, self._mu_on,
-            self._starting_diffusivities, self._starting_drifts, self._inference_mode, self._cells_to_infer,
-            self._minlnL,
-            self._verbose)
+            self._chemPot_mu, self._scheme, self._method, self._distribution, self._temperature, self._parallel,
+            self._hij_init_takeLast, self._p_off, self._mu_on, self._starting_diffusivities, self._starting_drifts,
+            self._inference_mode, self._cells_to_infer, self._minlnL, self._verbose)
         if self._chemPot == 'Chertkov':
             local_inferrer = NonTrackingInferrerRegionBPchemPotChertkov(parent_attributes, i, region_indices)
         elif self._chemPot == 'Mezard':
@@ -648,11 +650,11 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         '''
 
         # logsumexp version
-        logsumexp_energy = + sum(np.logaddexp(0,Q + hij + hji)) \
-                           - sum(logsumexp(Q + hji, axis=1)) \
-                           - sum(logsumexp(Q + hij, axis=0))
+        logsumexp_energy = + sum(np.logaddexp(0,Q + self._temperature*hij + self._temperature*hji)) \
+                           - sum(logsumexp(Q + self._temperature*hji, axis=1)) \
+                           - sum(logsumexp(Q + self._temperature*hij, axis=0))
 
-        return logsumexp_energy
+        return logsumexp_energy/self._temperature
 
     def sum_product_update_rule(self, Q, hij_old, hji_old):
         """
@@ -662,8 +664,8 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         :param hji_old: Old right messages
         :return: The new messages (undamped)
         """
-        hij_new = -log(dot(exp(Q + hji_old), self.boolean_matrix(Q.shape[1])))
-        hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + hij_old)))
+        hij_new = -log(dot(exp(Q + self._temperature*hji_old), self.boolean_matrix(Q.shape[1])))/self._temperature
+        hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + self._temperature*hij_old)))/self._temperature
         return hij_new, hji_new
 
     def sum_product_BP(self, Q, hij, hji):
@@ -826,8 +828,10 @@ class NonTrackingInferrerRegionBPchemPotMezard(NonTrackingInferrerRegion):
     '''
 
     def sum_product_update_rule(self, Q, hij_old, hji_old):
-        hij_new = -log(dot(exp(Q + hji_old), self.boolean_matrix(Q.shape[1])) + exp(-self._chemPot_gamma))
-        hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + hij_old)) + exp(-self._chemPot_gamma))
+        hij_new = -log(dot(exp(Q + self._temperature*hji_old), self.boolean_matrix(Q.shape[1])) \
+                       + exp(-self._chemPot_gamma))/self._temperature
+        hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + self._temperature*hij_old)) \
+                       + exp(-self._chemPot_gamma))/self._temperature
         return hij_new, hji_new
 
     def bethe_free_energy(self, hij, hji, Q):
@@ -853,20 +857,22 @@ class NonTrackingInferrerRegionBPchemPotMezard(NonTrackingInferrerRegion):
 
         # logsumexp version, no constant term
         #gamma_matrix_ = ones(Q.shape)*self._chemPot_gamma
-        term1_bis = + sum(np.logaddexp(0, Q + hij + hji))
-        term2_bis = - sum(logsumexp(np.hstack((Q + hji, -ones((Q.shape[0], 1))*self._chemPot_gamma)), axis=1))
-        term3_bis = - sum(logsumexp(np.vstack((Q + hij, -ones((1, Q.shape[1]))*self._chemPot_gamma)), axis=0))
+        term1_bis = + sum(np.logaddexp(0, Q + self._temperature*hij + self._temperature*hji))
+        term2_bis = - sum(logsumexp(np.hstack((Q + self._temperature*hji, -ones((Q.shape[0], 1))*self._chemPot_gamma)), axis=1))
+        term3_bis = - sum(logsumexp(np.vstack((Q + self._temperature*hij, -ones((1, Q.shape[1]))*self._chemPot_gamma)), axis=0))
         #term4_bis = - sum(Q.shape) * self._chemPot_gamma
         logsumexp_energy = term1_bis + term2_bis + term3_bis
 
-        return logsumexp_energy
+        return logsumexp_energy/self._temperature
 
 
 class NonTrackingInferrerRegionBPchemPotChertkov(NonTrackingInferrerRegion):
 
     def sum_product_update_rule(self, Q, hij_old, hji_old):
-        hij_new = -log(dot(exp(Q + hji_old), self.boolean_matrix(Q.shape[1])) + exp(-self._chemPot_mu))
-        hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + hij_old)) + exp(-self._chemPot_mu))
+        hij_new = -log(dot(exp(Q + self._temperature*hji_old), self.boolean_matrix(Q.shape[1])) \
+                       + exp(-self._chemPot_mu))/self._temperature
+        hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + self._temperature*hij_old)) \
+                       + exp(-self._chemPot_mu))/self._temperature
         return hij_new, hji_new
 
     def bethe_free_energy(self, hij, hji, Q):
@@ -888,12 +894,12 @@ class NonTrackingInferrerRegionBPchemPotChertkov(NonTrackingInferrerRegion):
 
         # logsumexp version, no constant term
         #gamma_matrix_ = ones(Q.shape)*self._chemPot_gamma
-        term1_bis = + sum(np.logaddexp(0, Q + hij + hji))
-        term2_bis = - sum(logsumexp(np.hstack((Q + hji, -ones((Q.shape[0], 1))*self._chemPot_mu)), axis=1))
-        term3_bis = - sum(logsumexp(np.vstack((Q + hij, -ones((1, Q.shape[1]))*self._chemPot_mu)), axis=0))
+        term1_bis = + sum(np.logaddexp(0, Q + self._temperature*hij + self._temperature*hji))
+        term2_bis = - sum(logsumexp(np.hstack((Q + self._temperature*hji, -ones((Q.shape[0], 1))*self._chemPot_mu)), axis=1))
+        term3_bis = - sum(logsumexp(np.vstack((Q + self._temperature*hij, -ones((1, Q.shape[1]))*self._chemPot_mu)), axis=0))
         logsumexp_energy = term1_bis + term2_bis + term3_bis
 
-        return logsumexp_energy
+        return logsumexp_energy/self._temperature
 
 
 class NonTrackingInferrerRegionBPalternativeUpdateJB(NonTrackingInferrerRegion):
