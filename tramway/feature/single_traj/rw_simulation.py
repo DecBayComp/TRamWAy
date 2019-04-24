@@ -182,6 +182,9 @@ def CTRW(T_max=1, dt=1e-2,
     dim : int, in {1,2,3}, the dimension of the random walk.
     """
     nb_point = int(T_max/dt)
+    if distribution_time != "cst":
+        nb_point *= 10
+        T_max *= 10
     # Generates a vector t such that t[-1] > T ==> len(t) >= nb_point
     t = generate_times(distribution_time, nb_point, T_max, dt,
                        alpha=alpha_time,
@@ -202,6 +205,12 @@ def CTRW(T_max=1, dt=1e-2,
         t_regularized = np.linspace(0, T_max, nb_point, endpoint=False)
         X, t = regularize_times(X, t, t_regularized)
     data = np.concatenate((np.expand_dims(t, axis=1), X), axis=1)
+    if distribution_time != "cst":
+        random_start = np.random.randint(0, int(nb_point * 0.9))
+        data = data[random_start:random_start+int(nb_point * 0.1)]
+        data[:, 0] = np.linspace(0, T_max*0.1, int(nb_point*0.1),
+                                 endpoint=False)
+        data[:, [1, 2]] -= data[0, [1, 2]]
     return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
 
 # Fractional random walks.

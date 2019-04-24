@@ -33,16 +33,20 @@ def interpolate(X1, X2, alpha):
     return alpha * X1 + (1-alpha) * X2
 
 
-def get_interpolation(t, x, tnew):
+def get_interpolation(t, x, tnew, old=False):
     N = len(t)
     Nnew = len(tnew)
     xnew = np.zeros((Nnew, x.shape[1]))
     dt = t[1] - t[0]
     dtnew = tnew[1] - tnew[0]
     for i in range(Nnew):
-        j = min(int(dtnew / dt * i), N-2)
-        alpha = (t[j+1] - tnew[i]) / dt
-        xnew[i] = interpolate(x[j], x[j+1], alpha)
+        if old:
+            j = min(int(dtnew / dt * i), N-2)
+            alpha = (t[j+1] - tnew[i]) / dt
+            xnew[i] = interpolate(x[j], x[j+1], alpha)
+        else:
+            j = min(int(dtnew / dt * i), N-1)
+            xnew[i] = x[j]
     return xnew
 
 
@@ -62,8 +66,9 @@ def process_rw(args):
     rw_obj = RandomWalk(rw)
     steps = np.diagonal(rw_obj.Dabs, offset=1)
     mean_step = np.mean(steps)
+    sum_step = np.sum(steps)
     cum_dist = np.insert(
-        np.cumsum(steps / np.sum(steps)), 0, 0)[:, np.newaxis]
+        np.cumsum(steps / sum_step), 0, 0)
     tau, msd = temporal_msd(
         rw_obj, n_samples=kwargs['wmax'], use_all=False)
     n_msd = len(msd)
@@ -72,14 +77,19 @@ def process_rw(args):
     for k, w in enumerate(kwargs['windows']):
         RW_w = normalize_length(rw, w)
         RW_w.loc[:, ['x', 'y']] /= mean_step
-        RW_w['cum_dist'] = get_interpolation(
-            t, cum_dist, RW_w.t.values)
-        RW_w['msd_log'] = get_interpolation(np.arange(n_msd), np.log(
-            msd[:, np.newaxis]), np.linspace(0, n_msd-1, num=w))
+        RW_w['x_perc'] = RW_w.loc[:, 'x'] / sum_step
+        RW_w['y_perc'] = RW_w.loc[:, 'y'] / sum_step
+        interp_f = scipy.interpolate.interp1d(
+            t, cum_dist, fill_value=(min(cum_dist), max(cum_dist)))
+        RW_w['cum_dist'] = interp_f(RW_w.t.values)
+        interp_f = scipy.interpolate.interp1d(
+            tau, msd, fill_value=(min(msd), max(msd)))
+        RW_w['msd_log'] = interp_f(np.linspace(min(tau), max(tau), num=w))
         RW_ws[w] = RW_w.loc[:, [
-            'x', 'y', 'cum_dist', 'msd_log']].values.T
+            'x', 'y', 'x_perc', 'y_perc', 'cum_dist', 'msd_log']].values.T
         scale_prm[w] = {'dt': dt * length_rw / w}
-    meta_prm = {'Tmax': rw.t.max(), 'mean_step': mean_step}
+    meta_prm = {'Tmax': rw.t.max(), 'mean_step': mean_step,
+                'sum_step': sum_step}
     return RW_ws, scale_prm, meta_prm, id_
 
 
@@ -149,19 +159,18 @@ class RWDataset(torch.utils.data.Dataset):
             for w in self.windows])
         meta_prms = torch.tensor(list(self.meta_prm[traj].values())).float()
         y = self.get_y_func(self.prms[traj])
-        # y = 1 if self.prms[traj]['func_name'] == 'RW_brownian' else 0
         return rws, scale_prms, meta_prms, torch.tensor(y).float()
 
 
 class conv_layer(nn.Module):
-    def __init__(self, w, scale_size=1, out_size=50):
+    def __init__(self, w, scale_size=1, out_size=50, input_channel=1):
         super(conv_layer, self).__init__()
         self.w = w
         k_size = 7 if (self.w > 50) else (
             5 if (self.w < 50 and self.w > 15) else 3)
         wtemp = self.w
         temp_conv = []
-        channels_in = 4
+        channels_in = input_channel
         channels_out = 16
         while wtemp > k_size:
             temp_conv.extend([nn.Conv1d(in_channels=channels_in,
@@ -183,7 +192,7 @@ class conv_layer(nn.Module):
 
 class RWNet(nn.Module):
     def __init__(self, hidden_dims, supervised=True, windows=[100, 10],
-                 scale_size=1, out_cnn_size=50, meta_size=2,
+                 scale_size=1, out_cnn_size=40, meta_size=2, input_channels=6,
                  output_size_softmax=1, output_size_linear=0):
         super(RWNet, self).__init__()
         self.hidden_dims = hidden_dims
@@ -192,13 +201,16 @@ class RWNet(nn.Module):
         self.output_size = self.output_size_softmax + self.output_size_linear
         self.supervised = supervised
         self.windows = windows
+        self.input_channels = input_channels
 
         self.conv_layers = {}
         for w in self.windows:
-            self.conv_layers[w] = conv_layer(
-                w, scale_size=scale_size, out_size=out_cnn_size)
+            for channel in range(self.input_channels):
+                self.conv_layers[(w, channel)] = conv_layer(
+                    w, scale_size=scale_size, out_size=out_cnn_size)
 
-        enc_layers = [nn.Linear(out_cnn_size * len(self.windows) + meta_size,
+        enc_layers = [nn.Linear((out_cnn_size * len(self.windows) *
+                                 self.input_channels) + meta_size,
                                 self.hidden_dims[0]),
                       nn.ReLU()]
         lin_enc = [nn.Linear(self.hidden_dims[i], self.hidden_dims[i+1])
@@ -211,10 +223,12 @@ class RWNet(nn.Module):
             self.fc_logvar = nn.Linear(self.hidden_dims[-1], self.output_size)
 
     def forward(self, rws, scale_prms, meta_prms):
-        feat_in_fc = torch.cat((tuple(self.conv_layers[w](rws[i],
-                                                          scale_prms[i])
-                                      for i, w in enumerate(self.windows)) +
-                                (meta_prms,)), dim=1)
+        feat_in_fc = torch.cat((tuple(
+            self.conv_layers[(w, channel)](rws[i][:, [channel], :],
+                                           scale_prms[i])
+            for i, w in enumerate(self.windows)
+            for channel in range(self.input_channels)) +
+            (meta_prms,)), dim=1)
         feat_out_fc = self.fc(feat_in_fc)
         if self.supervised:
             if self.output_size_linear == 0:
@@ -222,8 +236,8 @@ class RWNet(nn.Module):
             else:
                 raw_activ = self.fc_mu(feat_out_fc)
                 return torch.cat((
-                            F.softmax(raw_activ[:, :self.output_size_softmax]),
-                            raw_activ[:, self.output_size_softmax:]), dim=1)
+                    F.softmax(raw_activ[:, :self.output_size_softmax]),
+                    raw_activ[:, self.output_size_softmax:]), dim=1)
 
         else:
             return self.fc_mu(feats), self.fc_logvar(feats)
