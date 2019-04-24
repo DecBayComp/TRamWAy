@@ -54,6 +54,7 @@ def non_tracking_03(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=0.2, metho
                                    starting_drifts=method['starting_drifts'],
                                    inference_mode=method['inference_mode'],
                                    cells_to_infer=method['cells_to_infer'],
+                                   neighbourhood_order=method['neighbourhood_order'],
                                    minlnL=method['minlnL'],
                                    verbose=method['verbose'])
     inferrer.infer()
@@ -79,7 +80,7 @@ class NonTrackingInferrer:
                  phantom_particles=1, messages_type='CLV', chemPot='None', chemPot_gamma=1, chemPot_mu=1, scheme='1D',
                  method='BP', distribution='gaussian', temperature=1, parallel=1, hij_init_takeLast=False, p_off=0,
                  mu_on=0, starting_diffusivities=[1],
-                 starting_drifts=[0, 0], inference_mode='D', cells_to_infer='all', minlnL=-100, verbose=1):
+                 starting_drifts=[0, 0], inference_mode='D', cells_to_infer='all', neighbourhood_order=1, minlnL=-100, verbose=1):
         """
         :param cells: An object of type 'Distributed' containing the data tessellated into cells
         :param gamma: The damping factor of the BP. h = gamma * h_old + (1-gamma) * h_new
@@ -112,6 +113,7 @@ class NonTrackingInferrer:
         :param final_diffusivities: NOT A PARAMETER The final diffusivities are the most up-to-date. Only to be changed at the end of an estimation
         :param final_drifts: NOT YET IMPLEMENTED. The final drifts are the most up-to-date. Only to be changed at the end of an estimation
         :param cells_to_infer: An array of indices on which we want to infer
+        :param neighbourhood_order: The order of the neighbourhoods for regional inference
         :param minlnL: The cut-off threshold for small probabilities
         :param verbose: Level of verbosity.
                 0 : mute (not advised)
@@ -141,6 +143,7 @@ class NonTrackingInferrer:
         self._epsilon = epsilon
         self._chemPot_mu = chemPot_mu
         self._minlnL = minlnL
+        self._neighbourhood_order = neighbourhood_order
         if len(starting_diffusivities) == 1:
             self._starting_diffusivities = starting_diffusivities[0] * np.ones(len(cells.keys()))
         else:
@@ -196,7 +199,7 @@ class NonTrackingInferrer:
         self.vprint(1,
                     f"Starting inference with methods: \n\tmethod={self._method} \n\tscheme={self._scheme} \n\toptimizer={self._optimizer} \n\tdistribution={self._distribution} \n\tparallel={self._parallel} \n\thij_init_takeLast={self._hij_init_takeLast} \n\tchemPot={self._chemPot} \n\tmessages_type={self._messages_type} \n\tinference_mode={self._inference_mode} \n\tphantom_particles={self._phantom_particles}")
         self.vprint(1,
-                    f"The tuning is: \n\tgamma={self._gamma} \n\tsmoothing_factor={self._smoothing_factor} \n\ttol={self._tol} \n\tmaxiter={self._maxiter} \n\ttemperature={self._temperature} \n\tchemPot_gamma={self._chemPot_gamma} \n\tchemPot_mu={self._chemPot_mu} \n\tepsilon={self._epsilon} \n\tminlnL={self._minlnL}")
+                    f"The tuning is: \n\tgamma={self._gamma} \n\tsmoothing_factor={self._smoothing_factor} \n\ttol={self._tol} \n\tmaxiter={self._maxiter} \n\ttemperature={self._temperature} \n\tchemPot_gamma={self._chemPot_gamma} \n\tchemPot_mu={self._chemPot_mu} \n\tepsilon={self._epsilon} \n\tminlnL={self._minlnL} \n\tneighbourhood_order={self._neighbourhood_order}")
         self.vprint(1, f"Inference will be done on cells {self._cells_to_infer}")
         self.vprint(1, f"p_off is {self._p_off},\tmu_on={self._mu_on}")
 
@@ -287,8 +290,7 @@ class NonTrackingInferrer:
         """
         self.vprint(2, f"\nCell no.: {i}")
 
-        region_indices = self._cells.neighbours(
-            i)  # We take only first order neighbourhood to make a region. Can be generalized here !
+        region_indices = self.get_neighbours(i, order=self._neighbourhood_order)
         region_indices = np.insert(region_indices, 0, i)  # insert i in the 0th position
 
         # --- Fit: ---
@@ -313,7 +315,7 @@ class NonTrackingInferrer:
             self._maxiter, self._phantom_particles, self._messages_type, self._chemPot, self._chemPot_gamma,
             self._chemPot_mu, self._scheme, self._method, self._distribution, self._temperature, self._parallel,
             self._hij_init_takeLast, self._p_off, self._mu_on, self._starting_diffusivities, self._starting_drifts,
-            self._inference_mode, self._cells_to_infer, self._minlnL, self._verbose)
+            self._inference_mode, self._cells_to_infer, self._neighbourhood_order, self._minlnL, self._verbose)
         if self._chemPot == 'Chertkov':
             local_inferrer = NonTrackingInferrerRegionBPchemPotChertkov(parent_attributes, i, region_indices)
         elif self._chemPot == 'Mezard':
@@ -365,10 +367,11 @@ class NonTrackingInferrer:
         else:
             neighbours = []
             for n in self._cells.neighbours(cell_index):
-                neighbours.append(self.get_neighbours(n, order=order - 1))
-            neighbours = list(dict.fromkeys(neighbours))  # remove duplicates
+                neighbours = np.hstack((neighbours, self.get_neighbours(n, order=order - 1)))
+            neighbours = list(dict.fromkeys(list(neighbours)))  # remove duplicates
             neighbours.remove(cell_index)
-            return neighbours
+            neighbours = list(map(int, neighbours))
+            return array(neighbours)
 
     # -----------------------------------------------------------------------------
     # Generate stack of frames
