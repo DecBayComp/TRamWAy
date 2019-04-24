@@ -109,7 +109,6 @@ class NonTrackingInferrer:
         :param starting_drifts: NOT YET IMPLEMENTED. The starting drifts serve only as an input variable. final_drifts is immediately initialized to starting_drifts.
         :param inference_mode: 'D' : Infer only diffusivity
                                'DD': Infer diffusivity and drift. NOT SUPPORTED YET
-        :param working_diffusivities: The working diffusivities contain the values used within the optimization. In particular it is used to store D_out in the 2D optimization scheme
         :param final_diffusivities: NOT A PARAMETER The final diffusivities are the most up-to-date. Only to be changed at the end of an estimation
         :param final_drifts: NOT YET IMPLEMENTED. The final drifts are the most up-to-date. Only to be changed at the end of an estimation
         :param cells_to_infer: An array of indices on which we want to infer
@@ -172,6 +171,9 @@ class NonTrackingInferrer:
         self.check_parameters()
 
     def check_parameters(self):
+        """
+            This functions checks incoherent configurations and configurations that are not supported yet
+        """
         if self._method == 'MPA':
             assert (self._phantom_particles is True)
             assert (self._chemPot == 'None')
@@ -179,6 +181,13 @@ class NonTrackingInferrer:
             assert (self._phantom_particles is True)
         if self._distribution != 'gaussian' and self._distribution != 'rayleigh':
             raise ValueError("distribution not supported")
+        if self._messages_type == 'JB':
+            assert(self._method == 'BP')
+            assert(self._chemPot == 'None')
+            assert(self._phantom_particles is True)
+        if self._inference_mode == 'DD':
+            assert(self._scheme == '1D')
+            assert(self._parallel is False)
 
     def confirm_parameters(self):
         """
@@ -255,15 +264,20 @@ class NonTrackingInferrer:
                 when inferring cells j>i. In the parallel method, these optimizations are independent.
             """
             for i in self._cells_to_infer:
-                self._final_diffusivities[i] = self.estimate(i)
+                self._final_diffusivities[i], self._final_drifts[i,:] = self.estimate(i)
                 self.vprint(2, f"Current parameters with tol = {self._tol}")
-                self.vprint(2, f"parameters={self._final_diffusivities}")
+                self.vprint(2, f"diffusivities={self._final_diffusivities}")
+                self.vprint(2, f"drifts={self._final_drifts}")
             self._final_diffusivities = pd.DataFrame(self._final_diffusivities, index=list(self._cells.keys()),
                                                      columns=['D'])
+            self._final_drifts = pd.DataFrame(self._final_drifts, index=list(self._cells.keys()),
+                                                     columns=['dx','dy'])
             # Check : Is index correct ?
         else:
             raise ValueError("Invalid argument: parallel")
         self.vprint(1, f"Final diffusivities are:\n {self._final_diffusivities}")
+        if self._inference_mode == 'DD':
+            self.vprint(1,f"Final drifts are:\n {self._final_drifts}")
 
     def estimate(self, i):
         """
@@ -281,10 +295,13 @@ class NonTrackingInferrer:
         fittime = time()
         if self._scheme == '1D':
             D = self._starting_diffusivities[i]
+            d = self._starting_drifts[i,:]
         elif self._scheme == '2D':
             D = array([self._starting_diffusivities[i], self._starting_diffusivities[i]])
         else:
             raise ValueError("This scheme is not supported. Choose '1D' or '2D'.")
+        D_in = self._starting_diffusivities[i]
+        drift_in = self._starting_drifts[i,:]
 
         # Select the BP version
         """ On this point we create a specialized copy of self.
@@ -311,11 +328,18 @@ class NonTrackingInferrer:
                 "chemPot or messages_type not valid. Suggestion: Select chemPot='None' and messages_type='CLV'.")
 
         if self._optimizer == 'NM':
-            fit = minimize(local_inferrer.smoothed_posterior, x0=D, method='Nelder-Mead', tol=self._tol,
-                           options={'disp': True})
+            if self._inference_mode == 'D':
+                fit = minimize(local_inferrer.smoothed_posterior, x0=D, method='Nelder-Mead', tol=self._tol,
+                               options={'disp': True})
+            elif self._inference_mode == 'DD':
+                start = np.hstack((D,d))
+                fit = minimize(local_inferrer.smoothed_posterior, x0=start, method='Nelder-Mead', tol=self._tol,
+                               options={'disp': True})
+                drift_in = (fit.x)[1:3]
         else:
             raise ValueError("This optimizer is not supported. Suggestion: Choose 'NM'. ")
         D_in = abs((fit.x)[0])
+        #import pdb; pdb.set_trace()
         ''' Remark: Nelder-Mead does not have positivity constraints for D_in, so we might find a negative value.
             'smoothedPosterior' is implemented to be symmetric, so we should still find the optimum.
         '''
@@ -325,9 +349,9 @@ class NonTrackingInferrer:
         # print("D corrected for motion blur and localization error:", D_i_ub)
         self.vprint(1, f"\nCell no.: {i}")
         self.vprint(1, f"{time() - fittime}s")  # make this an attribute to save it in a file later ?
-        self.vprint(1, f"Estimation: {D_in}")
+        self.vprint(1, f"Estimation: D_in: {D_in}\t drift_in: {drift_in}")
 
-        return D_in
+        return D_in, drift_in
 
     def get_neighbours(self, cell_index, order=1):
         """ TO BE TESTED
@@ -486,17 +510,18 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         :param frame_index: The index of the current frame
         :return: Matrix of log-probabilities for each distance.
         """
-        D = self.build_diffusivity_matrix(frame_index)
+        D, drift_x, drift_y = self.build_diffusivity_drift_matrices(frame_index)
         try:
             if self._distribution=='gaussian':
-                lnp = -log(4 * pi * D * self._dt) - (dr[0] ** 2 + dr[1] ** 2) / (4. * D * self._dt)
+                lnp = - log(4 * pi * D * self._dt) \
+                      - ((dr[0]-drift_x*self._dt)**2 + (dr[1]-drift_y*self._dt)**2) / (4. * D * self._dt)
             elif self._distribution=='rayleigh':
-                r2 = dr[0] ** 2 + dr[1] ** 2
+                r2 = (dr[0]-drift_x*self._dt)**2 + (dr[1]-drift_y*self._dt)**2
                 lnp = log(sqrt(r2)) - log(2. * D * self._dt) - r2 / (4. * D * self._dt)
             else:
                 raise ValueError("distribution not supported. Suggestion: Use 'gaussian'. ")
         except ZeroDivisionError:
-            raise ValueError("The optimizer somehow tested 0 diffusivity --> ZeroDivisionError")
+            raise ZeroDivisionError("The optimizer somehow tested 0 diffusivity --> ZeroDivisionError")
         lnp[lnp < self._minlnL] = self._minlnL  # avoid numerical underflow
         return lnp
 
@@ -535,23 +560,29 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         out[N:, M:] = 2. * self._minlnL  # Note: Why not 0 ??
         return out
 
-    def build_diffusivity_matrix(self, frame_index):
+    def build_diffusivity_drift_matrices(self, frame_index):
         """
             For internal use only. Needs to be processed into a likelihood matrix and completed with phantom particles
-        :param frame_index: the index of the first frame
-        :return: An N x M matrix containing in each line i the diffusivities of particle i.
+        :param frame_index: the index of the first frame of the transition
+        :return: Three N x M matrices containing in each line i the (*) of particle i.
+                    First matrix (*) = diffusivity
+                    Second matrix (*) = drift in x-axis
+                    Third matrix (*) = drift in y-axis
         """
         M = int(np.sum(self._particle_count[self._region_indices, frame_index + 1]))
         N = int(np.sum(self._particle_count[self._region_indices, frame_index]))
 
         Ds = np.zeros([N, M])
+        drift_x = np.zeros([N, M])
+        drift_y = np.zeros([N, M])
         N_ix = np.cumsum(self._particle_count[self._region_indices, frame_index]).astype(int)
         N_ix = np.insert(N_ix, 0, 0)  # insert a 0 at the start for the technical purpose of the for loop
         for j in range(0, len(self._region_indices)):
             Ds[N_ix[j]:N_ix[j + 1]] = ones(Ds[N_ix[j]:N_ix[j + 1]].shape) * self._working_diffusivities[
                 self._region_indices[j]]
-
-        return Ds
+            drift_x[N_ix[j]:N_ix[j + 1]] = ones(drift_x[N_ix[j]:N_ix[j + 1]].shape) * self._working_drifts[self._region_indices[j], 0]
+            drift_y[N_ix[j]:N_ix[j + 1]] = ones(drift_y[N_ix[j]:N_ix[j + 1]].shape) * self._working_drifts[self._region_indices[j], 1]
+        return Ds, drift_x, drift_y
 
     # -----------------------------------------------------------------------------
     # smoothing functions
@@ -581,16 +612,25 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         ''' Nelder-Mead does not have positivity constraints for D_in, so we might find a negative value.
             'smoothedPosterior' is implemented to be symmetric, so that we should still find the optimum.'''
         self._working_diffusivities = self._final_diffusivities  # the most up-to-date parameters
+        self._working_drifts = self._final_drifts
         # Note: Perhaps we should check for a value 0 of the diffusivity. It could cause problems later
         # scheme selector
-        if self._scheme == '1D':
-            self._working_diffusivities[self._index_to_infer] = D
-        elif self._scheme == '2D':
-            self._working_diffusivities[self._region_indices] = D[1]
-            self._working_diffusivities[self._index_to_infer] = D[
-                0]  # this overwrites the wrongly assigned value in previous line
-        else:
-            raise ValueError(f"scheme {self._scheme} not supported")
+        if self._inference_mode == 'D':
+            if self._scheme == '1D':
+                self._working_diffusivities[self._index_to_infer] = D
+            elif self._scheme == '2D':
+                self._working_diffusivities[self._region_indices] = D[1]
+                self._working_diffusivities[self._index_to_infer] = D[
+                    0]  # this overwrites the wrongly assigned value in previous line
+            else:
+                raise ValueError(f"scheme {self._scheme} not supported")
+        elif self._inference_mode == 'DD':
+            if self._scheme == '1D':
+                self._working_diffusivities[self._index_to_infer] = D[0]
+                self._working_drifts[self._index_to_infer,:] = D[1]
+            else:
+                raise ValueError(f"scheme {self._scheme} not supported in 'DD' mode")
+
 
         # method selector
         if self._method == 'MPA':
@@ -712,7 +752,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         :param M: The number of particles in the second frame (not including phantom particles)
         :return: F_BP the Bethe free energy approximation
         """
-        self.vprint(3, f"call: sum_product_energy")
+        #self.vprint(3, f"call: sum_product_energy")
         # If a single particle has been recorded in each frame and tracers are permanent, the link is known:
         if (N == 1) & (n_off == 0) & (n_on == 0):
             F_BP = -self.lnp_ij(dr, frame_index)
@@ -740,7 +780,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         :param frame_index: the index of the current frame
         :return: the minus log-likelihood between frame frame_index and frame frame_index+1
         """
-        self.vprint(3, f"call: marginal_minusLogLikelihood, frame_index={frame_index}")
+        #self.vprint(3, f"call: marginal_minusLogLikelihood, frame_index={frame_index}")
         self.vprint(3, ".", end_='')
         M_index_to_infer = self._particle_count[self._index_to_infer, frame_index + 1].astype(int)
         N_index_to_infer = self._particle_count[self._index_to_infer, frame_index].astype(int)
@@ -761,7 +801,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
 
     def marginal_minusLogLikelihood_multiFrame(self):
         '''Minus-log-likelihood marginalized over possible graphs and assignments using BP.'''
-        self.vprint(3, f"call: marginal_minusLogLikelihood_multiFrame")
+        #self.vprint(3, f"call: marginal_minusLogLikelihood_multiFrame")
         self.vprint(2, "*", end_='')
         mlnL = 0
         for frame_index, dr in enumerate(self._drs):
@@ -926,7 +966,11 @@ class NonTrackingInferrerRegionBPalternativeUpdateJB(NonTrackingInferrerRegion):
         """
         Xi = np.square(dot(h_ij, np.ones(h_ij.shape) / 2) + dot(np.ones(h_ij.shape) / 2, h_ij) - h_ij)
         hij_new = exp(Q) * dot(exp(alpha_i), exp(alpha_j)) / (exp(Q) * dot(exp(alpha_i), exp(alpha_j)) + Xi)
+
+        hij_new = self.sinkhornKnoppIteration(hij_new, rows=False)
         Ai_new = (1 - np.sum(hij_new ** 2, axis=1)) / dot(exp(Q), exp(alpha_j))
+
+        hij_new = self.sinkhornKnoppIteration(hij_new, columns=False)
         Aj_new = (1 - np.sum(hij_new ** 2, axis=0)) / dot(exp(alpha_i), exp(Q))
         return hij_new, log(Ai_new), log(Aj_new)
 
@@ -943,7 +987,7 @@ class NonTrackingInferrerRegionBPalternativeUpdateJB(NonTrackingInferrerRegion):
                - sum(alpha_i * (sum(hij, axis=1) - 1)) \
                - sum(alpha_j * (sum(hij, axis=0) - 1))
 
-    def sinkhorn_knopp_iteration(self, hij):
+    def sinkhornKnoppIteration(self, hij, rows=True, columns=True):
         """
             Performs one iteration of the Sinkhorn-Knopp algorithm: Sequentially normalizing rows and columns.
             The hope is that hij becomes 'more bistochastic' after this iteration
@@ -952,12 +996,14 @@ class NonTrackingInferrerRegionBPalternativeUpdateJB(NonTrackingInferrerRegion):
         """
 
         # Normalize the columns
-        norm = np.sum(hij, axis=1)
-        hij = hij / np.tile(norm, (hij.shape[1], 1)).T
+        if columns:
+            norm = np.sum(hij, axis=1)
+            hij = hij / np.tile(norm, (hij.shape[1], 1)).T
 
         # Normalize the rows
-        norm = np.sum(hij, axis=0)
-        hij = hij / np.tile(norm, (hij.shape[0], 1))
+        if rows:
+            norm = np.sum(hij, axis=0)
+            hij = hij / np.tile(norm, (hij.shape[0], 1))
 
         return hij
 
