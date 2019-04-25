@@ -197,11 +197,11 @@ class NonTrackingInferrer:
             prints a summary of the parameters of the inference. This can be useful when we store computed values on files. The log file then contains the information about the algorithm parameters.
         """
         self.vprint(1,
-                    f"Starting inference with methods:` \n*\t`method={self._method}` \n*\t`scheme={self._scheme}` \n*\t`optimizer={self._optimizer}` \n*\t`distribution={self._distribution}` \n*\t`parallel={self._parallel}` \n*\t`hij_init_takeLast={self._hij_init_takeLast}` \n*\t`chemPot={self._chemPot}` \n*\t`messages_type={self._messages_type}` \n*\t`inference_mode={self._inference_mode}` \n*\t`phantom_particles={self._phantom_particles}")
+                    f"Inference is done with methods: \n*\t`method={self._method}` \n*\t`scheme={self._scheme}` \n*\t`optimizer={self._optimizer}` \n*\t`distribution={self._distribution}` \n*\t`parallel={self._parallel}` \n*\t`hij_init_takeLast={self._hij_init_takeLast}` \n*\t`chemPot={self._chemPot}` \n*\t`messages_type={self._messages_type}` \n*\t`inference_mode={self._inference_mode}` \n*\t`phantom_particles={self._phantom_particles}`")
         self.vprint(1,
-                    f"The tuning is:` \n*\t`gamma={self._gamma}` \n*\t`smoothing_factor={self._smoothing_factor}` \n*\t`tol={self._tol}` \n*\t`maxiter={self._maxiter}` \n*\t`temperature={self._temperature}` \n*\t`chemPot_gamma={self._chemPot_gamma}` \n*\t`chemPot_mu={self._chemPot_mu}` \n*\t`epsilon={self._epsilon}` \n*\t`minlnL={self._minlnL}` \n*\t`neighbourhood_order={self._neighbourhood_order}")
+                    f"The tuning is: \n*\t`gamma={self._gamma}` \n*\t`smoothing_factor={self._smoothing_factor}` \n*\t`tol={self._tol}` \n*\t`maxiter={self._maxiter}` \n*\t`temperature={self._temperature}` \n*\t`chemPot_gamma={self._chemPot_gamma}` \n*\t`chemPot_mu={self._chemPot_mu}` \n*\t`epsilon={self._epsilon}` \n*\t`minlnL={self._minlnL}` \n*\t`neighbourhood_order={self._neighbourhood_order}`")
         self.vprint(1, f"Inference will be done on cells {self._cells_to_infer}")
-        self.vprint(1, f"p_off is {self._p_off},\tmu_on={self._mu_on}")
+        self.vprint(1, f"`p_off is {self._p_off},\tmu_on={self._mu_on}`")
 
     '''
     # TODO : check if this function is really necessary at this level. It gets overridden by the child
