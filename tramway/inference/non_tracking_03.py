@@ -109,9 +109,9 @@ class NonTrackingInferrer:
         :param starting_diffusivities: The starting diffusivities serve only as an input variable. final_diffusivities is immediately initialized to starting_diffusivities
         :param starting_drifts: NOT YET IMPLEMENTED. The starting drifts serve only as an input variable. final_drifts is immediately initialized to starting_drifts.
         :param inference_mode: 'D' : Infer only diffusivity
-                               'DD': Infer diffusivity and drift. NOT SUPPORTED YET
+                               'DD': Infer diffusivity and drift.
         :param final_diffusivities: NOT A PARAMETER The final diffusivities are the most up-to-date. Only to be changed at the end of an estimation
-        :param final_drifts: NOT YET IMPLEMENTED. The final drifts are the most up-to-date. Only to be changed at the end of an estimation
+        :param final_drifts: The final drifts are the most up-to-date. Only to be changed at the end of an estimation
         :param cells_to_infer: An array of indices on which we want to infer
         :param neighbourhood_order: The order of the neighbourhoods for regional inference
         :param minlnL: The cut-off threshold for small probabilities
@@ -168,7 +168,7 @@ class NonTrackingInferrer:
 
         # Others
         self._final_diffusivities = self._starting_diffusivities
-        self._final_drifts = self._starting_drifts  # NOT YET IMPLEMENTED.
+        self._final_drifts = self._starting_drifts
         self._verbose = verbose
 
         self.check_parameters()
@@ -197,9 +197,9 @@ class NonTrackingInferrer:
             prints a summary of the parameters of the inference. This can be useful when we store computed values on files. The log file then contains the information about the algorithm parameters.
         """
         self.vprint(1,
-                    f"Starting inference with methods: \n\tmethod={self._method} \n\tscheme={self._scheme} \n\toptimizer={self._optimizer} \n\tdistribution={self._distribution} \n\tparallel={self._parallel} \n\thij_init_takeLast={self._hij_init_takeLast} \n\tchemPot={self._chemPot} \n\tmessages_type={self._messages_type} \n\tinference_mode={self._inference_mode} \n\tphantom_particles={self._phantom_particles}")
+                    f"Starting inference with methods:` \n*\t`method={self._method}` \n*\t`scheme={self._scheme}` \n*\t`optimizer={self._optimizer}` \n*\t`distribution={self._distribution}` \n*\t`parallel={self._parallel}` \n*\t`hij_init_takeLast={self._hij_init_takeLast}` \n*\t`chemPot={self._chemPot}` \n*\t`messages_type={self._messages_type}` \n*\t`inference_mode={self._inference_mode}` \n*\t`phantom_particles={self._phantom_particles}")
         self.vprint(1,
-                    f"The tuning is: \n\tgamma={self._gamma} \n\tsmoothing_factor={self._smoothing_factor} \n\ttol={self._tol} \n\tmaxiter={self._maxiter} \n\ttemperature={self._temperature} \n\tchemPot_gamma={self._chemPot_gamma} \n\tchemPot_mu={self._chemPot_mu} \n\tepsilon={self._epsilon} \n\tminlnL={self._minlnL} \n\tneighbourhood_order={self._neighbourhood_order}")
+                    f"The tuning is:` \n*\t`gamma={self._gamma}` \n*\t`smoothing_factor={self._smoothing_factor}` \n*\t`tol={self._tol}` \n*\t`maxiter={self._maxiter}` \n*\t`temperature={self._temperature}` \n*\t`chemPot_gamma={self._chemPot_gamma}` \n*\t`chemPot_mu={self._chemPot_mu}` \n*\t`epsilon={self._epsilon}` \n*\t`minlnL={self._minlnL}` \n*\t`neighbourhood_order={self._neighbourhood_order}")
         self.vprint(1, f"Inference will be done on cells {self._cells_to_infer}")
         self.vprint(1, f"p_off is {self._p_off},\tmu_on={self._mu_on}")
 
