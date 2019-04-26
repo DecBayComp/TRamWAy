@@ -166,13 +166,15 @@ class conv_layer(nn.Module):
     def __init__(self, w, scale_size=1, out_size=50, input_channel=1):
         super(conv_layer, self).__init__()
         self.w = w
-        k_size = 7 if (self.w > 50) else (
-            5 if (self.w < 50 and self.w > 15) else 3)
         wtemp = self.w
+        k_size = 7 if (wtemp > 70) else (
+                5 if (wtemp <= 70 and wtemp > 30) else 3)
         temp_conv = []
         channels_in = input_channel
         channels_out = 16
         while wtemp > k_size:
+            k_size = 7 if (wtemp > 50) else (
+                5 if (wtemp < 50 and wtemp > 15) else 3)
             temp_conv.extend([nn.Conv1d(in_channels=channels_in,
                                         out_channels=channels_out,
                                         kernel_size=k_size),

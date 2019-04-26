@@ -26,7 +26,7 @@ from .rw_simulation import *
 from .rw_misc import rw_is_useless
 
 
-def generate_random_number(type_n, type_gen, a, b=None):
+def generate_random_number(type_n, type_gen, a, b=None, p=None):
     """
     Useful function that outputs a randomly generated number or string
     depending on the given parameters
@@ -55,7 +55,7 @@ def generate_random_number(type_n, type_gen, a, b=None):
         else:
             raise TypeError(f'Unrecognized type : {type_gen}')
     elif type_n == 'str':
-        return np.random.choice(a)
+        return np.random.choice(a, p=p)
     elif type_n == 'cst':
         return a
     else:
