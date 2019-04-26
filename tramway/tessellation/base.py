@@ -1250,8 +1250,13 @@ class Voronoi(Delaunay):
                     # use Qhull to estimate the volume
                     pts = self._vertices[js]
                     if pts.shape[1] < pts.shape[0]: # if enough points
-                        hull = spatial.ConvexHull(pts)
-                        cell_volume[i] = hull.volume
+                        try:
+                            hull = spatial.ConvexHull(pts)
+                            cell_volume[i] = hull.volume
+                        except (SystemExit, KeyboardInterrupt):
+                            raise
+                        except:
+                            pass
                     continue
 
                 if isinstance(js, np.ndarray):
@@ -1273,8 +1278,13 @@ class Voronoi(Delaunay):
                     # the center of the cell (ideally all the points in the cell)
                     pts = np.r_[self._vertices[_js], u[np.newaxis,:]]
                     if pts.shape[1] < pts.shape[0]: # if enough points
-                        hull = spatial.ConvexHull(pts)
-                        cell_volume[i] = hull.volume
+                        try:
+                            hull = spatial.ConvexHull(pts)
+                            cell_volume[i] = hull.volume
+                        except (SystemExit, KeyboardInterrupt):
+                            raise
+                        except:
+                            pass
                     continue
 
                 if simplices: # `simplices` is not empty
@@ -1320,16 +1330,19 @@ class Voronoi(Delaunay):
             raise NotImplementedError("delete_cell(metric='{}') not supported".format(metric))
 
         _connect = adjacency_label is not None
-        _eps = 1e-6
+        _eps = 1e-5
         dim = self._cell_centers.shape[1]
 
         _neighbour_cells = self.neighbours(i)
-        _larger_circle = list(set(itertools.chain(*[ self.neighbours(j) for j in _neighbour_cells ])) - {i})
+        #_larger_circle = list(set(itertools.chain(*[ self.neighbours(j) for j in _neighbour_cells ])) - {i})
+        _larger_circle = set(itertools.chain(*[ self.neighbours(j) for j in _neighbour_cells ])) - {i}
+        _larger_circle = list(set(itertools.chain(*[ self.neighbours(j) for j in _larger_circle ])) - {i})
         voronoi = spatial.Voronoi(self._cell_centers[_larger_circle])
 
         ## cell_adjacency and adjacency_label
         _c_adjacency = self.cell_adjacency.tocsr()
         _c_label = self.adjacency_label
+        _new_ridges = []
         if _c_label is None:
             # disconnect
             _c_adjacency[i,_neighbour_cells] = False
@@ -1346,6 +1359,7 @@ class Voronoi(Delaunay):
                         _j_new.append(_j)
                 if _i_new:
                     _c_adjacency = _c_adjacency.tolil() # this also eliminates explicit zeros
+                    _new_ridges.append((_i_new,_j_new))
                     _c_adjacency[_i_new,_j_new] = True
                     _c_adjacency[_j_new,_i_new] = True
                     _c_adjacency = _c_adjacency.tocsr()
@@ -1354,8 +1368,8 @@ class Voronoi(Delaunay):
             else:
                 _c_adjacency.eliminate_zeros()
         else:
-            if 0 < _c_label[i]:
-                _c_label[i] = 0
+            if self._cell_label is not None:
+                self._cell_label[i] = 0
             _coo = _c_adjacency.tocoo()
             # disconnect
             _i, _j, _k = _coo.row, _coo.col, _coo.data
@@ -1369,6 +1383,7 @@ class Voronoi(Delaunay):
                     # explicit zeros are existing (and valid) edges
                     if __i in _neighbour_cells and  __j in _neighbour_cells and \
                             __j not in _c_adjacency.indices[_c_adjacency.indptr[__i]:_c_adjacency.indptr[__i+1]]:
+                        _new_ridges.append((__i,__j))
                         _i_new.append(__i)
                         _j_new.append(__j)
                 if _i_new:
@@ -1391,12 +1406,15 @@ class Voronoi(Delaunay):
         ## match vertices
         _v_adjacency = self._vertex_adjacency.tocsr()
         # known vertices
-        _xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
-        _x_inner = set(self._cell_vertices[i])
+        _x_inner = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
+        _xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in _x_inner ]))
+        #_xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
+        #_x_inner = set(self._cell_vertices[i])
         # vertices to be kept for sure
         _hull_vertices = _xi - _x_inner
         _hull_vertex = np.array([ _v in _hull_vertices for _v in _xi ])
         _xi = np.array(list(_xi))
+        _x_inner = set(self._cell_vertices[i])
 
         _yi = np.arange(voronoi.vertices.shape[0])
 
@@ -1445,7 +1463,7 @@ class Voronoi(Delaunay):
 
         _y_matching_inner = { _v for _v in _y_inner if _matched[_v] }
         _x_matching_inner = { _xi[_nearest[_yi[_v]]] for _v in _y_matching_inner }
-        assert _x_matching_inner < _x_inner
+        #assert _x_matching_inner < _x_inner # no longer true since _larger_circle is larger
         _discard = _x_inner - _x_matching_inner
         _vertex_new = _y_inner - _y_matching_inner
 
@@ -1473,7 +1491,7 @@ class Voronoi(Delaunay):
             _region = np.array(voronoi.regions[voronoi.point_region[_i]])
             _new = _new_vertices[_region[0 <= _region]]
             _new = _new[0 <= _new]
-            self._cell_vertices[_j] = np.r_[_kept, _new]
+            self._cell_vertices[_j] = _vs = np.r_[_kept, _new]
 
         ## vertex_adjacency
 
@@ -1491,7 +1509,9 @@ class Voronoi(Delaunay):
         _v_adjacency = _v_adjacency.tolil()
 
         # connect
-        for _i, _j in voronoi.ridge_vertices:
+        _ks = np.array(_larger_circle)
+        for _k, _r in enumerate(voronoi.ridge_vertices):
+            _i, _j = _r
             if _i in _yi and _j in _yi:
                 if _matched[_i]:
                     _i = _nearest[_i]
@@ -1504,11 +1524,17 @@ class Voronoi(Delaunay):
                 if 0 <= _i and 0 <= _j:
                     _v_adjacency[_i,_j] = True
                     _v_adjacency[_j,_i] = True
+                    # look for the corresponding ridge
+                    __i, __j = _ks[voronoi.ridge_points[_k]]
+                    #if __j not in self.neighbours(__i):
+                    #    print(_hull_vertices, _x_inner, _y_inner, _x_matching_inner, _y_matching_inner)
+                    assert __j in self.neighbours(__i)
 
         self._vertex_adjacency = _v_adjacency
 
         ## cell_centers
         self._cell_centers[i] = np.inf
+        self._vertices[_discarded_vertices] = np.inf
 
         if pack_indices:
             self.pack_indices(i, _discarded_vertices)

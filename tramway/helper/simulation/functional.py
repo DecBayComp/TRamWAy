@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -268,7 +268,7 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         pd.DataFrame(X, columns=xcols)).join(
         pd.DataFrame(T, columns=['t']))
     # post-process
-    if not full:
+    if not full and not reflect:
         points = crop(points, _box)
         points = points.loc[points['t'] <= duration+time_step*.1]
         if not single:
