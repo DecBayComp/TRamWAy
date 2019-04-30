@@ -61,19 +61,44 @@ def non_tracking_03(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=0.2, metho
     return inferrer._final_diffusivities
 
 
-''' Rough debug is done. Minor bugs may remain
-    TODO: add drift [transform parameters array into pandas dataframe]. Store with cartesian coordinates or as direction and intensity ?
-    v0.3 should solve Rac1 bug (empty cells)
-    v0.3 should support massive parallelization at cluster level (separate SLURM jobs for each cell) using argument `cells_to_infer`
+''' v0.3 does solve Rac1 bug (empty cells)
+    v0.3 does support massive parallelization at cluster level (separate SLURM jobs for each cell) using argument `cells_to_infer`
     v0.3 is syntactically closer to an eventual c++ version of the code
     The handling of particle count and drs distance matrices is not very pleasing yet
-    IMPLEMENTING DRIFT
+    drift management is horrendously confusing in the argument passing of the optimizer
 '''
 
 
+def Lq(x,q=1):
+    """
+        Implements the $L_q$ function.
+    :param x: the argument of `Lq`
+    :param q: the parameter `q`
+    :return: The value of `Lq` applied to x with parameter `q`
+    """
+    if q == 1:
+        return log(x)
+    elif 0 < q < 1:
+        return (x**(1-q)-1) / (1-q)
+    else:
+        raise ValueError(f"q={q} is out of bounds.")
+
+def expq(y,q=1):
+    """
+        Implements the inverse $L_q$ function
+    :param y: The argument
+    :param q: The parameter `q`
+    :return: The value of the inverse $L_q$ function
+    """
+    if q == 1:
+        return exp(x)
+    elif 0 < q < 1:
+        p = 1 / (1-q) # the conjugate of q, i.e the number such that (1/p + 1/q = 1)
+        return (y/p + 1) ** p
+    else:
+        raise ValueError(f"q={q} is out of bounds.")
+
 # Forebear
-
-
 class NonTrackingInferrer:
 
     def __init__(self, cells, dt, gamma=0.8, smoothing_factor=0, optimizer='NM', tol=1e-3, epsilon=1e-8, maxiter=10000,
@@ -102,7 +127,7 @@ class NonTrackingInferrer:
         :param distribution: The likelihood-distribution to use. Can be 'gaussian' or 'rayleigh'
         :param temperature: The temperature of the BP (beta in the notes)
         :param parallel: Boolean. If `True`, we use the parallel implementation. If False, we use the sequential implementation
-        :param hij_init_takeLast: NOT YET IMPLEMENTED Boolean. If True, then we initialize h_ij to its last value at the previous BP
+        :param hij_init_takeLast: Boolean. If True, then we initialize h_ij to its last value at the previous BP
         :param dt: The time step between frames
         :param p_off: The probability of a particle disappearing
         :param mu_on: The particle appearance intensity
@@ -262,7 +287,7 @@ class NonTrackingInferrer:
             # Check : Is index correct ?
 
         # SEQUENTIAL VERSION #
-        elif not self._parallel:
+        elif self._parallel is False:
             """ In the sequential method for the 1D scheme, the inferred value in cell i is assumed as the diffusivity of cell i 
                 when inferring cells j>i. In the parallel method, these optimizations are independent.
             """
@@ -270,7 +295,8 @@ class NonTrackingInferrer:
                 self._final_diffusivities[i], self._final_drifts[i,:] = self.estimate(i)
                 self.vprint(2, f"Current parameters with tol = {self._tol}")
                 self.vprint(2, f"diffusivities={self._final_diffusivities}")
-                self.vprint(2, f"drifts={self._final_drifts}")
+                if self._inference_mode == 'DD':
+                    self.vprint(2, f"drifts={self._final_drifts}")
             self._final_diffusivities = pd.DataFrame(self._final_diffusivities, index=list(self._cells.keys()),
                                                      columns=['D'])
             self._final_drifts = pd.DataFrame(self._final_drifts, index=list(self._cells.keys()),
@@ -300,6 +326,7 @@ class NonTrackingInferrer:
             d = self._starting_drifts[i,:]
         elif self._scheme == '2D':
             D = array([self._starting_diffusivities[i], self._starting_diffusivities[i]])
+            d = np.hstack((self._starting_drifts[i,:], self._starting_drifts[i,:]))
         else:
             raise ValueError("This scheme is not supported. Choose '1D' or '2D'.")
         D_in = self._starting_diffusivities[i]
@@ -337,7 +364,12 @@ class NonTrackingInferrer:
                 start = np.hstack((D,d))
                 fit = minimize(local_inferrer.smoothed_posterior, x0=start, method='Nelder-Mead', tol=self._tol,
                                options={'disp': True})
-                drift_in = (fit.x)[1:3]
+                if self._scheme == '1D':
+                    drift_in = (fit.x)[1:3]
+                elif self._scheme == '2D':
+                    drift_in = (fit.x)[2:4]
+                else:
+                    raise ValueError("Wrong scheme. Choose 1D or 2D")
         else:
             raise ValueError("This optimizer is not supported. Suggestion: Choose 'NM'. ")
         D_in = abs((fit.x)[0])
@@ -353,7 +385,10 @@ class NonTrackingInferrer:
         self.vprint(1, f"{time() - fittime}s")  # make this an attribute to save it in a file later ?
         self.vprint(1, f"Estimation: D_in: {D_in}\t drift_in: {drift_in}")
 
-        return D_in, drift_in
+        if self._inference_mode == 'D':
+            return D_in
+        elif self._inference_mode == 'DD':
+            return D_in, drift_in
 
     def get_neighbours(self, cell_index, order=1):
         """ TO BE TESTED
@@ -467,8 +502,58 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             area += cell.volume
         self._region_area = area
         self._particle_count = self.particle_count()
-        self._stored_hij = [None] * self._particle_count.shape[1]  # one element for each frame
 
+        self._hij = [None] * self._particle_count.shape[1]
+        self._hji = [None] * self._particle_count.shape[1]
+        for f in arange(len(self._hij)-1):
+            M = np.sum(self._particle_count[self._region_indices, f + 1]).astype(int)
+            self._hij[f] = [None] * (M+1)
+            self._hji[f] = [None] * (M+1)
+
+        self.optimizer_first_iteration = True
+
+    # hij, hji getters and setters #
+    def get_hij(self, frame, non):
+        """
+        :param frame: The index of the first frame of the transisiton
+        :param noff: The number of disappearing particles in first frame
+        :return: The currently stored `hij` matrix for frame transition `frame` to `frame+1`
+        """
+        try:
+            return self._hij[frame][non]
+        except IndexError:
+            print(self._hij[frame])
+            import pdb; pdb.set_trace()
+            raise IndexError("hij index error")
+
+    def set_hij(self, hij, frame, non):
+        """
+            Sets a value for `hij`
+        :param frame: The index of the first frame of the transisiton
+        :param noff: The number of disappearing particles in first frame
+        """
+        try:
+            self._hij[frame][non] = hij
+        except IndexError:
+            import pdb; pdb.set_trace()
+
+    def get_hji(self, frame, non):
+        """
+        :param frame: The index of the first frame of the transisiton
+        :param noff: The number of disappearing particles in first frame
+        :return: The currently stored `hji` matrix for frame transition `frame` to `frame+1`
+        """
+        return self._hji[frame][non]
+
+    def set_hji(self, hji, frame, non):
+        """
+            Sets a value for `hji`
+        :param frame: The index of the first frame of the transisiton
+        :param noff: The number of disappearing particles in first frame
+        """
+        self._hji[frame][non] = hji
+
+    # Other helper functions #
     def particle_count(self):
         """
             Used for __init__ of nonTrackingInferrerRegion
@@ -527,6 +612,9 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             raise ZeroDivisionError("The optimizer somehow tested 0 diffusivity --> ZeroDivisionError")
         lnp[lnp < self._minlnL] = self._minlnL  # avoid numerical underflow
         return lnp
+
+    def lq_lnp_ij(self, dr, frame_index, q=1):
+        return Lq( self.lnp_ij(dr, frame_index, q) )
 
     def Q_ij(self, n_off, n_on, dr, frame_index):
         """
@@ -587,9 +675,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             drift_y[N_ix[j]:N_ix[j + 1]] = ones(drift_y[N_ix[j]:N_ix[j + 1]].shape) * self._working_drifts[self._region_indices[j], 1]
         return Ds, drift_x, drift_y
 
-    # -----------------------------------------------------------------------------
-    # smoothing functions
-    # -----------------------------------------------------------------------------
+    # smoothing functions #
     def smoothing_prior(self):
         """
             Computes the smoothing prior over all cells to infer
@@ -610,6 +696,11 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         raise ("Not supported yet")
 
     def smoothed_posterior(self, D):
+        """
+            Computes the smoothed posterior for parameters D
+        :param D: depends on whether we are 1D,2D, D,DD. Note: This argument passing is unreadably complicated. To be simplified
+        :return: the smoothed posterior minus log-likelihood
+        """
         D = abs(D)
         self.vprint(3, D, end_='')
         ''' Nelder-Mead does not have positivity constraints for D_in, so we might find a negative value.
@@ -631,6 +722,11 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             if self._scheme == '1D':
                 self._working_diffusivities[self._index_to_infer] = D[0]
                 self._working_drifts[self._index_to_infer,:] = D[1]
+            elif self._scheme == '2D':
+                self._working_diffusivities[self._region_indices] = D[1]
+                self._working_diffusivities[self._index_to_infer] = D[0]
+                self._working_drifts[self._region_indices] = D[4:6]
+                self._working_drifts[self._index_to_infer] = D[2:4]
             else:
                 raise ValueError(f"scheme {self._scheme} not supported in 'DD' mode")
 
@@ -649,11 +745,11 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         else:
             posterior = mlnL + self.smoothing_prior()
         self.vprint(3, f"{posterior}")
+
+        self.optimizer_first_iteration = False
         return posterior
 
-    # -----------------------------------------------------------------------------
-    # Sum-product BP
-    # -----------------------------------------------------------------------------
+    # Sum-product BP #
     def initialize_messages(self, N, M):
         """
             Initializes the BP messages to zeros
@@ -762,10 +858,16 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         # Else, perform BP to obtain the Bethe free energy:
         else:
             # bool_array = self.boolean_matrix(n_off + M)
-            hij, hji = self.initialize_messages(n_on + N, n_off + M)
+            if (self.optimizer_first_iteration is False) and (self._hij_init_takeLast is True):
+                hij = self.get_hij(frame_index, n_on)
+                hji = self.get_hji(frame_index, n_on)
+            else:
+                hij, hji = self.initialize_messages(n_on + N, n_off + M)
             assert (hij.shape == hji.shape)
             Q = self.Q_ij(n_off, n_on, dr, frame_index)
             F_BP, hij, hji, n = self.sum_product_BP(Q, hij, hji)
+            self.set_hij(hij,frame_index,n_on)
+            self.set_hji(hji, frame_index, n_on)
             # if self._hij_init_takeLast:
             #     TODO store hij
             #     self._stored_hij[frame_index,n_on] = hij
@@ -792,9 +894,10 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         delta = M - N
         if (M_index_to_infer == 0) or (N_index_to_infer == 0):
             mlnL = 0.  # if the cell to infer is empty in one frame, we gain 0 information
-        elif ((self._p_off == 0.) & (self._mu_on == 0.) & (delta == 0)) or self._phantom_particles is False:
+        elif ((self._p_off == 0.) & (self._mu_on == 0.) & (delta == 0)) or (self._phantom_particles is False):
             # Q = self.Q_ij(0, 0, dr, frame_index)
             mlnL = self.sum_product_energy(dr, frame_index, 0, 0, N, M)
+            #self.vprint(3,f"mlnL={mlnL}")
         else:
             # self._stored_hij[frame_index] = [None] * (M - max([0, int(Delta)]))
             mlnL = -logsumexp([log(self.p_m(n_on, delta, N)) + lng(M + 1 - n_on) - lng(M + 1) - lng(N + 1) \
