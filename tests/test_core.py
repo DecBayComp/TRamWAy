@@ -133,3 +133,53 @@ class TestXyt(object):
         return pandas.DataFrame([[1,.1,.1,.05],[1,.45,.45,.1],[1,.85,.65,.12],[2,.6,.9,.25],[2,.4,.5,.3]], columns=list('nxyt'))
         assert crop(self.example_nxyt(), self.example_bbox(), add_deltas=False).equals(expected_result[list('nxyt')])
 
+
+from tramway.core.analyses import *
+class TestAnalyses(object):
+
+    def example_list(self):
+        return ['a', 1, [], True]
+
+    def example_dict(self, i=1):
+        if i == 1:
+            return dict(a=(), b=2, c='str')
+        elif i == 2:
+            return {'key1': 'val1', 'key2': 'val2'}
+
+    def example_set(self):
+        return set([-3, 'abc'])
+
+    def example_tuple(self):
+        return (False, {}, 1e-2)
+
+    def example_tree(self):
+        tree = Analyses('a string')
+        subtree = Analyses(self.example_list())
+        tree.add(subtree, label='a list', comment='heterogeneous list')
+        subsubtree = Analyses(self.example_dict())
+        subtree.add(subsubtree, label='a dict')
+        return tree
+
+    def example_comment(self):
+        return 'example comment'
+
+    def test_accessors(self):
+        tree = self.example_tree()
+        assert tree.data == 'a string'
+        assert tree['a list'].data == self.example_list()
+        assert tree['a list']['a dict'].data == self.example_dict()
+        tree.add(self.example_set())
+        tree['a list']['a dict']['a tuple'] = self.example_tuple()
+        assert tree[0].data == self.example_set()
+        tree['a list']['a dict'].comments['a tuple'] = self.example_comment()
+        assert tree['a list']['a dict'].comments['a tuple'] == self.example_comment()
+        tree['a list']['a dict']['another dict'] = {}
+        tree['a list']['a dict']['another dict']['yet another dict'] = self.example_dict(2)
+        art1, art2 = find_artefacts(tree, ((set, list), dict), ('a list', 'a dict'))
+        assert art1 == self.example_list()
+        assert art2 == self.example_dict()
+        art1, art2 = find_artefacts(tree, ((set, list), dict), ('a list', 'a dict', 'another dict'))
+        assert art2 == {}
+        art1, art2 = find_artefacts(tree, ((set, list), dict), ('a list', 'a dict', 'another dict', 'yet another dict'))
+        assert art2 == self.example_dict(2)
+

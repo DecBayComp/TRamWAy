@@ -453,6 +453,8 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
     else:
         labels = [labels]
     labels_defined = bool(labels)
+    if labels_defined:
+        labels = labels[::-1]
     subtree, matches, lookup = None, [], True
     for i, _filter in enumerate(filters):
         if quantifiers:
@@ -466,7 +468,6 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
                 _fitler = lambda a: f(a.data)
         else:
             raise TypeError('invalid filter type: {}'.format(type(_filter)))
-        labels = labels[::-1]
         match = []
         while True:
             if lookup:
