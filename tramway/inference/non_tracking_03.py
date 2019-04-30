@@ -30,6 +30,14 @@ def non_tracking_03(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=0.2, metho
                     tol=1e-3, times=[0.]):
     if method == 'None':
         raise ValueError("method must be given")
+    try:
+        useLq = method['useLq']
+    except KeyError:
+        useLq = False
+    try:
+        q = method['q']
+    except KeyError:
+        q = 0.5
     inferrer = NonTrackingInferrer(cells=cells,
                                    dt=dt,
                                    gamma=method['gamma'],
@@ -49,6 +57,8 @@ def non_tracking_03(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=0.2, metho
                                    temperature=method['temperature'],
                                    parallel=method['parallel'],
                                    hij_init_takeLast=method['hij_init_takeLast'],
+                                   useLq=useLq,
+                                   q=q,
                                    p_off=p_off, mu_on=mu_on,
                                    starting_diffusivities=method['starting_diffusivities'],
                                    starting_drifts=method['starting_drifts'],
@@ -103,8 +113,8 @@ class NonTrackingInferrer:
 
     def __init__(self, cells, dt, gamma=0.8, smoothing_factor=0, optimizer='NM', tol=1e-3, epsilon=1e-8, maxiter=10000,
                  phantom_particles=1, messages_type='CLV', chemPot='None', chemPot_gamma=1, chemPot_mu=1, scheme='1D',
-                 method='BP', distribution='gaussian', temperature=1, parallel=1, hij_init_takeLast=False, p_off=0,
-                 mu_on=0, starting_diffusivities=[1],
+                 method='BP', distribution='gaussian', temperature=1, parallel=1, hij_init_takeLast=False, useLq=False,
+                 q=0.5, p_off=0, mu_on=0, starting_diffusivities=[1],
                  starting_drifts=[0, 0], inference_mode='D', cells_to_infer='all', neighbourhood_order=1, minlnL=-100, verbose=1):
         """
         :param cells: An object of type 'Distributed' containing the data tessellated into cells
@@ -167,6 +177,7 @@ class NonTrackingInferrer:
         self._chemPot_gamma = chemPot_gamma
         self._epsilon = epsilon
         self._chemPot_mu = chemPot_mu
+        self._q = q
         self._minlnL = minlnL
         self._neighbourhood_order = neighbourhood_order
         if len(starting_diffusivities) == 1:
@@ -190,6 +201,7 @@ class NonTrackingInferrer:
         self._messages_type = messages_type
         self._inference_mode = inference_mode
         self._distribution = distribution
+        self._useLq = useLq
 
         # Others
         self._final_diffusivities = self._starting_diffusivities
@@ -197,6 +209,8 @@ class NonTrackingInferrer:
         self._verbose = verbose
 
         self.check_parameters()
+
+        self.vprint(3, f"The cell volume is {self._cells[self._cells_to_infer[0]].volume}")
 
     def check_parameters(self):
         """
@@ -216,15 +230,17 @@ class NonTrackingInferrer:
         if self._inference_mode == 'DD':
             assert(self._scheme == '1D')
             assert(self._parallel is False)
+        if self._useLq is True:
+            assert(0 < self._q < 1)
 
     def confirm_parameters(self):
         """
             prints a summary of the parameters of the inference. This can be useful when we store computed values on files. The log file then contains the information about the algorithm parameters.
         """
         self.vprint(1,
-                    f"Inference is done with methods: \n*\t`method={self._method}` \n*\t`scheme={self._scheme}` \n*\t`optimizer={self._optimizer}` \n*\t`distribution={self._distribution}` \n*\t`parallel={self._parallel}` \n*\t`hij_init_takeLast={self._hij_init_takeLast}` \n*\t`chemPot={self._chemPot}` \n*\t`messages_type={self._messages_type}` \n*\t`inference_mode={self._inference_mode}` \n*\t`phantom_particles={self._phantom_particles}`")
+                    f"Inference is done with methods: \n*\t`method={self._method}` \n*\t`scheme={self._scheme}` \n*\t`optimizer={self._optimizer}` \n*\t`distribution={self._distribution}` \n*\t`parallel={self._parallel}` \n*\t`hij_init_takeLast={self._hij_init_takeLast}` \n*\t`chemPot={self._chemPot}` \n*\t`messages_type={self._messages_type}` \n*\t`inference_mode={self._inference_mode}` \n*\t`phantom_particles={self._phantom_particles}` \n*\t`useLq={self._useLq}`")
         self.vprint(1,
-                    f"The tuning is: \n*\t`gamma={self._gamma}` \n*\t`smoothing_factor={self._smoothing_factor}` \n*\t`tol={self._tol}` \n*\t`maxiter={self._maxiter}` \n*\t`temperature={self._temperature}` \n*\t`chemPot_gamma={self._chemPot_gamma}` \n*\t`chemPot_mu={self._chemPot_mu}` \n*\t`epsilon={self._epsilon}` \n*\t`minlnL={self._minlnL}` \n*\t`neighbourhood_order={self._neighbourhood_order}`")
+                    f"The tuning is: \n*\t`gamma={self._gamma}` \n*\t`smoothing_factor={self._smoothing_factor}` \n*\t`tol={self._tol}` \n*\t`maxiter={self._maxiter}` \n*\t`temperature={self._temperature}` \n*\t`chemPot_gamma={self._chemPot_gamma}` \n*\t`chemPot_mu={self._chemPot_mu}` \n*\t`epsilon={self._epsilon}` \n*\t`minlnL={self._minlnL}` \n*\t`neighbourhood_order={self._neighbourhood_order}` \n*\t`q={self._q}`")
         self.vprint(1, f"Inference will be done on cells {self._cells_to_infer}")
         self.vprint(1, f"`p_off is {self._p_off},\tmu_on={self._mu_on}`")
 
@@ -292,7 +308,10 @@ class NonTrackingInferrer:
                 when inferring cells j>i. In the parallel method, these optimizations are independent.
             """
             for i in self._cells_to_infer:
-                self._final_diffusivities[i], self._final_drifts[i,:] = self.estimate(i)
+                if self._inference_mode=='DD':
+                    self._final_diffusivities[i], self._final_drifts[i,:] = self.estimate(i)
+                elif self._inference_mode=='D':
+                    self._final_diffusivities[i] = self.estimate(i)
                 self.vprint(2, f"Current parameters with tol = {self._tol}")
                 self.vprint(2, f"diffusivities={self._final_diffusivities}")
                 if self._inference_mode == 'DD':
@@ -341,8 +360,9 @@ class NonTrackingInferrer:
             self._cells, self._dt, self._gamma, self._smoothing_factor, self._optimizer, self._tol, self._epsilon,
             self._maxiter, self._phantom_particles, self._messages_type, self._chemPot, self._chemPot_gamma,
             self._chemPot_mu, self._scheme, self._method, self._distribution, self._temperature, self._parallel,
-            self._hij_init_takeLast, self._p_off, self._mu_on, self._starting_diffusivities, self._starting_drifts,
-            self._inference_mode, self._cells_to_infer, self._neighbourhood_order, self._minlnL, self._verbose)
+            self._hij_init_takeLast, self._useLq, self._q, self._p_off, self._mu_on, self._starting_diffusivities,
+            self._starting_drifts, self._inference_mode, self._cells_to_infer, self._neighbourhood_order, self._minlnL,
+            self._verbose)
         if self._chemPot == 'Chertkov':
             local_inferrer = NonTrackingInferrerRegionBPchemPotChertkov(parent_attributes, i, region_indices)
         elif self._chemPot == 'Mezard':
@@ -356,6 +376,7 @@ class NonTrackingInferrer:
             raise ValueError(
                 "chemPot or messages_type not valid. Suggestion: Select chemPot='None' and messages_type='CLV'.")
 
+        #import pdb; pdb.set_trace()
         if self._optimizer == 'NM':
             if self._inference_mode == 'D':
                 fit = minimize(local_inferrer.smoothed_posterior, x0=D, method='Nelder-Mead', tol=self._tol,
@@ -613,8 +634,18 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         lnp[lnp < self._minlnL] = self._minlnL  # avoid numerical underflow
         return lnp
 
-    def lq_lnp_ij(self, dr, frame_index, q=1):
-        return Lq( self.lnp_ij(dr, frame_index, q) )
+    def minus_lq_minus_lnp_ij(self, dr, frame_index):
+        """
+            Computes either the log-probability matrix or its -Lq(-.) transform
+        :param dr: the displacement vectors
+        :param frame_index: The index of the current frame
+        :return: Matrix of log-probabilities for each distance or its -Lq(-.) transform
+        """
+        if self._useLq is True:
+            import pdb; pdb.set_trace()
+            return -Lq( -self.lnp_ij(dr, frame_index), self._q )
+        else:
+            return self.lnp_ij(dr, frame_index)
 
     def Q_ij(self, n_off, n_on, dr, frame_index):
         """
@@ -644,7 +675,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             assert (M == N - n_off + n_on)  # just a consistency check
         out = zeros([n_on + N, n_off + M])
         LM = ones([n_on + N, n_off + M]) * self._region_area
-        lnp = self.lnp_ij(dr, frame_index)
+        lnp = self.minus_lq_minus_lnp_ij(dr, frame_index)
         out[:N, :M] = lnp - log(LM[:N, :M])
         out[:N, M:] = -log(LM[:N, M:])
         out[N:, :M] = -log(LM[N:, :M])
@@ -747,6 +778,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         self.vprint(3, f"{posterior}")
 
         self.optimizer_first_iteration = False
+        #import pdb; pdb.set_trace()
         return posterior
 
     # Sum-product BP #
@@ -853,8 +885,8 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         """
         #self.vprint(3, f"call: sum_product_energy")
         # If a single particle has been recorded in each frame and tracers are permanent, the link is known:
-        if (N == 1) & (n_off == 0) & (n_on == 0):
-            F_BP = -self.lnp_ij(dr, frame_index)
+        if (N == 1) & (n_off == 0) & (n_on == 0) & (M == 1):
+            F_BP = -self.minus_lq_minus_lnp_ij(dr, frame_index)
         # Else, perform BP to obtain the Bethe free energy:
         else:
             # bool_array = self.boolean_matrix(n_off + M)
@@ -913,6 +945,7 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         for frame_index, dr in enumerate(self._drs):
             # print(f"frame_index={frame_index} \t dr={dr}")
             mlnL += self.marginal_minusLogLikelihood(dr, frame_index)
+            #import pdb; pdb.set_trace()
         return mlnL
 
     # -----------------------------------------------------------------------------
@@ -1006,8 +1039,8 @@ class NonTrackingInferrerRegionBPchemPotMezard(NonTrackingInferrerRegion):
         term1_bis = + sum(np.logaddexp(0, Q + self._temperature*hij + self._temperature*hji))
         term2_bis = - sum(logsumexp(np.hstack((Q + self._temperature*hji, -ones((Q.shape[0], 1))*self._chemPot_gamma)), axis=1))
         term3_bis = - sum(logsumexp(np.vstack((Q + self._temperature*hij, -ones((1, Q.shape[1]))*self._chemPot_gamma)), axis=0))
-        #term4_bis = - sum(Q.shape) * self._chemPot_gamma
-        logsumexp_energy = term1_bis + term2_bis + term3_bis
+        term4_bis = - sum(Q.shape) * self._chemPot_gamma
+        logsumexp_energy = term1_bis + term2_bis + term3_bis + term4_bis
 
         return logsumexp_energy/self._temperature
 
