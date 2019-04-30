@@ -62,8 +62,8 @@ def gradn(cells, i, X, index_map=None):
             i = index_map[i]
             adjacent = index_map[_adjacent]
             ok = 0 <= adjacent
-            assert np.all(ok)
-            adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+            if not np.all(ok):
+                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
         if adjacent.size:
             X0_dup = _adjacent.size
             local = np.r_[np.full(X0_dup, i), adjacent]
@@ -357,8 +357,8 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         if index_map is not None:
             adjacent = index_map[_adjacent]
             ok = 0 <= adjacent
-            assert np.all(ok)
-            #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+            if not np.all(ok):
+                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
         if _adjacent.size:
             X = np.vstack([ cells[j].center for j in _adjacent ])
             below, above = neighbours_per_axis(i, cells, X, eps, selection_angle)
@@ -478,8 +478,8 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         if index_map is not None:
             adjacent = index_map[_adjacent]
             ok = 0 <= adjacent
-            assert np.all(ok)
-            #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+            if not np.all(ok):
+                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
         if _adjacent.size:
             X = np.vstack([ cells[j].center for j in _adjacent ])
             below, above = neighbours_per_axis(i, cells, X, eps, selection_angle)
