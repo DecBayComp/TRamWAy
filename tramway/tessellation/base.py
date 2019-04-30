@@ -760,6 +760,57 @@ class Tessellation(Lazy):
         """
         pass
 
+    def set_adjacency(self, i, j, label=True):
+        """
+        Set (or unset) the adjacency between two cells.
+
+        If `adjacency_label` is not defined, `label` should be ``True`` or ``False``,
+        otherwise `adjacency_label` is created with default value ``1`` and
+        `cell_adjacency` is modified to encode indices in `adjacency_label` instead
+        of labels.
+
+        Arguments:
+
+            i (int): cell index.
+
+            j (int): cell index.
+
+            label (scalar): adjacency label.
+
+        """
+        if i in self.neighbours(j):
+            adj = self._cell_adjacency
+            if self.adjacency_label is None:
+                if isinstance(label, (bool, np.bool_)):
+                    adj[i,j] = label
+                    adj[j,i] = label
+                else:
+                    adj = sparse.tril(adj, format='coo')
+                    lbls = np.zeros(adj.data.size, dtype=type(label))
+                    lbls[adj.data] = 1
+                    data = np.arange(adj.data.size)
+                    rows, cols = np.r_[adj.rows, adj.cols], np.r_[adj.cols, adj.rows]
+                    adj = sparse.coo_matrix((np.r_[data,data],(rows,cols)), shape=adj.shape)
+                self.cell_adjacency = adj
+            else:
+                self.adjacency_label[adj[i,j]] = label
+        else:
+            adj = sparse.tril(self._cell_adjacency, format='coo')
+            rows, cols = np.r_[adj.rows, i], np.r_[adj.cols, i]
+            if self.adjacency_label is None:
+                if isinstance(label, (bool, np.bool_)):
+                    data = np.r_[adj.data, label]
+                else:
+                    lbls = np.zeros(data.size, dtype=type(label))
+                    lbls[adj.data] = 1
+                    self.adjacency_label = np.r_[lbls, label]
+                    data = np.arange(data.size+1)
+            else:
+                data = np.r_[adj.data, self.adjacency_label.size]
+                self.adjacency_label = np.r_[self.adjacency_label, label]
+            rows, cols, data = np.r_[rows, cols], np.r_[cols, rows], np.r_[data, data]
+            self.cell_adjacency = sparse.coo_matrix((data,(rows,cols)), shape=adj.shape)
+
 
 
 class Delaunay(Tessellation):

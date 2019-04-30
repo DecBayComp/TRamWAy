@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -14,6 +14,7 @@
 
 from tramway.core import ChainArray
 from .base import *
+from .gradient import *
 from warnings import warn
 from math import pi, log
 import numpy as np
@@ -32,12 +33,11 @@ setup = {'arguments': OrderedDict((
         ('max_iter',        dict(type=int, help='maximum number of iterations (~100)')),
         ('compatibility',       ('-c', '--inferencemap', '--compatible',
                     dict(action='store_true', help='InferenceMAP compatible'))),
-        ('epsilon',         dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
-        ('grad',        dict(help="gradient; any of 'grad1', 'gradn'")),
         ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta1'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',         ()))),
     'cell_sampling': 'connected'}
+setup_with_grad_arguments(setup)
 
 
 class DV(ChainArray):
@@ -321,11 +321,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     posteriors = []
 
     # gradient options
-    grad_kwargs = {}
-    if epsilon is not None:
-        if compatibility:
-            warn('epsilon should be None for backward compatibility with InferenceMAP', RuntimeWarning)
-        grad_kwargs['eps'] = epsilon
+    grad_kwargs = get_grad_kwargs(epsilon=epsilon, compatibility=compatibility, **kwargs)
 
     # parametrize the optimization algorithm
     default_BFGS_options = dict(maxiter=1e3, disp=verbose)

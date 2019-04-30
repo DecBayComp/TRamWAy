@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -14,6 +14,7 @@
 
 from tramway.core import ChainArray
 from .base import *
+from .gradient import *
 from warnings import warn
 from math import pi, log
 import numpy as np
@@ -30,9 +31,9 @@ setup = {'name': ('standard.dd', 'standard.ddrift', 'smooth.dd', 'smooth.ddrift'
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
-        ('tol',             dict(type=float, help='tolerance for scipy minimizer')),
-        ('epsilon',         dict(args=('--eps',), kwargs=dict(type=float, help='if defined, every gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)))),
+        ('tol',             dict(type=float, help='tolerance for scipy minimizer')))),
     'cell_sampling': 'group'}
+setup_with_grad_arguments(setup)
 
 
 def smooth_dd_neg_posterior(x, dd, cells, sigma2, diffusivity_prior,
@@ -79,11 +80,7 @@ def infer_smooth_DD(cells, diffusivity_prior=None, jeffreys_prior=False,
     dd = ChainArray('D', D_initial, 'drift', initial_drift)
 
     # gradient options
-    grad_kwargs = {}
-    if epsilon is not None:
-        if compatibility:
-            warn('epsilon should be None for backward compatibility with InferenceMAP', RuntimeWarning)
-        grad_kwargs['eps'] = epsilon
+    grad_kwargs = get_grad_kwargs(epsilon=epsilon, **kwargs)
 
     # parametrize the optimization algorithm
     if min_diffusivity is not None:
