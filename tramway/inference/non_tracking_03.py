@@ -7,13 +7,14 @@ from scipy import optimize as optim
 from scipy.special import iv
 from scipy.special import gamma as g
 from scipy.special import gammaln as lng
-from scipy.misc import logsumexp
+from scipy.special import logsumexp
 from scipy.optimize import linear_sum_assignment as kuhn_munkres
 from scipy.stats import skellam
 from scipy.optimize import minimize
 import inspect
 import multiprocessing as mp
 import sys
+import timeit
 from matplotlib import pylab as plt
 
 setup = {
@@ -107,6 +108,23 @@ def expq(y,q=1):
         return (y/p + 1) ** p
     else:
         raise ValueError(f"q={q} is out of bounds.")
+
+def logdotexp(a, b):
+    """
+        Computes log(dot(exp(a,b))) robustly. Taken from
+        https://stackoverflow.com/questions/23630277/numerically-stable-way-to-multiply-log-probability-matrices-in-numpy
+    :param a:
+    :param b:
+    :return:
+    """
+    max_a, max_b = np.max(a), np.max(b)
+    exp_a, exp_b = a - max_a, b - max_b
+    np.exp(exp_a, out=exp_a)
+    np.exp(exp_b, out=exp_b)
+    c = np.dot(exp_a, exp_b)
+    np.log(c, out=c)
+    c += max_a + max_b
+    return c
 
 # Forebear
 class NonTrackingInferrer:
@@ -835,8 +853,12 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         :param hji_old: Old right messages
         :return: The new messages (undamped)
         """
+        start = timeit.default_timer()
         hij_new = -log(dot(exp(Q + self._temperature*hji_old), self.boolean_matrix(Q.shape[1])))/self._temperature
         hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + self._temperature*hij_old)))/self._temperature
+        #self.vprint(4,f"sum-product time \t= {(timeit.default_timer()-start)*1000} ms")
+        # logdotexp update
+        #hij_new = -logdotexp(Q + self._temperature * hji_old, ... ) -  / self._temperature
         return hij_new, hji_new
 
     def sum_product_BP(self, Q, hij, hji):
