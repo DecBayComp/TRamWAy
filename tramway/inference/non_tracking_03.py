@@ -213,13 +213,20 @@ class NonTrackingInferrer:
         self._scheme = scheme
         self._method = method
         self._parallel = parallel
-        self._hij_init_takeLast = hij_init_takeLast
         self._phantom_particles = phantom_particles
         self._chemPot = chemPot
         self._messages_type = messages_type
         self._inference_mode = inference_mode
         self._distribution = distribution
         self._useLq = useLq
+
+        # Speed-up hacks
+        self._hij_init_takeLast = hij_init_takeLast
+        self._cutoff_low_p_non = True
+        self._cutoff_low_Pij = True
+        self._cutoff_log_threshold = -10
+        self._sparse_energy_computation = True
+        self._sparse_energy_computation_sparsity = 5
 
         # Others
         self._final_diffusivities = self._starting_diffusivities
@@ -322,8 +329,10 @@ class NonTrackingInferrer:
 
         # SEQUENTIAL VERSION #
         elif self._parallel is False:
-            """ In the sequential method for the 1D scheme, the inferred value in cell i is assumed as the diffusivity of cell i 
-                when inferring cells j>i. In the parallel method, these optimizations are independent.
+            several_runs = True
+            """ In the sequential method for the 1D scheme, the inferred value in cell i is assumed as the estimated 
+                diffusivity of cell i when inferring cells j>i. In the parallel method, these optimizations are 
+                independent.
             """
             for i in self._cells_to_infer:
                 if self._inference_mode=='DD':
@@ -339,6 +348,31 @@ class NonTrackingInferrer:
             self._final_drifts = pd.DataFrame(self._final_drifts, index=list(self._cells.keys()),
                                                      columns=['dx','dy'])
             # Check : Is index correct ?
+            if several_runs is True and self._inference_mode == 'D':
+                several_runs_maxiter = 100
+                several_runs_tolerance = 1
+                for run in range(several_runs_maxiter):
+                    self.vprint(1,f"\n--------------- 1D run number {run} ---------------\n")
+                    self._final_diffusivities_old = self._final_diffusivities
+                    for i in self._cells_to_infer:
+                        if self._inference_mode == 'DD':
+                            self._final_diffusivities[i], self._final_drifts[i, :] = self.estimate(i)
+                        elif self._inference_mode == 'D':
+                            self._final_diffusivities[i] = self.estimate(i)
+                        self.vprint(2, f"Current parameters with tol = {self._tol}")
+                        self.vprint(2, f"diffusivities={self._final_diffusivities}")
+                        if self._inference_mode == 'DD':
+                            self.vprint(2, f"drifts={self._final_drifts}")
+                    self._final_diffusivities = pd.DataFrame(self._final_diffusivities, index=list(self._cells.keys()),
+                                                             columns=['D'])
+                    self._final_drifts = pd.DataFrame(self._final_drifts, index=list(self._cells.keys()),
+                                                      columns=['dx', 'dy'])
+                    difference = sum(abs(self._final_diffusivities['D'] - self._final_diffusivities_old['D']))
+                    self.vprint(1,f"difference = {difference}")
+                    if difference < several_runs_tolerance:
+                        break
+            else:
+                pass
         else:
             raise ValueError("Invalid argument: parallel")
         self.vprint(1, f"Final diffusivities are:\n {self._final_diffusivities}")
@@ -513,6 +547,18 @@ class NonTrackingInferrer:
         return (self._mu_on * mu_off) ** (x - Delta / 2.) / (
                 g(x + 1.) * g(x + 1. - Delta) * iv(Delta, 2 * sqrt(self._mu_on * mu_off)))
 
+    def lnp_m(self, x, Delta, N):
+        """
+            The logarithm of `p_m`
+        :param x:
+        :param Delta:
+        :param N:
+        :return:
+        """
+        mu_off = N * self._p_off
+        return log(self._mu_on * mu_off)*(x - Delta / 2.) - lng(x + 1.) - lng(x + 1. - Delta) \
+                - log(iv(Delta, 2 * sqrt(self._mu_on * mu_off)))
+
     def vprint(self, level, string, end_='\n'):
         if self._verbose == 0:
             pass
@@ -656,6 +702,8 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         except ZeroDivisionError:
             raise ZeroDivisionError("The optimizer somehow tested 0 diffusivity --> ZeroDivisionError")
         lnp[lnp < self._minlnL] = self._minlnL  # avoid numerical underflow
+        if self._cutoff_low_Pij is True:
+            lnp[lnp < self._cutoff_log_threshold] = self._minlnL
         return lnp
 
     def minus_lq_minus_lnp_ij(self, dr, frame_index):
@@ -928,10 +976,6 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             F_BP, hij, hji, n = self.sum_product_BP(Q, hij, hji)
             self.set_hij(hij,frame_index,n_on)
             self.set_hji(hji, frame_index, n_on)
-            # if self._hij_init_takeLast:
-            #     TODO store hij
-            #     self._stored_hij[frame_index,n_on] = hij
-            #     raise ValueError("hij_init_takeLast not supported yet")
             if n == self._maxiter - 1:
                 self.vprint(1, f"Warning: BP attained maxiter before converging.")
         # print(f"n={n}") # the number of iterations
@@ -960,9 +1004,31 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
             #self.vprint(3,f"mlnL={mlnL}")
         else:
             # self._stored_hij[frame_index] = [None] * (M - max([0, int(Delta)]))
+            '''
             mlnL = -logsumexp([log(self.p_m(n_on, delta, N)) + lng(M + 1 - n_on) - lng(M + 1) - lng(N + 1) \
                                - self.sum_product_energy(dr, frame_index, n_on, n_on - delta, N, M) \
                                for n_on in range(max([0, int(delta)]), int(M))])  # Why use lng ?
+            '''
+            if self._cutoff_low_p_non is False:
+                mlnL = -logsumexp([log(self.p_m(n_on, delta, N)) + lng(M + 1 - n_on) - lng(M + 1) - lng(N + 1) \
+                                   - self.sum_product_energy(dr, frame_index, n_on, n_on - delta, N, M) \
+                                   for n_on in range(max([0, int(delta)]), int(M))])
+            else:
+                self.vprint(4,f"M = {M} \t N = {N} \t delta = {delta}")
+                noff_array = []
+                for n_on in range(max([0, int(delta)]), int(M)):
+                    # import pdb; pdb.set_trace()
+                    p = self.lnp_m(n_on, delta, N)
+                    if p == np.inf or p == -np.inf or p == np.nan:
+                        raise(f"Numerical Error, p={p}")
+                    self.vprint(4, f"n_on={n_on} \t p={p}")
+                    if p > self._cutoff_log_threshold and self._cutoff_low_p_non is True:
+                        val = self.lnp_m(n_on, delta, N) + lng(M + 1 - n_on) - lng(M + 1) - lng(N + 1) \
+                                          - self.sum_product_energy(dr, frame_index, n_on, n_on - delta, N, M)
+                        self.vprint(4,f"lnL_non={n_on} = {val}")
+                        noff_array.append(val)
+
+                mlnL = -logsumexp(noff_array)
         return mlnL
 
     def marginal_minusLogLikelihood_multiFrame(self):
