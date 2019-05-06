@@ -103,7 +103,7 @@ def expq(y,q=1):
     :return: The value of the inverse $L_q$ function
     """
     if q == 1:
-        return exp(x)
+        return exp(y)
     elif 0 < q < 1:
         p = 1 / (1-q) # the conjugate of q, i.e the number such that (1/p + 1/q = 1)
         return (y/p + 1) ** p
@@ -430,9 +430,7 @@ class NonTrackingWorker(Worker):
     def target(self):
         try:
             while True:
-                print('ready')
                 iter, region = self.get_task()
-                print('4')
                 try:
                     region.estimate()
                 finally:
@@ -452,8 +450,10 @@ class NonTrackingInferrer(NonTrackingInferrerBase):
         self.confirm_parameters()
         # PARALLEL VERSION with mp #
         if self._parallel:
-            global_workspace = self # fixme: split NonTrackingInferrer from NonTrackingInferrerBase
+            global_workspace = self  # fixme: split NonTrackingInferrer from NonTrackingInferrerBase
             regions = { i: self.create_region(global_workspace, i) for i in self._cells_to_infer }
+            for r in regions:
+                print(f"regions={regions[r]._index_to_infer}")
             scheduler = NonTrackingScheduler(global_workspace, regions)
             scheduler.run()
 
@@ -1151,12 +1151,15 @@ class NonTrackingInferrerRegion(JobStep):
             self._estimates = D_in, drift_in
 
     def set_workspace(self, ws):
-        JobStep.set_workspace(ws)
+        JobStep.set_workspace(self, ws)
         # update the worker's global workspace
-        if self._workspace._inference_mode == 'DD':
-            self._workspace._final_diffusivities[i], self._workspace._final_drifts[i, :] = self._estimates
-        elif self._workspace._inference_mode == 'D':
-            self._workspace._final_diffusivities[i] = self._estimates
+        try:
+            if self._workspace._inference_mode == 'DD':
+                self._workspace._final_diffusivities[i], self._workspace._final_drifts[i, :] = self._estimates
+            elif self._workspace._inference_mode == 'D':
+                self._workspace._final_diffusivities[i] = self._estimates
+        except AttributeError:
+            pass
 
 
 # -----------------------------------------------------------------------------
