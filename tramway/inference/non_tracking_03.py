@@ -39,6 +39,10 @@ def non_tracking_03(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=0.2, metho
         q = method['q']
     except KeyError:
         q = 0.5
+    try:
+        global_inference = method['global_inference']
+    except KeyError:
+        global_inference = False
     inferrer = NonTrackingInferrer(cells=cells,
                                    dt=dt,
                                    gamma=method['gamma'],
@@ -67,6 +71,7 @@ def non_tracking_03(cells, dt=0.04, p_off=0., mu_on=0., s2=0.0025, D0=0.2, metho
                                    cells_to_infer=method['cells_to_infer'],
                                    neighbourhood_order=method['neighbourhood_order'],
                                    minlnL=method['minlnL'],
+                                   global_inference = global_inference,
                                    verbose=method['verbose'])
     inferrer.infer()
     return inferrer._final_diffusivities
@@ -133,7 +138,8 @@ class NonTrackingInferrer:
                  phantom_particles=1, messages_type='CLV', chemPot='None', chemPot_gamma=1, chemPot_mu=1, scheme='1D',
                  method='BP', distribution='gaussian', temperature=1, parallel=1, hij_init_takeLast=False, useLq=False,
                  q=0.5, p_off=0, mu_on=0, starting_diffusivities=[1],
-                 starting_drifts=[0, 0], inference_mode='D', cells_to_infer='all', neighbourhood_order=1, minlnL=-100, verbose=1):
+                 starting_drifts=[0, 0], inference_mode='D', cells_to_infer='all', neighbourhood_order=1, minlnL=-100,
+                 global_inference = False, verbose=1):
         """
         :param cells: An object of type 'Distributed' containing the data tessellated into cells
         :param gamma: The damping factor of the BP. h = gamma * h_old + (1-gamma) * h_new
@@ -222,6 +228,7 @@ class NonTrackingInferrer:
 
         # Speed-up hacks
         self._hij_init_takeLast = hij_init_takeLast
+        self._global = global_inference
         self._cutoff_low_p_non = True
         self._cutoff_low_Pij = True
         self._cutoff_log_threshold = -10
@@ -252,22 +259,30 @@ class NonTrackingInferrer:
             assert(self._method == 'BP')
             assert(self._chemPot == 'None')
             assert(self._phantom_particles is True)
+            self.vprint(1, f"Warning: JB method is numerically unbstable")
         if self._inference_mode == 'DD':
             assert(self._scheme == '1D')
             assert(self._parallel is False)
         if self._useLq is True:
             assert(0 < self._q < 1)
+            self.vprint(1, f"Warning: Lq method is numerically unstable")
+        if self._global is True:
+            self.vprint(1, f"Warning: global mode is experimental")
+            assert(self._method=='BP')
 
     def confirm_parameters(self):
         """
             prints a summary of the parameters of the inference. This can be useful when we store computed values on files. The log file then contains the information about the algorithm parameters.
         """
+        print(f"Verbosity is {self._verbose}")
         self.vprint(1,
-                    f"Inference is done with methods: \n*\t`method={self._method}` \n*\t`scheme={self._scheme}` \n*\t`optimizer={self._optimizer}` \n*\t`distribution={self._distribution}` \n*\t`parallel={self._parallel}` \n*\t`hij_init_takeLast={self._hij_init_takeLast}` \n*\t`chemPot={self._chemPot}` \n*\t`messages_type={self._messages_type}` \n*\t`inference_mode={self._inference_mode}` \n*\t`phantom_particles={self._phantom_particles}` \n*\t`useLq={self._useLq}`")
+                    f"Inference is done with methods: \n*\t`method={self._method}` \n*\t`scheme={self._scheme}` \n*\t`optimizer={self._optimizer}` \n*\t`distribution={self._distribution}` \n*\t`parallel={self._parallel}` \n*\t`hij_init_takeLast={self._hij_init_takeLast}` \n*\t`chemPot={self._chemPot}` \n*\t`messages_type={self._messages_type}` \n*\t`inference_mode={self._inference_mode}` \n*\t`phantom_particles={self._phantom_particles}` \n*\t`useLq={self._useLq}` \n*\t`global_inference={self._global}`")
         self.vprint(1,
                     f"The tuning is: \n*\t`gamma={self._gamma}` \n*\t`smoothing_factor={self._smoothing_factor}` \n*\t`tol={self._tol}` \n*\t`maxiter={self._maxiter}` \n*\t`temperature={self._temperature}` \n*\t`chemPot_gamma={self._chemPot_gamma}` \n*\t`chemPot_mu={self._chemPot_mu}` \n*\t`epsilon={self._epsilon}` \n*\t`minlnL={self._minlnL}` \n*\t`neighbourhood_order={self._neighbourhood_order}` \n*\t`q={self._q}`")
         self.vprint(1, f"Inference will be done on cells {self._cells_to_infer}")
         self.vprint(1, f"`p_off is {self._p_off},\tmu_on={self._mu_on}`")
+
+        self.vprint(1, f"Used speed-up hacks are: \n*\t`cutoff_low_p_non={self._cutoff_low_p_non}` \n*\t`cutoff_low_Pij={self._cutoff_low_Pij}` \n*\t`cutoff_log_threshold={self._cutoff_log_threshold}` \n*\t`sparse_energy_computation={self._sparse_energy_computation}` \n*\t`sparse_energy_computation_sparsity={self._sparse_energy_computation_sparsity}`")
 
     '''
     # TODO : check if this function is really necessary at this level. It gets overridden by the child
@@ -414,14 +429,16 @@ class NonTrackingInferrer:
             self._chemPot_mu, self._scheme, self._method, self._distribution, self._temperature, self._parallel,
             self._hij_init_takeLast, self._useLq, self._q, self._p_off, self._mu_on, self._starting_diffusivities,
             self._starting_drifts, self._inference_mode, self._cells_to_infer, self._neighbourhood_order, self._minlnL,
-            self._verbose)
+            self._global, self._verbose)
         if self._chemPot == 'Chertkov':
             local_inferrer = NonTrackingInferrerRegionBPchemPotChertkov(parent_attributes, i, region_indices)
         elif self._chemPot == 'Mezard':
             self.vprint(2,"NonTrackingInferrerRegionBPchemPotMezard created")
             local_inferrer = NonTrackingInferrerRegionBPchemPotMezard(parent_attributes, i, region_indices)
-        elif self._chemPot == 'None' and self._messages_type == 'CLV':
+        elif self._chemPot == 'None' and self._messages_type == 'CLV' and self._global is False:
             local_inferrer = NonTrackingInferrerRegion(parent_attributes, i, region_indices)
+        elif self._chemPot == 'None' and self._messages_type == 'CLV' and self._global is True:
+            local_inferrer = NonTrackingInferrerRegionGlobal(parent_attributes, i, region_indices)
         elif self._chemPot == 'None' and self._messages_type == 'JB':
             local_inferrer = NonTrackingInferrerRegionBPalternativeUpdateJB(parent_attributes, i, region_indices)
         else:
@@ -865,6 +882,45 @@ class NonTrackingInferrerRegion(NonTrackingInferrer):
         hji = zeros([N, M])
         return hij, hji
 
+    def initialize_messages_in_a_smart_way(self, N, M, n_on, n_off, frame_index):
+        """
+            Initializes the messages either at a fixed starting value or -if required- at the last converging value
+        :param N:
+        :param M:
+        :param n_on:
+        :param n_off:
+        :param frame_index:
+        :return:
+        """
+        if (self.optimizer_first_iteration is False) and (self._hij_init_takeLast is True):
+            # In this case we just take the converged matrices from last call
+            hij = self.get_hij(frame_index, n_on)
+            hji = self.get_hji(frame_index, n_on)
+        elif (self.optimizer_first_iteration is True) and (self._hij_init_takeLast is True):
+            ''' In this case we use the matrix obtained for a different number of phantom particles
+                The matrix for n_on - 1 is copied and augmented by a line and a column
+                 _       _           _         _
+                | " " " " |         | " " " " . |
+                | " " " " |   -->   | " " " " . |
+                | " " " " |         | " " " " . |
+                |_" " " "_|         | " " " " . |
+                                    |_. . . . ._|
+            '''
+            hij, hji = self.initialize_messages(n_on + N, n_off + M)
+            S = hij.shape
+            try:
+                hij[-1, -1] = self.get_hij(frame_index, n_on - 1)
+                hji[-1, -1] = self.get_hji(frame_index, n_on - 1)
+                hij[-1, S[1] - 1] = self.get_hij(frame_index, n_on - 1)[:, S[1] - 2]
+                hij[S[0] - 1, -1] = self.get_hij(frame_index, n_on - 1)[S[0] - 2, :]
+                hij[S[0] - 1, S[1] - 1] = self.get_hij(frame_index, n_on - 1)[S[0] - 2, S[1] - 2]
+            except:
+                pass
+        else:
+            hij, hji = self.initialize_messages(n_on + N, n_off + M)
+        assert (hij.shape == hji.shape)
+        return hij, hji
+
     def boolean_matrix(self, N):
         """
             Boolean matrix for parallel implementation of BP.
@@ -1267,3 +1323,240 @@ class NonTrackingInferrerRegionBPalternativeUpdateJB(NonTrackingInferrerRegion):
             F_BP_old = F_BP
             hij_old = hij
         return F_BP, hij, hji, n
+
+
+class NonTrackingInferrerRegionGlobal(NonTrackingInferrerRegion):
+
+    def __init__(self, parentAttributes, index_to_infer, region_indices):
+        super(NonTrackingInferrerRegion, self).__init__(
+            *parentAttributes)  # need to get all attribute values from parent class
+        self._index_to_infer = index_to_infer
+
+        self._local_indices = region_indices
+        self._region_indices = self.create_global_indices()
+        #assert (np.all(self._local_indices == self._region_indices[range(len(self._local_indices))])) # The region's indices must be at the first place # fixme: Assertion error because indices are not in the right order
+        assert (self._index_to_infer == self._local_indices[0])
+
+        # self._diffusivityMatrix = self.buildDiffusivityMatrix() # maybe not needed yet
+        # print(f"self._gamma : {self._gamma}")
+        self._drs = self.local_distance_matrices(self._region_indices)
+
+        area = 0
+        for i in self._local_indices:
+            cell = self._cells[i]
+            area += cell.volume
+        self._local_area = area
+        area = 0
+        for i in self._region_indices:
+            cell = self._cells[i]
+            area += cell.volume
+        self._region_area = area
+
+        self._particle_count_local = self.particle_count_local()
+        self._particle_count = self.particle_count()
+
+        self._hij = [None] * self._particle_count.shape[1]
+        self._hji = [None] * self._particle_count.shape[1]
+        for f in arange(len(self._hij)-1):
+            M = np.sum(self._particle_count[self._region_indices, f + 1]).astype(int)
+            self._hij[f] = [None] * (M+1)
+            self._hji[f] = [None] * (M+1)
+
+        self.optimizer_first_iteration = True
+
+    def create_global_indices(self):
+        """
+            Creates the array of all indices in a specific order.
+            First the cell to infer, then the regional indices and lastly the rest.
+        :return: the array of indices
+        """
+        #global_indices = np.insert(region_indices, 0, index_to_infer)  # insert i in the 0th position
+        global_indices = self.get_neighbours(self._index_to_infer, order='all')
+        global_indices = np.insert(global_indices, 0, self._index_to_infer)
+
+        global_indices = list(dict.fromkeys(list(global_indices)))
+        for j in self._local_indices:
+            global_indices.remove(j)
+        global_indices = list(map(int, global_indices))
+        global_indices = array(global_indices)
+
+        for i in self._local_indices:
+            global_indices = np.insert(global_indices, 0, i)  # insert i in the 0th position to ensure local indices come first
+
+        global_indices = list(dict.fromkeys(list(global_indices)))
+        global_indices.remove(self._index_to_infer)
+        global_indices = list(map(int, global_indices))
+        global_indices = array(global_indices)
+
+        global_indices = np.insert(global_indices, 0, self._index_to_infer)  # insert self._index_to_infer in the 0th position
+        return global_indices
+
+    def particle_count_local(self):
+            """
+                Used for __init__ of nonTrackingInferrerRegion
+            :return: The matrix of particle numbers in the cells. First w.r.t cells, then w.r.t times
+            """
+
+            # Step 1: Compute the times
+            r_total = []
+            t_total = []
+            S_total = 0
+            index = list(self._cells.keys())
+            for j in self._local_indices:
+                cell = self._cells[j]
+                r = cell.r
+                t = cell.t
+                S = cell.volume
+                r_total.extend(r)
+                t_total.extend(t)
+                S_total += S
+            r_total = np.array(r_total)
+            t_total = np.array(t_total)
+            # List of times corresponding to frames:
+            times = np.arange(min(t_total), max(t_total + self._dt / 100.), self._dt)
+
+            # Step 2: Compute the particle number
+            particle_number = np.zeros((len(self._local_indices), len(times)))
+            print(f"global_indices={index}")
+            for j in range(len(self._local_indices)):
+                cell = self._cells[j]
+                r = cell.r
+                t = cell.t
+                frames_j = self.rt_to_frames(r, t, times)
+                N_j = [len(frame) for frame in frames_j]
+                particle_number[j, :] = N_j
+
+            return particle_number
+
+    def sum_product_BP(self, Q, hij, hji, frame_index):
+        """
+            Sum-product (BP) free energy (minus-log-likelihood) and BP messages.
+        :param Q: The log-probability matrix
+        :param hij: The left side messages
+        :param hji: The right side messages
+        :return: F_BP : The final Bethe free energy
+                 hij  : The final left side message
+                 hji  : The final right side message
+                 n    : The number of iterations at convergence
+        """
+        hij_old = hij
+        hji_old = hji
+        F_BP_old = self.bethe_free_energy(hij_old, hji_old, Q)
+        # Bethe = [F_BP_old]
+        self.vprint(4,"")
+        #assert(self._temperature==1) # not putting a temperature in the implementation leads to a speed-up of around 25%
+        boolean_matrix = self.boolean_matrix(Q.shape[0])
+        for n in range(self._maxiter):
+            if self._sparse_energy_computation is True:
+                for j in range(self._sparse_energy_computation_sparsity):
+                    start = timeit.default_timer()
+                    hij_new, hji_new = self.sum_product_update_rule_chooser(Q, hij, hji, frame_index)
+                    hij = (1. - self._gamma) * hij_new + self._gamma * hij_old
+                    hji = (1. - self._gamma) * hji_new + self._gamma * hji_old
+                    hij_old = hij
+                    hji_old = hji
+                    #self.vprint(4, f"sum-product time \t= {(timeit.default_timer() - start) * 1000} ms")
+            else:
+                hij_new, hji_new = self.sum_product_update_rule_chooser(Q, hij, hji, frame_index)
+                hij = (1. - self._gamma) * hij_new + self._gamma * hij_old
+                hji = (1. - self._gamma) * hji_new + self._gamma * hji_old
+            # Stopping condition Bethe free energy:
+            start = timeit.default_timer()
+            F_BP = + sum(np.logaddexp(0,Q + hij + hji)) \
+                   - sum(logsumexp(Q + hji, axis=1)) \
+                   - sum(logsumexp(Q + hij, axis=0))
+            #self.vprint(4, f"Bethe time \t\t= {(timeit.default_timer() - start) * 1000} ms")
+            self.vprint(4, f"n={n} \t\t Bethe={F_BP} \t\t ||hij_old-hij||={np.linalg.norm(hij_old - hij)}\r", end_="")
+            if abs(F_BP - F_BP_old) < self._epsilon:
+                self.vprint(4,"")
+                break
+            # Update old values of energy and messages:
+            F_BP_old = F_BP
+            hij_old = hij
+            hji_old = hji
+            # Bethe.append(F_BP)
+        # fig = plt.figure()
+        # plt.plot(Bethe)
+        # plt.show()
+        return F_BP, hij, hji, n  # shall we store n somewhere and send it back to the user in some sort of diagnosis object ?
+
+    def sum_product_energy(self, dr, frame_index, n_on, n_off, N, M):
+        """
+            Bethe free energy of given graph. The BP algorithm is run. F_BP is returned after convergence
+        :param dr:
+        :param frame_index:
+        :param n_on: The number of appearing particles
+        :param n_off: The number of disappearing particles
+        :param N: The number of particles in the first frame (not including phantom particles)
+        :param M: The number of particles in the second frame (not including phantom particles)
+        :return: F_BP the Bethe free energy approximation
+        """
+        # If a single particle has been recorded in each frame and tracers are permanent, the link is known:
+        if (N == 1) & (n_off == 0) & (n_on == 0) & (M == 1):
+            F_BP = -self.minus_lq_minus_lnp_ij(dr, frame_index)
+        # Else, perform BP to obtain the Bethe free energy:
+        else:
+            hij, hji = self.initialize_messages_in_a_smart_way(N, M, n_on, n_off, frame_index)
+            Q = self.Q_ij(n_off, n_on, dr, frame_index)
+            F_BP, hij, hji, n = self.sum_product_BP(Q, hij, hji, frame_index)
+            self.set_hij(hij,frame_index,n_on)
+            self.set_hji(hji, frame_index, n_on)
+            if n == self._maxiter - 1:
+                self.vprint(1, f"Warning: BP attained maxiter before converging.")
+        # print(f"n={n}") # the number of iterations
+        return F_BP
+
+    def sum_product_update_rule_chooser(self, Q, hij_old, hji_old, frame_index):
+        if self.optimizer_first_iteration is True:
+            return self.sum_product_update_rule(Q, hij_old, hji_old)
+        elif self.optimizer_first_iteration is False:
+            return self.sum_product_update_rule_local(Q, hij_old, hji_old, frame_index)
+        else:
+            raise ValueError(f"self.optimizer_first_iteration is neither True nor False")
+
+    def sum_product_update_rule_local(self, Q, hij_old, hji_old, frame_index):
+        """
+            We use a block-matrix decomposition, with A = exp(Q+Hij) and B = boolean matrix
+                _(M)    _         _(M)    _        _(M)    _
+            (N)| A11 A12 | x  (M)| B11 B12 | = (N)| C11 C12 |
+               |_A21 A22_|       |_B21 B22_|      |_C21 C22_|
+
+            C11 = A11 x B11 + A12 x B21
+
+            The "local" sum-product update rule
+        :param Q: matrix of log-probabilities
+        :param hij_old: Old left messages
+        :param hji_old: Old right messages
+        :return: The new messages (undamped)
+        """
+        start = timeit.default_timer()
+        N_local = self.particle_count_local[self._local_indices, frame_index]
+        M_local = self.particle_count_local[self._local_indices, frame_index+1]
+        # TODO: 1) O(n) implementation by diluting long edges
+        #       2) --> **Implementation keeping faraway messages constant**
+
+        # Hij
+        A = exp(Q + self._temperature*hji_old)
+        A11 = A[0:N_local,0:M_local]
+        A12 = A[0:N_local,M_local+1:]
+        B = self.boolean_matrix(Q.shape[1])
+        B21 = B[M_local+1:,0:M_local]
+        hij_new = hij_old
+        hij_new[0:N_local,0:M_local] = -log(dot(A11,self.boolean_matrix(M_local)) + dot(A12,B21))
+
+        # Hji
+        A = exp(Q + self._temperature*hij_old)
+        A11 = A[0:N_local,0:M_local]
+        A12 = A[0:N_local,M_local+1:]
+        B = self.boolean_matrix(Q.shape[1])
+        B11 = B[0:M_local,0:M_local]
+        B21 = B[M_local+1:,0:M_local]
+        hji_new = hji_old
+        hji_new[0:N_local,0:M_local] = -log( dot(A11,B11) + dot(A12,B21) )
+
+        #hij_new = -log(dot(exp(Q + self._temperature*hji_old), self.boolean_matrix(Q.shape[1])))/self._temperature
+        #hji_new = -log(dot(self.boolean_matrix(Q.shape[0]), exp(Q + self._temperature*hij_old)))/self._temperature
+        #self.vprint(4,f"sum-product time \t= {(timeit.default_timer()-start)*1000} ms")
+        # logdotexp update
+        #hij_new = -logdotexp(Q + self._temperature * hji_old, ... ) -  / self._temperature
+        return hij_new, hji_new
