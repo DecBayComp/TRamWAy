@@ -50,14 +50,46 @@ def get_interpolation(t, x, tnew, old=False):
     return xnew
 
 
-def normalize_length(RW, N):
+def normalize_length(RW, N, old=False):
+    """Performs a regularization of the number of points of a random walk.
+    As long as the random walk has at least 2 points, this function is able to
+    transform it to a random walk with an arbitrary large number of points.
+    Two mode are possible :
+       - old = True : interpolates between points
+       - old = False : keeps the last point if super sampling.
+    """
     tnew = np.linspace(0, RW.t.max(), num=N, endpoint=True)
-    Xnew = get_interpolation(RW.t.values, RW.loc[:, ['x', 'y']].values, tnew)
+    Xnew = get_interpolation(RW.t.values, RW.loc[:, ['x', 'y']].values,
+                             tnew, old=old)
     data = np.stack((tnew,) + tuple(Xnew[:, i] for i in range(2))).T
     return pd.DataFrame(data=data, columns=['t'] + ['x', 'y'])
 
 
 def process_rw(args):
+    """This function is used to create the raw data used in the supervised
+    classification task. It is made to be compatible with multiprocessing of
+    different random walks.
+
+    Parameters
+    ----------
+    args : tuple of rw : random walk DataFrame
+    id_ : dummy id variable of the random walk
+    kwargs : dictionary of meta parameters. Contains a list of windows
+        ('windows' key) and the maximum size of this list ('wmax' key).
+
+    Returns
+    -------
+    RW_ws : a dict with keys the different windows used to resample the random
+        walk. For each window, we first normalize the length of the random
+        walk. Then for x and y, we divide by the mean step and the total
+        distance covered to get 4 channels. We add two more channels : the
+        cumulative distance covered rescaled between 0 and 1 and the mean
+        square displacement function.
+    scale_prm : a dict {window_size : dt(window_size)}.
+    meta_prm : parameters of the random walk containing its scaling : Tmax,
+        mean step size, and distance covered.
+    id_ : dummy id of the random walk.
+    """
     rw, id_, kwargs = args
     length_rw = len(rw)
     dt = rw.t.iloc[1] - rw.t.iloc[0]
@@ -71,6 +103,7 @@ def process_rw(args):
         np.cumsum(steps / sum_step), 0, 0)
     tau, msd = temporal_msd(
         rw_obj, n_samples=kwargs['wmax'], use_all=False)
+    msd /= (np.max(msd) if np.max(msd) > 0 else 1)
     n_msd = len(msd)
     RW_ws = {}
     scale_prm = {}
@@ -94,6 +127,9 @@ def process_rw(args):
 
 
 class get_label_from_func():
+    """Class that provides a call method to get an 'y' out of parameters of the
+    random walk.
+    """
     def __init__(self, types):
         self.types_name = list(set([x.__name__ for x, _ in types]))
         nt = len(self.types_name)
@@ -163,6 +199,9 @@ class RWDataset(torch.utils.data.Dataset):
 
 
 class conv_layer(nn.Module):
+    """Performs 1d convolutions on a 1D Tensor and outputs a 1D activation
+    Tensor using global average pooling.
+    """
     def __init__(self, w, scale_size=1, out_size=50, input_channel=1):
         super(conv_layer, self).__init__()
         self.w = w
@@ -193,6 +232,10 @@ class conv_layer(nn.Module):
 
 
 class RWNet(nn.Module):
+    """Main neural network. It performs 1D convolutions separately on each
+    channel of the provided temporal data. It adds scaling factors and finally
+    meta variables before last layers.
+    """
     def __init__(self, hidden_dims, supervised=True, windows=[100, 10],
                  scale_size=1, out_cnn_size=40, meta_size=2, input_channels=6,
                  output_size_softmax=1, output_size_linear=0):
@@ -240,6 +283,88 @@ class RWNet(nn.Module):
                 return torch.cat((
                     F.softmax(raw_activ[:, :self.output_size_softmax]),
                     raw_activ[:, self.output_size_softmax:]), dim=1)
-
         else:
             return self.fc_mu(feats), self.fc_logvar(feats)
+
+
+def process_rw2(args):
+    rw, id_, kwargs = args
+    length_rw = len(rw)
+    dt = rw.t.iloc[1] - rw.t.iloc[0]
+    X = rw.loc[:, ['x', 'y']].values
+    t = rw.t.values
+    rw_obj = RandomWalk(rw)
+    steps = np.diagonal(rw_obj.Dabs, offset=1)
+    mean_step = np.mean(steps)
+    sum_step = np.sum(steps)
+    cum_dist = np.insert(
+        np.cumsum(steps / sum_step), 0, 0)
+    tau, msd = temporal_msd(
+        rw_obj, use_all=False, n_samples=kwargs['n_samples'])
+    msd /= (np.max(msd) if np.max(msd) > 0 else 1)
+    n_msd = len(msd)
+    RW_ws = {}
+    try:
+        interp_cum = scipy.interpolate.interp1d(
+            t, cum_dist, fill_value=(min(cum_dist), max(cum_dist)))
+        cum_dist = interp_cum(np.linspace(0, t.max(), num=kwargs['n_samples'], endpoint=True))
+    except:
+        interp_cum = scipy.interpolate.interp1d(
+            t, cum_dist, fill_value='extrapolate')
+        cum_dist = interp_cum(np.linspace(0, t.max(), num=kwargs['n_samples'], endpoint=True))
+    try:
+        interp_msd = scipy.interpolate.interp1d(
+            tau, msd, fill_value=(min(msd), max(msd)))
+        msd = interp_msd(np.geomspace(min(tau), max(tau), num=kwargs['n_samples']))
+    except:
+        interp_msd = scipy.interpolate.interp1d(
+            tau, msd, fill_value='extrapolate')
+        msd = interp_msd(np.geomspace(min(tau), max(tau), num=kwargs['n_samples']))
+    for k, w in enumerate(kwargs['windows']):
+        X = normalize_length(rw, w).loc[:, ['x', 'y']].values
+        X /= mean_step
+        RW_ws[w] = X.T
+    meta_prm = np.array([t.max() - t.min(), mean_step, sum_step])
+    return RW_ws, id_, msd, cum_dist, meta_prm
+
+
+class RWDatasetTmp3(torch.utils.data.Dataset):
+    """torch Dataset subclass.
+    """
+
+    def __init__(self, RWs, prms, kwargs, nb_process=16):
+        self.RWs = RWs
+        self.ns = RWs.n.unique()
+        self.RWsgroup = RWs.groupby('n')
+        self.dict_index_n = dict(zip(np.arange(len(self.ns)), self.ns))
+        self.kwargs = kwargs
+        
+        rws = [(rw, id_, kwargs)
+               for id_, rw in self.RWsgroup]
+        
+        if nb_process is None:
+            raw_data = list(map(process_rw2,
+                                tqdm.tqdm_notebook(rws, total=len(self.ns))))
+        else:
+            with mp.Pool(nb_process) as p:
+                raw_data = list(tqdm.tqdm_notebook(p.imap(process_rw2, rws), total=len(self.ns)))
+        self.ys = {}
+        self.RWsdict = {}
+        self.msds = {}
+        self.cum_dists = {}
+        self.meta_prms = {}
+        for i in tqdm.tqdm_notebook(range(len(raw_data))):
+            RW_ws, id_, msd, cum_dist, meta_prm = raw_data[i]
+            y = 1 if prms[id_]['func_name'] == 'RW_FBM' else 0
+            self.ys[id_] = torch.tensor(y).float()
+            self.RWsdict[id_] = {w: torch.tensor(RW_ws[w]).float() for w in RW_ws.keys()}
+            self.msds[id_] = torch.tensor(msd).float()
+            self.cum_dists[id_] = torch.tensor(cum_dist).float()
+            self.meta_prms[id_] = torch.tensor(meta_prm).float()
+
+    def __len__(self):
+        return len(self.ns)
+
+    def __getitem__(self, index):
+        traj = self.dict_index_n[index]
+        return self.RWsdict[traj], self.msds[traj], self.cum_dists[traj], self.meta_prms[traj], self.ys[traj]

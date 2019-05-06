@@ -115,11 +115,13 @@ class VAE(nn.Module):
         return self.decode(z), mu, logvar
 
 
-def loss_function_vae(recon_x, x, mu, logvar):
-    # BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
-    BCE = F.mse_loss(recon_x, x, reduction='sum')
-    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return BCE + KLD, BCE, KLD
+def loss_function_vae(beta=1):
+    def tmp_func(recon_x, x, mu, logvar):
+        # BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
+        BCE = F.mse_loss(recon_x, x, reduction='sum')
+        KLD = - beta * 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return BCE + KLD, BCE, KLD
+    return tmp_func
 
 
 def train_vae(model, optimizer, loss_fct, data_loader, device,
