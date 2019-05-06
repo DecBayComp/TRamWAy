@@ -430,13 +430,19 @@ class NonTrackingInferrer:
             return D_in, drift_in
 
     def get_neighbours(self, cell_index, order=1):
-        """ TO BE TESTED
+        """ Uses recursive calls
             Computes the indices of the neighbours of cell cell_index. Neighbours of order 1 are just neighbours. Neighbours of order 2 also include neighbours of neighbours. Neighbours of order 3 also include neighbours of neighbours of neighbours, and so on...
         :param cell_index: The index of the central cell
         :param order: The order of the neighbourhood
         :return: An array or list (not sure) of the indices of the neighbour cells
         """
-        if order == 1:
+        if order=='all':
+            neighbours = list(self._cells.keys())
+            neighbours.remove(cell_index)
+            return neighbours
+        elif order == 0:
+            return []
+        elif order == 1:
             return self._cells.neighbours(cell_index)
         else:
             neighbours = []
