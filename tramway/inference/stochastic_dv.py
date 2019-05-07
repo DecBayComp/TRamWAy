@@ -349,7 +349,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         posterior_info = []
 
     # gradient options
-    grad_kwargs = get_grad_kwargs(**kwargs)
+    grad_kwargs = get_grad_kwargs(kwargs)
     # bounds
     V_bounds = [(0., None)] * V_initial.size
     #if min_diffusivity is not None:

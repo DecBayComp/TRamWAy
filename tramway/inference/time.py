@@ -202,21 +202,21 @@ class DynamicCells(Distributed):
         #u, v, t= before, after, t term
         if u is None:
             if v is None:
-                delta = [0., 0.]
+                delta = np.r_[0., 0.]
             else:
                 # 1./X = X0[j] - np.mean(X[v,j])
-                delta = [0., (x0 - np.mean(x[v])) * t]
+                delta = np.r_[0., (x0 - np.mean(x[v])) * t]
         elif v is None:
-            delta = [(x0 - np.mean(x[u])) * t, 0.]
+            delta = np.r_[(x0 - np.mean(x[u])) * t, 0.]
         else:
             t0, tu, tv = t
-            delta = [
+            delta = np.r_[
                 (x0 - np.mean(x[u])) / (t0 - tu),
                 (x0 - np.mean(x[v])) / (t0 - tv),
                 ]
             #delta = np.abs(delta)
 
-        return np.array(delta)
+        return delta
 
 
 __all__ = ['DynamicTranslocations', 'DynamicCells']

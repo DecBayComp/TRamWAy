@@ -14,6 +14,7 @@
 
 import math
 import numpy as np
+import pandas as pd
 from numpy.polynomial import polynomial as poly
 from collections import OrderedDict
 
@@ -155,10 +156,14 @@ def _poly2_deriv_eval(W, X):
 
 default_selection_angle = .9
 
-def get_grad_kwargs(gradient=None, grad_epsilon=None, grad_selection_angle=None, compatibility=None, grad=None, epsilon=None, **kwargs):
+def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selection_angle=None, compatibility=None, grad=None, epsilon=None, **kwargs):
     """Parse :func:`grad1` keyworded arguments.
 
     Arguments:
+
+        _kwargs (dict):
+            mutable keyword arguments;
+            '*localization_error*', '*sigma*' and '*sigma2*' are popped out.
 
         gradient (str): either *grad1* or *gradn*.
 
@@ -178,6 +183,49 @@ def get_grad_kwargs(gradient=None, grad_epsilon=None, grad_selection_angle=None,
 
     Note: `grad` and `gradient` are currently ignored.
     """
+    if _kwargs is not None:
+        assert isinstance(_kwargs, dict)
+        try:
+            _epsilon = _kwargs.pop('epsilon')
+        except KeyError:
+            pass
+        else:
+            if epsilon is None:
+                epsilon = _epsilon
+            elif epsilon != _epsilon:
+                # TODO: warn or raise an exception
+                pass
+        try:
+            _grad_epsilon = _kwargs.pop('grad_epsilon')
+        except KeyError:
+            pass
+        else:
+            if grad_epsilon is None:
+                grad_epsilon = _grad_epsilon
+            elif grad_epsilon != _grad_epsilon:
+                # TODO: warn or raise an exception
+                pass
+        try:
+            _compatibility = _kwargs.pop('compatibility')
+        except KeyError:
+            pass
+        else:
+            if compatibility is None:
+                compatibility = _compatibility
+            elif compatibility != _compatibility:
+                # TODO: warn or raise an exception
+                pass
+        try:
+            _grad_selection_angle = _kwargs.pop('grad_selection_angle')
+        except KeyError:
+            pass
+        else:
+            if grad_selection_angle is None:
+                grad_selection_angle = _grad_selection_angle
+            elif grad_selection_angle != _grad_selection_angle:
+                # TODO: warn or raise an exception
+                pass
+
     grad_kwargs = {}
     if epsilon is not None:
         if grad_epsilon is None:
@@ -411,7 +459,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                grad_j = 0.
+                grad_j = np.zeros(cells.dim, dtype=X0.dtype)
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
                 grad_j = (y0 - np.mean(y[v])) * Xj
@@ -423,7 +471,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
             grad_j = _vander(Xj, np.r_[y0, np.mean(y[u]), np.mean(y[v])])
         grad.append(grad_j)
 
-    return np.array(grad)
+    return np.hstack(grad)
 
 
 def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
@@ -502,14 +550,14 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
                     Xj = 1. / (X0[j] - np.mean(X[u,j]))
                 else:
                     Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
-                if np.isscalar(Xj):
-                    try:
-                        Xj = Xj.tolist()
-                    except AttributeError:
-                        pass
-                    else:
-                        if isinstance(Xj, list):
-                            Xj = Xj[0]
+                #if np.isscalar(Xj):
+                #    try:
+                #        Xj = Xj.tolist()
+                #    except AttributeError:
+                #        pass
+                #    else:
+                #        if isinstance(Xj, list):
+                #            Xj = Xj[0]
 
                 X_neighbours.append((u, v, Xj))
 
@@ -532,24 +580,24 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                delta_j = [0., 0.]
+                delta_j = np.r_[0., 0.]
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
-                delta_j = [0., (y0 - np.mean(y[v])) * Xj]
+                delta_j = np.r_[0., (y0 - np.mean(y[v])) * Xj]
         elif v is None:
             # 1./Xj = X0[j] - np.mean(X[u,j])
-            delta_j = [(y0 - np.mean(y[u])) * Xj, 0.]
+            delta_j = np.r_[(y0 - np.mean(y[u])) * Xj, 0.]
         else:
             # Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
             x0, xu, xv = Xj
-            delta_j = [
+            delta_j = np.r_[
                 (y0 - np.mean(y[u])) / (x0 - xu),
                 (y0 - np.mean(y[v])) / (x0 - xv),
                 ]
             #delta_j = np.mean(np.abs(delta_j))
         delta.append(delta_j)
 
-    return np.array(delta)
+    return np.stack(delta, axis=1) # columns must represent the space dimensions
 
 
 def _vander(x, y):
@@ -579,6 +627,59 @@ def setup_with_grad_arguments(setup):
     setup['arguments'] = args
 
 
+def gradient_map(cells, feature=None, **kwargs):
+    grad_kwargs = get_grad_kwargs(**kwargs)
+    if feature:
+        if isinstance(feature, str):
+            feature = [f.strip() for f in feature.split(',')]
+    else:
+        raise ValueError('please define `feature`')
+    grads = None
+    for f in feature:
+        I, X = [], []
+        for i in cells:
+            try:
+                x = getattr(cells[i], f)
+            except (SystemExit, KeyboardInterrupt):
+                raise
+            except:
+                pass
+            else:
+                I.append(i)
+                X.append(x)
+        #I = np.array(I)
+        X = np.array(X)
+        reverse_index = np.full(max(cells.keys())+1, -1, dtype=int)
+        reverse_index[I] = np.arange(len(I))
+        index, gradX = [], []
+        for i in I:
+            try:
+                g = cells.grad(i, X, reverse_index, **grad_kwargs)
+            except (SystemExit, KeyboardInterrupt):
+                raise
+            except:
+                g = None
+            if g is not None:
+                index.append(i)
+                gradX.append(g)
+        gradX = np.vstack(gradX)
+        assert gradX.shape[1:] and gradX.shape[1] == len(cells.space_cols)
+        columns = [ '{} {}'.format(f, col) for col in cells.space_cols ]
+        gradX = pd.DataFrame(gradX, index=index, columns=columns)
+        if grads is None:
+            grads = gradX
+        else:
+            grads.join(gradX)
+    return grads
+
+setup = dict(
+        infer='gradient_map',
+        arguments=OrderedDict((
+            ('feature', ('-f', dict(help='feature or comma-separated list of features which gradient is expected'))),
+        )))
+setup_with_grad_arguments(setup)
+
+
 __all__ = ['default_selection_angle', 'get_grad_kwargs', 'neighbours_per_axis', 'grad1', 'gradn',
-        'delta1', 'setup_with_grad_arguments']
+        'delta1', 'setup_with_grad_arguments', 'setup', 'gradient_map']
 

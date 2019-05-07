@@ -200,13 +200,11 @@ def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
     return result - y0
 
 
-def ns_dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
+def dv_neg_posterior1(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
         index, reverse_index, grad_kwargs, y0, verbose, posteriors):
     """
     Similar to :func:`dv_neg_posterior`.
-    *ns* stands for non-stochastic.
-    This naming derives from the smoothing priors featuring an alternative
-    spatial "gradient" implemented using
+    The smoothing priors feature an alternative spatial "gradient" implemented using
     :meth:`~tramway.inference.base.Distributed.local_variation` instead of
     :meth:`~tramway.inference.base.Distributed.grad`.
     """
@@ -321,7 +319,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     posteriors = []
 
     # gradient options
-    grad_kwargs = get_grad_kwargs(epsilon=epsilon, compatibility=compatibility, **kwargs)
+    grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon, compatibility=compatibility)
 
     # parametrize the optimization algorithm
     default_BFGS_options = dict(maxiter=1e3, disp=verbose)
@@ -343,24 +341,26 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
         # with an error message
     options.update(kwargs)
 
+    # posterior function
+    if rgrad in ('delta','delta1'):
+        fun = dv_neg_posterior1
+    else:
+        if rgrad is not None:
+            warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
+        fun = dv_neg_posterior
+
     # posterior function input arguments
     args = (dv, cells, localization_error, jeffreys_prior, dt_mean,
             index, reverse_index, grad_kwargs)
 
     # get the initial posterior value so that it is subtracted from the further evaluations
-    y0 = dv_neg_posterior(dv.combined, *(args + (0., False, [])))
+    y0 = fun(dv.combined, *(args + (0., False, [])))
     if verbose:
         print('At X0\tactual posterior= {}\n'.format(y0))
     #y0 = 0.
     args = args + (y0, 1 < int(verbose), posteriors)
 
     # run the optimization routine
-    if rgrad in ('delta','delta1'):
-        fun = ns_dv_neg_posterior
-    else:
-        if rgrad is not None:
-            warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
-        fun = dv_neg_posterior
     result = minimize(fun, dv.combined, args=args, bounds=bounds, options=options)
     if not (result.success or verbose):
         warn('{}'.format(result.message), OptimizationWarning)

@@ -30,6 +30,7 @@ setup = {'name': ('standard.d', 'smooth.d'),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
+        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta1'")),
         ('tol',             dict(type=float, help='tolerance for scipy minimizer')))),
     'cell_sampling': 'group'}
 setup_with_grad_arguments(setup)
@@ -100,15 +101,52 @@ def smooth_d_neg_posterior(diffusivity, cells, sigma2, diffusivity_prior, \
         result += 2. * np.sum(np.log(diffusivity * dt_mean + sigma2))
     return result
 
+
+def d_neg_posterior1(diffusivity, cells, sigma2, diffusivity_prior, \
+    jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs):
+    """
+    Similar to :func:`smooth_d_neg_posterior`.
+    The smoothing prior features an alternative spatial "gradient" implemented using
+    :meth:`~tramway.inference.base.Distributed.local_variation` instead of
+    :meth:`~tramway.inference.base.Distributed.grad`.
+    """
+    if min_diffusivity is not None:
+        observed_min = np.min(diffusivity)
+        if observed_min < min_diffusivity and not np.isclose(observed_min, min_diffusivity):
+            warn(DiffusivityWarning(observed_min, min_diffusivity))
+    noise_dt = sigma2
+    result = 0.
+    for j, i in enumerate(index):
+        cell = cells[i]
+        n = len(cell)
+        # posterior calculations
+        if cell.cache is None:
+            cell.cache = dict(dr2=None)
+        if cell.cache['dr2'] is None:
+            cell.cache['dr2'] = np.sum(cell.dr * cell.dr, axis=1) # dx**2 + dy**2 + ..
+        D_dt = 4. * (diffusivity[j] * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
+        result += n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
+        result += np.sum(cell.cache['dr2'] / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
+        # prior
+        if diffusivity_prior:
+            # gradient of diffusivity
+            deltaD = cells.local_variation(i, diffusivity, reverse_index, **grad_kwargs)
+            if deltaD is not None:
+                result += diffusivity_prior * cells.grad_sum(i, deltaD * deltaD)
+    if jeffreys_prior:
+        result += 2. * np.sum(np.log(diffusivity * dt_mean + sigma2))
+    return result
+
+
 def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
-    min_diffusivity=None, max_iter=None, epsilon=None, **kwargs):
+    min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
 
     # initial values
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
 
     # gradient options
-    grad_kwargs = get_grad_kwargs(epsilon=epsilon, **kwargs)
+    grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon)
 
     # parametrize the optimization procedure
     if min_diffusivity is not None:
@@ -118,9 +156,17 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
         options['maxiter'] = max_iter
         kwargs['options'] = options
 
+    # posterior function
+    if rgrad in ('delta','delta1'):
+        fun = d_neg_posterior1
+    else:
+        if rgrad is not None:
+            warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
+        fun = smooth_d_neg_posterior
+
     # run the optimization
     localization_error = cells.get_localization_error(kwargs, 0.03, True)
-    result = minimize(smooth_d_neg_posterior, D_initial, \
+    result = minimize(fun, D_initial, \
         args=(cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs), \
         **kwargs)
 
