@@ -344,8 +344,9 @@ with:
 
 .. math::
 
-	P_S(\textbf{D}) = \textrm{exp}\left(-\mu\sum_i ||\nabla D_i||^2\right)
+	P_S(\textbf{D}) = \textrm{exp}\left(-\mu\sum_i \mathcal{A}_i||\nabla D_i||^2\right)
 
+where :math:`\mathcal{A}_i` is the area of bin :math:`i`.
 
 The :math:`\mu` parameter can be set with the ``-d`` command-line option or the `diffusivity_prior` argument to :func:`~tramway.helper.inference.infer`.
 Compare::
@@ -364,9 +365,23 @@ Note that the :ref:`DV <inference_dv>` inference mode readily features this smoo
 
 .. math::
 
-	P_S(\textbf{V}) = \textrm{exp}\left(-\lambda\sum_i ||\nabla V_i||^2\right)
+	P_S(\textbf{V}) = \textrm{exp}\left(-\lambda\sum_i \mathcal{A}_i||\nabla V_i||^2\right)
 
 Similarly to :math:`\mu`, the :math:`\lambda` parameter can be set with the ``-v`` command-line option or the `potential_prior` argument to :func:`~tramway.helper.inference.infer`.
+
+Alternative penalties
+'''''''''''''''''''''
+
+Gradients :math:`\nabla X` are tangents and may not catch all the spatial variations,
+especially in the case of a regular mesh with an oscillating :math:`X`.
+
+From version *0.3.10*, the *standard* inference methods feature the ``rgrad='delta'`` argument
+that replaces :math:`\nabla X_i` in :math:`P_S(\textbf{X})` by :math:`\Delta X_i`
+as described in :func:`~tramway.inference.gradient.delta1`
+that considers the actual differences in :math:`X` with the neighbour bins.
+
+Beware that, in future versions, this alternative penalty may become the default behaviour.
+To keep these methods penalize the gradient, set ``rgrad='grad'``.
 
 
 Implementation details

@@ -160,7 +160,7 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     if rgrad in ('delta','delta1'):
         fun = d_neg_posterior1
     else:
-        if rgrad is not None:
+        if rgrad not in (None, 'grad', 'grad1', 'gradn'):
             warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
         fun = smooth_d_neg_posterior
 

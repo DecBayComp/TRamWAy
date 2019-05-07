@@ -345,7 +345,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     if rgrad in ('delta','delta1'):
         fun = dv_neg_posterior1
     else:
-        if rgrad is not None:
+        if rgrad not in (None, 'grad', 'grad1', 'gradn'):
             warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
         fun = dv_neg_posterior
 
