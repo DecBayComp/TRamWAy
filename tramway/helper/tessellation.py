@@ -1343,6 +1343,12 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             if isinstance(ts, (pd.Series, pd.DataFrame)):
                 ts = ts.values
             xyt = xyt[np.logical_and(t0 <= ts, ts < t1)]
+        try:
+            prms.pop('time_knn')
+        except KeyError:
+            pass
+        else:
+            warn('ignoring `time_knn`', RuntimeWarning)
         bb = cells.bounding_box
         cells = CellStats(xyt, mesh, mesh.cell_index(xyt, **prms))
         cells.bounding_box = bb
