@@ -130,6 +130,7 @@ class get_label_from_func():
     """Class that provides a call method to get an 'y' out of parameters of the
     random walk.
     """
+
     def __init__(self, types):
         self.types_name = list(set([x.__name__ for x, _ in types]))
         nt = len(self.types_name)
@@ -202,12 +203,13 @@ class conv_layer(nn.Module):
     """Performs 1d convolutions on a 1D Tensor and outputs a 1D activation
     Tensor using global average pooling.
     """
+
     def __init__(self, w, scale_size=1, out_size=50, input_channel=1):
         super(conv_layer, self).__init__()
         self.w = w
         wtemp = self.w
         k_size = 7 if (wtemp > 70) else (
-                5 if (wtemp <= 70 and wtemp > 30) else 3)
+            5 if (wtemp <= 70 and wtemp > 30) else 3)
         temp_conv = []
         channels_in = input_channel
         channels_out = 16
@@ -236,6 +238,7 @@ class RWNet(nn.Module):
     channel of the provided temporal data. It adds scaling factors and finally
     meta variables before last layers.
     """
+
     def __init__(self, hidden_dims, supervised=True, windows=[100, 10],
                  scale_size=1, out_cnn_size=40, meta_size=2, input_channels=6,
                  output_size_softmax=1, output_size_linear=0):
@@ -307,19 +310,23 @@ def process_rw2(args):
     try:
         interp_cum = scipy.interpolate.interp1d(
             t, cum_dist, fill_value=(min(cum_dist), max(cum_dist)))
-        cum_dist = interp_cum(np.linspace(0, t.max(), num=kwargs['n_samples'], endpoint=True))
+        cum_dist = interp_cum(np.linspace(
+            0, t.max(), num=kwargs['n_samples'], endpoint=True))
     except:
         interp_cum = scipy.interpolate.interp1d(
             t, cum_dist, fill_value='extrapolate')
-        cum_dist = interp_cum(np.linspace(0, t.max(), num=kwargs['n_samples'], endpoint=True))
+        cum_dist = interp_cum(np.linspace(
+            0, t.max(), num=kwargs['n_samples'], endpoint=True))
     try:
         interp_msd = scipy.interpolate.interp1d(
             tau, msd, fill_value=(min(msd), max(msd)))
-        msd = interp_msd(np.geomspace(min(tau), max(tau), num=kwargs['n_samples']))
+        msd = interp_msd(np.geomspace(
+            min(tau), max(tau), num=kwargs['n_samples']))
     except:
         interp_msd = scipy.interpolate.interp1d(
             tau, msd, fill_value='extrapolate')
-        msd = interp_msd(np.geomspace(min(tau), max(tau), num=kwargs['n_samples']))
+        msd = interp_msd(np.geomspace(
+            min(tau), max(tau), num=kwargs['n_samples']))
     for k, w in enumerate(kwargs['windows']):
         X = normalize_length(rw, w).loc[:, ['x', 'y']].values
         X /= mean_step
@@ -328,43 +335,56 @@ def process_rw2(args):
     return RW_ws, id_, msd, cum_dist, meta_prm
 
 
+class get_y_binary():
+    def __init__(self, func1):
+        self.func1 = func1
+
+    def __call__(self, prm):
+        return 1 if prm['func_name'] == self.func1 else 0
+
+
 class RWDatasetTmp3(torch.utils.data.Dataset):
     """torch Dataset subclass.
     """
 
-    def __init__(self, RWs, prms, kwargs, nb_process=16):
-        self.RWs = RWs
+    def __init__(self, RWs, prms, kwargs, nb_process=16,
+                 func_feat_y=get_y_binary('RW_FBM')):
         self.ns = RWs.n.unique()
         self.RWsgroup = RWs.groupby('n')
-        self.dict_index_n = dict(zip(np.arange(len(self.ns)), self.ns))
-        self.kwargs = kwargs
+        self.prms = prms
         
+        self.kwargs = kwargs
+        self.func_feat_y = func_feat_y
+
         rws = [(rw, id_, kwargs)
                for id_, rw in self.RWsgroup]
-        
+
         if nb_process is None:
             raw_data = list(map(process_rw2,
                                 tqdm.tqdm_notebook(rws, total=len(self.ns))))
         else:
             with mp.Pool(nb_process) as p:
-                raw_data = list(tqdm.tqdm_notebook(p.imap(process_rw2, rws), total=len(self.ns)))
-        self.ys = {}
+                raw_data = list(tqdm.tqdm_notebook(
+                    p.imap(process_rw2, rws), total=len(self.ns)))
         self.RWsdict = {}
         self.msds = {}
         self.cum_dists = {}
         self.meta_prms = {}
+        self.dict_index_n = {}
         for i in tqdm.tqdm_notebook(range(len(raw_data))):
             RW_ws, id_, msd, cum_dist, meta_prm = raw_data[i]
-            y = 1 if prms[id_]['func_name'] == 'RW_FBM' else 0
-            self.ys[id_] = torch.tensor(y).float()
-            self.RWsdict[id_] = {w: torch.tensor(RW_ws[w]).float() for w in RW_ws.keys()}
+            self.dict_index_n[i] = id_
+            self.RWsdict[id_] = {w: torch.tensor(
+                RW_ws[w]).float() for w in RW_ws.keys()}
             self.msds[id_] = torch.tensor(msd).float()
             self.cum_dists[id_] = torch.tensor(cum_dist).float()
             self.meta_prms[id_] = torch.tensor(meta_prm).float()
 
     def __len__(self):
-        return len(self.ns)
+        return len(self.dict_index_n)
 
     def __getitem__(self, index):
         traj = self.dict_index_n[index]
-        return self.RWsdict[traj], self.msds[traj], self.cum_dists[traj], self.meta_prms[traj], self.ys[traj]
+        y = torch.tensor(self.func_feat_y(self.prms[traj])).float()
+        return (self.RWsdict[traj], self.msds[traj], self.cum_dists[traj],
+                self.meta_prms[traj], y)
