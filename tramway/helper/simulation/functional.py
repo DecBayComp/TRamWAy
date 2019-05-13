@@ -357,5 +357,3 @@ def truth(cells, t=None, diffusivity=None, force=None, potential=None, **kwargs)
     if force is not None:
         columns += [ 'force x' + str(col+1) for col in range(dim) ]
     return pd.DataFrame(index=I, data=DVF, columns = columns)
-
-
