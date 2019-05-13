@@ -413,18 +413,12 @@ class NonTrackingInferrerBase:
 
 abc.Workspace.register(NonTrackingInferrerBase)
 
-class NonTrackingScheduler(Scheduler):
-    def __init__(self, *args, **kwargs):
-        Scheduler.__init__(self, *args, **kwargs)
-        self._cell_order = np.array(self.workspace._cells_to_infer)
+class NonTrackingScheduler(EpochScheduler):
+    def __init__(self, global_workspace, regions, *args, **kwargs):
+        EpochScheduler.__init__(self, global_workspace, regions, None, *args, **kwargs)
     @property
     def worker(self):
         return NonTrackingWorker
-    def draw(self, iter):
-        index = iter % len(self._cell_order)
-        if index == 0:
-            np.random.shuffle(self._cell_order)
-        return self._cell_order[index]
 
 class NonTrackingWorker(Worker):
     def target(self):
@@ -433,12 +427,16 @@ class NonTrackingWorker(Worker):
                 iter, region = self.get_task()
                 try:
                     region.estimate()
+                except (SystemExit, KeyboardInterrupt):
+                    raise
+                except:
+                    import traceback
+                    traceback.print_exc()
+                    raise
                 finally:
                     self.push_update(region)
         except (SystemExit, KeyboardInterrupt):
             pass
-    #def start(self):
-    #    Worker.start(self)
 
 
 class NonTrackingInferrer(NonTrackingInferrerBase):
@@ -456,6 +454,10 @@ class NonTrackingInferrer(NonTrackingInferrerBase):
                 print(f"regions={regions[r]._index_to_infer}")
             scheduler = NonTrackingScheduler(global_workspace, regions)
             scheduler.run()
+            self._final_diffusivities = pd.DataFrame(self._final_diffusivities,
+                                                     index=self._cells_to_infer, columns=['D'])
+            #self._final_drifts = pd.DataFrame(self._final_drifts, index=self._cells_to_infer,
+            #                                  columns=['dx', 'dy'])
 
         elif False:
             n_cores = mp.cpu_count()
@@ -592,11 +594,21 @@ class NonTrackingInferrerRegion(JobStep):
     def _index_to_infer(self):
         return self.resource_id
 
-    #def __getattr__(self, attr):
-    #    return getattr(self._workspace, attr)
+    @property
+    def _working_diffusivities(self):
+        return self._workspace._working_diffusivities
 
-    #def __setattr__(self, attr, val):
-    #    self.workspace.__setattr__(attr, val)
+    @_working_diffusivities.setter
+    def _working_diffusivities(self, diffusivities):
+        self._workspace._working_diffusivities = diffusivities
+
+    @property
+    def _working_drifts(self):
+        return self._workspace._working_drifts
+
+    @_working_drifts.setter
+    def _working_drifts(self, drifts):
+        self._workspace._working_drifts = drifts
 
     @property
     def resources(self):
@@ -690,13 +702,14 @@ class NonTrackingInferrerRegion(JobStep):
         :return: Matrix of log-probabilities for each distance.
         """
         D, drift_x, drift_y = self.build_diffusivity_drift_matrices(frame_index)
+        dt = self._workspace._dt
         try:
-            if self._distribution=='gaussian':
-                lnp = - log(4 * pi * D * self._dt) \
-                      - ((dr[0]-drift_x*self._dt)**2 + (dr[1]-drift_y*self._dt)**2) / (4. * D * self._dt)
-            elif self._distribution=='rayleigh':
-                r2 = (dr[0]-drift_x*self._dt)**2 + (dr[1]-drift_y*self._dt)**2
-                lnp = log(sqrt(r2)) - log(2. * D * self._dt) - r2 / (4. * D * self._dt)
+            if self._workspace._distribution=='gaussian':
+                lnp = - log(4 * pi * D * dt) \
+                      - ((dr[0]-drift_x*dt)**2 + (dr[1]-drift_y*dt)**2) / (4. * D * dt)
+            elif self._workspace._distribution=='rayleigh':
+                r2 = (dr[0]-drift_x*dt)**2 + (dr[1]-drift_y*dt)**2
+                lnp = log(sqrt(r2)) - log(2. * D * dt) - r2 / (4. * D * dt)
             else:
                 raise ValueError("distribution not supported. Suggestion: Use 'gaussian'. ")
         except ZeroDivisionError:
@@ -809,8 +822,8 @@ class NonTrackingInferrerRegion(JobStep):
         self._workspace.vprint(3, D, end_='')
         ''' Nelder-Mead does not have positivity constraints for D_in, so we might find a negative value.
             'smoothedPosterior' is implemented to be symmetric, so that we should still find the optimum.'''
-        self._working_diffusivities = self._final_diffusivities  # the most up-to-date parameters
-        self._working_drifts = self._final_drifts
+        self._working_diffusivities = self._workspace._final_diffusivities  # the most up-to-date parameters
+        self._working_drifts = self._workspace._final_drifts
         # Note: Perhaps we should check for a value 0 of the diffusivity. It could cause problems later
         # scheme selector
         if self._workspace._inference_mode == 'D':
@@ -1151,8 +1164,10 @@ class NonTrackingInferrerRegion(JobStep):
             self._estimates = D_in, drift_in
 
     def set_workspace(self, ws):
+        # plug the worker's global workspace in
         JobStep.set_workspace(self, ws)
         # update the worker's global workspace
+        i = self._index_to_infer
         try:
             if self._workspace._inference_mode == 'DD':
                 self._workspace._final_diffusivities[i], self._workspace._final_drifts[i, :] = self._estimates

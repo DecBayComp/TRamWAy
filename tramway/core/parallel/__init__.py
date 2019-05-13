@@ -32,9 +32,9 @@ class StarQueue(object):
     by every processes but the sender.
     This is useful to send asynchronous updates between processes in a distributed setting.
 
-    A `StarQueue` is instanciated first, and then `StarConn` objects are delt to
-    children processes.
-    The `StarConn` objects are the actual queues.
+    A :class:`StarQueue` is instanciated first, and then :class:`StarConn` objects are delt
+    to children processes.
+    The :class:`StarConn` objects are the actual queues.
     """
     __slots__ = 'deck',
     def __init__(self, n, variant=multiprocessing.Queue, **kwargs):
@@ -107,11 +107,15 @@ class StarConn(queue.Queue):
             else:
                 raise RuntimeError('queue was not set as joinable at init')
 
+class WorkerNearDeathException(Exception):
+    __slots__ = '_id',
+    def __init__(self, _id):
+        self._id = _id
 
 class Worker(multiprocessing.Process):
     """ Worker that runs job steps.
 
-    The `target` method may be implemented following the pattern below::
+    The :meth:`target` method may be implemented following the pattern below::
 
         class MyWorker(Worker):
             def target(self, *args, **kwargs):
@@ -127,7 +131,7 @@ class Worker(multiprocessing.Process):
     to :meth:`Scheduler.__init__`, plus the extra keyword arguments to the latter constructor.
 
     """
-    def __init__(self, workspace, task_queue, return_queue, update_queue,
+    def __init__(self, _id, workspace, task_queue, return_queue, update_queue,
             name=None, args=(), kwargs={}, daemon=None):
         # `daemon` is not supported in Py2; pass `daemon` only if defined
         if daemon is None:
@@ -135,6 +139,7 @@ class Worker(multiprocessing.Process):
         else:
             _kwargs = dict(daemon=daemon)
         multiprocessing.Process.__init__(self, name=name, args=args, kwargs=kwargs, **_kwargs)
+        self._id = _id
         self.workspace = workspace
         self.tasks = task_queue
         self.update = update_queue
@@ -148,7 +153,7 @@ class Worker(multiprocessing.Process):
 
         Returns:
 
-            int, JobStep: step/iteration number, job step object.
+            int, tramway.core.parallel.JobStep: step/iteration number, job step object.
 
         """
         k, task = self.tasks.get()
@@ -160,7 +165,7 @@ class Worker(multiprocessing.Process):
 
         Arguments:
 
-            update (JobStep): completed job step.
+            update (tramway.core.parallel.JobStep): completed job step.
 
             status (any): extra information that :meth:`Scheduler.stop` will receive.
 
@@ -182,7 +187,13 @@ class Worker(multiprocessing.Process):
             else:
                 self.workspace.update(update) # `Workspace.update` reloads the workspace into the update
     def run(self):
-        self.target(*self.args, **self.kwargs)
+        try:
+            self.target(*self.args, **self.kwargs)
+        except (SystemExit, KeyboardInterrupt):
+            raise
+        except:
+            self.feedback.put((None, WorkerNearDeathException(self._id)))
+            raise
 
 
 class Scheduler(object):
@@ -206,12 +217,13 @@ class Scheduler(object):
         self.task = tasks
         self.active = dict()
         self.paused = dict()
+        self.dead_workers = dict()
         self.k_eff = 0
         self.k_max = iter_max
         if not worker_count:
             worker_count = multiprocessing.cpu_count() - 1
         if worker_count == 1:
-            self.workers = []
+            self.workers = {}
             raise NotImplementedError('single process')
         else:
             def _name(w):
@@ -220,10 +232,10 @@ class Scheduler(object):
             self.task_queue = multiprocessing.Queue()
             self.return_queue = multiprocessing.Queue()
             update_queue = StarQueue(worker_count)
-            self.workers = [ self.worker(self.workspace,
+            self.workers = { i: self.worker(i, self.workspace,
                         self.task_queue, self.return_queue, update_queue.deal(),
-                        name=_name(w), args=args, kwargs=kwargs, daemon=daemon)
-                    for w in range(worker_count) ]
+                        name=_name(i), args=args, kwargs=kwargs, daemon=daemon)
+                    for i in range(worker_count) }
     def init_resource_lock(self):
         self.resource_lock = np.zeros(len(self.workspace), dtype=bool)
     @property
@@ -255,7 +267,7 @@ class Scheduler(object):
 
             k (int): step/iteration number.
 
-            step (JobStep): job step.
+            step (tramway.core.parallel.JobStep): job step.
 
         """
         self.active[step.resource_id] = k
@@ -271,7 +283,17 @@ class Scheduler(object):
 
         Returns ``False`` if a stopping criterion has been met, ``True`` otherwise.
         """
-        step, status = self.return_queue.get()
+        while True:
+            step, status = self.return_queue.get()
+            if step is None:
+                if isinstance(status, WorkerNearDeathException):
+                    self.dead_workers[status._id] = self.workers.pop(status._id)
+                    if not self.workers:
+                        return False
+                else:
+                    return self.stop(None, None, status)
+            else:
+                break
         #step.set_workspace(self.workspace) # reload workspace
         self.workspace.update(step) # `update` reloads the workspace into `step`
         assert step.get_workspace() is not None
@@ -284,6 +306,9 @@ class Scheduler(object):
         return True
     def iter_max_reached(self):
         return self.k_max and self.k_max <= self.k_eff
+    def workers_alive(self):
+        self.workers = { i: w for i, w in self.workers.items() if w.is_alive() }
+        return bool(self.workers)
     def fill_slots(self, k, postponed):
         """
         Send as many job steps as there are available workers.
@@ -301,14 +326,13 @@ class Scheduler(object):
         """
         while 0 < self.available_slots:
             i = self.draw(k)
-            if i is not None:
-                task = self.task[i]
-                if i in self.active or i in postponed:
-                    break
-                elif self.locked(task):
-                    postponed[i] = k
-                else:
-                    self.send_task(k, task)
+            if i is None or i in self.active or i in postponed:
+                break
+            task = self.task[i]
+            if self.locked(task):
+                postponed[i] = k
+            else:
+                self.send_task(k, task)
             k += 1
             if self.iter_max_reached():
                 break
@@ -317,9 +341,10 @@ class Scheduler(object):
         """
         Start the workers, send and get job steps back and check for stop criteria.
 
-        Returns ``True`` on normal completion, ``False`` on interruption (SystemExit, KeyboardInterrupt).
+        Returns ``True`` on normal completion, ``False`` on interruption
+        (:class:`SystemExit`, :class:`KeyboardInterrupt`).
         """
-        for w in self.workers:
+        for w in self.workers.values():
             w.start()
         self.init_resource_lock()
         k = 0
@@ -327,6 +352,8 @@ class Scheduler(object):
         try:
             k = self.fill_slots(k, postponed)
             while not self.iter_max_reached():
+                if not self.workers_alive():
+                    break
                 if not self.get_processed_step():
                     break
                 if postponed:
@@ -343,7 +370,12 @@ class Scheduler(object):
             ret = True
         except (SystemExit, KeyboardInterrupt):
             ret = False
-        for w in self.workers:
+        for w in self.workers.values():
+            try:
+                w.terminate()
+            except:
+                pass
+        for w in self.dead_workers.values():
             try:
                 w.terminate()
             except:
@@ -366,6 +398,32 @@ class Scheduler(object):
 
         """
         return False
+
+
+class EpochScheduler(Scheduler):
+    def __init__(self, workspace, tasks, epoch_length=None, soft_epochs=False, worker_count=None,
+            iter_max=None, name=None, args=(), kwargs={}, daemon=None, **_kwargs):
+        epoch_length = len(tasks) if epoch_length is None else epoch_length
+        if not soft_epochs and not worker_count:
+            worker_count = min(epoch_length, multiprocessing.cpu_count() - 1)
+        Scheduler.__init__(self, workspace, tasks, worker_count=worker_count, iter_max=iter_max,
+            name=name, args=args, kwargs=kwargs, daemon=daemon, **_kwargs)
+        self.soft_epochs = soft_epochs
+        self._task_epoch = np.arange(epoch_length)
+
+    def draw(self, k):
+        i = k % len(self._task_epoch)
+        if i == 0:
+            # wait for the active buffer to get empty
+            if not self.soft_epochs and self.active:
+                return None
+            # permute the tasks
+            self.start_new_epoch(self._task_epoch)
+        return self._task_epoch[i]
+
+    def start_new_epoch(self, task_order):
+        """ must modify the `task_order` array inplace """
+        np.random.shuffle(task_order)
 
 
 class ProtoWorkspace(object):
@@ -430,7 +488,7 @@ class JobStep(object):
     provided that they do not compete for the same resources.
 
     `resources` is an index array that designates the items of shared data to be accessed.
-    This attribute is used by `Scheduler` to lock the required items of data,
+    This attribute is used by :class:`Scheduler` to lock the required items of data,
     which determines which steps can be run simultaneously.
     """
     __slots__ = '_id', '_workspace'
@@ -459,8 +517,9 @@ abc.JobStep.register(JobStep)
 class UpdateVehicle(object):
     """ Not instanciable! Introduced for __slots__-enabled multiple inheritance.
 
-    Example usage, in the case class ``B`` implements (abc.) `VehicleJobStep` and
-    class ``A`` can only implement (abc.) `JobStep` and not inherit from `VehiculeJobStep`::
+    Example usage, in the case class ``B`` implements (abc.) :class:`VehicleJobStep` and
+    class ``A`` can only implement (abc.) :class:`JobStep` and not
+    inherit from :class:`VehiculeJobStep`::
 
         class A:
             __slots__ = 'a',
@@ -473,9 +532,9 @@ class UpdateVehicle(object):
                 self.b = b
         abc.VehicleJobStep.register(B)
 
-    `VehicleJobStep` brings the slots, `UpdateVehicle` brings the implementation (methods)
-    and `abc.VehicleJobStep` the typing required by `Workspace` and `Worker` to handle ``B``
-    as a `VehicleJobStep`.
+    :class:`VehicleJobStep` brings the slots, :class:`UpdateVehicle` brings the implementation
+    (methods) and :class:`abc.VehicleJobStep` the typing required by :class:`Workspace` and
+    :class:`Worker` to handle ``B`` as a :class:`VehicleJobStep`.
     """
     __slots__ = ()
     def __init__(self):
@@ -497,5 +556,5 @@ class VehicleJobStep(JobStep, UpdateVehicle):
 abc.VehicleJobStep.register(VehicleJobStep)
 
 
-__all__ = [ 'StarConn', 'StarQueue', 'ProtoWorkspace', 'Workspace', 'JobStep', 'UpdateVehicle', 'VehicleJobStep', 'Worker', 'Scheduler', 'abc' ]
+__all__ = [ 'StarConn', 'StarQueue', 'ProtoWorkspace', 'Workspace', 'JobStep', 'UpdateVehicle', 'VehicleJobStep', 'Worker', 'Scheduler', 'EpochScheduler', 'abc' ]
 
