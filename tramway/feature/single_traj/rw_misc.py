@@ -21,14 +21,14 @@ import tqdm
 SPACE_COLS = ['x', 'y', 'z']
 
 
-def rw_is_useless(rw):
+def rw_is_useless(rw, nb_pos_min=2):
     """Checks if the random walk is useless by checking that is has two or more
     different positions.
     """
     is_immobile = True
     n = 0
     while 2**n <= len(rw):
-        if len(rw.iloc[:2**n].x.unique()) > 1:
+        if len(rw.iloc[:2**n].x.unique()) > nb_pos_min:
             return False
         n += 1
     return is_immobile

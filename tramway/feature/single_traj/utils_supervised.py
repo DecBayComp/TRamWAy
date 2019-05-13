@@ -27,6 +27,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 
 from .rw_features import *
+from .batch_generation import create_batch_rw
 
 
 def interpolate(X1, X2, alpha):
@@ -352,7 +353,7 @@ class RWDatasetTmp3(torch.utils.data.Dataset):
         self.ns = RWs.n.unique()
         self.RWsgroup = RWs.groupby('n')
         self.prms = prms
-        
+
         self.kwargs = kwargs
         self.func_feat_y = func_feat_y
 
@@ -388,3 +389,132 @@ class RWDatasetTmp3(torch.utils.data.Dataset):
         y = torch.tensor(self.func_feat_y(self.prms[traj])).float()
         return (self.RWsdict[traj], self.msds[traj], self.cum_dists[traj],
                 self.meta_prms[traj], y)
+
+
+def get_cum_hull(RW, nb_samples):
+    positions = np.unique(RW.position, axis=0)
+    if len(positions) > 3:
+        hull = scipy.spatial.ConvexHull(positions[:3], incremental=True)
+        cum_hull = [hull.volume]
+        ts = np.unique(np.geomspace(3, len(positions), num=nb_samples,
+                                    dtype=int, endpoint=True))
+    #     print(ts)
+        i0 = 3
+        for j, i in enumerate(ts[1:]):
+            hull.add_points(positions[i0:i])
+            cum_hull.append(hull.volume)
+            i0 = i
+        cum_hull = np.array(cum_hull) / cum_hull[-1]
+        interp_cv = scipy.interpolate.interp1d(ts, cum_hull,
+                                               fill_value='extrapolate')
+        new_ts = np.geomspace(3, len(positions), num=nb_samples, endpoint=True)
+    #     print(new_ts)
+        cv_hull_regu = interp_cv(new_ts)
+        return new_ts, cv_hull_regu
+    else:
+        return (np.geomspace(3, 300, num=nb_samples, endpoint=True),
+                np.geomspace(0.0001, 1, num=nb_samples, endpoint=True))
+
+
+def process_rw3(args):
+    rw, id_, kwargs = args
+    length_rw = len(rw)
+    dt = rw.t.iloc[1] - rw.t.iloc[0]
+    X = rw.loc[:, ['x', 'y']].values
+    t = rw.t.values
+    rw_obj = RandomWalk(rw)
+    steps = np.diagonal(rw_obj.Dabs, offset=1)
+    mean_step = np.mean(steps)
+    sum_step = np.sum(steps)
+    cum_dist = np.insert(
+        np.cumsum(steps / sum_step), 0, 0)
+    tau, msd = temporal_msd(
+        rw_obj, use_all=False, n_samples=kwargs['n_samples'])
+    msd /= (np.max(msd) if np.max(msd) > 0 else 1)
+    n_msd = len(msd)
+    RW_ws = {}
+    interp_cum = scipy.interpolate.interp1d(
+        t, cum_dist, fill_value='extrapolate')
+    cum_dist = interp_cum(np.linspace(
+        0, t.max(), num=kwargs['n_samples'], endpoint=True))
+    interp_msd = scipy.interpolate.interp1d(
+        tau, msd, fill_value='extrapolate')
+    msd = interp_msd(np.geomspace(
+        min(tau), max(tau), num=kwargs['n_samples']))
+    cv_hull = get_cum_hull(rw_obj, kwargs['n_samples'])[1]
+    for k, w in enumerate(kwargs['windows']):
+        X = normalize_length(rw, w).loc[:, ['x', 'y']].values
+        X /= mean_step
+        RW_ws[w] = X.T
+    meta_prm = np.array(list(rw_obj.get_all_features().values()))
+    return RW_ws, id_, msd, cum_dist, cv_hull, meta_prm
+
+
+class RWDatasetTmp4(torch.utils.data.Dataset):
+    """torch Dataset subclass.
+    """
+
+    def __init__(self, RWs, prms, kwargs, nb_process=16,
+                 func_feat_y=get_y_binary('RW_FBM')):
+        self.ns = RWs.n.unique()
+        self.RWsgroup = RWs.groupby('n')
+        self.prms = prms
+
+        self.kwargs = kwargs
+        self.func_feat_y = func_feat_y
+
+        rws = [(rw, id_, kwargs)
+               for id_, rw in self.RWsgroup]
+
+        if nb_process is None:
+            raw_data = list(map(process_rw3,
+                                tqdm.tqdm_notebook(rws, total=len(self.ns))))
+        else:
+            with mp.Pool(nb_process) as p:
+                raw_data = list(tqdm.tqdm_notebook(
+                    p.imap(process_rw3, rws), total=len(self.ns)))
+        self.RWsdict = {}
+        self.msds = {}
+        self.cum_dists = {}
+        self.cv_hulls = {}
+        self.meta_prms = {}
+        self.dict_index_n = {}
+        meta_prms = np.array([raw_data[i][5] for i in range(len(raw_data))])
+        self.mean_meta = np.mean(meta_prms, axis=0)
+        self.std_meta = np.std(meta_prms, axis=0)
+        self.std_meta[self.std_meta < 1e-6] = 1
+        for i in tqdm.tqdm_notebook(range(len(raw_data))):
+            RW_ws, id_, msd, cum_dist, cv_hull, meta_prm = raw_data[i]
+            self.dict_index_n[i] = id_
+            self.RWsdict[id_] = {w: torch.tensor(
+                RW_ws[w]).float() for w in RW_ws.keys()}
+            self.msds[id_] = torch.tensor(msd).float()
+            self.cum_dists[id_] = torch.tensor(cum_dist).float()
+            self.cv_hulls[id_] = torch.tensor(cv_hull).float()
+            self.meta_prms[id_] = torch.tensor((meta_prm - self.mean_meta) /
+                                               self.std_meta).float()
+
+    def __len__(self):
+        return len(self.dict_index_n)
+
+    def __getitem__(self, index):
+        traj = self.dict_index_n[index]
+        y = torch.tensor(self.func_feat_y(self.prms[traj])).float()
+        return (self.RWsdict[traj], self.msds[traj], self.cum_dists[traj],
+                self.cv_hulls[traj], self.meta_prms[traj], y)
+
+
+def make_datasets(PATH, types, ps=None, M=50, N=10000, nb_process=16,
+                  funcDataset=RWDatasetTmp3, kwargs={}, nb_pos_min=3,
+                  chunk_size=100):
+    output_paths = []
+    ds_lengths = []
+    for i in tqdm.tqdm_notebook(range(M)):
+        RWs, prms = create_batch_rw(n=N, nb_process=nb_process, types=types,
+                                    ps=ps, nb_pos_min=nb_pos_min,
+                                    chuncksize=chunk_size)
+        ds = funcDataset(RWs, prms, kwargs, nb_process=nb_process)
+        ds_lengths.append(len(ds))
+        torch.save(ds, f'{PATH}_file_{i}')
+        output_paths.append(f'{PATH}_file_{i}')
+    return output_paths, ds_lengths

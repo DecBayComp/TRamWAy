@@ -120,17 +120,20 @@ def create_random_rw(args):
     rw : pandas DataFrame of the position/time of the simulated random walk.
     rw_dict_prms : dict of the parameters of the simulated random walk.
     """
-    ps, types = args
+    ps, types, nb_pos_min, id_traj = args
     rw_id_type = np.random.choice(len(types), p=ps)
     rw_dict_prms = {}
     for prm, val in types[rw_id_type][1].items():
         rw_dict_prms[prm] = generate_random_number(*val)
     rw = types[rw_id_type][0](**rw_dict_prms)
+    while rw_is_useless(rw, nb_pos_min):
+        rw = types[rw_id_type][0](**rw_dict_prms)
+    rw['n'] = id_traj
     rw_dict_prms['func_name'] = types[rw_id_type][0].__name__
     return (rw, rw_dict_prms)
 
 
-def create_batch_rw(n=100, ps=[1], nb_process=4,
+def create_batch_rw(n=100, ps=[1], nb_process=4, nb_pos_min=2, chuncksize=10,
                     types=[(RW_gauss_dist,
                             {'d_l': ('float', 'exp', 0.01, 0.1),
                              'T_max': ('float', 'exp', 0.1, 1)})]):
@@ -160,23 +163,18 @@ def create_batch_rw(n=100, ps=[1], nb_process=4,
         each value is a dictionary of the values taken by the parameters of the
         random walk.
     """
+    prms = [(ps, types, nb_pos_min, i) for i in range(n)]
     if nb_process is None:
         raw_data = list(map(create_random_rw,
-                            tqdm.tqdm_notebook([(ps, types)] * n,
-                                               desc='generating RWs')))
+                            tqdm.tqdm_notebook(prms, desc='generating RWs')))
     else:
         with mp.Pool(nb_process) as p:
             raw_data = list(tqdm.tqdm_notebook(
-                p.imap(create_random_rw, [(ps, types)] * n),
+                p.imap(create_random_rw, prms, chuncksize),
                 total=n, desc='generating RWs'))
-    RW_data = [(traj, rw[0])
-               for traj, rw in tqdm.tqdm_notebook(
-                   enumerate(raw_data), total=len(raw_data),
-                   desc='checking usefulness') if not rw_is_useless(rw[0])]
-    RW_prm = {i: rw[1] for i, rw in tqdm.tqdm_notebook(
-            enumerate(raw_data), total=len(raw_data), desc='extracting prms')}
-    for i, (traj, rw) in tqdm.tqdm_notebook(
-            enumerate(RW_data), total=len(RW_data), desc='assigning traj id'):
-        rw['n'] = traj
-        RW_data[i] = rw
+    RW_data = []
+    RW_prm = {}
+    for traj, rw in enumerate(raw_data):
+        RW_prm[traj] = rw[1]
+        RW_data.append(rw[0])
     return pd.concat(RW_data).reset_index(drop=True), RW_prm
