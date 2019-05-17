@@ -133,7 +133,7 @@ def create_random_rw(args):
     return (rw, rw_dict_prms)
 
 
-def create_batch_rw(n=100, ps=[1], nb_process=4, nb_pos_min=2, chuncksize=10,
+def create_batch_rw(n=100, ps=[1], nb_process=4, nb_pos_min=2, chunksize=10,
                     types=[(RW_gauss_dist,
                             {'d_l': ('float', 'exp', 0.01, 0.1),
                              'T_max': ('float', 'exp', 0.1, 1)})]):
@@ -170,7 +170,7 @@ def create_batch_rw(n=100, ps=[1], nb_process=4, nb_pos_min=2, chuncksize=10,
     else:
         with mp.Pool(nb_process) as p:
             raw_data = list(tqdm.tqdm_notebook(
-                p.imap(create_random_rw, prms, chuncksize),
+                p.imap(create_random_rw, prms, chunksize),
                 total=n, desc='generating RWs'))
     RW_data = []
     RW_prm = {}

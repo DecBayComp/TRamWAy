@@ -27,7 +27,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 
 from .rw_features import *
-from .batch_generation import create_batch_rw
+from .batch_generation import create_batch_rw, generate_random_number
 
 
 def interpolate(X1, X2, alpha):
@@ -421,6 +421,9 @@ def process_rw3(args):
     length_rw = len(rw)
     dt = rw.t.iloc[1] - rw.t.iloc[0]
     X = rw.loc[:, ['x', 'y']].values
+    if kwargs['pos_noise'] is not None:
+        noise = generate_random_number(*kwargs['pos_noise'])
+        X += np.random.randn(*X.shape) * noise
     t = rw.t.values
     rw_obj = RandomWalk(rw)
     steps = np.diagonal(rw_obj.Dabs, offset=1)
@@ -454,7 +457,7 @@ class RWDatasetTmp4(torch.utils.data.Dataset):
     """torch Dataset subclass.
     """
 
-    def __init__(self, RWs, prms, kwargs, nb_process=16,
+    def __init__(self, RWs, prms, kwargs, nb_process=16, chunksize=40,
                  func_feat_y=get_y_binary('RW_FBM')):
         self.ns = RWs.n.unique()
         self.RWsgroup = RWs.groupby('n')
@@ -472,7 +475,7 @@ class RWDatasetTmp4(torch.utils.data.Dataset):
         else:
             with mp.Pool(nb_process) as p:
                 raw_data = list(tqdm.tqdm_notebook(
-                    p.imap(process_rw3, rws), total=len(self.ns)))
+                    p.imap(process_rw3, rws, chunksize), total=len(self.ns)))
         self.RWsdict = {}
         self.msds = {}
         self.cum_dists = {}
@@ -512,8 +515,9 @@ def make_datasets(PATH, types, ps=None, M=50, N=10000, nb_process=16,
     for i in tqdm.tqdm_notebook(range(M)):
         RWs, prms = create_batch_rw(n=N, nb_process=nb_process, types=types,
                                     ps=ps, nb_pos_min=nb_pos_min,
-                                    chuncksize=chunk_size)
-        ds = funcDataset(RWs, prms, kwargs, nb_process=nb_process)
+                                    chunksize=chunk_size)
+        ds = funcDataset(RWs, prms, kwargs, nb_process=nb_process,
+                         chunksize=chunk_size)
         ds_lengths.append(len(ds))
         torch.save(ds, f'{PATH}_file_{i}')
         output_paths.append(f'{PATH}_file_{i}')
