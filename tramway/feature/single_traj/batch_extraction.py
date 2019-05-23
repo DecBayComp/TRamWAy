@@ -109,7 +109,7 @@ def get_features_from_group(args):
     return get_all_features(RandomWalk(RW_df, zero_time=zero_time))
 
 
-def extract_features(RWs, nb_process=4, func_feat_process=None):
+def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True):
     """Extracts features from a pandas DataFrame collecting different
     trajectories of random walks.
 
@@ -130,20 +130,30 @@ def extract_features(RWs, nb_process=4, func_feat_process=None):
     df_trajs = RWs.groupby('n')
     n_trajs = df_trajs.agg('count').count().x.astype(int)
     if nb_process is None:
-        list_RWobj = [RandomWalk(group, zero_time=True)
-                      for _, group in tqdm.tqdm_notebook(df_trajs,
-                                                         total=n_trajs,
-                                                         desc='creating rws')]
-        raw_features = list(map(get_all_features, tqdm.tqdm_notebook(
-            list_RWobj, total=n_trajs,
-            desc='extracting features')))
+        if pbar:
+            mes = 'creating rws'
+            list_RWobj = [RandomWalk(group, zero_time=True)
+                          for _, group in tqdm.tqdm_notebook(df_trajs,
+                                                             total=n_trajs,
+                                                             desc=mes)]
+            raw_features = list(map(get_all_features, tqdm.tqdm_notebook(
+                                list_RWobj, total=n_trajs,
+                                desc='extracting features')))
+        else:
+            list_RWobj = [RandomWalk(group, zero_time=True)
+                          for _, group in df_trajs]
+            raw_features = list(map(get_all_features, list_RWobj))
     else:
         list_args = [(group.copy(), True) for _, group in df_trajs]
-        with mp.Pool(nb_process) as p:
-            raw_features = list(tqdm.tqdm_notebook(
-                p.imap(get_features_from_group, list_args),
-                total=n_trajs,
-                desc='creating objects and extracting features'))
+        if pbar:
+            with mp.Pool(nb_process) as p:
+                raw_features = list(tqdm.tqdm_notebook(
+                    p.imap(get_features_from_group, list_args),
+                    total=n_trajs,
+                    desc='creating objects and extracting features'))
+        else:
+            with mp.Pool(nb_process) as p:
+                raw_features = list(p.imap(get_features_from_group, list_args))
     df = pd.DataFrame.from_dict(raw_features)
     df['n'] = RWs.n.unique()
     df.set_index('n', inplace=True)
