@@ -158,9 +158,11 @@ class RandomWalk():
         Element (i,j) is the distance between position[i] and position[j]
     """
 
-    def __init__(self, RW_df, zero_time=False):
-        self.rw_is_useless = rw_is_useless(RW_df)
-        if not self.rw_is_useless:
+    def __init__(self, RW_df, zero_time=False, check_useless=True,
+                 nb_pos_min=3, jump_max=10):
+        self.rw_is_useless = (rw_is_useless(RW_df, nb_pos_min, jump_max) if
+                              check_useless else False)
+        if not self.rw_is_useless or not check_useless:
             self.data = RW_df
             self.dims = set(RW_df.columns).intersection({'x', 'y', 'z'})
             self.length = len(self.data)

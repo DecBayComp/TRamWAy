@@ -19,6 +19,8 @@ from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 import mpl_toolkits.mplot3d as mp3d
 
+from .batch_generation import create_batch_rw
+
 
 def visualize_random_walk(RW, color=True, colorbar=True):
     dim = len(set(RW.columns).intersection({'x', 'y', 'z'}))
@@ -238,3 +240,71 @@ def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
             ax.set_zlabel('logvar_y')
         ax.legend(markerscale=1/s)
         ax.set_title('Repartition of different types')
+
+
+def visualize_types(rw_types, names, nb_pr_row=2, nb_row=2, scale=2,
+                    figsize=(16, 7)):
+    N = nb_pr_row * nb_row
+    ncols = 2
+    nrows = len(rw_types) // 2 + len(rw_types) % 2
+    print('Generating random walks...')
+    dict_type_rws = dict(zip(names,
+                             [create_batch_rw(n=N, ps=None, nb_process=None,
+                                              types=[type_], pbar=False)[0]
+                              for type_ in rw_types]))
+    fig, axs = plt.subplots(figsize=figsize, nrows=nrows, ncols=ncols)
+    axs = np.atleast_2d(axs)
+    for i_type, type_name in zip(list(range(len(rw_types))), names):
+        rws = dict_type_rws[type_name]
+        for i in range(N):
+            rw = rws.loc[rws.n == i, ['x', 'y']].values
+            pos = np.array([i//(nb_row)*scale, i % (nb_row)*scale])
+            rw += pos
+            axs[i_type//2, i_type % 2].plot(rw[:, 0], rw[:, 1])
+        for i in range(nb_row+1):
+            s2 = scale / 2
+            axs[i_type//2, i_type % 2].plot([-s2, nb_pr_row*scale-s2],
+                                            [(i-0.5)*scale, (i-0.5)*scale],
+                                            'k--', alpha=0.5, linewidth=1)
+        for i in range(nb_pr_row+1):
+            axs[i_type//2, i_type % 2].plot([(i-0.5)*scale, (i-0.5)*scale],
+                                            [-scale/2, nb_row*scale-scale/2],
+                                            'k--', alpha=0.5, linewidth=1)
+        axs[i_type//2, i_type % 2].set_title(type_name)
+        axs[i_type//2, i_type % 2].axis('scaled')
+    if len(rw_types) % 2 == 1:
+        fig.delaxes(axs[(len(rw_types)-1)//2, 1])
+    plt.tight_layout()
+
+
+def plot_rw(ax, RW):
+    points = np.array([RW.x, RW.y]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    norm = plt.Normalize(RW.t.min(), RW.t.max())
+    lc = LineCollection(segments, cmap='viridis', norm=norm)
+    lc.set_array(RW.t)
+    line = ax.add_collection(lc)
+
+
+def plot_sample_RWs(RWs, ncols=4, nrows=4, figsize=(16, 4), scale=2,
+                    scale_to_box=False):
+    fig, ax = plt.subplots(figsize=figsize)
+    ns = RWs.n.unique()
+    permut = np.random.permutation(len(ns))
+    N = ncols * nrows
+    ns_chosen = ns[permut[:N]]
+    for i, n_i in enumerate(ns_chosen):
+        rw = RWs.loc[RWs.n == n_i].copy()
+        if scale_to_box:
+            div = np.max(np.array([-rw.x.min(), rw.x.max(),
+                                   rw.y.max(), -rw.y.min()]))
+            rw.x /= div
+            rw.y /= div
+        rw.x += (i % ncols) * scale
+        rw.y += (i // ncols) * scale
+        plot_rw(ax, rw)
+    for i in range(ncols):
+        plt.axvline((i + 0.5) * scale, linestyle='--')
+    for i in range(nrows):
+        plt.axhline((i + 0.5) * scale, linestyle='--')
+    plt.axis('scaled')

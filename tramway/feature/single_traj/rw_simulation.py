@@ -699,7 +699,7 @@ def load_motif_into_memory(fractal_name):
 
 
 def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
-                          noise_frac=0.2, **kwargs):
+                          pattern=None, noise_frac=0.2, **kwargs):
     """Generates a random walk which moves on a fractal pattern. We add noise
     to make it look more realistic
 
@@ -720,11 +720,11 @@ def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
     """
     nb_point = int(T_max/dt)
     X = np.zeros((nb_point, 2), dtype=int)
-    X[0] = int(np.floor(MOTIF.shape[0]/2))
+    X[0] = int(np.floor(pattern.shape[0]/2))
     for i in range(1, nb_point):
         i_init = X[i-1, 0]
         j_init = X[i-1, 1]
-        k, l, keep_going = update_position(MOTIF, i_init, j_init)
+        k, l, keep_going = update_position(pattern, i_init, j_init)
         if keep_going:
             X[i, 0] = k
             X[i, 1] = l
@@ -742,16 +742,16 @@ def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
 # Diffusion-limited aggregation
 
 
-def load_tree_into_memory(tree_name):
+def load_tree_into_memory(tree_name, DIR=TREE_DIR):
     global TREE
     try:
-        TREE = np.load(f'{TREE_DIR}\{tree_name}.npy')
+        TREE = np.load(f'{DIR}\\{tree_name}.npy')
     except:
         print('Could not load fractal, try to create fractal with pattern {}'
               .format(tree_name))
 
 
-def RW_on_tree(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
+def RW_on_tree(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None, tree=None,
                noise_frac=0.2, **kwargs):
     """Generates a random walk which moves on a tree. See Diffusion-limited
     aggregation.
@@ -771,13 +771,14 @@ def RW_on_tree(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
     Note : dim is fixed at 2 at the moment, but could be generalized to higher
         dimensions by changing patterns and the function update_position.
     """
+    assert tree is not None, 'No tree given'
     nb_point = int(T_max/dt)
     X = np.zeros((nb_point, 2), dtype=int)
-    X[0] = int(np.floor(TREE.shape[0]/2))
+    X[0] = int(np.floor(tree.shape[0]/2))
     for i in range(1, nb_point):
         i_init = X[i-1, 0]
         j_init = X[i-1, 1]
-        k, l, keep_going = update_position(TREE, i_init, j_init)
+        k, l, keep_going = update_position(tree, i_init, j_init)
         if keep_going:
             X[i, 0] = k
             X[i, 1] = l

@@ -166,11 +166,11 @@ def create_and_extract(args):
     """Function that extracts features from a single random walk.
     Used for multiprocessing with a generator.
     """
-    i, rw, rw_dict_prm, kwargs = args
+    rw, rw_dict_prm, kwargs = args
     if 'windows' in kwargs:
         ws = kwargs['windows']
         N = len(rw)
-        rw_obj = RandomWalk(rw, zero_time=True)
+        rw_obj = RandomWalk(rw, zero_time=True, check_useless=False)
         feat_scales = [get_all_features(rw_obj,
                                         id_min=int(N/2-w/2),
                                         id_max=int(N/2+w/2)) for w in ws]
@@ -179,22 +179,22 @@ def create_and_extract(args):
             rw_feat.update({f'{k}_{w}': v for k, v in feat_scales[i].items()})
     elif 'time' in kwargs:
         rw_feat = get_all_features(RandomWalk(rw, zero_time=True),
-                                   time_evol=True, **kwargs)
+                                   time_evol=True,
+                                   check_useless=False, **kwargs)
     else:
-        rw_feat = get_all_features(RandomWalk(rw, zero_time=True))
-    if kwargs['get_rw']:
-        rw['n'] = i
-    else:
+        rw_feat = get_all_features(RandomWalk(rw, zero_time=True,
+                                              check_useless=False))
+    rw_feat['n'] = rw.n.iloc[0]
+    if not kwargs['get_rw']:
         rw = None
-    rw_feat['n'] = i
     return rw_feat, rw_dict_prm, rw
 
 
 def features_creation(n=1000, types=[(RW_gauss_dist,
                                       {'d_l': ('float', 'uni', 0.01, 0.1),
                                        'T_max': ('float', 'exp', 0.1, 1)})],
-                      ps=[1], get_rw=False,
-                      nb_process=None, func_feat_process=None,
+                      ps=[1], get_rw=False, chunksize=1, nb_pos_min=3,
+                      nb_process=None, func_feat_process=None, jump_max=10,
                       **kwargs):
     """Creates and directly extracts features from specified types of random
     walks. Avoids the creation of a pandas DataFrame of the trajectories :
@@ -233,7 +233,9 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
         trajectories.
     """
     kwargs['get_rw'] = get_rw
-    rw_generator = rw_feature_generator(n, types=types, ps=ps, **kwargs)
+    rw_generator = rw_feature_generator(n, types=types, ps=ps,
+                                        nb_pos_min=nb_pos_min,
+                                        jump_max=jump_max, **kwargs)
     desc = 'creating and extracting rws features'
     if nb_process is None:
         raw_data = list(map(create_and_extract,
@@ -242,16 +244,21 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
     else:
         with mp.Pool(nb_process) as p:
             raw_data = list(tqdm.tqdm_notebook(
-                p.imap(create_and_extract, rw_generator),
+                p.imap(create_and_extract, rw_generator, chunksize=chunksize),
                 total=n, desc=desc))
-    raw_features = [raw_data[i][0] for i in range(len(raw_data))]
-    rw_prms = {i: raw_data[i][1] for i in range(len(raw_data))}
-    if get_rw:
-        list_rws = [raw_data[i][2] for i in range(len(raw_data))]
-        df_rws = pd.concat(list_rws).reset_index(drop=True)
-    else:
-        df_rws = None
+    raw_features = []
+    rw_prms = {}
+    list_rws = []
+    for i in range(len(raw_data)):
+        raw_features.append(raw_data[i][0])
+        rw_prms[i] = raw_data[i][1]
+        if get_rw:
+            list_rws.append(raw_data[i][2])
     df = pd.DataFrame.from_dict(raw_features)
     if func_feat_process is not None:
         df = func_feat_process(df)
+    if get_rw:
+        df_rws = pd.concat(list_rws).reset_index(drop=True)
+    else:
+        df_rws = None
     return df, rw_prms, df_rws

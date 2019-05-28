@@ -21,17 +21,22 @@ import tqdm
 SPACE_COLS = ['x', 'y', 'z']
 
 
-def rw_is_useless(rw, nb_pos_min=2):
+def rw_is_useless(rw, nb_pos_min=2, jump_max=10):
     """Checks if the random walk is useless by checking that is has two or more
     different positions.
     """
     is_immobile = True
+    is_too_big = True
     n = 0
     while 2**n <= len(rw):
         if len(rw.iloc[:2**n].x.unique()) > nb_pos_min:
-            return False
-        n += 1
-    return is_immobile
+            is_immobile = False
+            break
+        else:
+            n += 1
+    if np.max(np.linalg.norm(rw.loc[:, ['x', 'y']].values, axis=1)) < jump_max:
+        is_too_big = False
+    return is_immobile or is_too_big
 
 
 def normalize_init(X, dim):
@@ -484,4 +489,4 @@ def generate_and_save_DLA(DIR, name_output="DLA", n_trial_max=1000,
                           n_eff_min=100, growth=1.25):
     DLA_array = generate_the_DLA(n_trial_max=n_trial_max, growth=growth,
                                  n_eff_min=n_eff_min)
-    np.save(f'{DIR}\{name_output}', DLA_array)
+    np.save(f'{DIR}\\{name_output}', DLA_array)
