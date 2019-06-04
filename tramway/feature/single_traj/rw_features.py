@@ -604,9 +604,10 @@ class RandomWalk():
             autocorrs_angle = [np.nan, np.nan]
             if var_angle > 0:
                 for i in range(1, 3):
-                    autocov_angle = np.mean((angles[i:] - mean_angle) *
-                                            (angles[:-i] - mean_angle))
-                    autocorrs_angle[i-1] = autocov_angle / var_angle
+                    if len(angles) > i:
+                        autocov_angle = np.mean((angles[i:] - mean_angle) *
+                                                (angles[:-i] - mean_angle))
+                        autocorrs_angle[i-1] = autocov_angle / var_angle
             vals = [var_angle] + autocorrs_angle
             return dict(list(zip(keys, vals)))
         else:
