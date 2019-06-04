@@ -33,7 +33,6 @@ def visualize_random_walk(RW, color=True, colorbar=True):
             lc = LineCollection(segments, cmap='viridis', norm=norm)
             lc.set_array(RW.t)
             line = ax.add_collection(lc)
-            ax.axis('square')
             if colorbar:
                 cbar = plt.colorbar(line, ax=ax)
                 cbar.set_label('time')
@@ -243,7 +242,7 @@ def plot_embedding_classes(mu, logvar, dict_type_index, prms, dl,
 
 
 def visualize_types(rw_types, names, nb_pr_row=2, nb_row=2, scale=2,
-                    figsize=(16, 7)):
+                    figsize=(16, 7), scale_to_box=False):
     N = nb_pr_row * nb_row
     ncols = 2
     nrows = len(rw_types) // 2 + len(rw_types) % 2
@@ -258,6 +257,11 @@ def visualize_types(rw_types, names, nb_pr_row=2, nb_row=2, scale=2,
         rws = dict_type_rws[type_name]
         for i in range(N):
             rw = rws.loc[rws.n == i, ['x', 'y']].values
+            if scale_to_box:
+                div = np.max(np.array([-rw[:, 0].min(), rw[:, 0].max(),
+                                       rw[:, 1].max(), -rw[:, 1].min()]))
+                rw[:, 0] /= div
+                rw[:, 1] /= div
             pos = np.array([i//(nb_row)*scale, i % (nb_row)*scale])
             rw += pos
             axs[i_type//2, i_type % 2].plot(rw[:, 0], rw[:, 1])

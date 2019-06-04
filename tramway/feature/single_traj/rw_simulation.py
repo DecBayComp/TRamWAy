@@ -53,9 +53,9 @@ def RW_brownian(T_max=1, dt=1e-2, D=0.1, nb_short=1, v=None, X_init=0, dim=2):
     Xi = np.random.randn(nb_tot, dim)
     X_init = normalize_init(X_init, dim)
     drift = np.array(normalize_init(v, dim)) * dt * np.ones((nb_point-1, dim))
-    X = np.cumsum(np.sqrt(2*D*dt_short)*Xi, axis=0) + np.array(X_init) + drift
+    X = np.cumsum(np.sqrt(2*D*dt_short)*Xi, axis=0) + np.array(X_init)
     X = X[::nb_short]
-    X = np.insert(X, 0, X_init, axis=0)
+    X = np.insert(X + np.cumsum(drift, axis=0), 0, X_init, axis=0)
     t = np.arange(nb_point)*dt
     data = np.stack((t,) + tuple(X[:, i] for i in range(dim))).T
     return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
@@ -199,7 +199,7 @@ def CTRW(T_max=1, dt=1e-2,
     X = apply_angle_dists(distances, random_angles, dim)
     normed_pos_init = np.array(normalize_init(X_init, dim))
     drift = np.array(normalize_init(v, dim)) * dt * np.ones(X.shape)
-    X = X.cumsum(axis=0) + normed_pos_init + drift
+    X = X.cumsum(axis=0) + normed_pos_init + np.cumsum(drift, axis=0)
     X = np.concatenate((np.expand_dims(normed_pos_init, axis=0), X), axis=0)
     if distribution_time != "cst":
         t_regularized = np.linspace(0, T_max, nb_point, endpoint=False)
@@ -252,7 +252,7 @@ def RW_FBM(T_max=1, dt=1e-2, corr_type="frac", sigma=0.5, H=0.55,
     W = np.atleast_2d(W)[:, :nb_point-1]
     normed_pos_init = np.array(normalize_init(X_init, dim))
     drift = np.array(normalize_init(v, dim)) * dt * np.ones((nb_point-1, dim))
-    W = W.cumsum(axis=1).T + normed_pos_init + drift
+    W = W.cumsum(axis=1).T + normed_pos_init + np.cumsum(drift, axis=0)
     W = np.concatenate((np.expand_dims(normed_pos_init, axis=0), W), axis=0)
     t = np.linspace(0, nb_point*dt, nb_point, endpoint=False)
     data = np.concatenate((np.expand_dims(t, axis=1), W), axis=1)
@@ -497,11 +497,13 @@ def RW_DD(T_max=1, dt=1e-2, nb_short=10, X_init=0, dim=2,
                                D_init)
     D = npm.repmat(D, dim, 1).T
     X = np.cumsum(np.sqrt(2*D*dt_short)*Xi, axis=0) + np.array(X_init)
+    D = D[::nb_short, 0]
     X = X[::nb_short]
     X = np.insert(X, 0, X_init, axis=0)
+    D = np.insert(D, 0, D_init, axis=0)
     t = np.arange(nb_point)*dt
-    data = np.stack((t,) + tuple(X[:, i] for i in range(dim))).T
-    return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
+    data = np.stack((t,) + tuple(X[:, i] for i in range(dim)) + (D,)).T
+    return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim] + ['D'])
 
 
 # SELF AVOIDING WALK
