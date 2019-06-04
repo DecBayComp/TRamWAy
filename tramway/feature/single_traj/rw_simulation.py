@@ -23,13 +23,6 @@ from .distribution import *
 from .rw_misc import *
 
 
-# Directory of saved fractal patterns (to avoid generating them each time
-# we want a random walk).
-FRACTAL_DIR = ('Z:\\LAB_shared_stuff\\Maxime_Duval\\single_rw\\'
-               'Fractal_pattern\\patterns')
-TREE_DIR = ('Z:\\LAB_shared_stuff\\Maxime_Duval\\single_rw\\DLA\\patterns')
-
-
 # Continous time random walks
 
 def RW_brownian(T_max=1, dt=1e-2, D=0.1, nb_short=1, v=None, X_init=0, dim=2):
@@ -691,15 +684,6 @@ def RW_SAW(T_max=1, dt=1e-2, dr=1e-2, dim=2, bias=-1):
     return pd.DataFrame(data=data, columns=['t'] + SPACE_COLS[:dim])
 
 
-def load_motif_into_memory(fractal_name):
-    global MOTIF
-    try:
-        MOTIF = np.load(f'{FRACTAL_DIR}\{fractal_name}.npy')
-    except:
-        print('Could not load fractal, try to create fractal with pattern {}'
-              .format(fractal_name))
-
-
 def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
                           pattern=None, noise_frac=0.2, **kwargs):
     """Generates a random walk which moves on a fractal pattern. We add noise
@@ -742,16 +726,6 @@ def RW_on_fractal_pattern(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None,
 
 
 # Diffusion-limited aggregation
-
-
-def load_tree_into_memory(tree_name, DIR=TREE_DIR):
-    global TREE
-    try:
-        TREE = np.load(f'{DIR}\\{tree_name}.npy')
-    except:
-        print('Could not load fractal, try to create fractal with pattern {}'
-              .format(tree_name))
-
 
 def RW_on_tree(T_max=1, dt=1e-2, dr=1e-2, X_init=0, v=None, tree=None,
                noise_frac=0.2, **kwargs):
