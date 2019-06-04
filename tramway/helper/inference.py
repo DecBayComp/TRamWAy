@@ -266,6 +266,19 @@ class Infer(Helper):
 
         return maps
 
+    def plugin(self, name, plugins=None, verbose=None, func=None, **kwargs):
+        if func is not None:
+            if plugins is None:
+                plugins = {}
+            elif name in plugins:
+                warn('plugin `{}` will be overwritten'.format(name), RuntimeWarning)
+            setup = kwargs
+            setup['infer'] = 'func'
+            Plugin = collections.namedtuple('Plugin', ('func',))
+            module = Plugin(func)
+            plugins[name] = (setup, module)
+        Helper.plugin(self, name, plugins, verbose)
+
 
 def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=False, \
     localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \

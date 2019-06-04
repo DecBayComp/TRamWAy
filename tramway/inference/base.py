@@ -1153,6 +1153,9 @@ class Translocations(Cell):
         origins (array-like, ro property):
             Initial locations (both spatial coordinates and times).
 
+        destinations (array-like, ro property):
+            Final locations (both spatial coordinates and times).
+
     """
     __slots__ = ('origins', 'destinations')
 
@@ -1227,6 +1230,17 @@ class Translocations(Cell):
             return np.asarray(self.origins[self.space_cols])
         else:
             return np.asarray(self.origins[:,self.space_cols])
+
+
+class TrackedMolecules(Translocations):
+    """
+    Attributes:
+
+        n (numpy.ndarray):
+            Trajectory indices.
+
+    """
+    __slots__ = 'n',
 
 
 def identify_columns(points, trajectory_col=True):
@@ -1654,12 +1668,14 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         raise ValueError('NaN in location data')
     precomputed = ()
     if new_cell is None:
+        are_tracked_molecules = trajectory_col is not None and isinstance(cells.points, pd.DataFrame)
         are_translocations = trajectory_col is not None or has_precomputed_deltas
     else:
         if issubclass(new_cell, Locations):
             are_translocations = False
         elif issubclass(new_cell, Translocations):
             are_translocations = True
+            are_tracked_molecules = issubclass(new_cell, TrackedMolecules)
         else:
             raise TypeError('`new_cell` is neither `Locations` nor `Translocations`')
     if are_translocations:
@@ -1670,7 +1686,10 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         initial_point, final_point, initial_cell, final_cell, get_point = \
             get_translocations(cells.points, cells.cell_index, *precomputed)
         if new_cell is None:
-            new_cell = Translocations
+            if are_tracked_molecules:
+                new_cell = TrackedMolecules
+            else:
+                new_cell = Translocations
         fuzzy_args = ((initial_point, final_point), (initial_cell, final_cell), get_point)
     else:
         locations, location_index, get_point = \
@@ -1802,7 +1821,10 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         if not include_empty_cells and points.size == 0:
             J[j] = False
         else:
-            if are_translocations:
+            if are_tracked_molecules:
+                _trajectory_index = cells.points['n'][_origin.index].values
+                extra[j] = (_origin, _destination, _trajectory_index)
+            elif are_translocations:
                 extra[j] = (_origin, _destination)
             data[j] = points
 
@@ -1853,6 +1875,10 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             try:
                 _cells[j].destinations = extra[j][1]
             except AttributeError: # `_cells` does not have the `destinations` attribute
+                pass
+            try:
+                _cells[j].n = extra[j][2]
+            except AttributeError: # `_cells` does not have the `n` attribute
                 pass
         try:
             _cells[j].fuzzy = _fuzzy[j]
@@ -2252,6 +2278,6 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
     'identify_columns', 'get_locations', 'get_translocations', 'distributed',
-    'DistributeMerge',
+    'TrackedMolecules', 'DistributeMerge',
     'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']
 
