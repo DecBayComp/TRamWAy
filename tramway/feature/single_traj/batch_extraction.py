@@ -105,11 +105,13 @@ def get_features_from_group(args):
     of the random walk is 0.
     Single parameter to be able to use this function with multiprocessing imap.
     """
-    RW_df, zero_time = args
-    return get_all_features(RandomWalk(RW_df, zero_time=zero_time))
+    RW_df, zero_time, norm_dt = args
+    return get_all_features(
+        RandomWalk(RW_df, zero_time=zero_time, norm_dt=norm_dt))
 
 
-def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True):
+def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True,
+                     norm_dt=False):
     """Extracts features from a pandas DataFrame collecting different
     trajectories of random walks.
 
@@ -132,7 +134,7 @@ def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True):
     if nb_process is None:
         if pbar:
             mes = 'creating rws'
-            list_RWobj = [RandomWalk(group, zero_time=True)
+            list_RWobj = [RandomWalk(group, zero_time=True, norm_dt=norm_dt)
                           for _, group in tqdm.tqdm_notebook(df_trajs,
                                                              total=n_trajs,
                                                              desc=mes)]
@@ -140,11 +142,11 @@ def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True):
                                 list_RWobj, total=n_trajs,
                                 desc='extracting features')))
         else:
-            list_RWobj = [RandomWalk(group, zero_time=True)
+            list_RWobj = [RandomWalk(group, zero_time=True, norm_dt=norm_dt)
                           for _, group in df_trajs]
             raw_features = list(map(get_all_features, list_RWobj))
     else:
-        list_args = [(group.copy(), True) for _, group in df_trajs]
+        list_args = [(group.copy(), True, norm_dt) for _, group in df_trajs]
         if pbar:
             with mp.Pool(nb_process) as p:
                 raw_features = list(tqdm.tqdm_notebook(
@@ -183,7 +185,8 @@ def create_and_extract(args):
                                    check_useless=False, **kwargs)
     else:
         rw_feat = get_all_features(RandomWalk(rw, zero_time=True,
-                                              check_useless=False))
+                                              check_useless=False,
+                                              norm_dt=kwargs['norm_dt']))
     rw_feat['n'] = rw.n.iloc[0]
     if not kwargs['get_rw']:
         rw = None

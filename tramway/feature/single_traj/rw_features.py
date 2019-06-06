@@ -159,20 +159,28 @@ class RandomWalk():
     """
 
     def __init__(self, RW_df, zero_time=False, check_useless=True,
-                 nb_pos_min=3, jump_max=10):
+                 nb_pos_min=3, jump_max=10, norm_dt=False):
         self.rw_is_useless = (rw_is_useless(RW_df, nb_pos_min, jump_max) if
                               check_useless else False)
         if not self.rw_is_useless or not check_useless:
+            self.norm_dt = norm_dt
             self.data = RW_df
-            self.dims = set(RW_df.columns).intersection({'x', 'y', 'z'})
-            self.length = len(self.data)
-            self.position = self.data.loc[:, list(self.dims)].values
             self.t = self.data.t.values
             if zero_time:
                 self.t -= self.data.t.min()
             self.dt_vec = self.t[1:] - self.t[:-1]
             self.is_dt_cst = (np.var(self.dt_vec) < 1e-10)
-            self.dt = self.dt_vec[0]
+            if self.is_dt_cst:
+                self.dt = self.dt_vec[0]
+            else:
+                self.dt = np.mean(self.dt_vec)
+            self.dims = set(RW_df.columns).intersection({'x', 'y', 'z'})
+            self.length = len(self.data)
+            if norm_dt:
+                self.position = (self.data.loc[:, list(self.dims)].values /
+                                 np.sqrt(self.dt))
+            else:
+                self.position = self.data.loc[:, list(self.dims)].values
             self.Dvec = (self.position[:, np.newaxis] -
                          self.position[np.newaxis, :])
             self.Dabs = np.linalg.norm(self.Dvec, axis=2)
@@ -284,12 +292,14 @@ class RandomWalk():
         """
         tau, msd = self.temporal_msd(id_min, id_max, n_samples,
                                      sampling, use_all)
-        tau = tau * self.dt
+        if not self.norm_dt:
+            tau = tau * self.dt
         if len(tau) > 1:
             slope, intercept, r, _, _ = scipy.stats.linregress(np.log10(tau),
                                                                np.log10(msd))
+            diffusion = 10**intercept / 4
             return {'msd_alpha': slope, 'msd_rval': r,
-                    'msd_diffusion': 10**intercept / 4}
+                    'msd_diffusion': diffusion}
         else:
             return {'msd_alpha': np.nan, 'msd_rval': np.nan,
                     'msd_diffusion': np.nan}
@@ -312,6 +322,8 @@ class RandomWalk():
         drift = np.mean(((subposition[1:] - subposition[0]) /
                          subt[1:, np.newaxis]), axis=0)
         val = np.linalg.norm(drift)
+        if self.norm_dt:
+            val *= self.dt
         if raw_val:
             return val
         else:
@@ -376,6 +388,8 @@ class RandomWalk():
         # keys = ['pdf_alpha_mean', 'pdf_beta_mean', 'pdf_rval_mean',
         #         'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var']
         if len(tau) > 1:
+            if self.norm_dt:
+                tau /= self.dt
             fit_mean = scipy.stats.linregress(np.log10(tau),
                                               np.log10(pdf_stats[:, 0]))
         else:
@@ -388,8 +402,8 @@ class RandomWalk():
             fit_var = np.array([np.nan, np.nan, np.nan])
         mu_sk, var_sk = np.mean(pdf_stats[:, 2]), np.var(pdf_stats[:, 2])
         mu_ku, var_ku = np.mean(pdf_stats[:, 3]), np.var(pdf_stats[:, 3])
-        vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
-                fit_var[0], 10**fit_var[1], fit_var[2],
+        vals = [fit_mean[0], 10**fit_mean[1] / 4, fit_mean[2],
+                fit_var[0], 10**fit_var[1] / 4, fit_var[2],
                 mu_sk, var_sk, mu_ku, var_ku]
         # vals = [fit_mean[0], 10**fit_mean[1], fit_mean[2],
         #         fit_var[0], 10**fit_var[1], fit_var[2]]
