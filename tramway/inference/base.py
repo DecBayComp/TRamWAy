@@ -1880,6 +1880,8 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
                 _cells[j].n = extra[j][2]
             except AttributeError: # `_cells` does not have the `n` attribute
                 pass
+            except IndexError: # extra[j] has two elements
+                pass
         try:
             _cells[j].fuzzy = _fuzzy[j]
         except AttributeError: # `_cells` does not have the `fuzzy` attribute

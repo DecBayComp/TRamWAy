@@ -381,9 +381,9 @@ def infer_stochastic_DV(cells,
     if not isinstance(time_prior, (tuple, list)):
         time_prior = (time_prior, time_prior)
     if diffusivity_temporal_prior is None:
-        diffusivity_temporal_prior = time_prior[0]
+        diffusivity_temporal_prior = time_prior[0] * diffusivity_spatial_prior
     if potential_temporal_prior is None:
-        potential_temporal_prior = time_prior[1]
+        potential_temporal_prior = time_prior[1] * potential_spatial_prior
     dv = LocalDV(D_initial, V_initial, diffusivity_spatial_prior, potential_spatial_prior,
         diffusivity_temporal_prior, potential_temporal_prior, min_diffusivity, prior_delay=prior_delay)
     if posterior_max_count:
