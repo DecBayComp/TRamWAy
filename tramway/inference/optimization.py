@@ -18,9 +18,10 @@ import scipy.sparse as sparse
 from collections import namedtuple, defaultdict, deque
 import traceback
 from tramway.core import parallel
+import logging
 
 
-BFGSResult = namedtuple('BFGSResult', ('x', 'H', 'resolution', 'niter', 'f', 'df', 'projg', 'cumtime', 'err', 'diagnosis'))
+BFGSResult = namedtuple('BFGSResult', ('x', 'H', 'resolution', 'niter', 'f', 'df', 'projg', 'cumtime', 'err', 'diagnosis', 'ncalls'))
 
 
 def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=None, f0=None, g0=None,
@@ -336,6 +337,8 @@ class SparseFunction(parallel.Workspace):
 
         h0 (float): gradient initial step.
 
+        ncalls (int): number of calls to `fun`.
+
     See also :func:`minimize_sparse_bfgs`.
     """
     def __init__(self, x, covariate, gradient_subspace, descent_subspace,
@@ -345,12 +348,13 @@ class SparseFunction(parallel.Workspace):
         self.gradient_subspace = gradient_subspace
         self.descent_subspace = descent_subspace
         self.eps = eps
-        self.fun = fun
+        self._fun = fun
         self.sum = _sum
         self.args = args
         self.regul = regul
         self.bounds = bounds
         self.h0 = h0
+        self.ncalls = 0
 
     @property
     def x(self):
@@ -359,7 +363,11 @@ class SparseFunction(parallel.Workspace):
         #assert self.x is self._extensions[0].combined # stochastic_dv only
         parallel.Workspace.update(self, component)
         component.push()
+        self.ncalls = 0
         #self.x[component.descent_subspace] = component.x
+    def fun(self, *args, **kwargs):
+        self.ncalls += 1
+        return self._fun(*args, **kwargs)
 
 def extend_global(__global__, independent_components, memory, newton, gradient_covariate):
     """ Add attributes to the workspace.
@@ -723,6 +731,9 @@ class LimitedMemoryInverseHessianBlock(InverseHessianBlock):
 class Component(LocalSubspaceProxy, parallel.UpdateVehicle):
     """
     From `__global__` requires `fun`, `_sum` and `args`.
+
+    `__global__.fun` is the local cost function.
+    `f` is the partially-evaluated cost function.
     """
     __slots__ = ('_x', '_f', '_g', '_H') + parallel.VehicleJobStep.__slots__
     def __init__(self, i, *args, **kwargs):
@@ -751,7 +762,8 @@ class Component(LocalSubspaceProxy, parallel.UpdateVehicle):
         assert self._g is not None
     def __f__(self, _x):
         #assert _x is x # check there is a single working copy
-        return self.__global__.fun(self.i, _x, *self.__global__.args)
+        return self.__global__.sum([ self.__global__.fun(j, _x, *self.__global__.args)
+                    for j in self.covariate ])
     @property
     def f(self):
         if self._f is None:
@@ -813,7 +825,7 @@ class Component(LocalSubspaceProxy, parallel.UpdateVehicle):
             raise RuntimeError(self._format('no parameters are defined'))
         if __x.size == _x.size:
             if __x is not _x:
-                _x[...] = __x
+                _x[:] = __x
         elif __x.size == self.gradient_subspace_size:
             _x[self.gradient_subspace] = __x
         else:
@@ -916,6 +928,13 @@ def _ls_args(step_scale, ls_step_max, ls_iter_max, ls_armijo_max, ls_wolfe, newt
     return ls_kwargs
 
 
+module_logger = logging.getLogger(__name__)
+module_logger.setLevel(logging.DEBUG)
+_console = logging.StreamHandler()
+_console.setFormatter(logging.Formatter('%(message)s\n'))
+module_logger.addHandler(_console)
+
+
 def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, descent_subspace,
         args=(), bounds=None, _sum=np.sum, gradient_sum=None, gradient_covariate=None,
         memory=10, eps=1e-6, ftol=1e-6, gtol=1e-10, low_df_rate=.9, low_dg_rate=.9, step_scale=1.,
@@ -923,7 +942,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         ls_step_max_decay=None, ls_iter_max=None,
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
-        independent_components=True, newton=True, verbose=False):
+        independent_components=True, newton=True, verbose=False, **kwargs):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
@@ -1053,16 +1072,11 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     # logging
     logger = None
     if verbose:
-        import logging
         if isinstance(verbose, logging.Logger):
             logger = verbose
             verbose = True
         else:
-            logger = logging.getLogger(__name__)
-            logger.setLevel(logging.DEBUG)
-            _console = logging.StreamHandler()
-            _console.setFormatter(logging.Formatter('%(message)s\n'))
-            logger.addHandler(_console)
+            logger = module_logger
     # initial checks
     component, gradient_subspace, descent_subspace, bounds, gradient_sum = \
             _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace,
@@ -1080,7 +1094,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             ls_iter_max=ls_iter_max, ls_armijo_max=ls_armijo_max, ls_wolfe=ls_wolfe,
             ls_regul=ls_regul, ls_step_max=ls_step_max, ls_step_max_decay=ls_step_max_decay,
             ls_failure_rate=ls_failure_rate, fix_ls=fix_ls, fix_ls_trigger=fix_ls_trigger,
-            verbose=verbose, logger=logger)
+            verbose=verbose, logger=logger, **kwargs)
+    sched.logger = logger
 
     if verbose:
         t0 = time.time()
@@ -1097,6 +1112,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
 
     x = __global__.x
     k = sched.k_eff
+    ncalls = sched.ncalls
     f_history  = sched.f_history
     df_history = sched.df_history
     dg_history = sched.dg_history
@@ -1121,7 +1137,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             f_history  if f_history  else None,
             df_history if df_history else None,
             dg_history if dg_history else None,
-            cumt if verbose else None, None, None)
+            cumt if verbose else None, None, None,
+            ncalls     if ncalls     else None)
 
 
 class SBFGSScheduler(parallel.Scheduler):
@@ -1142,6 +1159,7 @@ class SBFGSScheduler(parallel.Scheduler):
         self.fix_ls = fix_ls
         self.fix_ls_trigger = fix_ls_trigger
         self.recurrent_ls_failure_count = {}
+        self.ncalls = []
         self.f_history = []
         self.df_history = []
         self.dg_history = []
@@ -1151,8 +1169,13 @@ class SBFGSScheduler(parallel.Scheduler):
     def worker(self):
         return SBFGSWorker
 
+    def pause(self, i, t):
+        self.paused[i] = t
+        return len(self.paused) < len(self.task)
+
     def draw(self, k):
         i = self.component(k)
+        assert i is not None
         try:
             t = self.paused[i]
         except KeyError:
@@ -1188,7 +1211,7 @@ class SBFGSScheduler(parallel.Scheduler):
                             self.recurrent_ls_failure_count.get(i, 0) + 1
                     if self.fix_ls_trigger <= _count:
                         if verbose:
-                            logger.debug(msg2(k, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
+                            self.logger.debug(msg2(k, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
                         c.push(x)
                         self.fix_ls(i, x)
                         c.pull(x)
@@ -1202,21 +1225,28 @@ class SBFGSScheduler(parallel.Scheduler):
                 stop = self.ls_failure_rate * ncomponents <= self.ls_failure_count
                 if stop:
                     self.resolution = 'LINE SEARCH FAILED'
+                    ncalls = status.get('ncalls', 0)
+                    if ncalls:
+                        self.ncalls.append(ncalls)
                     return stop
 
         try:
             f = status['f']
             df = status['df']
+            ncalls = status['ncalls']
         except KeyError:
             pass
         else:
+            self.ncalls.append(ncalls)
             self.f_history.append(f)
             self.df_history.append(df)
             if self.ftol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if df < self.ftol:
                     self.low_df_count += 1
                     if df <= .1 * self.ftol:
-                        self.paused[i] = 1
+                        if not self.pause(i, 1):
+                            self.resolution = 'CONVERGENCE: DELTA F <= FTOL/10'
+                            return True
                 #if new_epoch:
                     stop = self.low_df_rate * ncomponents <= self.low_df_count
                     if stop:
@@ -1229,12 +1259,14 @@ class SBFGSScheduler(parallel.Scheduler):
         except KeyError:
             pass
         else:
-            self.dg_history.append(proj)
+            self.dg_history.append((i, proj))
             if self.gtol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if proj < self.gtol:
                     self.low_dg_count += 1
                     if proj <= .1 * self.gtol:
-                        self.paused[i] = max(self.paused.get(i, 0), 1)
+                        if not self.pause(i, max(self.paused.get(i, 0), 1)):
+                            self.resolution = 'CONVERGENCE: PROJ G <= GTOL/10'
+                            return True
                 #if new_epoch:
                     stop = self.low_dg_rate * ncomponents <= self.low_dg_count
                     if stop:
@@ -1297,25 +1329,27 @@ class SBFGSWorker(parallel.Worker):
 
                     # check for changes in the corresponding parameters since last iteration on component `i`
                     new_component = c.x is None
-                    if not new_component:
-                        # copy part of the component for initial H update
-                        x_prev, g_prev = c.x, c.g
-                    # update with current parameters
-                    c.pull(x)
-                    if not new_component:
-                        # update H with inter-iteration changes
-                        if np.allclose(x_prev, c.x):
-                            pass
-                        elif newton:
-                            s_ii = c.x - x_prev
-                            y_ii = c.g - g_prev
-                            proj_ii = np.dot(s_ii, y_ii)
-                            if proj_ii <= 0:
-                                if verbose:
-                                    logger.debug(msg2(k, i, 'PROJ G <= 0 (k-1)'))
-                                c.H.drop()
-                            else:
-                                c.H.update(s_ii, y_ii, proj_ii)
+                    if new_component:
+                        c.pull(x)
+                    else:
+                        ## copy part of the component for initial H update
+                        #x_prev, g_prev = c.x, c._g
+                        # update `x` with current parameters
+                        c.push(x)
+                        c._f = c._g = None # reset `f` and `g`
+                        ## update H with inter-iteration changes
+                        #if np.allclose(x_prev, c.x):
+                        #    pass
+                        #elif newton:
+                        #    s_ii = c.x - x_prev
+                        #    y_ii = c.g - g_prev
+                        #    proj_ii = np.dot(s_ii, y_ii)
+                        #    if proj_ii <= 0:
+                        #        if verbose:
+                        #            logger.debug(msg2(k, i, 'PROJ G <= 0 (k-1)'))
+                        #        c.H.drop()
+                        #    else:
+                        #        c.H.update(s_ii, y_ii, proj_ii)
 
                     # estimate the local gradient
                     g = c.g # g_{k}
@@ -1346,11 +1380,15 @@ class SBFGSWorker(parallel.Worker):
                                 c.__f__, x, p, c.__g__, c.descent_subspace,
                                 f0=c.f, g0=g0, bounds=bounds,
                                 weight_regul=regul, step_regul=ls_regul,
-                                #return_resolution=verbose,
+                                return_resolution=verbose,
                                 **ls_kwargs) # s_{k}
 
                         # if the linesearch failed, make `g` sparser
+                        if verbose:
+                            s, res = s
                         if s is None:
+                            if verbose:
+                                logger.debug(msg2(k, i, res))
                             if not _k:
                                 g = np.array(g)
                                 _active = np.argsort(np.abs(g))
@@ -1432,6 +1470,7 @@ class SBFGSWorker(parallel.Worker):
                     c = c1 # push `c1`
 
                 finally:
+                    info['ncalls'] = __global__.ncalls
                     self.push_update(c, info)
 
         except (SystemExit, KeyboardInterrupt):
@@ -1574,16 +1613,11 @@ def minimize_sparse_bfgs0(fun, x0, component, covariate, gradient_subspace, desc
     """
     # logging
     if verbose:
-        import logging
         if isinstance(verbose, logging.Logger):
             logger = verbose
             verbose = True
         else:
-            logger = logging.getLogger(__name__)
-            logger.setLevel(logging.DEBUG)
-            _console = logging.StreamHandler()
-            _console.setFormatter(logging.Formatter('%(message)s\n'))
-            logger.addHandler(_console)
+            logger = module_logger
     if verbose:
         msg0, msg1, msg2 = define_pprint()
         cumt = 0.
@@ -1864,7 +1898,7 @@ def minimize_sparse_bfgs0(fun, x0, component, covariate, gradient_subspace, desc
             f_history if f_history else None,
             df_history if df_history else None,
             dg_history if dg_history else None,
-            cumt if verbose else None, None, None)
+            cumt if verbose else None, None, None, None)
 
 
 def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bounds=None, h0=1e-8):

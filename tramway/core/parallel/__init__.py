@@ -25,6 +25,13 @@ try:
 except SyntaxError: # Py2
     import abc_py2 as abc
 
+#import logging # DEBUG
+#module_logger = logging.getLogger(__name__)
+#module_logger.setLevel(logging.DEBUG)
+#_console = logging.StreamHandler()
+#_console.setFormatter(logging.Formatter('%(message)s\n'))
+#module_logger.addHandler(_console)
+
 
 class StarQueue(object):
     """
@@ -108,9 +115,13 @@ class StarConn(queue.Queue):
                 raise RuntimeError('queue was not set as joinable at init')
 
 class WorkerNearDeathException(Exception):
-    __slots__ = '_id',
-    def __init__(self, _id):
+    __slots__ = '_id', '_type', '_msg'
+    def __init__(self, _id, exc_type, exc_msg):
         self._id = _id
+        self._type = exc_type
+        self._msg = exc_msg
+    def __str__(self):
+        return 'worker {} died with error: {}: {}'.format(self._id, self._type, self._msg)
 
 class Worker(multiprocessing.Process):
     """ Worker that runs job steps.
@@ -156,7 +167,9 @@ class Worker(multiprocessing.Process):
             int, tramway.core.parallel.JobStep: step/iteration number, job step object.
 
         """
+        #module_logger.debug('get_task: waiting...') # DEBUG
         k, task = self.tasks.get()
+        #module_logger.debug('get_task: received {}'.format(k)) # DEBUG
         task.set_workspace(self.workspace)
         self.pull_updates()
         return k, task
@@ -175,7 +188,9 @@ class Worker(multiprocessing.Process):
         update.unset_workspace() # free memory space
         if self.update is not None:
             self.update.put(update)
+        #module_logger.debug('push_update: sending back') # DEBUG
         self.feedback.put((update, status))
+        #module_logger.debug('push_update: sent') # DEBUG
     def pull_updates(self):
         if self.update is None:
             return
@@ -191,8 +206,8 @@ class Worker(multiprocessing.Process):
             self.target(*self.args, **self.kwargs)
         except (SystemExit, KeyboardInterrupt):
             raise
-        except:
-            self.feedback.put((None, WorkerNearDeathException(self._id)))
+        except Exception as e:
+            self.feedback.put((None, WorkerNearDeathException(self._id, type(e), str(e))))
             raise
 
 
@@ -222,15 +237,16 @@ class Scheduler(object):
         self.k_max = iter_max
         if not worker_count:
             worker_count = multiprocessing.cpu_count() - 1
+        kwargs.update(_kwargs)
+        self.task_queue = multiprocessing.Queue()
+        self.return_queue = multiprocessing.Queue()
         if worker_count == 1:
-            self.workers = {}
-            raise NotImplementedError('single process')
+            self.workers = { 0: self.worker(0, self.workspace,
+                        self.task_queue, self.return_queue, None,
+                        name=name, args=args, kwargs=kwargs, daemon=daemon) }
         else:
             def _name(w):
                 return '{}-{:d}'.format(name, w) if w else None
-            kwargs.update(_kwargs)
-            self.task_queue = multiprocessing.Queue()
-            self.return_queue = multiprocessing.Queue()
             update_queue = StarQueue(worker_count)
             self.workers = { i: self.worker(i, self.workspace,
                         self.task_queue, self.return_queue, update_queue.deal(),
@@ -247,6 +263,7 @@ class Scheduler(object):
     def draw(self, k):
         return k
     def locked(self, step):
+        return False
         return step.resource_id in self.active or \
                 np.any(self.resource_lock[step.resources])
     def lock(self, step):
@@ -273,7 +290,9 @@ class Scheduler(object):
         self.active[step.resource_id] = k
         self.lock(step)
         step.unset_workspace() # free memory
+        #module_logger.debug('send_task: sending {}...'.format(k)) # DEBUG
         self.task_queue.put((k, step))
+        #module_logger.debug('send_task: sent') # DEBUG
         self.k_eff += 1
     def get_processed_step(self):
         """
@@ -284,10 +303,16 @@ class Scheduler(object):
         Returns ``False`` if a stopping criterion has been met, ``True`` otherwise.
         """
         while True:
+            #module_logger.debug('get_processed_step: waiting...') # DEBUG
             step, status = self.return_queue.get()
+            #module_logger.debug('get_processed_step: received {}'.format(self.active[step.resource_id])) # DEBUG
             if step is None:
                 if isinstance(status, WorkerNearDeathException):
                     self.dead_workers[status._id] = self.workers.pop(status._id)
+                    try:
+                        self.logger.critical(str(status))
+                    except AttributeError:
+                        pass
                     if not self.workers:
                         return False
                 else:
@@ -300,10 +325,10 @@ class Scheduler(object):
         i = step.resource_id
         self.task[i] = step
         k = self.active.pop(i)
-        if self.stop(k, i, status):
-            return False
-        self.unlock(step)
-        return True
+        try:
+            return not self.stop(k, i, status)
+        finally:
+            self.unlock(step)
     def iter_max_reached(self):
         return self.k_max and self.k_max <= self.k_eff
     def workers_alive(self):
@@ -326,16 +351,20 @@ class Scheduler(object):
         """
         while 0 < self.available_slots:
             i = self.draw(k)
-            if i is None or i in self.active or i in postponed:
+            if i is None:
+                k += 1
+            elif i in self.active or i in postponed:
                 break
-            task = self.task[i]
-            if self.locked(task):
-                postponed[i] = k
             else:
-                self.send_task(k, task)
-            k += 1
-            if self.iter_max_reached():
-                break
+                task = self.task[i]
+                if self.locked(task):
+                    postponed[i] = k
+                else:
+                    self.send_task(k, task)
+                k += 1 # increment anyway in the case i is None
+                if self.iter_max_reached():
+                    #assert False
+                    break
         return k
     def run(self):
         """
@@ -344,6 +373,10 @@ class Scheduler(object):
         Returns ``True`` on normal completion, ``False`` on interruption
         (:class:`SystemExit`, :class:`KeyboardInterrupt`).
         """
+        if not self.workers:
+            # no multi-processing
+            raise NotImplementedError
+
         for w in self.workers.values():
             w.start()
         self.init_resource_lock()
