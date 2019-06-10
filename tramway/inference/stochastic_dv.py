@@ -24,6 +24,7 @@ import scipy.sparse as sparse
 from collections import OrderedDict, deque
 import time
 from scipy.stats import trim_mean
+import logging
 
 
 setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
@@ -46,6 +47,13 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('verbose',             ()))),
         #('region_size',         ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
     'cell_sampling': 'group'}
+
+
+module_logger = logging.getLogger(__name__)
+module_logger.setLevel(logging.DEBUG)
+_console = logging.StreamHandler()
+_console.setFormatter(logging.Formatter('%(message)s\n'))
+module_logger.addHandler(_console)
 
 
 class LocalDV(DV):
@@ -116,12 +124,7 @@ class LocalDV(DV):
     @property
     def logger(self):
         if self._logger is None:
-            import logging
-            self._logger = logging.getLogger(__name__)
-            self._logger.setLevel(logging.DEBUG)
-            _console = logging.StreamHandler()
-            _console.setFormatter(logging.Formatter('%(message)s'))
-            self._logger.addHandler(_console)
+            self._logger = module_logger
         return self._logger
 
     def undefined_grad(self, i, feature=''):
@@ -169,7 +172,7 @@ def make_regions(cells, index, reverse_index, size=1):
 
 def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     time_prior, dt_mean, index, reverse_index, grad_kwargs,
-    posterior_info=None, y0=0., iter_num=None, verbose=False):
+    posterior_info=None, iter_num=None, verbose=False):
     """
     """
 
@@ -258,7 +261,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     #    print((i, raw_posterior, standard_priors, Dj, V[j], n, gradV, [V[_j] for _j in cells.neighbours(i)]))
 
     if verbose:
-        logger.debug((i, raw_posterior, standard_priors, time_priors))
+        dv.logger.debug((i, raw_posterior, standard_priors, time_priors))
     if posterior_info is not None:
         if iter_num is None:
             info = [i, raw_posterior, result]
@@ -266,7 +269,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
             info = [iter_num, i, raw_posterior, result]
         posterior_info.append(info)
 
-    return result - y0
+    return result
 
 def _local_dv_neg_posterior(*args, **kwargs):
     try:
@@ -278,7 +281,7 @@ def _local_dv_neg_posterior(*args, **kwargs):
 def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None,
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
-    export_centers=False, verbose=True, superlocal=False, stochastic=True,
+    export_centers=False, verbose=True, superlocal=True, stochastic=True,
     D0=None, V0=None, x0=None,
     return_struct=False, posterior_max_count=1000,
     **kwargs):
@@ -347,6 +350,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         posterior_info = deque([], posterior_max_count)
     else:
         posterior_info = []
+    posterior_info = None # parallelization makes this inoperant
 
     # gradient options
     grad_kwargs = get_grad_kwargs(kwargs)
@@ -369,8 +373,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     if not stochastic:
         y0 = sum( local_dv_neg_posterior(j, dv.combined, *args[:-1]) for j in range(m) )
         if verbose:
-            dv.logger.info('At X0\tactual posterior= {}\n'.format(y0))
-        args = args + (y0,)
+            dv.logger.info('At X0\tactual posterior= {}'.format(y0))
+        #args = args + (y0,)
 
     # keyword arguments to `minimize_sparse_bfgs`
     sbfgs_kwargs = dict(kwargs)
@@ -403,7 +407,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         #    return np.r_[dv.diffusivity_indices(dv.region(i)), dv.potential_indices(covariate(i))]
     else:
         if superlocal:
-            raise ValueError('`stochastic=False` and `superlocal=True` are incompatible')
+            superlocal = False
+            #raise ValueError('`stochastic=False` and `superlocal=True` are incompatible')
         component = lambda k: 0
         covariate = lambda i: range(m)
         descent_subspace = None
@@ -422,7 +427,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         sbfgs_kwargs['bounds'] = bounds
     if 'eps' not in sbfgs_kwargs:
         sbfgs_kwargs['eps'] = 1. # beware: not the `tramway.inference.grad` option
-    # TODO: in principle `superlocal` could work in quasi-Newton work but did not with random `x0`
+    # TODO: in principle `superlocal` could work in quasi-Newton mode but did not with random `x0`
     sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', not stochastic)# or superlocal)
     if newton:
         default_step_max = 1.
@@ -439,7 +444,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     if ls_step_max_decay:
         sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-3
+        sbfgs_kwargs['ftol'] = 1e-4
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
@@ -492,7 +497,9 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     else:
         for src_attr in ('resolution',
                 'niter',
+                ('ncalls', 'ncalls'),
                 ('f', 'f_history'),
+                ('df', 'df_history'),
                 ('projg', 'projg_history'),
                 ('err', 'error'),
                 ('diagnosis', 'diagnoses')):
