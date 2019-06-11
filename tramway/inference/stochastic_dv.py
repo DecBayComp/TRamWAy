@@ -283,7 +283,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     compatibility=False,
     export_centers=False, verbose=True, superlocal=True, stochastic=True,
     D0=None, V0=None, x0=None,
-    return_struct=False, posterior_max_count=1000,
+    return_struct=False, debug=False, posterior_max_count=1000,
     **kwargs):
     """
     Arguments:
@@ -485,26 +485,30 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
             columns=cells.space_cols))
         #DVF.to_csv('results.csv', sep='\t')
 
+    info = {}
     # format the posteriors
     if posterior_info:
         cols = ['cell', 'fit', 'total']
         if len(posterior_info[0]) == 4:
             cols = ['iter'] + cols
         posterior_info = pd.DataFrame(np.array(posterior_info), columns=cols)
+        info['posterior_info'] = posterior_info
 
-    info = dict(posterior_info=posterior_info)
     if return_struct:
         # cannot be rwa-stored
         info['result'] = result
     else:
-        for src_attr in ('resolution',
-                'niter',
+        attrs = ('resolution',
+                'niter')
+        if debug:
+            attrs = attrs + (
                 ('ncalls', 'ncalls'),
                 ('f', 'f_history'),
                 ('df', 'df_history'),
                 ('projg', 'projg_history'),
                 ('err', 'error'),
-                ('diagnosis', 'diagnoses')):
+                ('diagnosis', 'diagnoses'))
+        for src_attr in attrs:
             if isinstance(src_attr, str):
                 dest_attr = src_attr
             else:
