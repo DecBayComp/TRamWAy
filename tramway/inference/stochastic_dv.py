@@ -395,13 +395,13 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         else:
             def gradient_subspace(i):
                 return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
-        def fix_linesearch(i, x):
-            _r = dv.region(i)
-            x[dv.diffusivity_indices(i)] = min(x[dv.diffusivity_indices(i)], trim_mean(x[dv.diffusivity_indices(_r)], .25))
-            x[dv.potential_indices(i)] = min(x[dv.potential_indices(i)], trim_mean(x[dv.potential_indices(_r)], .25))
-        sbfgs_kwargs['fix_ls'] = fix_linesearch
-        if 'fix_ls_trigger' not in sbfgs_kwargs:
-            sbfgs_kwargs['fix_ls_trigger'] = 3
+        #def fix_linesearch(i, x):
+        #    _r = dv.region(i)
+        #    x[dv.diffusivity_indices(i)] = min(x[dv.diffusivity_indices(i)], trim_mean(x[dv.diffusivity_indices(_r)], .25))
+        #    x[dv.potential_indices(i)] = min(x[dv.potential_indices(i)], trim_mean(x[dv.potential_indices(_r)], .25))
+        #sbfgs_kwargs['fix_ls'] = fix_linesearch
+        #if 'fix_ls_trigger' not in sbfgs_kwargs:
+        #    sbfgs_kwargs['fix_ls_trigger'] = 3
 
         #def gradient_subspace(i):
         #    return np.r_[dv.diffusivity_indices(dv.region(i)), dv.potential_indices(covariate(i))]
@@ -445,6 +445,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
         sbfgs_kwargs['ftol'] = 1e-5
+    if 'gtol' not in sbfgs_kwargs:
+        sbfgs_kwargs['gtol'] = None
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,

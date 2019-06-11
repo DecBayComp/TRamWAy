@@ -942,7 +942,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         ls_step_max_decay=None, ls_iter_max=None,
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
-        independent_components=True, newton=True, verbose=False, **kwargs):
+        independent_components=True, newton=True, verbose=False, xref=None, **kwargs):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
@@ -1063,6 +1063,10 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
 
         verbose (bool or logging.Logger): verbose mode or logger.
 
+        xref (numpy.ndarray): reference final parameter vector; if defined, at each iteration,
+            the L2-norm of the difference between this and the current parameter vector is evaluated
+            and returned as attribute `err`; note that this computation may add quite some overhead.
+
     Returns:
 
         BFGSResult: final parameter vector.
@@ -1086,6 +1090,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     __global__ = SparseFunction(x0, covariate, gradient_subspace, descent_subspace,
             eps, fun, _sum, args, regul, bounds, gradient_initial_step)
     extend_global(__global__, independent_components, memory, newton, gradient_covariate)
+    __global__.xref = xref
     C = _defaultdict(Component, __global__)
 
     sched = SBFGSScheduler(__global__, C, component,
@@ -1098,6 +1103,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     sched.logger = logger
 
     if verbose:
+        logger.debug('number of workers: {}'.format(len(sched.workers)))
         t0 = time.time()
 
     sched.run()
@@ -1116,6 +1122,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     f_history  = sched.f_history
     df_history = sched.df_history
     dg_history = sched.dg_history
+    err_history = sched.err_history
 
     if verbose:
         cumt = time.time() - t0
@@ -1137,7 +1144,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             f_history  if f_history  else None,
             df_history if df_history else None,
             dg_history if dg_history else None,
-            cumt if verbose else None, None, None,
+            cumt if verbose else None,
+            err_history if err_history else None, None,
             ncalls     if ncalls     else None)
 
 
@@ -1163,6 +1171,7 @@ class SBFGSScheduler(parallel.Scheduler):
         self.f_history = []
         self.df_history = []
         self.dg_history = []
+        self.err_history = []
         self.paused = dict()
 
     @property
@@ -1228,6 +1237,11 @@ class SBFGSScheduler(parallel.Scheduler):
                     ncalls = status.get('ncalls', 0)
                     if ncalls:
                         self.ncalls.append(ncalls)
+                        err = status.get('err', None)
+                        if err is None:
+                            assert not self.err_history
+                        else:
+                            self.err_history.append(err)
                     return stop
 
         try:
@@ -1240,6 +1254,11 @@ class SBFGSScheduler(parallel.Scheduler):
             self.ncalls.append(ncalls)
             self.f_history.append(f)
             self.df_history.append(df)
+            err = status.get('err', None)
+            if err is None:
+                assert not self.err_history
+            else:
+                self.err_history.append(err)
             if self.ftol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if df < self.ftol:
                     self.low_df_count += 1
@@ -1284,12 +1303,13 @@ class SBFGSWorker(parallel.Worker):
     def target(self, newton=None, step_scale=None, regul_decay=None,
             ls_iter_max=None, ls_armijo_max=None, ls_wolfe=None, ls_regul=None,
             ls_step_max=None, ls_step_max_decay=None,
-            verbose=None, logger=None):
+            verbose=None, logger=None, xref=None):
         __global__ = self.workspace
         x = __global__.x
         regul = __global__.regul
         bounds = __global__.bounds
         gtol = __global__.gtol
+        xref = __global__.xref
 
         if verbose:
             msg0, msg1, msg2 = define_pprint()
@@ -1470,7 +1490,12 @@ class SBFGSWorker(parallel.Worker):
                     c = c1 # push `c1`
 
                 finally:
+                    c.push(x)
                     info['ncalls'] = __global__.ncalls
+                    if xref is not None:
+                        err = x - xref
+                        err = np.dot(err, err)
+                        info['err'] = err
                     self.push_update(c, info)
 
         except (SystemExit, KeyboardInterrupt):
