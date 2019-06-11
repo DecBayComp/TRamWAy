@@ -778,7 +778,7 @@ class Component(LocalSubspaceProxy, parallel.UpdateVehicle):
             subspace = self.gradient_subspace
         if covariate is None:
             try:
-                covariate = self.gradient_covariate
+                covariate = self.__global__.gradient_covariate
             except AttributeError:
                 covariate = self.covariate
         _total_g, _partial_g = sparse_grad(self.__global__.fun, _x, covariate,

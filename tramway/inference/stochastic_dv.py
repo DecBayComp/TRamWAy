@@ -416,7 +416,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         def col2rows(j):
             i = j % m
             return dv.region(i)
-        sbfgs_kwargs['gradient_covariate'] = col2rows
+        if 'gradient_covariate' not in sbfgs_kwargs:
+            sbfgs_kwargs['gradient_covariate'] = col2rows
 
     # other arguments
     if verbose:
@@ -430,12 +431,12 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     # TODO: in principle `superlocal` could work in quasi-Newton mode but did not with random `x0`
     sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', not stochastic)# or superlocal)
     if newton:
-        default_step_max = 1.
+        default_step_max = 2.
         default_wolfe = (.5, None)
     else:
         default_step_max = .5
         default_wolfe = (.1, None)
-    if stochastic:
+    if True:#stochastic:
         sbfgs_kwargs['ls_wolfe'] = sbfgs_kwargs.get('ls_wolfe', default_wolfe)
         sbfgs_kwargs['ls_step_max'] = sbfgs_kwargs.get('ls_step_max', default_step_max)
     if 'ls_armijo_max' not in sbfgs_kwargs:
@@ -498,16 +499,18 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         # cannot be rwa-stored
         info['result'] = result
     else:
-        attrs = ('resolution',
-                'niter')
+        attrs = ['resolution', 'niter']
         if debug:
-            attrs = attrs + (
-                ('ncalls', 'ncalls'),
-                ('f', 'f_history'),
-                ('df', 'df_history'),
-                ('projg', 'projg_history'),
-                ('err', 'error'),
-                ('diagnosis', 'diagnoses'))
+            debug_all = {'ncalls': 'ncalls',
+                    'f_history': 'f',
+                    'df_history': 'df',
+                    'projg_history': 'projg_history',
+                    'error': 'err',
+                    'diagnoses': 'diagnosis'}
+            if debug is True:
+                attrs += [(val, key) for key, val in debug_all.items()]
+            else:
+                attrs += [(debug_all[attr], attr) for attr in debug]
         for src_attr in attrs:
             if isinstance(src_attr, str):
                 dest_attr = src_attr
