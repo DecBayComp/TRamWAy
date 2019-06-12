@@ -158,8 +158,8 @@ class RandomWalk():
         Element (i,j) is the distance between position[i] and position[j]
     """
 
-    def __init__(self, RW_df, zero_time=False, check_useless=True,
-                 nb_pos_min=3, jump_max=10, norm_dt=False):
+    def __init__(self, RW_df, zero_time=False, check_useless=False,
+                 nb_pos_min=3, jump_max=10, norm_dt=False, **kwargs):
         self.rw_is_useless = (rw_is_useless(RW_df, nb_pos_min, jump_max) if
                               check_useless else False)
         if not self.rw_is_useless or not check_useless:
@@ -389,7 +389,7 @@ class RandomWalk():
         #         'pdf_alpha_var', 'pdf_beta_var', 'pdf_rval_var']
         if len(tau) > 1:
             if self.norm_dt:
-                tau /= self.dt
+                tau = tau / self.dt
             fit_mean = scipy.stats.linregress(np.log10(tau),
                                               np.log10(pdf_stats[:, 0]))
         else:

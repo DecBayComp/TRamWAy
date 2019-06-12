@@ -425,7 +425,7 @@ def process_rw3(args):
         noise = generate_random_number(*kwargs['pos_noise'])
         X += np.random.randn(*X.shape) * noise
     t = rw.t.values
-    rw_obj = RandomWalk(rw)
+    rw_obj = RandomWalk(rw, norm_dt=kwargs['norm_dt'], zero_time=True)
     steps = np.diagonal(rw_obj.Dabs, offset=1)
     mean_step = np.mean(steps)
     sum_step = np.sum(steps)

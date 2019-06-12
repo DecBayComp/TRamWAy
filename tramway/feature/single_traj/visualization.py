@@ -299,6 +299,8 @@ def plot_sample_RWs(RWs, ncols=4, nrows=4, figsize=(16, 4), scale=2,
     ns_chosen = ns[permut[:N]]
     for i, n_i in enumerate(ns_chosen):
         rw = RWs.loc[RWs.n == n_i].copy()
+        rw.x -= rw.x.iloc[0]
+        rw.y -= rw.y.iloc[0]
         if scale_to_box:
             div = np.max(np.array([-rw.x.min(), rw.x.max(),
                                    rw.y.max(), -rw.y.min()]))

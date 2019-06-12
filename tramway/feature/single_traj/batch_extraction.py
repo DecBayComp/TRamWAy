@@ -107,7 +107,8 @@ def get_features_from_group(args):
     """
     RW_df, zero_time, norm_dt = args
     return get_all_features(
-        RandomWalk(RW_df, zero_time=zero_time, norm_dt=norm_dt))
+        RandomWalk(RW_df, zero_time=zero_time, norm_dt=norm_dt,
+                   check_useless=False))
 
 
 def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True,
@@ -122,6 +123,9 @@ def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True,
     nb_process : int or None. Number of processes to use if not None.
     func_feat_process : function to apply to raw features extracted from the
         random walk. Use case : to get rid of unused features in the VAE.
+    pbar : bool, whether to display a progress bar when extracting features.
+    norm_dt : bool, whether to extract features with in a time step invariant
+        fashion.
 
     Returns
     -------
@@ -134,7 +138,8 @@ def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True,
     if nb_process is None:
         if pbar:
             mes = 'creating rws'
-            list_RWobj = [RandomWalk(group, zero_time=True, norm_dt=norm_dt)
+            list_RWobj = [RandomWalk(group.copy(), zero_time=True,
+                                     norm_dt=norm_dt, check_useless=False)
                           for _, group in tqdm.tqdm_notebook(df_trajs,
                                                              total=n_trajs,
                                                              desc=mes)]
@@ -142,7 +147,8 @@ def extract_features(RWs, nb_process=4, func_feat_process=None, pbar=True,
                                 list_RWobj, total=n_trajs,
                                 desc='extracting features')))
         else:
-            list_RWobj = [RandomWalk(group, zero_time=True, norm_dt=norm_dt)
+            list_RWobj = [RandomWalk(group, zero_time=True, norm_dt=norm_dt,
+                                     check_useless=False)
                           for _, group in df_trajs]
             raw_features = list(map(get_all_features, list_RWobj))
     else:
@@ -198,7 +204,7 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
                                        'T_max': ('float', 'exp', 0.1, 1)})],
                       ps=[1], get_rw=False, chunksize=1, nb_pos_min=3,
                       nb_process=None, func_feat_process=None, jump_max=10,
-                      **kwargs):
+                      norm_dt=False, **kwargs):
     """Creates and directly extracts features from specified types of random
     walks. Avoids the creation of a pandas DataFrame of the trajectories :
     useful for lowering the RAM usage.
@@ -217,10 +223,18 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
         dimension as type. Controls the probability distribution of choosing
         some type.
     get_rw : bool, optional. Whether we want to retrieve trajectories or not.
+    chunksize : int, used when nb_process is an integer. Number of random walks
+        considered by each processor before providing the results to the main
+        process.
+    nb_pos_min : mininum number of different points of simulated trajectories.
     nb_process : int or None. If int, the number of processes to use to benefit
         from parallelization.
     func_feat_process : function to apply to raw features extracted from the
         random walk. Use case : to get rid of unused features in the VAE.
+    jump_max : scalar, maximum jump size of simulated random walks.
+    norm_dt : bool, whether to extract features in a time step invariant
+        fashion or not.
+    kwargs : dict, given to the feature generator.
 
     Returns
     -------
@@ -236,6 +250,7 @@ def features_creation(n=1000, types=[(RW_gauss_dist,
         trajectories.
     """
     kwargs['get_rw'] = get_rw
+    kwargs['norm_dt'] = norm_dt
     rw_generator = rw_feature_generator(n, types=types, ps=ps,
                                         nb_pos_min=nb_pos_min,
                                         jump_max=jump_max, **kwargs)

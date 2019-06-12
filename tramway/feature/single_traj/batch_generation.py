@@ -35,8 +35,10 @@ def generate_random_number(type_n, type_gen, a, b=None, p=None):
     ----------
     type_n : string, the type of the random number generated.
     type_gen : string, the type of random distribution chosen.
-    a : number, parameter relevant to the chosen distribution.
+    a : number or list, parameter relevant to the chosen distribution.
     b : number, optional depending on the type of generation chosen.
+    p : if type_n == 'str', the p parameter given to np.random.choice to choose
+        from the list a.
     """
     if type_n == 'float':
         if type_gen == 'uni':
@@ -114,6 +116,8 @@ def rw_feature_generator(n, types=[(RW_gauss_dist,
     ps : parameter passed to `np.random.choice` as p, should have same
         dimension as type. Controls the probability distribution of choosing
         some type.
+    nb_pos_min : mininum number of different points of simulated trajectories.
+    jump_max : scalar, maximum jump size of simulated random walks.
 
     Yields
     ------
@@ -148,6 +152,12 @@ def create_batch_rw(n=100, ps=[1], nb_process=4, nb_pos_min=2, jump_max=10,
         some type.
     nb_process : number of CPU processes used simultaneous (makes use of
         multiprocessing built-in Python module).
+    nb_pos_min : mininum number of different points of simulated trajectories.
+    jump_max : scalar, maximum jump size of simulated random walks.
+    chunksize : int, used when nb_process is an integer. Number of random walks
+        considered by each processor before providing the results to the main
+        process.
+    pbar : bool, whether to display a progress bar when extracting features.
     type : list that describes which random walks we generate.
         Each item is a tuple with 2 elements.
         - The first is the function (see rw_simulation) which characterizes
