@@ -61,6 +61,9 @@ def generate_random_number(type_n, type_gen, a, b=None, p=None):
         return a[i]
     elif type_n == 'cst':
         return a
+    elif type_n == 'double':
+        return [generate_random_number('float', type_gen, a, b),
+                generate_random_number('float', type_gen, a, b)]
     else:
         raise TypeError(f'Unrecognized number type : {type_n}')
 

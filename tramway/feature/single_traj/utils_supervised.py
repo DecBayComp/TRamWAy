@@ -522,3 +522,89 @@ def make_datasets(PATH, types, ps=None, M=50, N=10000, nb_process=16,
         torch.save(ds, f'{PATH}_file_{i}')
         output_paths.append(f'{PATH}_file_{i}')
     return output_paths, ds_lengths
+
+
+class RWNetTmp4(nn.Module):
+    """Main neural network. It performs 1D convolutions separately on each
+    channel of the provided temporal data. It adds scaling factors and finally
+    meta variables before last layers.
+    """
+    def __init__(self, meta_prm_size, windows, n_samples, fc_input_dims = [50, 30],
+                 hidden_dims=[100], output_dim=1, dropout=0.2, kernel_size=5, activation=torch.sigmoid):
+        super(RWNetTmp4, self).__init__()
+        self.windows = windows
+        self.meta_prm_size = meta_prm_size
+        self.n_samples = n_samples
+        self.hidden_dims = hidden_dims
+        self.dropout = dropout
+        self.kernel_size = kernel_size
+        self.activation = activation
+        self.output_dim = output_dim
+        
+        self.conv = {}
+        self.channel_sizes = {}
+        for w in self.windows:
+            temp_conv = []
+            channels_in = 1
+            channels_out = 16
+            wtemp = w
+            while wtemp > max(self.kernel_size, 3):
+                temp_conv.extend([nn.Conv1d(in_channels=channels_in,
+                                            out_channels=channels_out,
+                                            kernel_size=kernel_size),
+                                  nn.ReLU(), nn.Dropout(p=dropout), nn.MaxPool1d(2)])
+                wtemp = (wtemp - 2 * kernel_size // 2) / 2
+                channels_in = channels_out
+                channels_out = min(64, channels_out*2)
+            temp_conv.append(nn.AdaptiveAvgPool1d(1))
+            self.conv[w] = nn.Sequential(*temp_conv)
+            self.channel_sizes[w] = channels_in
+        self.sum_conv_activ = 2 * sum(list(self.channel_sizes.values()))
+        
+        self.fc_msd = []
+        self.fc_msd.append(nn.Linear(self.n_samples, fc_input_dims[0]))
+        self.fc_msd.append(nn.ReLU())
+        self.fc_msd.append(nn.Dropout(p=self.dropout))
+        for i in range(len(fc_input_dims)-1):
+            self.fc_msd += [nn.Linear(fc_input_dims[i], fc_input_dims[i+1]), nn.ReLU(), nn.Dropout(p=dropout)]
+        self.fc_msd = nn.Sequential(*self.fc_msd)
+
+        self.fc_cum = []
+        self.fc_cum.append(nn.Linear(self.n_samples, fc_input_dims[0]))
+        self.fc_cum.append(nn.ReLU())
+        self.fc_cum.append(nn.Dropout(p=self.dropout))
+        for i in range(len(fc_input_dims)-1):
+            self.fc_cum += [nn.Linear(fc_input_dims[i], fc_input_dims[i+1]), nn.ReLU(), nn.Dropout(p=dropout)]
+        self.fc_cum = nn.Sequential(*self.fc_cum)
+        
+        self.fc_cv = []
+        self.fc_cv.append(nn.Linear(self.n_samples, fc_input_dims[0]))
+        self.fc_cv.append(nn.ReLU())
+        self.fc_cv.append(nn.Dropout(p=self.dropout))
+        for i in range(len(fc_input_dims)-1):
+            self.fc_cv += [nn.Linear(fc_input_dims[i], fc_input_dims[i+1]), nn.ReLU(), nn.Dropout(p=dropout)]
+        self.fc_cv = nn.Sequential(*self.fc_cv)
+        
+        self.fc_last_input_size = self.sum_conv_activ + 3 * fc_input_dims[-1] + self.meta_prm_size
+        self.fc_last = []
+        self.fc_last.append(nn.Linear(self.fc_last_input_size, hidden_dims[0]))
+        self.fc_last.append(nn.ReLU())
+        self.fc_last.append(nn.Dropout(p=self.dropout))
+        for i in range(len(hidden_dims)-1):
+            self.fc_last += [nn.Linear(hidden_dims[i], hidden_dims[i+1]), nn.ReLU(), nn.Dropout(p=dropout)]
+        self.fc_last.append(nn.Linear(hidden_dims[-1], self.output_dim))
+        self.fc_last = nn.Sequential(*self.fc_last)
+        
+        
+    def forward(self, rws, msd, cum_dist, cv_hull, meta_prm):
+        activ_x = torch.cat([self.conv[w](rws[w][:, 0].unsqueeze(1)).squeeze(dim=2) for w in self.windows], dim=1)
+        activ_y = torch.cat([self.conv[w](rws[w][:, 1].unsqueeze(1)).squeeze(dim=2) for w in self.windows], dim=1)
+        activ_msd = F.relu(self.fc_msd(msd))
+        activ_cum = F.relu(self.fc_cum(cum_dist))
+        activ_cv = F.relu(self.fc_cv(cv_hull))
+#         print(activ_x.shape, activ_y.shape, activ_msd.shape, activ_cum.shape, meta_prm.shape)
+        final_input = torch.cat([activ_x, activ_y, activ_msd, activ_cum, activ_cv, torch.sigmoid(meta_prm)], dim=1)
+        if self.activation is None:
+            return self.fc_last(final_input)
+        else:
+            return self.activation(self.fc_last(final_input))

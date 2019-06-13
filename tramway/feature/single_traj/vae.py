@@ -31,7 +31,8 @@ class TabDataset(torch.utils.data.Dataset):
 
     def __init__(self, df, c_drop={}):
         self.Features = list(set(df.columns).difference(c_drop))
-        self.df = df.loc[:, self.Features].dropna().sort_index(axis=1)
+        self.df = df.loc[:, self.Features].replace(
+            [np.inf, -np.inf], np.nan).dropna().sort_index(axis=1)
         self.dict_iloc_to_traj = dict(
             list(zip(np.arange(len(self.df)), self.df.index)))
         self.scaler = sklearn.preprocessing.StandardScaler()
