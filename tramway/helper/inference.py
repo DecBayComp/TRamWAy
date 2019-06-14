@@ -93,7 +93,7 @@ class Infer(Helper):
                         grad = grad1
                     elif grad == 'gradn':
                         grad = gradn
-                    else:
+                    elif grad is not None:
                         raise ValueError('unsupported gradient')
                         grad = None
                 if not callable(rgrad):
@@ -101,7 +101,7 @@ class Infer(Helper):
                         rgrad = delta0
                     elif rgrad == 'delta1':
                         rgrad = delta1
-                    else:
+                    elif rgrad is not None:
                         raise ValueError("unsupported regularizing 'gradient'")
                         rgrad = None
                 if grad is None:
