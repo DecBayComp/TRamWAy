@@ -65,13 +65,13 @@ def delta0(cells, i, X, index_map=None, **kwargs):
             dx_norm = x - x0
             dx_norm = np.sqrt(np.sum(dx_norm * dx_norm, axis=1))
         else:
-            dx_norm = []
+            dx_norm = None
 
         if index_map is not None:
             i = index_map[i]
         cell.cache['delta0'] = (i, adjacent, dx_norm)
 
-    if not dx_norm:
+    if dx_norm is None:
         return None
 
     y0, y = y[i], y[adjacent]
