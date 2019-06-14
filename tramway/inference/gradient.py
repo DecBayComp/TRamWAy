@@ -19,7 +19,7 @@ from numpy.polynomial import polynomial as poly
 from collections import OrderedDict
 
 
-def delta0(cells, i, X, index_map=None):
+def delta0(cells, i, X, index_map=None, **kwargs):
     """
     Differences with neighbour values.
 
