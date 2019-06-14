@@ -363,7 +363,7 @@ class SparseFunction(parallel.Workspace):
         #assert self.x is self._extensions[0].combined # stochastic_dv only
         parallel.Workspace.update(self, component)
         component.push()
-        self.ncalls = 0
+        #self.ncalls = 0
         #self.x[component.descent_subspace] = component.x
     def fun(self, *args, **kwargs):
         self.ncalls += 1
@@ -1334,6 +1334,7 @@ class SBFGSWorker(parallel.Worker):
                 k, c = self.get_task()
                 i = c.i
                 info = dict()
+                __global__.ncalls = 0
                 try:
 
                     assert x is __global__.x

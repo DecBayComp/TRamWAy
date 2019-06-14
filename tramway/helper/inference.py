@@ -87,7 +87,7 @@ class Infer(Helper):
                         {'min_location_count': merge_threshold_count}
                 else:
                     new_group = Distributed
-            if grad is not None:
+            if grad is not None or rgrad is not None:
                 if not callable(grad):
                     if grad == 'grad1':
                         grad = grad1
@@ -96,11 +96,29 @@ class Infer(Helper):
                     else:
                         raise ValueError('unsupported gradient')
                         grad = None
-                if grad is not None:
+                if not callable(rgrad):
+                    if rgrad == 'delta0':
+                        rgrad = delta0
+                    elif rgrad == 'delta1':
+                        rgrad = delta1
+                    else:
+                        raise ValueError("unsupported regularizing 'gradient'")
+                        rgrad = None
+                if grad is None:
+                    class Distr(new_group):
+                        def local_variation(self, *args, **kwargs):
+                            return rgrad(self, *args, **kwargs)
+                elif rgrad is None:
                     class Distr(new_group):
                         def grad(self, *args, **kwargs):
                             return grad(self, *args, **kwargs)
-                    new_group = Distr
+                else:
+                    class Distr(new_group):
+                        def grad(self, *args, **kwargs):
+                            return grad(self, *args, **kwargs)
+                        def local_variation(self, *args, **kwargs):
+                            return rgrad(self, *args, **kwargs)
+                new_group = Distr
             detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group,
                     include_empty_cells=include_empty_cells, **distributed_kwargs)
 

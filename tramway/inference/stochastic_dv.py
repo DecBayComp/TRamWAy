@@ -43,6 +43,7 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('gradient',            ('--grad', dict(help="spatial gradient implementation; any of 'grad1', 'gradn'"))),
         ('grad_epsilon',        dict(args=('--eps', '--epsilon'), kwargs=dict(type=float, help='if defined, every spatial gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
         ('grad_selection_angle',('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; if not -c, default is: {})'.format(default_selection_angle)))),
+        ('rgrad',               dict(help="local spatial variation; any of 'delta0', 'delta1'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',             ()))),
         #('region_size',         ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
@@ -282,7 +283,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
     export_centers=False, verbose=True, superlocal=True, stochastic=True,
-    D0=None, V0=None, x0=None,
+    D0=None, V0=None, x0=None, rgrad=None,
     return_struct=False, debug=False, posterior_max_count=1000,
     **kwargs):
     """
