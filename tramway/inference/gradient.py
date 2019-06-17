@@ -519,7 +519,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                grad_j = np.zeros(cells.dim, dtype=X0.dtype)
+                grad_j = 0.
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
                 grad_j = (y0 - np.mean(y[v])) * Xj
