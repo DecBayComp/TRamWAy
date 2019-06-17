@@ -449,6 +449,17 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         sbfgs_kwargs['ftol'] = 1e-5
     if 'gtol' not in sbfgs_kwargs:
         sbfgs_kwargs['gtol'] = None
+    if debug:
+        debug_all = {'ncalls': 'ncalls',
+                'f_history': 'f',
+                'df_history': 'df',
+                'projg_history': 'projg',
+                'error': 'err',
+                'diagnoses': 'diagnosis'}
+        if debug is not True:
+            sbfgs_kwargs['returns'] = { debug_all[attr] for attr in debug }
+    else:
+        sbfgs_kwargs['returns'] = set()
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
@@ -502,12 +513,6 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     else:
         attrs = ['resolution', 'niter']
         if debug:
-            debug_all = {'ncalls': 'ncalls',
-                    'f_history': 'f',
-                    'df_history': 'df',
-                    'projg_history': 'projg_history',
-                    'error': 'err',
-                    'diagnoses': 'diagnosis'}
             if debug is True:
                 attrs += [(val, key) for key, val in debug_all.items()]
             else:

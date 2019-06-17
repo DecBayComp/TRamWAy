@@ -363,7 +363,6 @@ class SparseFunction(parallel.Workspace):
         #assert self.x is self._extensions[0].combined # stochastic_dv only
         parallel.Workspace.update(self, component)
         component.push()
-        #self.ncalls = 0
         #self.x[component.descent_subspace] = component.x
     def fun(self, *args, **kwargs):
         self.ncalls += 1
@@ -399,7 +398,8 @@ def extend_global(__global__, independent_components, memory, newton, gradient_c
         # just ignore
         #if memory:
         #    raise NotImplementedError('`memory` requires `indepdendent_components`')
-        __global__.H = sparse.lil_matrix((x.size, x.size))
+        n = __global__.x.size
+        __global__.H = sparse.lil_matrix((n, n))
         __global__.inverse_hessian_block = InverseHessianBlockView
     # component
     if gradient_covariate is not None:
@@ -646,7 +646,7 @@ class InverseHessianBlock(LocalSubspaceProxy):
         yHy = np.dot(y, Hy)
         assert 0 <= yHy
         self.block = self.block + (\
-                (1 + yHy) / proj * np.outer(s, s) - np.outer(Hy, s) - np.outer(s, Hy)
+                (1 + yHy / proj) * np.outer(s, s) - np.outer(Hy, s) - np.outer(s, Hy)
             ) / proj
     def drop(self):
         raise NotImplementedError('abstract method')
@@ -664,12 +664,17 @@ class InverseHessianBlockView(InverseHessianBlock):
     def __init__(self, component):
         InverseHessianBlock.__init__(self, component)
         self.fresh = True
-        self.slice = np.ix_(self.gradient_subspace, self.gradient_subspace)
+        if self.gradient_subspace is None:
+            self.slice = None
+        else:
+            self.slice = np.ix_(self.gradient_subspace, self.gradient_subspace)
     def drop(self):
         self.fresh = True
     @property
     def block(self):
-        block = self.__global__.H[self.slice]
+        block = self.__global__.H
+        if self.slice is not None:
+            block = block[self.slice]
         if self.fresh:
             block = self.eps * (block + sparse.identity(self.gradient_subspace_size, format='lil'))
         return block
@@ -680,7 +685,10 @@ class InverseHessianBlockView(InverseHessianBlock):
         #    i, j, k = sparse.find(_block)
         #    block[np.ix_(i,j)] += k
         #    block[np.ix_(i,j)] /= 2
-        self.__global__.H[self.slice] = block
+        if self.slice is None:
+            self.__global__.H = block
+        else:
+            self.__global__.H[self.slice] = block
         self.fresh = False
 class IndependentInverseHessianBlock(InverseHessianBlock):
     __slots__ = ('block',)
@@ -919,7 +927,7 @@ def _ls_args(step_scale, ls_step_max, ls_iter_max, ls_armijo_max, ls_wolfe, newt
         except TypeError:
             c2 = c3 = ls_wolfe
         ls_kwargs['c3'] = c3
-    elif newton:
+    elif False:#newton: # TEST
         c2 = .9
     else:
         c2 = .1
@@ -942,7 +950,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         ls_step_max_decay=None, ls_iter_max=None,
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
-        independent_components=True, newton=True, verbose=False, xref=None, **kwargs):
+        independent_components=False, newton=True, verbose=False, returns='all', xref=None, **kwargs):# TEST
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
@@ -1063,6 +1071,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
 
         verbose (bool or logging.Logger): verbose mode or logger.
 
+        returns (sequence of str): any subset of {'f', 'df', 'projg', 'err', 'ncalls', 'diagnosis'}.
+
         xref (numpy.ndarray): reference final parameter vector; if defined, at each iteration,
             the L2-norm of the difference between this and the current parameter vector is evaluated
             and returned as attribute `err`; note that this computation may add quite some overhead.
@@ -1091,6 +1101,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             eps, fun, _sum, args, regul, bounds, gradient_initial_step)
     extend_global(__global__, independent_components, memory, newton, gradient_covariate)
     __global__.xref = xref
+    __global__.returns = {'f', 'df', 'projg', 'err', 'ncalls'} if returns == 'all' else returns # 'diagnosis' not yet available
     C = _defaultdict(Component, __global__)
 
     sched = SBFGSScheduler(__global__, C, component,
@@ -1167,11 +1178,11 @@ class SBFGSScheduler(parallel.Scheduler):
         self.fix_ls = fix_ls
         self.fix_ls_trigger = fix_ls_trigger
         self.recurrent_ls_failure_count = {}
-        self.ncalls = []
-        self.f_history = []
-        self.df_history = []
-        self.dg_history = []
-        self.err_history = []
+        self.ncalls = [] if 'ncalls' in __global__.returns else None
+        self.f_history = [] if 'f' in __global__.returns else None
+        self.df_history = [] if 'df' in __global__.returns else None
+        self.dg_history = [] if 'projg' in __global__.returns else None
+        self.err_history = [] if 'err' in __global__.returns else None
         self.paused = dict()
 
     @property
@@ -1236,12 +1247,14 @@ class SBFGSScheduler(parallel.Scheduler):
                     self.resolution = 'LINE SEARCH FAILED'
                     ncalls = status.get('ncalls', 0)
                     if ncalls:
-                        self.ncalls.append(ncalls)
-                        err = status.get('err', None)
-                        if err is None:
-                            assert not self.err_history
-                        else:
-                            self.err_history.append(err)
+                        if self.ncalls is not None:
+                            self.ncalls.append(ncalls)
+                        if self.err is not None:
+                            err = status.get('err', None)
+                            if err is None:
+                                assert not self.err_history
+                            else:
+                                self.err_history.append(err)
                     return stop
 
         try:
@@ -1251,14 +1264,18 @@ class SBFGSScheduler(parallel.Scheduler):
         except KeyError:
             pass
         else:
-            self.ncalls.append(ncalls)
-            self.f_history.append(f)
-            self.df_history.append(df)
-            err = status.get('err', None)
-            if err is None:
-                assert not self.err_history
-            else:
-                self.err_history.append(err)
+            if self.ncalls is not None:
+                self.ncalls.append(ncalls)
+            if self.f_history is not None:
+                self.f_history.append(f)
+            if self.df_history is not None:
+                self.df_history.append(df)
+            if self.err_history is not None:
+                err = status.get('err', None)
+                if err is None:
+                    assert not self.err_history
+                else:
+                    self.err_history.append(err)
             if self.ftol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if df < self.ftol:
                     self.low_df_count += 1
@@ -1278,7 +1295,8 @@ class SBFGSScheduler(parallel.Scheduler):
         except KeyError:
             pass
         else:
-            self.dg_history.append((i, proj))
+            if self.dg_history is not None:
+                self.dg_history.append((i, proj))
             if self.gtol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if proj < self.gtol:
                     self.low_dg_count += 1
