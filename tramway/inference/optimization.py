@@ -71,6 +71,10 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
         x0 = x[subspace]
     x = np.array(x)
     #
+    assert not x.shape[1:]
+    assert not p.shape[1:]
+    assert not g0.shape[1:]
+    #
     slope = np.dot(p, g0)
     if 0 <= slope:
         if return_resolution:
@@ -101,8 +105,7 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
         eta_min = eta_max * c5
     eta = eta_prev = eta_max
     #eta_hist, f_hist, norm_p_hist, df_hist, armijo_hist = [], [f0], [], [], []
-    last_valid_eta = None
-    last_valid_x = np.array(x0)
+    any_f_defined = False
     i = 0
     while True:
         #eta_hist.append(eta)
@@ -127,8 +130,10 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
             fx = None
         #f_hist.append(fx)
         if fx is None:
+            #assert np.all(0 < x) # DEBUG
             eta *= c0
         else:
+            any_f_defined = True
             if weight_regul:
                 fx += weight_regul * np.dot(_x, _x)
             if step_regul:
@@ -197,7 +202,10 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
         i += 1
         if iter_max and i == iter_max:
             #print('iter_max reached')
-            res = 'iter_max reached'
+            if any_f_defined:
+                res = 'iter_max reached'
+            else:
+                res = "could not find the function's support"
             break
     #print((eta_hist, norm_p_hist, f_hist, df_hist, armijo_hist))
     if return_resolution:
@@ -397,7 +405,7 @@ def extend_global(__global__, independent_components, memory, newton, gradient_c
     else:
         # just ignore
         #if memory:
-        #    raise NotImplementedError('`memory` requires `indepdendent_components`')
+        #    raise NotImplementedError('`memory` requires `independent_components`')
         n = __global__.x.size
         __global__.H = sparse.lil_matrix((n, n))
         __global__.inverse_hessian_block = InverseHessianBlockView
@@ -642,12 +650,16 @@ class InverseHessianBlock(LocalSubspaceProxy):
     def update(self, s, y, proj):
         if proj is None:
             proj = np.dot(s, self.in_descent_subspace(y))
-        Hy = self.dot(y)
+        H = self.block
+        if sparse.issparse(H):
+            H = H.toarray()
+        Hy = self.dot(y) # or H.dot(y)
         yHy = np.dot(y, Hy)
         assert 0 <= yHy
-        self.block = self.block + (\
-                (1 + yHy / proj) * np.outer(s, s) - np.outer(Hy, s) - np.outer(s, Hy)
-            ) / proj
+        sp = s / proj
+        # see also: https://github.com/scipy/scipy/blob/v1.3.0/scipy/optimize/_hessian_update_strategy.py#L294-L310
+        self.block = H + (\
+                np.outer((proj + yHy) * sp, sp) - np.outer(Hy, sp) - np.outer(sp, Hy))
     def drop(self):
         raise NotImplementedError('abstract method')
 class GradientDescent(InverseHessianBlock):
@@ -673,23 +685,29 @@ class InverseHessianBlockView(InverseHessianBlock):
     @property
     def block(self):
         block = self.__global__.H
-        if self.slice is not None:
+        if block is not None and self.slice is not None:
             block = block[self.slice]
         if self.fresh:
-            block = self.eps * (block + sparse.identity(self.gradient_subspace_size, format='lil'))
+            if block is None:
+                block = sparse.identity(self.gradient_subspace_size, format='lil')
+            elif sparse.issparse(block):
+                block = block + sparse.identity(self.gradient_subspace_size, format=block.getformat())
+            else:
+                block[np.diag_indices(block.shape[0])] += 1.
+            block *= self.eps
         return block
     @block.setter
     def block(self, block):
-        #if self.fresh:
-        #    _block = self.__global__.H[self.slice]
-        #    i, j, k = sparse.find(_block)
-        #    block[np.ix_(i,j)] += k
-        #    block[np.ix_(i,j)] /= 2
         if self.slice is None:
             self.__global__.H = block
         else:
             self.__global__.H[self.slice] = block
         self.fresh = False
+    def dot(self, g):
+        p = InverseHessianBlock.dot(self, g)
+        if p.shape[1:]:
+            p = p.reshape(-1)
+        return p
 class IndependentInverseHessianBlock(InverseHessianBlock):
     __slots__ = ('block',)
     def __init__(self, component):
@@ -946,7 +964,7 @@ module_logger.addHandler(_console)
 def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, descent_subspace,
         args=(), bounds=None, _sum=np.sum, gradient_sum=None, gradient_covariate=None,
         memory=10, eps=1e-6, ftol=1e-6, gtol=1e-10, low_df_rate=.9, low_dg_rate=.9, step_scale=1.,
-        max_iter=None, regul=None, regul_decay=1e-5, ls_regul=None, ls_step_max=None,
+        max_iter=None, regul=None, regul_decay=1e-5, ls_kwargs={}, ls_regul=None, ls_step_max=None,
         ls_step_max_decay=None, ls_iter_max=None,
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
@@ -1037,6 +1055,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         regul (float): regularization trade-off coefficient for the L2-norm of the parameter vector.
 
         regul_decay (float): decay parameter for `regul`.
+
+        ls_kwargs (dict): keyword arguments to :func:`wolfe_line_search`.
 
         ls_regul (float): regularization trade-off coefficient for the L2-norm of the parameter vector
             update.
@@ -1249,7 +1269,7 @@ class SBFGSScheduler(parallel.Scheduler):
                     if ncalls:
                         if self.ncalls is not None:
                             self.ncalls.append(ncalls)
-                        if self.err is not None:
+                        if self.err_history is not None:
                             err = status.get('err', None)
                             if err is None:
                                 assert not self.err_history
@@ -1371,24 +1391,8 @@ class SBFGSWorker(parallel.Worker):
                     if new_component:
                         c.pull(x)
                     else:
-                        ## copy part of the component for initial H update
-                        #x_prev, g_prev = c.x, c._g
-                        # update `x` with current parameters
                         c.push(x)
                         c._f = c._g = None # reset `f` and `g`
-                        ## update H with inter-iteration changes
-                        #if np.allclose(x_prev, c.x):
-                        #    pass
-                        #elif newton:
-                        #    s_ii = c.x - x_prev
-                        #    y_ii = c.g - g_prev
-                        #    proj_ii = np.dot(s_ii, y_ii)
-                        #    if proj_ii <= 0:
-                        #        if verbose:
-                        #            logger.debug(msg2(k, i, 'PROJ G <= 0 (k-1)'))
-                        #        c.H.drop()
-                        #    else:
-                        #        c.H.update(s_ii, y_ii, proj_ii)
 
                     # estimate the local gradient
                     g = c.g # g_{k}
@@ -1428,6 +1432,7 @@ class SBFGSWorker(parallel.Worker):
                         if s is None:
                             if verbose:
                                 logger.debug(msg2(k, i, res))
+                            break
                             if not _k:
                                 g = np.array(g)
                                 _active = np.argsort(np.abs(g))

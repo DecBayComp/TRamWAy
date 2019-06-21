@@ -450,6 +450,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
             local gradient vector with as many elements as there are dimensions
             in the (trans-)location data.
     """
+    assert 0 < X.size
     cell = cells[i]
     # below, the measurement is renamed y and the coordinates are X
     y = X

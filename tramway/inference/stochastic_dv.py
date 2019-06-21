@@ -183,7 +183,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     #V = dv.V
     #Dj = D[j]
     Dj = x[j]
-    if np.isnan(Dj):
+    if np.any(np.isnan(Dj)):
         raise ValueError('D is nan')
     V = x[int(x.size/2):]
     #
@@ -326,7 +326,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
                 density[density == 0] = np.min(density[0 < density])
                 V_initial = np.log(np.max(density)) - np.log(density)
     else:
-        warn('`x0` is deprecated; please use `D0` and `V0` instead', DeprecationWarning)
+        #warn('`x0` is deprecated; please use `D0` and `V0` instead', DeprecationWarning)
         if x0.size != 2 * D_initial.size:
             raise ValueError('wrong size for x0')
         D_initial, V_initial = x0[:int(x0.size/2)], x0[int(x0.size/2):]
@@ -391,21 +391,15 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         descent_subspace = None
         if superlocal:
             gradient_subspace = dv.indices
-            #if 'ls_failure_rate' not in sbfgs_kwargs:
-            #    sbfgs_kwargs['ls_failure_rate'] = .9
+            if 'independent_components' not in sbfgs_kwargs:
+                sbfgs_kwargs['independent_components'] = True
+            if 'memory' not in sbfgs_kwargs:
+                sbfgs_kwargs['memory'] = None
         else:
+            #def gradient_subspace(i):
+            #    return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
             def gradient_subspace(i):
-                return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
-        #def fix_linesearch(i, x):
-        #    _r = dv.region(i)
-        #    x[dv.diffusivity_indices(i)] = min(x[dv.diffusivity_indices(i)], trim_mean(x[dv.diffusivity_indices(_r)], .25))
-        #    x[dv.potential_indices(i)] = min(x[dv.potential_indices(i)], trim_mean(x[dv.potential_indices(_r)], .25))
-        #sbfgs_kwargs['fix_ls'] = fix_linesearch
-        #if 'fix_ls_trigger' not in sbfgs_kwargs:
-        #    sbfgs_kwargs['fix_ls_trigger'] = 3
-
-        #def gradient_subspace(i):
-        #    return np.r_[dv.diffusivity_indices(dv.region(i)), dv.potential_indices(covariate(i))]
+                return dv.indices(dv.region(i))
     else:
         if superlocal:
             superlocal = False
@@ -429,8 +423,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         sbfgs_kwargs['bounds'] = bounds
     if 'eps' not in sbfgs_kwargs:
         sbfgs_kwargs['eps'] = 1. # beware: not the `tramway.inference.grad` option
-    # TODO: in principle `superlocal` could work in quasi-Newton mode but did not with random `x0`
-    sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', not stochastic)# or superlocal)
+    sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', True)
     if newton:
         default_step_max = 2.
         default_wolfe = (.5, None)
