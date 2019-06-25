@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -15,6 +15,7 @@
 import numpy as np
 from collections import namedtuple, OrderedDict
 import numpy.ma as ma
+from pandas import Series, DataFrame
 
 Matrix = namedtuple('Matrix', 'size shape dtype order')
 
@@ -82,6 +83,8 @@ class ArrayChain(object):
         return a[self._at(a, member, matrix)].reshape(matrix.shape, order=matrix.order)
 
     def set(self, a, member, m):
+        if isinstance(m, (Series, DataFrame)):
+            m = m.values
         matrix = self.members[member]
         if matrix.shape == m.shape:
             a[self._at(a, member, matrix)] = m.flatten(matrix.order)
@@ -121,6 +124,8 @@ class ChainArray(ArrayChain):
         self.set(self.combined, k, v)
 
     def update(self, x):
+        if not isinstance(x, np.ndarray):
+            raise TypeError('numpy array expected')
         if isinstance(self.combined, ma.MaskedArray):
             self.combined = ma.array(x, mask=self.combined.mask)
         else:

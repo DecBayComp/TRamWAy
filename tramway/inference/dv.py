@@ -33,7 +33,7 @@ setup = {'arguments': OrderedDict((
         ('max_iter',        dict(type=int, help='maximum number of iterations (~100)')),
         ('compatibility',       ('-c', '--inferencemap', '--compatible',
                     dict(action='store_true', help='InferenceMAP compatible'))),
-        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta1'")),
+        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta0' or 'delta1'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',         ()))),
     'cell_sampling': 'connected'}
@@ -342,7 +342,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     options.update(kwargs)
 
     # posterior function
-    if rgrad in ('delta','delta1'):
+    if rgrad in ('delta','delta0','delta1'):
         fun = dv_neg_posterior1
     else:
         if rgrad not in (None, 'grad', 'grad1', 'gradn'):

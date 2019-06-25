@@ -265,7 +265,7 @@ class TimeLattice(Tessellation):
                         if 0 < pts_t.size:
                             pts_t = pts_i[pts_t]
                             ps.append(pts_t)
-                            cs.append(np.full(pts_t.shape, t * ncells + i))
+                            cs.append(np.full(pts_t.shape, t * ncells + i, dtype=int)) # `dtype=int` is to turn a numpy warning off and optimize for old numpy versions
         if ps:
             if exclude and not count_shape[1:]:
                 ok = exclude(location_count)

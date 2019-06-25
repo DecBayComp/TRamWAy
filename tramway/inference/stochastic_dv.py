@@ -45,6 +45,7 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('gradient',            ('--grad', dict(help="spatial gradient implementation; any of 'grad1', 'gradn'"))),
         ('grad_epsilon',        dict(args=('--eps', '--epsilon'), kwargs=dict(type=float, help='if defined, every spatial gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
         ('grad_selection_angle',('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; if not -c, default is: {})'.format(default_selection_angle)))),
+        ('rgrad',               dict(help="local spatial variation; any of 'delta0', 'delta1'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',             ()))),
         #('region_size',         ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
@@ -189,6 +190,27 @@ def make_regions(cells, index, reverse_index, size=1):
     return regions
 
 
+def lookup_space_cells(cells):
+    A = cells.temporal_adjacency
+    available = { i for i in cells }
+    space_cells = []
+    while available:
+        space_cell = set()
+        front_cells = { available.pop() }
+        while front_cells:
+            more_cells = set()
+            for i in front_cells:
+                more_cells |= set(A.indices[A.indptr[i]:A.indptr[i+1]])
+            space_cell |= front_cells
+            if more_cells:
+                front_cells = more_cells - space_cell
+            else:
+                break
+        available -= space_cell
+        space_cells.append(list(space_cell))
+    return space_cells
+
+
 def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     dt_mean, index, reverse_index, grad_kwargs,
     posterior_info=None, iter_num=None, verbose=False):
@@ -201,7 +223,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     #V = dv.V
     #Dj = D[j]
     Dj = x[j]
-    if np.isnan(Dj):
+    if np.any(np.isnan(Dj)):
         raise ValueError('D is nan')
     V = x[int(x.size/2):]
     #
@@ -301,7 +323,7 @@ def infer_stochastic_DV(cells,
     jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
     export_centers=False, verbose=True, superlocal=True, stochastic=True,
-    D0=None, V0=None, x0=None,
+    D0=None, V0=None, x0=None, rgrad=None, debug=False, fulltime=False,
     prior_delay=None, return_struct=False, posterior_max_count=None,# deprecated
     diffusivity_prior=None, potential_prior=None, time_prior=None,# deprecated
     **kwargs):
@@ -355,7 +377,7 @@ def infer_stochastic_DV(cells,
                 density[density == 0] = np.min(density[0 < density])
                 V_initial = np.log(np.max(density)) - np.log(density)
     else:
-        warn('`x0` is deprecated; please use `D0` and `V0` instead', DeprecationWarning)
+        #warn('`x0` is deprecated; please use `D0` and `V0` instead', DeprecationWarning)
         if x0.size != 2 * D_initial.size:
             raise ValueError('wrong size for x0')
         D_initial, V_initial = x0[:int(x0.size/2)], x0[int(x0.size/2):]
@@ -424,23 +446,22 @@ def infer_stochastic_DV(cells,
         covariate = dv.region
         #covariate = lambda i: np.unique(np.concatenate([ dv.region(_i) for _i in dv.region(i) ]))
         descent_subspace = None
-        if superlocal:
-            gradient_subspace = dv.indices
-            #if 'ls_failure_rate' not in sbfgs_kwargs:
-            #    sbfgs_kwargs['ls_failure_rate'] = .9
-        else:
+        if fulltime:
+            space_cells = lookup_space_cells(cells)
+            component = len(space_cells)
             def gradient_subspace(i):
-                return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
-        #def fix_linesearch(i, x):
-        #    _r = dv.region(i)
-        #    x[dv.diffusivity_indices(i)] = min(x[dv.diffusivity_indices(i)], trim_mean(x[dv.diffusivity_indices(_r)], .25))
-        #    x[dv.potential_indices(i)] = min(x[dv.potential_indices(i)], trim_mean(x[dv.potential_indices(_r)], .25))
-        #sbfgs_kwargs['fix_ls'] = fix_linesearch
-        #if 'fix_ls_trigger' not in sbfgs_kwargs:
-        #    sbfgs_kwargs['fix_ls_trigger'] = 3
-
-        #def gradient_subspace(i):
-        #    return np.r_[dv.diffusivity_indices(dv.region(i)), dv.potential_indices(covariate(i))]
+                return space_cells[i]
+        elif superlocal:
+            gradient_subspace = dv.indices
+        else:
+            #def gradient_subspace(i):
+            #    return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
+            def gradient_subspace(i):
+                return dv.indices(dv.region(i))
+        if 'independent_components' not in sbfgs_kwargs:
+            sbfgs_kwargs['independent_components'] = True
+        if 'memory' not in sbfgs_kwargs:
+            sbfgs_kwargs['memory'] = None
     else:
         if superlocal:
             superlocal = False
@@ -452,26 +473,28 @@ def infer_stochastic_DV(cells,
         def col2rows(j):
             i = j % m
             return dv.region(i)
-        sbfgs_kwargs['gradient_covariate'] = col2rows
+        if 'gradient_covariate' not in sbfgs_kwargs:
+            sbfgs_kwargs['gradient_covariate'] = col2rows
 
     # other arguments
     if verbose:
         sbfgs_kwargs['verbose'] = verbose
+        if 1 < verbose:
+            args = args + (None, True)
     if max_iter:
         sbfgs_kwargs['max_iter'] = max_iter
     if bounds is not None:
         sbfgs_kwargs['bounds'] = bounds
     if 'eps' not in sbfgs_kwargs:
         sbfgs_kwargs['eps'] = 1. # beware: not the `tramway.inference.grad` option
-    # TODO: in principle `superlocal` could work in quasi-Newton mode but did not with random `x0`
-    sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', not stochastic)# or superlocal)
+    sbfgs_kwargs['newton'] = newton = sbfgs_kwargs.get('newton', True)
     if newton:
-        default_step_max = 1.
+        default_step_max = 2.
         default_wolfe = (.5, None)
     else:
         default_step_max = .5
         default_wolfe = (.1, None)
-    if stochastic:
+    if True:#stochastic:
         sbfgs_kwargs['ls_wolfe'] = sbfgs_kwargs.get('ls_wolfe', default_wolfe)
         sbfgs_kwargs['ls_step_max'] = sbfgs_kwargs.get('ls_step_max', default_step_max)
     if 'ls_armijo_max' not in sbfgs_kwargs:
@@ -480,7 +503,20 @@ def infer_stochastic_DV(cells,
     #if ls_step_max_decay:
     #    sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-4
+        sbfgs_kwargs['ftol'] = 1e-5
+    if 'gtol' not in sbfgs_kwargs:
+        sbfgs_kwargs['gtol'] = None
+    if debug:
+        debug_all = {'ncalls': 'ncalls',
+                'f_history': 'f',
+                'df_history': 'df',
+                'projg_history': 'projg',
+                'error': 'err',
+                'diagnoses': 'diagnosis'}
+        if debug is not True:
+            sbfgs_kwargs['returns'] = { debug_all[attr] for attr in debug }
+    else:
+        sbfgs_kwargs['returns'] = set()
 
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
@@ -519,26 +555,26 @@ def infer_stochastic_DV(cells,
             columns=cells.space_cols))
         #DVF.to_csv('results.csv', sep='\t')
 
+    info = {}
     # format the posteriors
     if posterior_info:
         cols = ['cell', 'fit', 'total']
         if len(posterior_info[0]) == 4:
             cols = ['iter'] + cols
         posterior_info = pd.DataFrame(np.array(posterior_info), columns=cols)
+        info['posterior_info'] = posterior_info
 
-    info = dict(posterior_info=posterior_info)
     if return_struct:
         # cannot be rwa-stored
         info['result'] = result
     else:
-        for src_attr in ('resolution',
-                'niter',
-                ('ncalls', 'ncalls'),
-                ('f', 'f_history'),
-                ('df', 'df_history'),
-                ('projg', 'projg_history'),
-                ('err', 'error'),
-                ('diagnosis', 'diagnoses')):
+        attrs = ['resolution', 'niter']
+        if debug:
+            if debug is True:
+                attrs += [(val, key) for key, val in debug_all.items()]
+            else:
+                attrs += [(debug_all[attr], attr) for attr in debug]
+        for src_attr in attrs:
             if isinstance(src_attr, str):
                 dest_attr = src_attr
             else:

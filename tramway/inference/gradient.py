@@ -19,6 +19,66 @@ from numpy.polynomial import polynomial as poly
 from collections import OrderedDict
 
 
+def delta0(cells, i, X, index_map=None, **kwargs):
+    """
+    Differences with neighbour values.
+
+    Arguments:
+
+        cells (tramway.inference.base.Distributed):
+            distributed cells.
+
+        i (int):
+            cell index at which the differences are evaluated.
+
+        X (array):
+            vector of a scalar measurement at every cell.
+
+        index_map (array):
+            index map that converts cell indices to indices in X.
+
+    Returns:
+
+        array:
+            difference vector with as many elements as there are neighbours.
+
+    """
+    cell = cells[i]
+    # below, the measurement is renamed y and the coordinates are X
+    y = X
+
+    # cache neighbours (indices and center locations)
+    if not isinstance(cell.cache, dict):
+        cell.cache = {}
+    try:
+        i, adjacent, dx_norm = cell.cache['delta0']
+    except KeyError:
+        adjacent = _adjacent = cells.neighbours(i)
+        if index_map is not None:
+            adjacent = index_map[_adjacent]
+            ok = 0 <= adjacent
+            if not np.all(ok):
+                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+        if _adjacent.size:
+            x0 = cell.center[np.newaxis,:]
+            x = np.vstack([ cells[j].center for j in _adjacent ])
+            dx_norm = x - x0
+            dx_norm = np.sqrt(np.sum(dx_norm * dx_norm, axis=1))
+        else:
+            dx_norm = None
+
+        if index_map is not None:
+            i = index_map[i]
+        cell.cache['delta0'] = (i, adjacent, dx_norm)
+
+    if dx_norm is None:
+        return None
+
+    y0, y = y[i], y[adjacent]
+
+    return (y - y0) / dx_norm
+
+
 def gradn(cells, i, X, index_map=None):
     """
     Local gradient by multi-dimensional 2 degree polynomial interpolation.
@@ -390,6 +450,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
             local gradient vector with as many elements as there are dimensions
             in the (trans-)location data.
     """
+    assert 0 < X.size
     cell = cells[i]
     # below, the measurement is renamed y and the coordinates are X
     y = X
@@ -459,7 +520,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                grad_j = np.zeros(cells.dim, dtype=X0.dtype)
+                grad_j = 0.
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
                 grad_j = (y0 - np.mean(y[v])) * Xj
@@ -681,5 +742,5 @@ setup_with_grad_arguments(setup)
 
 
 __all__ = ['default_selection_angle', 'get_grad_kwargs', 'neighbours_per_axis', 'grad1', 'gradn',
-        'delta1', 'setup_with_grad_arguments', 'setup', 'gradient_map']
+        'delta0', 'delta1', 'setup_with_grad_arguments', 'setup', 'gradient_map']
 

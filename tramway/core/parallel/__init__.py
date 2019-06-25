@@ -24,6 +24,7 @@ try:
     from . import abc
 except SyntaxError: # Py2
     import abc_py2 as abc
+from traceback import format_exc
 
 #import logging # DEBUG
 #module_logger = logging.getLogger(__name__)
@@ -115,13 +116,14 @@ class StarConn(queue.Queue):
                 raise RuntimeError('queue was not set as joinable at init')
 
 class WorkerNearDeathException(Exception):
-    __slots__ = '_id', '_type', '_msg'
-    def __init__(self, _id, exc_type, exc_msg):
+    __slots__ = '_id', '_name', '_type', '_msg'
+    def __init__(self, _id, name, exc_type, traceback):
         self._id = _id
+        self._name = name
         self._type = exc_type
-        self._msg = exc_msg
+        self._msg = traceback.split('\n',1)[1][:-1] # remove first and last lines
     def __str__(self):
-        return 'worker {} died with error: {}: {}'.format(self._id, self._type, self._msg)
+        return 'Process {} died with error (most recent call last):\n{}'.format(self._name, self._msg)
 
 class Worker(multiprocessing.Process):
     """ Worker that runs job steps.
@@ -207,8 +209,8 @@ class Worker(multiprocessing.Process):
         except (SystemExit, KeyboardInterrupt):
             raise
         except Exception as e:
-            self.feedback.put((None, WorkerNearDeathException(self._id, type(e), str(e))))
-            raise
+            self.feedback.put((None,
+                WorkerNearDeathException(self._id, self.name, type(e), format_exc())))
 
 
 class Scheduler(object):
@@ -413,6 +415,7 @@ class Scheduler(object):
                 w.terminate()
             except:
                 pass
+        return ret
     def stop(self, k, i, status):
         """
         Default implementation returns ``False``.
