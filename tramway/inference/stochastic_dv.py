@@ -171,6 +171,27 @@ def make_regions(cells, index, reverse_index, size=1):
     return regions
 
 
+def lookup_space_cells(cells):
+    A = cells.temporal_adjacency
+    available = { i for i in cells }
+    space_cells = []
+    while available:
+        space_cell = set()
+        front_cells = { available.pop() }
+        while front_cells:
+            more_cells = set()
+            for i in front_cells:
+                more_cells |= set(A.indices[A.indptr[i]:A.indptr[i+1]])
+            space_cell |= front_cells
+            if more_cells:
+                front_cells = more_cells - space_cell
+            else:
+                break
+        available -= space_cell
+        space_cells.append(list(space_cell))
+    return space_cells
+
+
 def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     time_prior, dt_mean, index, reverse_index, grad_kwargs,
     posterior_info=None, iter_num=None, verbose=False):
@@ -284,7 +305,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     compatibility=False,
     export_centers=False, verbose=True, superlocal=True, stochastic=True,
     D0=None, V0=None, x0=None, rgrad=None,
-    return_struct=False, debug=False, posterior_max_count=1000,
+    return_struct=False, debug=False, posterior_max_count=1000, fulltime=False,
     **kwargs):
     """
     Arguments:
@@ -389,17 +410,22 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         covariate = dv.region
         #covariate = lambda i: np.unique(np.concatenate([ dv.region(_i) for _i in dv.region(i) ]))
         descent_subspace = None
-        if superlocal:
+        if fulltime:
+            space_cells = lookup_space_cells(cells)
+            component = len(space_cells)
+            def gradient_subspace(i):
+                return space_cells[i]
+        elif superlocal:
             gradient_subspace = dv.indices
-            if 'independent_components' not in sbfgs_kwargs:
-                sbfgs_kwargs['independent_components'] = True
-            if 'memory' not in sbfgs_kwargs:
-                sbfgs_kwargs['memory'] = None
         else:
             #def gradient_subspace(i):
             #    return np.r_[dv.diffusivity_indices(i), dv.potential_indices(dv.region(i))]
             def gradient_subspace(i):
                 return dv.indices(dv.region(i))
+        if 'independent_components' not in sbfgs_kwargs:
+            sbfgs_kwargs['independent_components'] = True
+        if 'memory' not in sbfgs_kwargs:
+            sbfgs_kwargs['memory'] = None
     else:
         if superlocal:
             superlocal = False
@@ -417,6 +443,8 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     # other arguments
     if verbose:
         sbfgs_kwargs['verbose'] = verbose
+        if 1 < verbose:
+            args = args + (None, True)
     if max_iter:
         sbfgs_kwargs['max_iter'] = max_iter
     if bounds is not None:

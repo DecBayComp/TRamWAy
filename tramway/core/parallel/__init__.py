@@ -415,6 +415,7 @@ class Scheduler(object):
                 w.terminate()
             except:
                 pass
+        return ret
     def stop(self, k, i, status):
         """
         Default implementation returns ``False``.

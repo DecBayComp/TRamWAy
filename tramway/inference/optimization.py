@@ -1400,6 +1400,14 @@ class SBFGSWorker(parallel.Worker):
                     # retrieve the local inverse Hessian
                     H = c.H # H_{k}
 
+                    # check positive definiteness
+                    ones = np.ones_like(g)
+                    oHo = np.dot(H.dot(ones), ones)
+                    if np.any(oHo <= 0):
+                        if verbose:
+                            logger.debug(msg2(k, i, 'H not positive definite (k)'))
+                        H.drop()
+
                     _k = 0
                     while True:
                         # define the descent direction
@@ -1430,8 +1438,8 @@ class SBFGSWorker(parallel.Worker):
                         if verbose:
                             s, res = s
                         if s is None:
-                            if verbose:
-                                logger.debug(msg2(k, i, res))
+                            #if verbose:
+                            #    logger.debug(msg2(k, i, res))
                             break
                             if not _k:
                                 g = np.array(g)
@@ -1451,10 +1459,8 @@ class SBFGSWorker(parallel.Worker):
                     # sanity checks
                     if s is None:
                         if verbose:
-                            logger.info(msg2(k, i, 'LINE SEARCH FAILED'))
-                            #s, _res = s
-                            #if s is None:
-                            #    print(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res.upper())))
+                            #logger.info(msg2(k, i, 'LINE SEARCH FAILED'))
+                            logger.info(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res)))#.upper())))
                         info['ls_failure'] = True
                         # undo any change in the working copy of the parameter vector (default in finally block)
                         continue
