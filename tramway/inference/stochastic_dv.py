@@ -358,11 +358,6 @@ def infer_stochastic_DV(cells,
         raise ValueError('spatial regularization is required for the potential energy')
     index, reverse_index, n, dt_mean, D_initial, _min_diffusivity, D_bounds, border = \
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
-    # validate or undo some values returned by `smooth_infer_init`
-    if jeffreys_prior:
-        min_diffusivity = _min_diffusivity
-    elif min_diffusivity is None:
-        D_bounds = [(None, None)] * D_initial.size
     # V initial values
     if x0 is None:
         if V0 is None:

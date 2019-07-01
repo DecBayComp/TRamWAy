@@ -52,13 +52,6 @@ def infer_DD(cells, localization_error=None, jeffreys_prior=False, min_diffusivi
     if isinstance(cells, Distributed): # multiple cells
         localization_error = cells.get_localization_error(kwargs, 0.03, True, \
                 localization_error=localization_error)
-        if min_diffusivity is None:
-            if jeffreys_prior:
-                min_diffusivity = 0.01
-            else:
-                min_diffusivity = 0
-        elif min_diffusivity is False:
-            min_diffusivity = None
         args = (localization_error, jeffreys_prior, min_diffusivity)
         index, inferred = [], []
         for i in cells:
@@ -90,9 +83,10 @@ def infer_DD(cells, localization_error=None, jeffreys_prior=False, min_diffusivi
         D_initial = np.mean(cell.dr * cell.dr) / (2. * dt_mean)
         initial_drift = np.zeros(cell.dim, dtype=D_initial.dtype)
         dd = ChainArray('D', D_initial, 'drift', initial_drift)
-        if min_diffusivity is not None:
-            if 'bounds' in kwargs:
-                print(kwargs['bounds'])
+        if min_diffusivity is not False:
+            if min_diffusivity is None:
+                noise_dt = localization_error
+                min_diffusivity = (1e-16 - noise_dt) / np.min(cell.dt)
             kwargs['bounds'] = [(min_diffusivity, None)] + [(None, None)] * cell.dim
         #cell.cache = None # no cache needed
         result = minimize(dd_neg_posterior, dd.combined, \

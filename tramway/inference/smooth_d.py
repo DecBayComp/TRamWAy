@@ -112,7 +112,7 @@ def d_neg_posterior1(diffusivity, cells, sigma2, diffusivity_prior, \
     """
     if min_diffusivity is not None:
         observed_min = np.min(diffusivity)
-        if observed_min < min_diffusivity and not np.isclose(observed_min, min_diffusivity):
+        if observed_min < min_diffusivity:# and not np.isclose(observed_min, min_diffusivity):
             warn(DiffusivityWarning(observed_min, min_diffusivity))
     noise_dt = sigma2
     result = 0.
@@ -149,7 +149,7 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon)
 
     # parametrize the optimization procedure
-    if min_diffusivity is not None:
+    if min_diffusivity not in (False, None):
         kwargs['bounds'] = D_bounds
     if max_iter:
         options = kwargs.get('options', {})

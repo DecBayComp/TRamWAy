@@ -19,7 +19,7 @@ import pandas as pd
 import numpy.ma as ma
 from tramway.core.exceptions import NaNWarning
 from tramway.tessellation import *
-from tramway.inference import Distributed
+from tramway.inference import Distributed, Maps
 from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
 import scipy.spatial
@@ -493,5 +493,128 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     if not overlay and obj:
         return obj
 
-__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d']
+
+def scalar_landscape(cells, values, aspect=None, clim=None, figure=None, axes=None,
+        colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
+        xlim=None, ylim=None, zlim=None, **kwargs):
+    """
+    Plot a 2D scalar map as a colourful 3d surface.
+
+    Arguments:
+
+        cells (Tessellation or CellStats): spatial description of the cells
+
+        values (pandas.DataFrame, numpy.ndarray or Maps): feature value at each cell,
+            that will be represented as a colour
+
+        aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
+
+        clim (2-element sequence): passed to :func:`~matplotlib.cm.ScalarMappable.set_clim`;
+            note `clim` affects colour, not height.
+
+        figure (matplotlib.figure.Figure): figure handle
+
+        axes (matplotlib.axes.Axes): axes handle
+
+        colorbar (bool or str or dict): add a colour bar; if ``dict``, options are passed to
+            :func:`~matplotlib.pyplot.colorbar`;
+            setting colorbar to '*nice*' allows to produce a colorbar close to the figure
+            of the same size as the figure
+
+        unit/clabel (str): colorbar label, usually the unit of displayed feature
+
+        alpha (float): alpha value of the cells
+
+        colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
+
+        xlim (2-element sequence): lower and upper x-axis bounds
+
+        ylim (2-element sequence): lower and upper y-axis bounds
+
+        zlim (2-element sequence): lower and upper z-axis bounds;
+            note `zlim` affects height, not colour.
+
+    Extra keyword arguments are passed to :func:`~matplotlib.collections.PatchCollection`.
+
+    """
+    coords = None
+    if isinstance(values, Maps):
+        values = values.maps
+    if isinstance(values, pd.DataFrame):
+        if values.shape[1] != 1:
+            coords = values[[ col for col in 'xyzt' if col in values.columns ]]
+            values = values[[ col for col in values.columns if col not in 'xyzt' ]]
+            if values.shape[1] != 1:
+                warn('multiple parameters available; mapping first one only', UserWarning)
+        values = values.iloc[:,0] # to Series
+    #values = pd.to_numeric(values, errors='coerce')
+
+    try:
+        centers = cells.cell_centers
+    except AttributeError as e:
+        try:
+            centers = cells.tessellation.cell_centers
+        except AttributeError:
+            centers = cells.tessellation.spatial_mesh.cell_centers
+            raise e
+    xy = centers
+
+    scalar_map = np.full(centers.shape[0], np.nan)
+    scalar_map[values.index] = values.values
+
+    if figure is None:
+        import matplotlib.pyplot as plt
+        figure = plt.gcf() # before PatchCollection
+    if axes is None:
+        axes = figure.gca(projection='3d')
+
+    obj = None
+
+    if not xlim or not ylim:
+        xy_min, _, xy_max, _ = _bounding_box(cells, xy)
+        if not xlim:
+            xlim = (xy_min[0], xy_max[0])
+        if not ylim:
+            ylim = (xy_min[1], xy_max[1])
+    axes.set_xlim(*xlim)
+    axes.set_ylim(*ylim)
+    if zlim:
+        axes.set_zlim(*zlim)
+    if aspect is not None:
+        axes.set_aspect(aspect)
+
+    axes.plot_surface(centers[:,0], centers[:,1], scalar_map, **kwargs)
+
+    if colorbar:
+        if colorbar=='nice':
+            # make the colorbar closer to the plot and same size
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            try:
+                plt
+            except NameError:
+                import matplotlib.pyplot as plt
+            try:
+                gca_bkp = plt.gca()
+                divider = make_axes_locatable(figure.gca())
+                cax = divider.append_axes("right", size="5%", pad=0.05)
+                _colorbar = figure.colorbar(patches, cax=cax)
+                plt.sca(gca_bkp)
+            except AttributeError as e:
+                warn(e.args[0], RuntimeWarning)
+        else:
+            if not isinstance(colorbar, dict):
+                colorbar = {}
+            try:
+                _colorbar = figure.colorbar(patches, ax=axes, **colorbar)
+            except AttributeError as e:
+                warn(e.args[0], RuntimeWarning)
+        if clabel:
+            unit = clabel
+        if unit:
+            _colorbar.set_label(unit)
+
+    return obj
+
+
+__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d', 'scalar_landscape']
 

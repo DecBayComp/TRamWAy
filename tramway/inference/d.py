@@ -73,13 +73,6 @@ def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivit
     if isinstance(cells, Distributed): # multiple cells
         localization_error = cells.get_localization_error(kwargs, 0.03, True, \
                 localization_error=localization_error)
-        if min_diffusivity is None:
-            if jeffreys_prior:
-                min_diffusivity = 0.01
-            else:
-                min_diffusivity = 0
-        elif min_diffusivity is False:
-            min_diffusivity = None
         args = (localization_error, jeffreys_prior, min_diffusivity)
         inferred = { i: infer_D(c, *args, **kwargs) for i, c in cells.items() }
         inferred = pd.DataFrame({'diffusivity': pd.Series(inferred)})
@@ -104,7 +97,10 @@ def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivit
         D_initial = np.mean(cell.dr * cell.dr) / (2. * dt_mean)
         cell.cache = None # clear the cache (optional, since `run` also clears it)
         # parametrize the optimization procedure
-        if min_diffusivity is not None:
+        if min_diffusivity is not False:
+            if min_diffusivity is None:
+                noise_dt = localization_error
+                min_diffusivity = (1e-16 - noise_dt) / np.min(cell.dt)
             kwargs['bounds'] = [(min_diffusivity,None)]
         # run the optimization
         result = minimize(d_neg_posterior, D_initial, \

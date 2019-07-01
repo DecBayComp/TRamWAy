@@ -2200,16 +2200,8 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
     * *border* (:class:`numpy.ndarray`) -- MxD boolean matrix with M the number of cells and D the number of space dimensions
 
     """
-    if min_diffusivity is None:
-        if jeffreys_prior:
-            min_diffusivity = 0.01
-        else:
-            min_diffusivity = 0
-    elif min_diffusivity is False:
-        min_diffusivity = None
-
     # initial values and sanity checks
-    index, n, dt_mean, D_initial, border = [], [], [], [], []
+    index, n, dt_min, dt_mean, D_initial, border = [], [], [], [], [], []
     reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
 
     j = 0
@@ -2243,6 +2235,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
             continue
 
         # initialize the local diffusivity parameter
+        dt_min_i = np.min(cell.dt)
         dt_mean_i = np.mean(cell.dt)
         D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
         #
@@ -2251,6 +2244,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
         reverse_index[i] = j
         j += 1
         n.append(float(len(cell)))
+        dt_min.append(dt_min_i)
         dt_mean.append(dt_mean_i)
         D_initial.append(D_initial_i)
 
@@ -2269,7 +2263,15 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
             border.append(None)
 
     n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
-    D_bounds = [(min_diffusivity, None)] * D_initial.size
+
+    if min_diffusivity is None:
+        D_bounds = [( (1e-16 - noise_dt) * dt_min_i, None ) for dt_min_i in dt_min ]
+        min_diffusivity = 0
+    else:
+        if min_diffusivity is False:
+            min_diffusivity = None
+        D_bounds = [(min_diffusivity, None)] * D_initial.size
+
     try:
         border = np.vstack(border)
     except:

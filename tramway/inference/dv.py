@@ -145,8 +145,8 @@ def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
 
     if dv.minimum_diffusivity is not None:
         observed_min = np.min(D)
-        if observed_min < dv.minimum_diffusivity and \
-                not np.isclose(observed_min, dv.minimum_diffusivity):
+        if observed_min < dv.minimum_diffusivity and not \
+                np.isclose(observed_min, dv.min_diffusivity):
             warn(DiffusivityWarning(observed_min, dv.minimum_diffusivity))
     noise_dt = sigma2
 
@@ -287,7 +287,6 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     # initial values
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
-    #min_diffusivity = None
     # V initial values
     if V0 is None:
         try:
@@ -330,7 +329,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     if max_iter:
         options['maxiter'] = max_iter
     V_bounds = [(None, None)] * V_initial.size
-    if min_diffusivity is None: # currently, cannot be None
+    if min_diffusivity not in (False, None):
         bounds = None
     else:
         bounds = D_bounds + V_bounds
