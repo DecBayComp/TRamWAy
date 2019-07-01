@@ -356,8 +356,10 @@ def infer_stochastic_DV(cells,
     # initial values
     if stochastic and not (superlocal or potential_prior or potential_spatial_prior):
         raise ValueError('spatial regularization is required for the potential energy')
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     index, reverse_index, n, dt_mean, D_initial, _min_diffusivity, D_bounds, border = \
-        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
+        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
+        sigma2=localization_error)
     # V initial values
     if x0 is None:
         if V0 is None:
@@ -416,7 +418,6 @@ def infer_stochastic_DV(cells,
     bounds = D_bounds + V_bounds
 
     # posterior function input arguments
-    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     if jeffreys_prior is True:
         jeffreys_prior = 1.
     args = (dv, cells, localization_error, jeffreys_prior, dt_mean,

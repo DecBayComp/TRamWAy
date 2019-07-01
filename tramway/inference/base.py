@@ -2265,6 +2265,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
     n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
 
     if min_diffusivity is None:
+        noise_dt = kwargs['sigma2']
         D_bounds = [( (1e-16 - noise_dt) * dt_min_i, None ) for dt_min_i in dt_min ]
         min_diffusivity = 0
     else:

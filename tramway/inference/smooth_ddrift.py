@@ -107,8 +107,10 @@ def infer_smooth_DD(cells, diffusivity_prior=None, jeffreys_prior=False,
     min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
 
     # initial values
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
-        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
+        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
+        sigma2=localization_error)
     initial_drift = np.zeros((len(index), cells.dim), dtype=D_initial.dtype)
     drift_bounds = [(None, None)] * initial_drift.size # no bounds
     dd = ChainArray('D', D_initial, 'drift', initial_drift)
@@ -134,7 +136,6 @@ def infer_smooth_DD(cells, diffusivity_prior=None, jeffreys_prior=False,
 
     # run the optimization
     #cell.cache = None # no cache needed
-    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     args = (dd, cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
     result = minimize(smooth_dd_neg_posterior, dd.combined, args=args, **kwargs)
 

@@ -286,7 +286,8 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
 
     # initial values
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
-        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
+        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
+        sigma2=localization_error)
     # V initial values
     if V0 is None:
         try:

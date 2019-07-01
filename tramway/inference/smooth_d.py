@@ -142,8 +142,10 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
 
     # initial values
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
-        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
+        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
+        sigma2=localization_error)
 
     # gradient options
     grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon)
@@ -165,7 +167,6 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
         fun = smooth_d_neg_posterior
 
     # run the optimization
-    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     result = minimize(fun, D_initial, \
         args=(cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs), \
         **kwargs)
