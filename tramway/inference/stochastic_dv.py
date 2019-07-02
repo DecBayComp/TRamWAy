@@ -25,6 +25,7 @@ from collections import OrderedDict, deque
 import time
 from scipy.stats import trim_mean
 import logging
+import os
 
 
 setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
@@ -471,6 +472,12 @@ def infer_stochastic_DV(cells,
             return dv.region(i)
         if 'gradient_covariate' not in sbfgs_kwargs:
             sbfgs_kwargs['gradient_covariate'] = col2rows
+
+    if os.name == 'nt':
+        if sbfgs_kwargs.get('worker_count', None):
+            dv.logger.warning('multiprocessing may break on Windows')
+        else:
+            sbfgs_kwargs['worker_count'] = 0
 
     # other arguments
     if verbose:

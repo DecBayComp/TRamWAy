@@ -1134,7 +1134,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     sched.logger = logger
 
     if verbose:
-        logger.debug('number of workers: {}'.format(len(sched.workers)))
+        logger.debug('number of workers: {}'.format(sched.worker_count))
         t0 = time.time()
 
     sched.run()

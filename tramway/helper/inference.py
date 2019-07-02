@@ -59,7 +59,7 @@ class Infer(Helper):
                     analysis = analysis[label]
                 if lazytype(analysis._data) is Maps:
                     self.input_maps = data = analysis.data
-        if self.input_file and output_file and labels:
+        if self.input_file and output_file and (labels or labels is 0):
             self.analyses = extract_analyses(self.analyses, labels)
         return data
 

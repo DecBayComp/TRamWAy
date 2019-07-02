@@ -201,7 +201,7 @@ class Analyses(object):
 
             int or str: index or label.
         """
-        if pattern:
+        if pattern or pattern is 0:
             try:
                 pattern = int(pattern) # this also checks type
             except ValueError:
@@ -270,7 +270,7 @@ class Analyses(object):
 
 
 def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_tuples=False):
-    with_label, with_comment, with_depth = label, comment, depth
+    with_label, with_comment, with_depth = label is 0 or label, comment, depth
     def _fun(x, **kwargs):
         y = fun(x, **kwargs)
         if not allow_tuples and isinstance(y, tuple):
