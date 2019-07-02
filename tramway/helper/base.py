@@ -220,7 +220,7 @@ class Helper(object):
 
     @property
     def inplace(self):
-        return self.input_label \
+        return (self.input_label or self.input_label is 0) \
             and self.label_is_absolute(self.output_label) \
             and self.input_label == self.output_label
 

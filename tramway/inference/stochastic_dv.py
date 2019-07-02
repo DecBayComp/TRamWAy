@@ -25,6 +25,7 @@ from collections import OrderedDict, deque
 import time
 from scipy.stats import trim_mean
 import logging
+import os
 
 
 setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
