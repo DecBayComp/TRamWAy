@@ -212,6 +212,26 @@ class Worker(multiprocessing.Process):
             self.feedback.put((None,
                 WorkerNearDeathException(self._id, self.name, type(e), format_exc())))
 
+class NormalTermination(Exception):
+    pass
+
+def _pseudo_worker(worker):
+    class PseudoWorker(worker):
+        def __init__(self, scheduler, args=(), kwargs={}, _id=0, name=None):
+            worker.__init__(self, _id, scheduler.workspace,
+                None, None, None, name=name, args=args, kwargs=kwargs)
+            self._scheduler = scheduler
+        def get_task(self, *args, **kwargs):
+            return self._scheduler.next_task()
+        def push_update(self, update, status=None):
+            if self._scheduler.pseudo_stop(status):
+                raise NormalTermination
+        def pull_updates(self):
+            pass
+        def run(self):
+            self.target(*self.args, **self.kwargs)
+    return PseudoWorker
+
 
 class Scheduler(object):
     """ Scheduler that distributes job steps over a shared workspace.
@@ -237,33 +257,49 @@ class Scheduler(object):
         self.dead_workers = dict()
         self.k_eff = 0
         self.k_max = iter_max
-        if not worker_count:
+        if worker_count is None:
             worker_count = multiprocessing.cpu_count() - 1
         kwargs.update(_kwargs)
-        self.task_queue = multiprocessing.Queue()
-        self.return_queue = multiprocessing.Queue()
-        if worker_count == 1:
-            self.workers = { 0: self.worker(0, self.workspace,
-                        self.task_queue, self.return_queue, None,
-                        name=name, args=args, kwargs=kwargs, daemon=daemon) }
+        if worker_count:
+            self.task_queue = multiprocessing.Queue()
+            self.return_queue = multiprocessing.Queue()
+            if worker_count == 1:
+                self.workers = { 0: self.worker(0, self.workspace,
+                            self.task_queue, self.return_queue, None,
+                            name=name, args=args, kwargs=kwargs, daemon=daemon) }
+            else:
+                def _name(w):
+                    return '{}-{:d}'.format(name, w) if w else None
+                update_queue = StarQueue(worker_count)
+                self.workers = { i: self.worker(i, self.workspace,
+                            self.task_queue, self.return_queue, update_queue.deal(),
+                            name=_name(i), args=args, kwargs=kwargs, daemon=daemon)
+                        for i in range(worker_count) }
         else:
-            def _name(w):
-                return '{}-{:d}'.format(name, w) if w else None
-            update_queue = StarQueue(worker_count)
-            self.workers = { i: self.worker(i, self.workspace,
-                        self.task_queue, self.return_queue, update_queue.deal(),
-                        name=_name(i), args=args, kwargs=kwargs, daemon=daemon)
-                    for i in range(worker_count) }
+            self.workers = self.pseudo_worker(self, args=args, kwargs=kwargs)
     def init_resource_lock(self):
         self.resource_lock = np.zeros(len(self.workspace), dtype=bool)
     @property
     def worker(self):
         return Worker
     @property
+    def pseudo_worker(self):
+        return _pseudo_worker(self.worker)
+    @property
     def worker_count(self):
-        return max(1, len(self.workers))
+        return len(self.workers) if isinstance(self.workers, dict) else 0
     def draw(self, k):
         return k
+    def next_task(self):
+        """ no-mp mode only """
+        task = None
+        while not self.iter_max_reached():
+            i = self.draw(self.k_eff)
+            self.k_eff += 1
+            if i is not None:
+                task = self.task[i]
+                break
+        return self.k_eff, task
     def locked(self, step):
         return False
         return step.resource_id in self.active or \
@@ -364,7 +400,7 @@ class Scheduler(object):
                 else:
                     self.send_task(k, task)
                 k += 1 # increment anyway in the case i is None
-                if self.iter_max_reached():
+                if self.iter_max_reached(): # can happen only after `send_task`
                     #assert False
                     break
         return k
@@ -375,9 +411,16 @@ class Scheduler(object):
         Returns ``True`` on normal completion, ``False`` on interruption
         (:class:`SystemExit`, :class:`KeyboardInterrupt`).
         """
-        if not self.workers:
+        if isinstance(self.workers, Worker):
             # no multi-processing
-            raise NotImplementedError
+            ret = True
+            try:
+                self.workers.run()
+            except NormalTermination:
+                pass
+            except (SystemExit, KeyboardInterrupt):
+                ret = False
+            return ret
 
         for w in self.workers.values():
             w.start()
@@ -434,6 +477,9 @@ class Scheduler(object):
 
         """
         return False
+    def pseudo_stop(self, status):
+        k = self.k_eff - 1
+        return self.stop(k, self.draw(k), status)
 
 
 class EpochScheduler(Scheduler):

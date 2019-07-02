@@ -440,6 +440,12 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         if 'gradient_covariate' not in sbfgs_kwargs:
             sbfgs_kwargs['gradient_covariate'] = col2rows
 
+    if os.name == 'nt':
+        if sbfgs_kwargs.get('worker_count', None):
+            dv.logger.warning('multiprocessing may break on Windows')
+        else:
+            sbfgs_kwargs['worker_count'] = 0
+
     # other arguments
     if verbose:
         sbfgs_kwargs['verbose'] = verbose
