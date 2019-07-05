@@ -1134,6 +1134,13 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     sched.logger = logger
 
     if verbose:
+        compact_logs = False
+        if logger is module_logger:
+            if 1 < sched.worker_count:
+                _console.setFormatter(logging.Formatter('%(message)s'))
+                compact_logs = True
+            else:
+                _console.setFormatter(logging.Formatter('%(message)s\n'))
         logger.debug('number of workers: {}'.format(sched.worker_count))
         t0 = time.time()
 
@@ -1157,13 +1164,13 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
 
     if verbose:
         cumt = time.time() - t0
-        logger.info('           * * *\n\n{}\n'.format(resolution))
+        logger.info('{}           * * *\n\n{}\n'.format('\n' if compact_logs else '', resolution))
         minute = floor(cumt / 60.)
         second = cumt - minute * 60.
         if minute:
-            logger.info('Elapsed time = {:.0f}m{:.3f}s\n'.format(minute, second))
+            logger.info('Elapsed time = {:.0f}m{:.3f}s'.format(minute, second))
         else:
-            logger.info('Elapsed time = {:.3f}s\n'.format(second))
+            logger.info('Elapsed time = {:.3f}s'.format(second))
 
     try:
         H = {i: C[i].H for i in C}

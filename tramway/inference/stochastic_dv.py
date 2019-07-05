@@ -56,7 +56,7 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
 module_logger = logging.getLogger(__name__)
 module_logger.setLevel(logging.DEBUG)
 _console = logging.StreamHandler()
-_console.setFormatter(logging.Formatter('%(message)s\n'))
+_console.setFormatter(logging.Formatter('%(message)s'))
 module_logger.addHandler(_console)
 
 
@@ -69,7 +69,7 @@ class LocalDV(DV):
         diffusivity_spatial_prior=None, potential_spatial_prior=None,
         diffusivity_temporal_prior=None, potential_temporal_prior=None,
         minimum_diffusivity=None, positive_diffusivity=None, prior_include=None,
-        regions=None, prior_delay=None, logger=None):
+        regions=None, prior_delay=None, logger=True):
         # positive_diffusivity is for backward compatibility
         DV.__init__(self, diffusivity, potential, diffusivity_spatial_prior, potential_spatial_prior,
             minimum_diffusivity, positive_diffusivity, prior_include)
@@ -83,6 +83,19 @@ class LocalDV(DV):
         self._update_undefined_grad = set()
         self._update_undefined_time_derivative = set()
         self._logger = logger
+
+    @property
+    def verbose(self):
+        return self._logger is not None
+
+    @verbose.setter
+    def verbose(self, b):
+        if b:
+            if not self.verbose:
+                self._logger = True
+        else:
+            if self.verbose:
+                self._logger = None
 
     def region(self, i):
         return self.regions[i]
@@ -144,21 +157,25 @@ class LocalDV(DV):
 
     @property
     def logger(self):
-        if self._logger is None:
+        if self._logger is True:
             self._logger = module_logger
         return self._logger
 
+    @logger.setter
+    def logger(self, l):
+        self._logger = l
+
     def undefined_grad(self, i, feature=''):
-        if i not in self._undefined_grad:
+        if self.verbose and i not in self._undefined_grad:
             self._undefined_grad.add(i)
             self._update_undefined_grad.add(i)
-            self.logger.warning('grad{}({}) is not defined'.format(feature, i))
+            self.logger.debug('grad{}({}) is not defined'.format(feature, i))
 
     def undefined_time_derivative(self, i, feature=''):
-        if i not in self._undefined_time_derivative:
+        if self.verbose and i not in self._undefined_time_derivative:
             self._undefined_time_derivative.add(i)
             self._update_undefined_time_derivative.add(i)
-            self.logger.warning('d{}({})/dt failed'.format(feature, i))
+            self.logger.debug('d{}({})/dt failed'.format(feature, i))
 
     def pop_workspace_update(self):
         try:
@@ -168,8 +185,9 @@ class LocalDV(DV):
 
     def push_workspace_update(self, update):
         undefined_grad, undefined_time_derivative = update
-        self._undefined_grad.update(undefined_grad)
-        self._undefined_time_derivative.update(undefined_time_derivative)
+        if isinstance(undefined_grad, set):
+            self._undefined_grad.update(undefined_grad)
+            self._undefined_time_derivative.update(undefined_time_derivative)
 
 parallel.abc.WorkspaceExtension.register(LocalDV)
 
@@ -400,12 +418,17 @@ def infer_stochastic_DV(cells,
         potential_spatial_prior = potential_prior
     if not isinstance(time_prior, (tuple, list)):
         time_prior = (time_prior, time_prior)
-    if diffusivity_temporal_prior is None:
+    if diffusivity_temporal_prior is None and not (time_prior[0] is None or diffusivity_spatial_prior is None):
         diffusivity_temporal_prior = time_prior[0] * diffusivity_spatial_prior
-    if potential_temporal_prior is None:
+    if potential_temporal_prior is None and not (time_prior[1] is None or potential_spatial_prior is None):
         potential_temporal_prior = time_prior[1] * potential_spatial_prior
     dv = LocalDV(D_initial, V_initial, diffusivity_spatial_prior, potential_spatial_prior,
         diffusivity_temporal_prior, potential_temporal_prior, min_diffusivity, prior_delay=prior_delay)
+    if verbose:
+        logger = dv.logger
+    else:
+        dv.logger = None
+        logger = module_logger
     if posterior_max_count:
         warn('`posterior_max_count` is deprecated', RuntimeWarning)
     posterior_info = None # parallelization makes this inoperant
@@ -475,7 +498,7 @@ def infer_stochastic_DV(cells,
 
     if os.name == 'nt':
         if sbfgs_kwargs.get('worker_count', None):
-            dv.logger.warning('multiprocessing may break on Windows')
+            logger.warning('multiprocessing may break on Windows')
         else:
             sbfgs_kwargs['worker_count'] = 0
 

@@ -75,7 +75,7 @@ class DynamicCells(Distributed):
         """
         return self.spatial_adjacency.indices[self.spatial_adjacency.indptr[i]:self.spatial_adjacency.indptr[i+1]]
 
-    def time_derivative(self, i, X, index_map=None, **kwargs):
+    def time_derivative(self, i, X, index_map=None, na=np.nan, **kwargs):
         cell = self.cells[i]
         t0 = cell.center_t
 
@@ -133,7 +133,7 @@ class DynamicCells(Distributed):
         #u, v, t= before, after, t term
         if u is None:
             if v is None:
-                deriv = 0.
+                deriv = na
             else:
                 # 1./X = X0[j] - np.mean(X[v,j])
                 deriv = (x0 - np.mean(x[v])) * t
@@ -144,7 +144,7 @@ class DynamicCells(Distributed):
 
         return deriv
 
-    def temporal_variation(self, i, X, index_map=None, **kwargs):
+    def temporal_variation(self, i, X, index_map=None, na=0., **kwargs):
         cell = self.cells[i]
         t0 = cell.center_t
 
@@ -202,12 +202,12 @@ class DynamicCells(Distributed):
         #u, v, t= before, after, t term
         if u is None:
             if v is None:
-                delta = np.r_[0., 0.]
+                delta = np.r_[na, na]
             else:
                 # 1./X = X0[j] - np.mean(X[v,j])
-                delta = np.r_[0., (x0 - np.mean(x[v])) * t]
+                delta = np.r_[na, (x0 - np.mean(x[v])) * t]
         elif v is None:
-            delta = np.r_[(x0 - np.mean(x[u])) * t, 0.]
+            delta = np.r_[(x0 - np.mean(x[u])) * t, na]
         else:
             t0, tu, tv = t
             delta = np.r_[

@@ -373,7 +373,7 @@ def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
     return below, above
 
 
-def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
+def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None, na=np.nan):
     """
     Local gradient by 2 degree polynomial interpolation along each dimension independently.
 
@@ -443,6 +443,9 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
             top angle of the neighbour selection hypercones;
             should be in the :math:`[0.5, 1.0[` range.
             Incompatible with `eps`.
+
+        na (float):
+            value for undefined components (no neighbours).
 
     Returns:
 
@@ -520,7 +523,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                grad_j = 0.
+                grad_j = na
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
                 grad_j = (y0 - np.mean(y[v])) * Xj
