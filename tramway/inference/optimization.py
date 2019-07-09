@@ -1460,7 +1460,7 @@ class SBFGSWorker(parallel.Worker):
                     if s is None:
                         if verbose:
                             #logger.info(msg2(k, i, 'LINE SEARCH FAILED'))
-                            logger.info(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res)))#.upper())))
+                            logger.info(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(res)))#.upper())))
                         info['ls_failure'] = True
                         # undo any change in the working copy of the parameter vector (default in finally block)
                         continue
