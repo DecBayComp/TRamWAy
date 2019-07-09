@@ -224,6 +224,8 @@ def _pseudo_worker(worker):
         def get_task(self, *args, **kwargs):
             return self._scheduler.next_task()
         def push_update(self, update, status=None):
+            i = update.resource_id
+            self._scheduler.task[i] = update
             if self._scheduler.pseudo_stop(status):
                 raise NormalTermination
         def pull_updates(self):
