@@ -406,7 +406,8 @@ def infer_stochastic_DV(cells,
             raise ValueError('wrong size for D0')
     if V0 is not None:
         if np.isscalar(V0):
-            V_initial = np.full(D_initial.size, V0)
+            # V0 may be given as an integer
+            V_initial = np.full(D_initial.size, V0, dtype=D_initial.dtype)
         elif V0.size == D_initial.size:
             V_initial = V0
         else:
@@ -436,7 +437,10 @@ def infer_stochastic_DV(cells,
     # gradient options
     grad_kwargs = get_grad_kwargs(kwargs)
     # bounds
-    V_bounds = [(0., None)] * V_initial.size
+    if np.isscalar(V0) and V0 == 0:
+        V_bounds = [(None, None)] * V_initial.size
+    else:
+        V_bounds = [(0., None)] * V_initial.size
     #if min_diffusivity is not None:
     #    assert np.all(min_diffusivity < D_initial)
     bounds = D_bounds + V_bounds
@@ -553,8 +557,10 @@ def infer_stochastic_DV(cells,
     # extract the different types of parameters
     dv.update(result.x)
     D, V = dv.D, dv.V
-    #if np.any(V < 0):
-    #    V -= np.min(V)
+    if np.isscalar(V0) and V0 == 0:
+        Vmin = np.min(V)
+        if Vmin < 0:
+            V -= Vmin
     DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index,
         columns=['diffusivity', 'potential'])
 

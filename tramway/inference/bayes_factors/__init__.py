@@ -9,8 +9,8 @@ from .calculate_bayes_factors import (calculate_bayes_factors,
 __all__ = ['calculate_bayes_factors', 'calculate_bayes_factors_for_one_cell', 'setup']
 
 
-if sys.version_info <= (3, 5):
-    raise RuntimeError("Python 3.5+ is required for calculating Bayes factors")
+if sys.version_info <= (3, 6):
+    raise RuntimeError("Python 3.6+ is required for calculating Bayes factors")
 
 
 def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):

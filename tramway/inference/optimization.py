@@ -1258,7 +1258,7 @@ class SBFGSScheduler(parallel.Scheduler):
                             self.recurrent_ls_failure_count.get(i, 0) + 1
                     if self.fix_ls_trigger <= _count:
                         if verbose:
-                            self.logger.debug(msg2(k, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
+                            self.logger.debug(msg2(k+1, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
                         c.push(x)
                         self.fix_ls(i, x)
                         c.pull(x)
@@ -1412,7 +1412,7 @@ class SBFGSWorker(parallel.Worker):
                     oHo = np.dot(H.dot(ones), ones)
                     if np.any(oHo <= 0):
                         if verbose:
-                            logger.debug(msg2(k, i, 'H not positive definite (k)'))
+                            logger.debug(msg2(k+1, i, 'H not positive definite (k)'))
                         H.drop()
 
                     _k = 0
@@ -1428,7 +1428,7 @@ class SBFGSWorker(parallel.Worker):
                             break
                         if newton and 0 <= np.dot(p, g0):
                             if verbose:
-                                logger.debug(msg2(k, i, 'PROJ G <= 0 (k)'))
+                                logger.debug(msg2(k+1, i, 'PROJ G <= 0 (k)'))
                             H.drop()
                             p = -H.dot(g)
                             p = c.in_descent_subspace(p)
@@ -1446,7 +1446,7 @@ class SBFGSWorker(parallel.Worker):
                             s, res = s
                         if s is None:
                             #if verbose:
-                            #    logger.debug(msg2(k, i, res))
+                            #    logger.debug(msg2(k+1, i, res))
                             break
                             if not _k:
                                 g = np.array(g)
@@ -1459,21 +1459,21 @@ class SBFGSWorker(parallel.Worker):
                     info['f'] = c.f
                     if local_convergence:
                         if verbose:
-                            logger.info(msg2(k, i, 'LOCAL CONVERGENCE MET'))
+                            logger.info(msg2(k+1, i, 'LOCAL CONVERGENCE MET'))
                         info['df'] = 0
                         continue
 
                     # sanity checks
                     if s is None:
                         if verbose:
-                            #logger.info(msg2(k, i, 'LINE SEARCH FAILED'))
-                            logger.info(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(_res)))#.upper())))
+                            #logger.info(msg2(k+1, i, 'LINE SEARCH FAILED'))
+                            logger.info(msg2(k+1, i, 'LINE SEARCH FAILED ({})'.format(res)))#.upper())))
                         info['ls_failure'] = True
                         # undo any change in the working copy of the parameter vector (default in finally block)
                         continue
                     if np.all(s == 0):
                         if verbose:
-                            logger.info(msg2(k, i, 'NULL UPDATE'))
+                            logger.info(msg2(k+1, i, 'NULL UPDATE'))
                         info['df'] = 0
                         # undo any change in the working copy of the parameter vector (default in finally block)
                         continue
@@ -1487,7 +1487,7 @@ class SBFGSWorker(parallel.Worker):
 
                     if gtol is None and not newton:
                         if verbose:
-                            logger.info(msg1(k, i, c.f, c1.f))
+                            logger.info(msg1(k+1, i, c.f, c1.f))
                         c = c1 # 'push' the parameter update `c1`
                         continue
 
@@ -1496,12 +1496,12 @@ class SBFGSWorker(parallel.Worker):
                     # sanity checks
                     if h is None:
                         if verbose:
-                            logger.debug(msg2(k, i, 'GRADIENT CALCULATION FAILED (k+1)'))
+                            logger.debug(msg2(k+1, i, 'GRADIENT CALCULATION FAILED (k+1)'))
                         # drop c1 (default in finally block)
                         continue
                     if np.allclose(g, h):
                         if verbose:
-                            logger.debug(msg2(k, i, 'NO CHANGE IN THE GRADIENT'))
+                            logger.debug(msg2(k+1, i, 'NO CHANGE IN THE GRADIENT'))
                         c = c1 # 'push' the parameter update...
                         continue # ...but do not update H
 
@@ -1512,14 +1512,14 @@ class SBFGSWorker(parallel.Worker):
                     info['dg'] = proj
                     if proj <= 0:
                         if verbose:
-                            logger.debug(msg2(k, i, 'PROJ G <= 0 (k+1)'))
+                            logger.debug(msg2(k+1, i, 'PROJ G <= 0 (k+1)'))
                         # either drop c1 (default in finally block)...
                         # ... or drop the inverse Hessian
                         c1.H.drop()
                         c = c1 # push `c1`
                         continue
                     elif verbose:
-                        logger.info(msg1(k, i, c.f, c1.f, proj))
+                        logger.info(msg1(k+1, i, c.f, c1.f, proj))
 
                     # 'push' the parameter update together with H update
                     H1 = (s, y, proj)
