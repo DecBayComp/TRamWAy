@@ -494,9 +494,9 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         return obj
 
 
-def scalar_landscape(cells, values, aspect=None, clim=None, figure=None, axes=None,
+def plot_landscape(cells, values, aspect=None, clim=None, figure=None, axes=None,
         colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
-        xlim=None, ylim=None, zlim=None, **kwargs):
+        xlim=None, ylim=None, zlim=None, triangulation_depth=2, **kwargs):
     """
     Plot a 2D scalar map as a colourful 3d surface.
 
@@ -547,26 +547,35 @@ def scalar_landscape(cells, values, aspect=None, clim=None, figure=None, axes=No
             if values.shape[1] != 1:
                 warn('multiple parameters available; mapping first one only', UserWarning)
         values = values.iloc[:,0] # to Series
-    #values = pd.to_numeric(values, errors='coerce')
 
     try:
-        centers = cells.cell_centers
-    except AttributeError as e:
-        try:
-            centers = cells.tessellation.cell_centers
-        except AttributeError:
-            centers = cells.tessellation.spatial_mesh.cell_centers
-            raise e
-    xy = centers
+        mesh = cells.tessellation
+    except AttributeError:
+        mesh = cells
+    try:
+        mesh = mesh.spatial_mesh
+    except AttributeError:
+        pass
+    xy = centers = mesh.cell_centers
+    adjacency = mesh.simplified_adjacency(format='csr')
 
     scalar_map = np.full(centers.shape[0], np.nan)
     scalar_map[values.index] = values.values
+    elevation = np.array(scalar_map)
+    if zlim:
+        elevation[elevation < zlim[0]] = zlim[0]
+        elevation[zlim[1] < elevation] = zlim[1]
+    colour = np.array(scalar_map)
+    if clim:
+        colour[colour < clim[0]] = clim[0]
+        colour[clim[1] < colour] = clim[1]
 
     if figure is None:
         import matplotlib.pyplot as plt
         figure = plt.gcf() # before PatchCollection
     if axes is None:
-        axes = figure.gca(projection='3d')
+        import mpl_toolkits.mplot3d as plt3
+        axes = plt3.Axes3D(figure)
 
     obj = None
 
@@ -578,43 +587,83 @@ def scalar_landscape(cells, values, aspect=None, clim=None, figure=None, axes=No
             ylim = (xy_min[1], xy_max[1])
     axes.set_xlim(*xlim)
     axes.set_ylim(*ylim)
-    if zlim:
-        axes.set_zlim(*zlim)
     if aspect is not None:
         axes.set_aspect(aspect)
 
-    axes.plot_surface(centers[:,0], centers[:,1], scalar_map, **kwargs)
+    tri = []
+    ok = np.zeros(mesh.number_of_cells, dtype=bool)
+    for i in range(mesh.number_of_cells):
+        J = adjacency.indices[adjacency.indptr[i]:adjacency.indptr[i+1]]
+        for j in J:
+            if i < j:
+                K = adjacency.indices[adjacency.indptr[j]:adjacency.indptr[j+1]]
+                for k in K:
+                    if j < k:
+                        tri.append([i,j,k])
+                        ok[i] = ok[j] = ok[k] = True
+    tri = np.array(tri)
+    #index_transform = np.full(mesh.number_of_cells, -1, dtype=int)
+    #index_transform[ok] = np.arange(np.sum(ok))
+    #import matplotlib.tri
+    # if `plot_trisurf` could interpolate each triangle's colour:
+    #tri_colour = [ np.mean(colour[_t]) for _t in tri ]
+    #tri = matplotlib.tri.Triangulation(xy[ok,0], xy[ok,1], index_transform(tri))
+    #axes.plot_trisurf(tri, elevation[ok], color=tri_colour, **kwargs)
 
-    if colorbar:
-        if colorbar=='nice':
-            # make the colorbar closer to the plot and same size
-            from mpl_toolkits.axes_grid1 import make_axes_locatable
-            try:
-                plt
-            except NameError:
-                import matplotlib.pyplot as plt
-            try:
-                gca_bkp = plt.gca()
-                divider = make_axes_locatable(figure.gca())
-                cax = divider.append_axes("right", size="5%", pad=0.05)
-                _colorbar = figure.colorbar(patches, cax=cax)
-                plt.sca(gca_bkp)
-            except AttributeError as e:
-                warn(e.args[0], RuntimeWarning)
+    import itertools
+    def split_triangle(_rdepth, _xy, *_zs):
+        if _rdepth == 0:
+            return tuple( [_a] for _a in (_xy,) + _zs )
         else:
-            if not isinstance(colorbar, dict):
-                colorbar = {}
-            try:
-                _colorbar = figure.colorbar(patches, ax=axes, **colorbar)
-            except AttributeError as e:
-                warn(e.args[0], RuntimeWarning)
-        if clabel:
-            unit = clabel
-        if unit:
-            _colorbar.set_label(unit)
+            return tuple( itertools.chain(*_a) for _a in zip(
+                    split_triangle(_rdepth-1,
+                        np.stack((_xy[0], (_xy[0] + _xy[1]) * .5, (_xy[0] + _xy[2]) * .5), axis=0),
+                        *[ np.r_[_z[0], (_z[0] + _z[1]) * .5, (_z[0] + _z[2]) * .5] for _z in _zs ]),
+                    split_triangle(_rdepth-1,
+                        np.stack(((_xy[0] + _xy[1]) * .5, _xy[1], (_xy[1] + _xy[2]) * .5), axis=0),
+                        *[ np.r_[(_z[0] + _z[1]) * .5, _z[1], (_z[1] + _z[2]) * .5] for _z in _zs ]),
+                    split_triangle(_rdepth-1,
+                        np.stack(((_xy[0] + _xy[1]) * .5, (_xy[0] + _xy[2]) * .5, (_xy[1] + _xy[2]) * .5), axis=0),
+                        *[ np.r_[(_z[0] + _z[1]) * .5, (_z[0] + _z[2]) * .5, (_z[1] + _z[2]) * .5] for _z in _zs ]),
+                    split_triangle(_rdepth-1,
+                        np.stack(((_xy[0] + _xy[2]) * .5, (_xy[1] + _xy[2]) * .5, _xy[2]), axis=0),
+                        *[ np.r_[(_z[0] + _z[2]) * .5, (_z[1] + _z[2]) * .5, _z[2]] for _z in _zs ]),
+                    ))
+
+    subtri_xyz = []
+    subtri_colour = []
+    for ijk in tri:
+        boundary_xy = xy[ijk]
+        boundary_elevation = elevation[ijk]
+        boundary_colour = colour[ijk]
+        for _subtri_xy, _subtri_elevation, _subtri_colour in \
+                zip(*split_triangle(triangulation_depth, boundary_xy, boundary_elevation, boundary_colour)):
+            subtri_xyz.append(np.hstack((_subtri_xy, _subtri_elevation[:,np.newaxis])))
+            subtri_colour.append(np.mean(_subtri_colour))
+    subtri_xyz = np.vstack(subtri_xyz)
+    #subtri = matplotlib.tri.Triangulation(
+    #        subtri_xyz[:,0], subtri_xyz[:,1],
+    #        np.reshape(np.arange(len(subtri_xyz)), (-1, 3), order='C'))
+    #print(subtri.get_masked_triangles())
+    subtri_xyz = np.stack([np.reshape(c, (-1,3)) for c in subtri_xyz.T], axis=-1)
+
+    #obj = axes.plot_trisurf(subtri, subtri_elevation, facecolors=subtri_colour, norm=norm, **kwargs)
+    import mpl_toolkits.mplot3d.art3d as art
+    subtri = art.Poly3DCollection(subtri_xyz, **kwargs)
+    subtri.set_array(np.asarray(subtri_colour))
+
+    axes.add_collection(subtri)
+    #axes.auto_scale_xyz(subtri_xyz[:,0], subtri_xyz[:,1], subtri_xyz[:,2])
+    if xlim is not None:
+        axes.set_xlim(xlim[0], xlim[1])
+    if ylim is not None:
+        axes.set_ylim(ylim[0], ylim[1])
+    if zlim is not None:
+        axes.set_zlim(zlim[0], zlim[1])
 
     return obj
 
 
-__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d', 'scalar_landscape']
+
+__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d', 'plot_landscape']
 
