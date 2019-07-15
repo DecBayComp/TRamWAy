@@ -729,7 +729,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
     alpha=None, point_style=None, feature=None, variable=None, segment=None, \
-    label=None, input_label=None, mode=None, title=True, \
+    label=None, input_label=None, mode=None, title=True, inferencemap=False, \
     **kwargs):
     """
     Plot scalar/vector 2D maps.
@@ -783,17 +783,22 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         mode (bool or str): inference mode; can be ``False`` so that mode information from
             files, analysis trees and encapsulated maps are not displayed
 
-        title (bool or str): add titles to the figures, based on the feature name and
-            inference mode
+        title (bool or str): add titles to the figures, based on the feature name;
+            from version *0.4*, the inference mode is no longer appended
+
+        inferencemap (bool): scales the arrows wrt to cell size only; for field maps only
 
         xlim (array-like): min and max values for the x-axis; this argument is keyworded only
 
         ylim (array-like): min and max values for the y-axis; this argument is keyworded only
 
+        zlim (array-like): min and max values for the z-axis; this argument is keyworded only;
+            applies only to scalar maps that are consequently plotted in 3D
+
         clim (array-like): min and max values for the colormap; this argument is keyworded only
 
-    Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
-    :func:`~tramway.plot.map.field_map_2d`.
+    Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d`,
+    :func:`~tramway.plot.map.field_map_2d` and :func:`scalar_map_3d`.
     They can be dictionnaries with feature names as keys and the corresponding values for the
     parameters.
 
@@ -811,8 +816,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if label is None:
             label = input_label
         cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
-    else: # `maps` is a file path
+    elif isinstance(maps, str): # `maps` is a file path
         input_file = maps
+        if not os.path.isfile(input_file):
+            raise OSError('cannot find file: {}'.format(input_file))
         if label is None:
             label = input_label
         try:
@@ -849,6 +856,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             warn('HDF5 libraries may not be installed', ImportWarning)
         else:
             cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
+    else:
+        raise TypeError('unsupported type for maps: {}'.format(type(maps)))
     if isinstance(maps, Maps):
         if mode != False:
             mode = maps.mode
@@ -862,7 +871,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     if not cells._lazy.get('bounding_box', True):
         maps = box_crop(maps, cells.bounding_box, cells.tessellation)
 
-    xlim, ylim = kwargs.get('xlim', None), kwargs.get('ylim', None)
+    xlim, ylim, zlim = kwargs.get('xlim', None), kwargs.get('ylim', None), kwargs.pop('zlim', None)
     if xlim and ylim:
         maps = box_crop(maps,
             pd.DataFrame(
@@ -1004,7 +1013,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             except IndexError:
                 raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(_map)-1))
 
-        tplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
+        if zlim is None:
+            plot = tplt.scalar_map_2d
+        else:
+            plot = tplt.scalar_map_3d
+            col_kwargs['zlim'] = zlim
+
+        plot(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
         if point_style is not None:
             points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
@@ -1015,13 +1030,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if title:
             if isinstance(title, str):
                 _title = title
-            elif mode:
-                if short_name:
-                    _title = '{} ({} - {} mode)'.format(short_name, col, mode)
-                else:
-                    _title = '{} ({} mode)'.format(col, mode)
-            elif short_name:
-                _title = '{} ({})'.format(short_name, col)
+            #elif mode:
+            #    if short_name:
+            #        _title = '{} ({} - {} mode)'.format(short_name, col, mode)
+            #    else:
+            #        _title = '{} ({} mode)'.format(col, mode)
+            #elif short_name:
+            #    _title = '{} ({})'.format(short_name, col)
             else:
                 _title = '{}'.format(col)
             mplt.title(_title)
@@ -1053,6 +1068,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             else:
                 var_kwargs[kw] = arg
 
+        plot = tplt.field_map_2d
+        if point_style is not None:
+            var_kwargs['overlay'] = True
+        if inferencemap:
+            var_kwargs['inferencemap'] = inferencemap
+
         if new_fig or figs:
             fig = mplt.figure(figsize=figsize, dpi=dpi)
         else:
@@ -1077,16 +1098,15 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 var_kwargs['clim'] = [_scalar_map.values.min(), _scalar_map.values.max()]
             _vector_map = _cells.tessellation.split_frames(_vector_map)[segment]
 
-        if point_style is None:
-            tplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
-        else:
+        if point_style is not None:
             _scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
             tplt.scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
             points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
             if 'color' not in point_style:
                 point_style['color'] = None
             tplt.plot_points(points, **point_style)
-            tplt.field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
+
+        plot(cells, _vector_map, aspect=aspect, **var_kwargs)
 
         extra = None
         if short_name:

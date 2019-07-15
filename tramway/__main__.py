@@ -449,12 +449,12 @@ def main():
     cells_parser.add_argument('--segment', type=int, help='time segment index (indices range from 0)')
     cells_parser.add_argument('-s', '--min-location-count', type=int, \
         help='minimum number of locations per cell')
-    cells_parser.add_argument('--min-distance', type=float, \
-        help='minimum distance between neighbour cells (for histograms)')
-    cells_parser.add_argument('--avg-distance', type=float, \
-        help='average distance between neighbour cells (for histograms)')
+    #cells_parser.add_argument('--min-distance', type=float, \
+    #    help='minimum distance between neighbour cells (for histograms)')
+    #cells_parser.add_argument('--avg-distance', type=float, \
+    #    help='average distance between neighbour cells (for histograms)')
     cells_parser.add_argument('-D', '--delaunay', action='store_true', help='plot the Delaunay graph instead of the Voronoi')
-    cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighbouring centers) and 'p' (distance between any pair of locations from distinct neighbouring centers)")
+    #cells_parser.add_argument('-H', '--histogram', help="plot/print additional histogram(s); any combination of 'c' (cell count histogram), 'd' (distance between neighbouring centers) and 'p' (distance between any pair of locations from distinct neighbouring centers)")
     cells_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
     try:
         cells_parser.add_argument('input_file', nargs='?', help='path to input file')
@@ -467,7 +467,7 @@ def main():
     for arg1, arg2, kwargs in global_arguments:
         map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)
     map_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
-    map_parser.add_argument('-f', '-V', '--feature', '--variable', help='mapped feature name')
+    map_parser.add_argument('-f', '--feature', '--variable', help='mapped feature name')
     map_parser.add_argument('--segment', type=int, help='time segment index (indices range from 0)')
     map_parser.add_argument('-P', '--points', nargs='?', default=False, help='plot the points; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
     map_parser.add_argument('-D', '--delaunay', nargs='?', default=False, help='plot the Delaunay graph; options can be specified as "c=\'r\',a=0.1" (no space, no double quotes)')
@@ -476,8 +476,11 @@ def main():
     map_parser.add_argument('-cb', '--colorbar', action='store_false', help='do not plot colorbar')
     map_parser.add_argument('--xlim', type=float, nargs='+', help='space-separated couple of limit values for the x axis')
     map_parser.add_argument('--ylim', type=float, nargs='+', help='space-separated couple of limit values for the y axis')
+    map_parser.add_argument('--zlim', type=float, nargs='+', help='space-separated couple of limit values for the z axis (plots the landscape in 3D)')
     map_parser.add_argument('-p', '--print', choices=fig_formats, help='print figure(s) on disk instead of plotting')
     map_parser.add_argument('--dpi', type=int, help='dots per inch')
+    map_parser.add_argument('--inferencemap', action='store_true', help='for field maps, size the arrows wrt cell size only')
+    map_parser.add_argument('--title', help='figure title')
     try:
         map_parser.add_argument('input_file', nargs='?', help='path to input file')
     except:

@@ -543,7 +543,11 @@ def infer_stochastic_DV(cells,
                 'projg_history': 'projg',
                 'error': 'err',
                 'diagnoses': 'diagnosis'}
-        if debug is not True:
+        if debug is True:
+            sbfgs_kwargs['returns'] = 'all'
+        else:
+            if isinstance(debug, str):
+                debug = (debug,)
             sbfgs_kwargs['returns'] = { debug_all[attr] for attr in debug }
     else:
         sbfgs_kwargs['returns'] = set()

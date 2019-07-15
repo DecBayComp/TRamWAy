@@ -1252,6 +1252,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 if input_file[1:]:
                     warn('can only process a single file', RuntimeWarning)
                 input_file = input_file[0]
+            if not isinstance(input_file, str):
+                raise TypeError('unsupported input data type: {}'.format(type(input_file)))
             try:
                 analyses = load_rwa(input_file, lazy=True)
                 #if labels:

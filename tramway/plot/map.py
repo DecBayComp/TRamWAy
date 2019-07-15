@@ -363,9 +363,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         aspect=None, figure=None, axes=None,
-        cell_arrow_ratio=0.4,
+        cell_arrow_ratio=None,
         markercolor='y', markeredgecolor='k', markeralpha=0.8, markerlinewidth=None,
-        transform=None,
+        transform=None, inferencemap=False,
         **kwargs):
     """
     Plot a 2D field (vector) map as arrows.
@@ -387,7 +387,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         axes (matplotlib.axes.Axes): axes handle
 
         cell_arrow_ratio (float): size of the largest arrow relative to the median
-            inter-cell distance
+            inter-cell distance; default is ``0.4`` if `inferencemap` is ``True``,
+            else ``1``
 
         markercolor (str): colour of the arrows
 
@@ -399,6 +400,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
 
         transform ('log' or callable): if `overlay` is ``False``,
             transform applied to the amplitudes as a NumPy array
+
+        inferencemap (bool): if ``True``, the arrow length only depends on the cell size
 
     Extra keyword arguments are passed to :func:`scalar_map_2d` if called.
 
@@ -445,26 +448,47 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     else:
         aspect_ratio = (xmax - xmin) / (ymax - ymin)
     # identify the visible cell centers
-    if isinstance(cells, Distributed):
+    if isinstance(cells, Tessellation):
+        pts = cells.cell_centers
+    elif isinstance(cells, Distributed):
         pts = np.vstack([ cells[i].center for i in cells ])#values.index ])
     elif isinstance(cells, CellStats):
         assert isinstance(cells.tessellation, Tessellation)
         pts = cells.tessellation.cell_centers#[values.index]
     inside = (xmin<=pts[:,0]) & (pts[:,0]<=xmax) & (ymin<=pts[:,1]) & (pts[:,1]<=ymax)
     # compute the distance between adjacent cell centers
-    if isinstance(cells, Distributed):
+    if isinstance(cells, Delaunay):
+        A = cells.cell_adjacency
+    elif isinstance(cells, Distributed):
         A = cells.adjacency
     elif isinstance(cells, CellStats) and isinstance(cells.tessellation, Delaunay):
         A = cells.tessellation.cell_adjacency
-    A = sparse.triu(A, format='coo')
-    I, J = A.row, A.col
-    _inside = inside[I] & inside[J]
-    pts_i, pts_j = pts[I[_inside]], pts[J[_inside]]
-    inter_cell_distance = pts_i - pts_j
-    inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
-    # scale force amplitude
-    large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
-    scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
+    if inferencemap:
+        if cell_arrow_ratio is None:
+            cell_arrow_ratio = 1.
+        A = A.tocsr()
+        scale = np.full(A.shape[0], np.nan, dtype=pts.dtype)
+        for i in values.index:
+            if not inside[i]:
+                continue
+            js = A.indices[A.indptr[i]:A.indptr[i+1]]
+            pts_i, pts_j = pts[[i]], pts[js[inside[js]]]
+            if pts_j.size:
+                inter_cell_distance = pts_i - pts_j
+                inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
+                scale[i] = np.nanmean(inter_cell_distance)
+    else:
+        if cell_arrow_ratio is None:
+            cell_arrow_ratio = .4 # backward compatibility
+        A = sparse.triu(A, format='coo')
+        I, J = A.row, A.col
+        _inside = inside[I] & inside[J]
+        pts_i, pts_j = pts[I[_inside]], pts[J[_inside]]
+        inter_cell_distance = pts_i - pts_j
+        inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
+        # scale force amplitude
+        large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
+        scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
     #
     dw = float(angular_width) / 2.0
     t = tan(radians(dw))
@@ -473,7 +497,11 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     for i in values.index:
         center = pts[i]
         radius = force_amplitude[i]
-        f = np.asarray(values.loc[i]) * scale
+        if inferencemap:
+            f = np.asarray(values.loc[i])
+            f *= scale[i] / np.sqrt(np.sum(f * f))
+        else:
+            f = np.asarray(values.loc[i]) * scale
         #fx, fy = f
         #angle = degrees(atan2(fy, fx))
         #markers.append(Wedge(center, radius, angle - dw, angle + dw))
@@ -494,11 +522,11 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         return obj
 
 
-def plot_landscape(cells, values, aspect=None, clim=None, figure=None, axes=None,
+def scalar_map_3d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
         xlim=None, ylim=None, zlim=None, triangulation_depth=2, **kwargs):
     """
-    Plot a 2D scalar map as a colourful 3d surface.
+    Plot a 2D scalar map as a colourful 3D surface.
 
     Arguments:
 
@@ -665,5 +693,5 @@ def plot_landscape(cells, values, aspect=None, clim=None, figure=None, axes=None
 
 
 
-__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d', 'plot_landscape']
+__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d', 'scalar_map_3d']
 
