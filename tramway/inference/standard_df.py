@@ -28,7 +28,8 @@ setup = {'name': ('standard.df', 'smooth.df'),
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
-        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
+        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential (alias for force_prior)'))),
+        ('force_prior',         ('-f', dict(type=float, help='prior on the amplitude of the force'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
@@ -39,7 +40,7 @@ setup_with_grad_arguments(setup)
 
 
 def smooth_df_neg_posterior(x, df, cells, sigma2, diffusivity_prior,
-        potential_prior, jeffreys_prior, dt_mean, min_diffusivity,
+        force_prior, jeffreys_prior, dt_mean, min_diffusivity,
         index, reverse_index, grad_kwargs):
     # extract `D` and `F`
     df.update(x)
@@ -68,15 +69,15 @@ def smooth_df_neg_posterior(x, df, cells, sigma2, diffusivity_prior,
             if gradD is not None:
                 # `grad_sum` memoizes and can be called several times at no extra cost
                 result += diffusivity_prior * cells.grad_sum(i, gradD * gradD)
-        if potential_prior:
-            result += potential_prior * cells.grad_sum(i, F * F)
+        if force_prior:
+            result += force_prior * cells.grad_sum(i, F * F)
     if jeffreys_prior:
         result += 2. * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
     return result
 
 
 def df_neg_posterior1(x, df, cells, sigma2, diffusivity_prior,
-        potential_prior, jeffreys_prior, dt_mean, min_diffusivity,
+        force_prior, jeffreys_prior, dt_mean, min_diffusivity,
         index, reverse_index, grad_kwargs):
     # extract `D` and `F`
     df.update(x)
@@ -105,14 +106,14 @@ def df_neg_posterior1(x, df, cells, sigma2, diffusivity_prior,
             if deltaD is not None:
                 # `grad_sum` memoizes and can be called several times at no extra cost
                 result += diffusivity_prior * cells.grad_sum(i, deltaD * deltaD)
-        if potential_prior:
-            result += potential_prior * cells.grad_sum(i, F * F)
+        if force_prior:
+            result += force_prior * cells.grad_sum(i, F * F)
     if jeffreys_prior:
         result += 2. * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
     return result
 
 
-def infer_smooth_DF(cells, diffusivity_prior=None, potential_prior=None,
+def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None,
         jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
 
     # initial values
@@ -145,7 +146,7 @@ def infer_smooth_DF(cells, diffusivity_prior=None, potential_prior=None,
 
     # run the optimization
     #cell.cache = None # no cache needed
-    args = (df, cells, localization_error, diffusivity_prior, potential_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
+    args = (df, cells, localization_error, diffusivity_prior, force_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
     result = minimize(fun, df.combined, args=args, **kwargs)
 
     # collect the result

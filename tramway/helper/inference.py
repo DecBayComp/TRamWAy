@@ -237,12 +237,17 @@ class Infer(Helper):
                 val = eval(arg)
                 if val is not None:
                     kwargs[arg] = val
+        diffusion_prior = kwargs.pop('diffusion_prior', None)
+        if diffusion_prior is not None:
+            kwargs['diffusivity_prior'] = diffusion_prior
+
         if 'returns' in self.setup:
             kwargs['returns'] = self.setup['returns']
         if profile:
             kwargs['profile'] = profile
         if rgrad:
             kwargs['rgrad'] = rgrad
+
         x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
 
         ret = {}
@@ -303,8 +308,9 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, \
     include_empty_cells=False, cell_sampling=None, merge_threshold_count=False, \
-    grad=None, rgrad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
-    return_cells=None, profile=None, force=None, inplace=False, snr_extensions=False, **kwargs):
+    grad=None, rgrad=None, input_label=None, output_label=None, comment=None, \
+    return_cells=None, profile=None, overwrite=None, inplace=False, \
+    priorD=None, priorV=None, **kwargs):
     """
     Inference helper.
 
@@ -322,16 +328,14 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
 
         output_file (str): desired path for the output map file
 
-        partition (dict): keyword arguments for :func:`~tramway.helper.tessellation.find_partition`
-            if `cells` is a path; **deprecated**
-
         verbose (bool or int): verbosity level
 
-        localization_error (float): localization error
+        localization_error/sigma (float): localization error (see also sigma2)
 
-        diffusivity_prior (float): prior diffusivity
+        diffusivity_prior/diffusion_prior (float): hyperparameter of the prior on the
+            diffusivity/diffusion
 
-        potential_prior (float): prior potential
+        potential_prior (float): hyperparameter of the prior on the potential energy
 
         jeffreys_prior (float): Jeffreys' prior
 
@@ -398,9 +402,12 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
         Maps or pandas.DataFrame or tuple:
 
     `priorD` and `priorV` are legacy arguments.
-    They are deprecated and `diffusivity_prior` and `potential_prior` should be used instead
-    respectively.
+    They are deprecated and `diffusivity_prior`/`diffusion_prior` and `potential_prior` respectively
+    should be used instead.
     """
+    if bool(partition):
+        warn('the `partition` argument is ignored and will be removed', DeprecationWarning)
+
     helper = Infer()
     helper.verbose = verbose
     helper.labels(input_label=input_label, output_label=output_label, inplace=inplace, comment=comment)
@@ -410,6 +417,10 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
         mode = mode.lower()
         #warn('inference mode: please use degraded.{} instead'.format(mode), PendingDeprecationWarning)
     helper.plugin(mode)
+
+    if constructor is not None:
+        warn('the `constructor` argument is deprecated; please use `new_group` instead',
+                DeprecationWarning)
     _map = helper.distribute(new_cell=new_cell, \
             new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
             include_empty_cells=include_empty_cells, \
@@ -428,9 +439,9 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     maps = helper.infer(_map, worker_count=worker_count, profile=profile, \
         min_diffusivity=min_diffusivity, localization_error=localization_error, \
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-        jeffreys_prior=jeffreys_prior, rgrad=rgrad, snr_extensions=snr_extensions, **kwargs)
+        jeffreys_prior=jeffreys_prior, rgrad=rgrad, **kwargs)
 
-    helper.save_analyses(output_file, force=force)
+    helper.save_analyses(output_file, force=overwrite)
 
     if return_cells == True: # NOT `is`
         return maps, cells
