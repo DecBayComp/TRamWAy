@@ -16,7 +16,7 @@ from tramway.core import *
 from tramway.core.exceptions import *
 from tramway.tessellation import format_cell_index, nearest_cell
 import tramway.tessellation as tessellation
-from .gradient import grad1, delta1
+from .gradient import grad1, delta0
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -448,9 +448,12 @@ class Distributed(Local):
         """
         Local spatial variation, gradient-like, aimed at penalizing spatial variations.
 
-        See also :func:`delta1`.
+        See also :func:`delta0`.
 
         As of version *0.3.8*: new; called for spatial regularization in `stochastic_dv`.
+
+        As of version *0.4*: default implementation becomes :func:`delta0`.
+
         May become the new default for spatial regularization.
 
         Arguments:
@@ -470,7 +473,7 @@ class Distributed(Local):
                 delta vector with as many elements as there are spatial dimensions.
 
         """
-        return delta1(self, i, X, index_map, **kwargs)
+        return delta0(self, i, X, index_map, **kwargs)
 
     def flatten(self):
         def concat(arrays):

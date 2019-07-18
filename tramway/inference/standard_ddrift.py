@@ -32,7 +32,7 @@ setup = {'name': ('standard.dd', 'standard.ddrift', 'smooth.dd', 'smooth.ddrift'
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity', dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
-        ('rgrad',   dict(help="alternative gradient for the regularization; can be 'delta0' or 'delta1'")),
+        ('rgrad',   dict(help="alternative gradient for the regularization; can be 'delta'/'delta0' or 'delta1'")),
         ('tol',             dict(type=float, help='tolerance for scipy minimizer')))),
     'cell_sampling': 'group'}
 setup_with_grad_arguments(setup)

@@ -30,7 +30,7 @@ setup = {'name': ('standard.d', 'smooth.d'),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
-        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta1'")),
+        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta'/'delta0' or 'delta1'")),
         ('tol',             dict(type=float, help='tolerance for scipy minimizer')))),
     'cell_sampling': 'group'}
 setup_with_grad_arguments(setup)
@@ -159,7 +159,7 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
         kwargs['options'] = options
 
     # posterior function
-    if rgrad in ('delta','delta1'):
+    if rgrad in ('delta','delta0','delta1'):
         fun = d_neg_posterior1
     else:
         if rgrad not in (None, 'grad', 'grad1', 'gradn'):

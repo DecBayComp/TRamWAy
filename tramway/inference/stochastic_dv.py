@@ -343,6 +343,7 @@ def infer_stochastic_DV(cells,
     compatibility=False,
     export_centers=False, verbose=True, superlocal=True, stochastic=True,
     D0=None, V0=None, x0=None, rgrad=None, debug=False, fulltime=False,
+    diffusion_prior=None, diffusion_spatial_prior=None, diffusion_temporal_prior=None,
     prior_delay=None, return_struct=False, posterior_max_count=None,# deprecated
     diffusivity_prior=None, potential_prior=None, time_prior=None,# deprecated
     **kwargs):
@@ -357,10 +358,10 @@ def infer_stochastic_DV(cells,
             `diffusivity_prior`) and the second applies to potential energy (and
             is multiplied by `potential_prior`).
 
-        diffusivity_spatial_prior: alias for `diffusivity_prior`.
+        diffusivity_spatial_prior/diffusion_spatial_prior: alias for `diffusivity_prior`.
 
-        diffusivity_temporal_prior: penalizes the temporal derivative of diffusivity;
-            this coefficient does NOT multiply with `diffusivity_prior`.
+        diffusivity_temporal_prior/diffusion_temporal_prior: penalizes the temporal derivative
+            of diffusivity; this coefficient does NOT multiply with `diffusivity_prior`.
 
         potential_spatial_prior: alias for `potential_prior`.
 
@@ -413,12 +414,19 @@ def infer_stochastic_DV(cells,
         else:
             raise ValueError('wrong size for V0')
 
+    if diffusivity_prior is None:
+        diffusivity_prior = diffusion_prior
     if diffusivity_spatial_prior is None:
-        diffusivity_spatial_prior = diffusivity_prior
+        if diffusion_spatial_prior is None:
+            diffusivity_spatial_prior = diffusivity_prior
+        else:
+            diffusivity_spatial_prior = diffusion_spatial_prior
     if potential_spatial_prior is None:
         potential_spatial_prior = potential_prior
     if not isinstance(time_prior, (tuple, list)):
         time_prior = (time_prior, time_prior)
+    if diffusivity_temporal_prior is None:
+        diffusivity_temporal_prior = diffusion_temporal_prior
     if diffusivity_temporal_prior is None and not (time_prior[0] is None or diffusivity_spatial_prior is None):
         diffusivity_temporal_prior = time_prior[0] * diffusivity_spatial_prior
     if potential_temporal_prior is None and not (time_prior[1] is None or potential_spatial_prior is None):

@@ -76,7 +76,8 @@ def delta0(cells, i, X, index_map=None, **kwargs):
 
     y0, y = y[i], y[adjacent]
 
-    return (y - y0) / dx_norm
+    # scale by the number of differences to make the sum of the returned values be a mean value instead
+    return (y - y0) / dx_norm / float(len(y))
 
 
 def gradn(cells, i, X, index_map=None):

@@ -26,6 +26,24 @@ tramway.inference.d plugin
     :show-inheritance:
 
 
+tramway.inference.degraded_d plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.inference.degraded_d
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.standard_d plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.inference.standard_d
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.inference.d_conj_prior plugin
 -------------------------------------
 
@@ -39,6 +57,24 @@ tramway.inference.ddrift plugin
 -------------------------------
 
 .. automodule:: tramway.inference.ddrift
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.degraded_ddrift plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.inference.degraded_ddrift
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.standard_ddrift plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.inference.standard_ddrift
     :members:
     :undoc-members:
     :show-inheritance:
@@ -62,6 +98,24 @@ tramway.inference.df plugin
     :show-inheritance:
 
 
+tramway.inference.degraded_df plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.inference.degraded_df
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.inference.standard_df plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.inference.standard_df
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.inference.dv plugin
 ---------------------------
 
@@ -75,33 +129,6 @@ tramway.inference.gradient module
 ---------------------------------
 
 .. automodule:: tramway.inference.gradient
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-tramway.inference.smooth_d plugin
----------------------------------
-
-.. automodule:: tramway.inference.smooth_d
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-tramway.inference.smooth_ddrift plugin
---------------------------------------
-
-.. automodule:: tramway.inference.smooth_ddrift
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-tramway.inference.smooth_df plugin
-----------------------------------
-
-.. automodule:: tramway.inference.smooth_df
     :members:
     :undoc-members:
     :show-inheritance:

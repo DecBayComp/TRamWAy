@@ -28,12 +28,12 @@ setup = {'name': ('standard.df', 'smooth.df'),
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
-        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential (alias for force_prior)'))),
+        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential (use force_prior instead)'))),
         ('force_prior',         ('-f', dict(type=float, help='prior on the amplitude of the force'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
-        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta1'")),
+        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta'/'delta0' or 'delta1'")),
         ('tol',             dict(type=float, help='tolerance for scipy minimizer')))),
     'cell_sampling': 'group'}
 setup_with_grad_arguments(setup)
@@ -113,8 +113,11 @@ def df_neg_posterior1(x, df, cells, sigma2, diffusivity_prior,
     return result
 
 
-def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None,
+def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None, potential_prior=None,
         jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
+    """
+    Argument `potential_prior` is an alias for `force_prior` which penalizes the large force amplitudes.
+    """
 
     # initial values
     localization_error = cells.get_localization_error(kwargs, 0.03, True)
@@ -137,12 +140,17 @@ def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None,
         kwargs['options'] = options
 
     # posterior function
-    if rgrad in ('delta','delta1'):
+    if rgrad in ('delta','delta0','delta1'):
         fun = df_neg_posterior1
     else:
         if rgrad not in (None, 'grad', 'grad1', 'gradn'):
             warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
         fun = smooth_df_neg_posterior
+
+    if force_prior is None:
+        if potential_prior is not None:
+            warn('please use `force_prior` instead of `potential_prior`', PendingDeprecationWarning)
+        force_prior = potential_prior
 
     # run the optimization
     #cell.cache = None # no cache needed

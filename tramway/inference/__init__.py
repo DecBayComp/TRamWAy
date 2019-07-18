@@ -61,6 +61,12 @@ def _post_load(plugins):
             assert _dprior[0] == '-d'
             _dprior = (_dprior[0], '--diffusion-prior') + _dprior[1:]
             _setup['arguments']['diffusivity_prior'] = _dprior
+        if 'diffusivity_time_prior' in _args:
+            _dprior = _args['diffusivity_time_prior']
+            assert isinstance(_dprior, tuple)
+            assert isinstance(_dprior[0], str)
+            _dprior = (_dprior[0], '--diffusion-time-prior') + _dprior[1:]
+            _setup['arguments']['diffusivity_time_prior'] = _dprior
 
 plugins.post_load = _post_load
 
