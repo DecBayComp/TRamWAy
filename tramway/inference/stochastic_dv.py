@@ -61,21 +61,21 @@ module_logger.addHandler(_console)
 
 
 class LocalDV(DV):
-    __slots__ = ('regions','_diffusivity_temporal_prior','_potential_temporal_prior',
+    __slots__ = ('regions','_diffusivity_time_prior','_potential_time_prior',
             'prior_delay','_n_calls','_undefined_grad','_undefined_time_derivative',
             '_update_undefined_grad','_update_undefined_time_derivative','_logger')
 
     def __init__(self, diffusivity, potential,
         diffusivity_spatial_prior=None, potential_spatial_prior=None,
-        diffusivity_temporal_prior=None, potential_temporal_prior=None,
+        diffusivity_time_prior=None, potential_time_prior=None,
         minimum_diffusivity=None, positive_diffusivity=None, prior_include=None,
         regions=None, prior_delay=None, logger=True):
         # positive_diffusivity is for backward compatibility
         DV.__init__(self, diffusivity, potential, diffusivity_spatial_prior, potential_spatial_prior,
             minimum_diffusivity, positive_diffusivity, prior_include)
         self.regions = regions
-        self._diffusivity_temporal_prior = diffusivity_temporal_prior
-        self._potential_temporal_prior = potential_temporal_prior
+        self._diffusivity_time_prior = diffusivity_time_prior
+        self._potential_time_prior = potential_time_prior
         self.prior_delay = prior_delay
         self._n_calls = 0.
         self._undefined_grad = set()
@@ -132,8 +132,8 @@ class LocalDV(DV):
     def potential_spatial_prior(self, i):
         return self.potential_prior(i)
 
-    def potential_temporal_prior(self, i):
-        return self._potential_temporal_prior
+    def potential_time_prior(self, i):
+        return self._potential_time_prior
 
     def diffusivity_prior(self, i):
         if self.prior_delay:
@@ -152,8 +152,8 @@ class LocalDV(DV):
     def diffusivity_spatial_prior(self, i):
         return self.diffusivity_prior(i)
 
-    def diffusivity_temporal_prior(self, i):
-        return self._diffusivity_temporal_prior
+    def diffusivity_time_prior(self, i):
+        return self._diffusivity_time_prior
 
     @property
     def logger(self):
@@ -297,7 +297,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
             raise ValueError('non positive diffusivity')
         standard_priors += jeffreys_prior * 2. * np.log(Dj * dt_mean[j] + sigma2) - np.log(Dj)
 
-    D_time_prior = dv.diffusivity_temporal_prior(i)
+    D_time_prior = dv.diffusivity_time_prior(i)
     if D_time_prior:
         dDdt = cells.temporal_variation(i, D, reverse_index)
         if dDdt is None:
@@ -305,7 +305,7 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
         else:
             # assume fixed-duration time window
             time_priors += D_time_prior * np.sum(dDdt * dDdt)
-    V_time_prior = dv.potential_temporal_prior(i)
+    V_time_prior = dv.potential_time_prior(i)
     if V_time_prior:
         dVdt = cells.temporal_variation(i, V, reverse_index)
         if dVdt is None:
@@ -338,12 +338,12 @@ def _local_dv_neg_posterior(*args, **kwargs):
 
 def infer_stochastic_DV(cells,
     diffusivity_spatial_prior=None, potential_spatial_prior=None,
-    diffusivity_temporal_prior=None, potential_temporal_prior=None,
+    diffusivity_time_prior=None, potential_time_prior=None,
     jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
     export_centers=False, verbose=True, superlocal=True, stochastic=True,
     D0=None, V0=None, x0=None, rgrad=None, debug=False, fulltime=False,
-    diffusion_prior=None, diffusion_spatial_prior=None, diffusion_temporal_prior=None,
+    diffusion_prior=None, diffusion_spatial_prior=None, diffusion_time_prior=None,
     prior_delay=None, return_struct=False, posterior_max_count=None,# deprecated
     diffusivity_prior=None, potential_prior=None, time_prior=None,# deprecated
     **kwargs):
@@ -360,12 +360,12 @@ def infer_stochastic_DV(cells,
 
         diffusivity_spatial_prior/diffusion_spatial_prior: alias for `diffusivity_prior`.
 
-        diffusivity_temporal_prior/diffusion_temporal_prior: penalizes the temporal derivative
+        diffusivity_time_prior/diffusion_time_prior: penalizes the temporal derivative
             of diffusivity; this coefficient does NOT multiply with `diffusivity_prior`.
 
         potential_spatial_prior: alias for `potential_prior`.
 
-        potential_temporal_prior: penalizes the temporal derivative of potential;
+        potential_time_prior: penalizes the temporal derivative of potential;
             this coefficient does NOT multiply with `potential_prior`.
 
         ...
@@ -425,14 +425,14 @@ def infer_stochastic_DV(cells,
         potential_spatial_prior = potential_prior
     if not isinstance(time_prior, (tuple, list)):
         time_prior = (time_prior, time_prior)
-    if diffusivity_temporal_prior is None:
-        diffusivity_temporal_prior = diffusion_temporal_prior
-    if diffusivity_temporal_prior is None and not (time_prior[0] is None or diffusivity_spatial_prior is None):
-        diffusivity_temporal_prior = time_prior[0] * diffusivity_spatial_prior
-    if potential_temporal_prior is None and not (time_prior[1] is None or potential_spatial_prior is None):
-        potential_temporal_prior = time_prior[1] * potential_spatial_prior
+    if diffusivity_time_prior is None:
+        diffusivity_time_prior = diffusion_time_prior
+    if diffusivity_time_prior is None and not (time_prior[0] is None or diffusivity_spatial_prior is None):
+        diffusivity_time_prior = time_prior[0] * diffusivity_spatial_prior
+    if potential_time_prior is None and not (time_prior[1] is None or potential_spatial_prior is None):
+        potential_time_prior = time_prior[1] * potential_spatial_prior
     dv = LocalDV(D_initial, V_initial, diffusivity_spatial_prior, potential_spatial_prior,
-        diffusivity_temporal_prior, potential_temporal_prior, min_diffusivity, prior_delay=prior_delay)
+        diffusivity_time_prior, potential_time_prior, min_diffusivity, prior_delay=prior_delay)
     if verbose:
         logger = dv.logger
     else:

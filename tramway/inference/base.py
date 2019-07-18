@@ -448,11 +448,11 @@ class Distributed(Local):
         """
         Local spatial variation, gradient-like, aimed at penalizing spatial variations.
 
-        See also :func:`delta0`.
+        See also :func:`~tramway.inference.gradient.delta0`.
 
         As of version *0.3.8*: new; called for spatial regularization in `stochastic_dv`.
 
-        As of version *0.4*: default implementation becomes :func:`delta0`.
+        As of version *0.4*: default implementation becomes :func:`~tramway.inference.gradient.delta0`.
 
         May become the new default for spatial regularization.
 

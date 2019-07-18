@@ -21,7 +21,19 @@ from collections import OrderedDict
 
 def delta0(cells, i, X, index_map=None, **kwargs):
     """
-    Differences with neighbour values.
+    Differences with neighbour values:
+
+    .. math::
+
+        \\Delta X_i = \\frac{1}{\\sqrt{|\\mathcal{N}_i|}} \\left[ \\frac{X_i-X_j}{|| \\textbf{x}_i-\\textbf{x}_j ||} \\right]_{j \\in \\mathcal{N}_i}
+
+    The above scaling is chosen so that combining :meth:`~tramway.inference.base.Distributed.local_variation` with :meth:`~tramway.inference.base.Distributed.grad_sum` results in the following scalar penalty:
+
+    .. math::
+
+        \\Delta X_i^2 = \\frac{1}{ | \\mathcal{N}_i | } \\sum_{j \\in \\mathcal{N}_i} \\left( \\frac{X_i-X_j}{|| \\textbf{x}_i-\\textbf{x}_j ||} \\right)^2
+
+    Claims cache variable '*delta0*'.
 
     Arguments:
 
@@ -77,7 +89,7 @@ def delta0(cells, i, X, index_map=None, **kwargs):
     y0, y = y[i], y[adjacent]
 
     # scale by the number of differences to make the sum of the returned values be a mean value instead
-    return (y - y0) / dx_norm / float(len(y))
+    return (y - y0) / dx_norm / np.sqrt(float(len(y)))
 
 
 def gradn(cells, i, X, index_map=None):
