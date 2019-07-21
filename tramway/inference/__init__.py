@@ -30,11 +30,12 @@ _sigma2_args = dict(type=float, help='localization error (distance square)')
 def _post_load(plugins):
     for _mode in plugins:
         _setup, _module = plugins[_mode]
+        _args = _setup.get('arguments', {})
         if 'cell_sampling' in _setup:
-            if 'arguments' in _setup:
-                if 'worker_count' in _setup['arguments']:
+            if _args:
+                if 'worker_count' in _args:
                     continue
-                _flags = [ _a[0] for _a in _setup['arguments'].values()
+                _flags = [ _a[0] for _a in _args.values()
                         if isinstance(_a, (tuple, list)) and _a ]
             else:
                 _setup['arguments'] = {}
@@ -49,11 +50,23 @@ def _post_load(plugins):
                 else:
                     _setup['arguments']['max_cell_count'] = ('-C', _mcc_args)
                 _setup['arguments']['dilation'] = _dil_args
-        if 'localization_error' in _setup.get('arguments', []):
-            if 'sigma' not in _setup['arguments']:
+        if 'localization_error' in _args:
+            if 'sigma' not in _args:
                 _setup['arguments']['sigma'] = _sigma_args
-            if 'sigma2' not in _setup['arguments']:
+            if 'sigma2' not in _args:
                 _setup['arguments']['sigma2'] = _sigma2_args
+        if 'diffusivity_prior' in _args:
+            _dprior = _args['diffusivity_prior']
+            assert isinstance(_dprior, tuple)
+            assert _dprior[0] == '-d'
+            _dprior = (_dprior[0], '--diffusion-prior') + _dprior[1:]
+            _setup['arguments']['diffusivity_prior'] = _dprior
+        if 'diffusivity_time_prior' in _args:
+            _dprior = _args['diffusivity_time_prior']
+            assert isinstance(_dprior, tuple)
+            assert isinstance(_dprior[0], str)
+            _dprior = (_dprior[0], '--diffusion-time-prior') + _dprior[1:]
+            _setup['arguments']['diffusivity_time_prior'] = _dprior
 
 plugins.post_load = _post_load
 

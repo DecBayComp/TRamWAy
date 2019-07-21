@@ -968,7 +968,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         ls_step_max_decay=None, ls_iter_max=None,
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
-        independent_components=False, newton=True, verbose=False, returns='all', xref=None, **kwargs):# TEST
+        independent_components=False, newton=True, verbose=False, diagnosis=None,
+        returns=(), xref=None, **kwargs):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
@@ -1091,7 +1092,11 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
 
         verbose (bool or logging.Logger): verbose mode or logger.
 
-        returns (sequence of str): any subset of {'f', 'df', 'projg', 'err', 'ncalls', 'diagnosis'}.
+        diagnosis (callable): function of the iteration number and the current and candidate-new
+            components.
+
+        returns (sequence of str): any subset of {'f', 'df', 'projg', 'err', 'ncalls', 'diagnosis'}
+            or 'all'.
 
         xref (numpy.ndarray): reference final parameter vector; if defined, at each iteration,
             the L2-norm of the difference between this and the current parameter vector is evaluated
@@ -1120,8 +1125,6 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     __global__ = SparseFunction(x0, covariate, gradient_subspace, descent_subspace,
             eps, fun, _sum, args, regul, bounds, gradient_initial_step)
     extend_global(__global__, independent_components, memory, newton, gradient_covariate)
-    __global__.xref = xref
-    __global__.returns = {'f', 'df', 'projg', 'err', 'ncalls'} if returns == 'all' else returns # 'diagnosis' not yet available
     C = _defaultdict(Component, __global__)
 
     sched = SBFGSScheduler(__global__, C, component,
@@ -1130,10 +1133,19 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             ls_iter_max=ls_iter_max, ls_armijo_max=ls_armijo_max, ls_wolfe=ls_wolfe,
             ls_regul=ls_regul, ls_step_max=ls_step_max, ls_step_max_decay=ls_step_max_decay,
             ls_failure_rate=ls_failure_rate, fix_ls=fix_ls, fix_ls_trigger=fix_ls_trigger,
-            verbose=verbose, logger=logger, **kwargs)
+            verbose=verbose, logger=logger, diagnosis=diagnosis,
+            returns={'f', 'df', 'projg', 'err', 'ncalls', 'diagnosis'} if returns == 'all' else returns,
+            **kwargs)
     sched.logger = logger
 
     if verbose:
+        compact_logs = False
+        if logger is module_logger:
+            if 1 < sched.worker_count:
+                _console.setFormatter(logging.Formatter('%(message)s'))
+                compact_logs = True
+            else:
+                _console.setFormatter(logging.Formatter('%(message)s\n'))
         logger.debug('number of workers: {}'.format(sched.worker_count))
         t0 = time.time()
 
@@ -1154,16 +1166,17 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
     df_history = sched.df_history
     dg_history = sched.dg_history
     err_history = sched.err_history
+    diagnoses = sched.diagnoses
 
     if verbose:
         cumt = time.time() - t0
-        logger.info('           * * *\n\n{}\n'.format(resolution))
+        logger.info('{}           * * *\n\n{}\n'.format('\n' if compact_logs else '', resolution))
         minute = floor(cumt / 60.)
         second = cumt - minute * 60.
         if minute:
-            logger.info('Elapsed time = {:.0f}m{:.3f}s\n'.format(minute, second))
+            logger.info('Elapsed time = {:.0f}m{:.3f}s'.format(minute, second))
         else:
-            logger.info('Elapsed time = {:.3f}s\n'.format(second))
+            logger.info('Elapsed time = {:.3f}s'.format(second))
 
     try:
         H = {i: C[i].H for i in C}
@@ -1176,7 +1189,8 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             df_history if df_history else None,
             dg_history if dg_history else None,
             cumt if verbose else None,
-            err_history if err_history else None, None,
+            err_history if err_history else None,
+            diagnoses  if diagnoses  else None,
             ncalls     if ncalls     else None)
 
 
@@ -1184,7 +1198,7 @@ class SBFGSScheduler(parallel.Scheduler):
     def __init__(self, __global__, C, component, worker_count=None,
             name=None, args=(), kwargs={}, daemon=None,
             max_iter=None, ftol=None, gtol=None, low_df_rate=None, low_dg_rate=None,
-            ls_failure_rate=None, fix_ls=None, fix_ls_trigger=None, **_kwargs):
+            ls_failure_rate=None, fix_ls=None, fix_ls_trigger=None, returns={}, **_kwargs):
         __global__.gtol = gtol
         parallel.Scheduler.__init__(self, __global__, C, worker_count=worker_count, iter_max=max_iter,
                 name=name, args=args, kwargs=kwargs, daemon=daemon, **_kwargs)
@@ -1198,11 +1212,12 @@ class SBFGSScheduler(parallel.Scheduler):
         self.fix_ls = fix_ls
         self.fix_ls_trigger = fix_ls_trigger
         self.recurrent_ls_failure_count = {}
-        self.ncalls = [] if 'ncalls' in __global__.returns else None
-        self.f_history = [] if 'f' in __global__.returns else None
-        self.df_history = [] if 'df' in __global__.returns else None
-        self.dg_history = [] if 'projg' in __global__.returns else None
-        self.err_history = [] if 'err' in __global__.returns else None
+        self.ncalls = [] if 'ncalls' in returns else None
+        self.f_history = [] if 'f' in returns else None
+        self.df_history = [] if 'df' in returns else None
+        self.dg_history = [] if 'projg' in returns else None
+        self.err_history = [] if 'err' in returns else None
+        self.diagnoses = [] if 'diagnosis' in returns else None
         self.paused = dict()
 
     @property
@@ -1251,7 +1266,7 @@ class SBFGSScheduler(parallel.Scheduler):
                             self.recurrent_ls_failure_count.get(i, 0) + 1
                     if self.fix_ls_trigger <= _count:
                         if verbose:
-                            self.logger.debug(msg2(k, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
+                            self.logger.debug(msg2(k+1, i, 'TRYING TO FIX THE RECURRENT FAILURE'))
                         c.push(x)
                         self.fix_ls(i, x)
                         c.pull(x)
@@ -1296,6 +1311,10 @@ class SBFGSScheduler(parallel.Scheduler):
                     assert not self.err_history
                 else:
                     self.err_history.append(err)
+            if self.diagnoses is not None:
+                diag = status.get('diagnosis', None)
+                if diag is not None:
+                    self.diagnoses.append(diag)
             if self.ftol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if df < self.ftol:
                     self.low_df_count += 1
@@ -1341,13 +1360,12 @@ class SBFGSWorker(parallel.Worker):
     def target(self, newton=None, step_scale=None, regul_decay=None,
             ls_iter_max=None, ls_armijo_max=None, ls_wolfe=None, ls_regul=None,
             ls_step_max=None, ls_step_max_decay=None,
-            verbose=None, logger=None, xref=None):
+            verbose=None, logger=None, diagnosis=None, xref=None):
         __global__ = self.workspace
         x = __global__.x
         regul = __global__.regul
         bounds = __global__.bounds
         gtol = __global__.gtol
-        xref = __global__.xref
 
         if verbose:
             msg0, msg1, msg2 = define_pprint()
@@ -1375,7 +1393,7 @@ class SBFGSWorker(parallel.Worker):
                 __global__.ncalls = 0
                 try:
 
-                    assert x is __global__.x
+                    #assert x is __global__.x
                     if regul_decay:
                         _decay = max(1. - float(k) * regul_decay, 1e-10)
                         if regul:
@@ -1405,7 +1423,7 @@ class SBFGSWorker(parallel.Worker):
                     oHo = np.dot(H.dot(ones), ones)
                     if np.any(oHo <= 0):
                         if verbose:
-                            logger.debug(msg2(k, i, 'H not positive definite (k)'))
+                            logger.debug(msg2(k+1, i, 'H not positive definite (k)'))
                         H.drop()
 
                     _k = 0
@@ -1421,7 +1439,7 @@ class SBFGSWorker(parallel.Worker):
                             break
                         if newton and 0 <= np.dot(p, g0):
                             if verbose:
-                                logger.debug(msg2(k, i, 'PROJ G <= 0 (k)'))
+                                logger.debug(msg2(k+1, i, 'PROJ G <= 0 (k)'))
                             H.drop()
                             p = -H.dot(g)
                             p = c.in_descent_subspace(p)
@@ -1434,13 +1452,14 @@ class SBFGSWorker(parallel.Worker):
                                 return_resolution=verbose,
                                 **ls_kwargs) # s_{k}
 
-                        # if the linesearch failed, make `g` sparser
                         if verbose:
                             s, res = s
+                        break
+
+                        # if the linesearch failed, make `g` sparser
                         if s is None:
                             #if verbose:
-                            #    logger.debug(msg2(k, i, res))
-                            break
+                            #    logger.debug(msg2(k+1, i, res))
                             if not _k:
                                 g = np.array(g)
                                 _active = np.argsort(np.abs(g))
@@ -1452,21 +1471,21 @@ class SBFGSWorker(parallel.Worker):
                     info['f'] = c.f
                     if local_convergence:
                         if verbose:
-                            logger.info(msg2(k, i, 'LOCAL CONVERGENCE MET'))
+                            logger.info(msg2(k+1, i, 'LOCAL CONVERGENCE MET'))
                         info['df'] = 0
                         continue
 
                     # sanity checks
                     if s is None:
                         if verbose:
-                            #logger.info(msg2(k, i, 'LINE SEARCH FAILED'))
-                            logger.info(msg2(k, i, 'LINE SEARCH FAILED ({})'.format(res)))#.upper())))
+                            #logger.info(msg2(k+1, i, 'LINE SEARCH FAILED'))
+                            logger.info(msg2(k+1, i, 'LINE SEARCH FAILED ({})'.format(res)))#.upper())))
                         info['ls_failure'] = True
                         # undo any change in the working copy of the parameter vector (default in finally block)
                         continue
                     if np.all(s == 0):
                         if verbose:
-                            logger.info(msg2(k, i, 'NULL UPDATE'))
+                            logger.info(msg2(k+1, i, 'NULL UPDATE'))
                         info['df'] = 0
                         # undo any change in the working copy of the parameter vector (default in finally block)
                         continue
@@ -1478,9 +1497,12 @@ class SBFGSWorker(parallel.Worker):
 
                     info['df'] = c.f - c1.f
 
+                    if diagnosis:
+                        info['diagnosis'] = diagnosis(k, c, c1)
+
                     if gtol is None and not newton:
                         if verbose:
-                            logger.info(msg1(k, i, c.f, c1.f))
+                            logger.info(msg1(k+1, i, c.f, c1.f))
                         c = c1 # 'push' the parameter update `c1`
                         continue
 
@@ -1489,12 +1511,12 @@ class SBFGSWorker(parallel.Worker):
                     # sanity checks
                     if h is None:
                         if verbose:
-                            logger.debug(msg2(k, i, 'GRADIENT CALCULATION FAILED (k+1)'))
+                            logger.debug(msg2(k+1, i, 'GRADIENT CALCULATION FAILED (k+1)'))
                         # drop c1 (default in finally block)
                         continue
                     if np.allclose(g, h):
                         if verbose:
-                            logger.debug(msg2(k, i, 'NO CHANGE IN THE GRADIENT'))
+                            logger.debug(msg2(k+1, i, 'NO CHANGE IN THE GRADIENT'))
                         c = c1 # 'push' the parameter update...
                         continue # ...but do not update H
 
@@ -1505,14 +1527,14 @@ class SBFGSWorker(parallel.Worker):
                     info['dg'] = proj
                     if proj <= 0:
                         if verbose:
-                            logger.debug(msg2(k, i, 'PROJ G <= 0 (k+1)'))
+                            logger.debug(msg2(k+1, i, 'PROJ G <= 0 (k+1)'))
                         # either drop c1 (default in finally block)...
                         # ... or drop the inverse Hessian
                         c1.H.drop()
                         c = c1 # push `c1`
                         continue
                     elif verbose:
-                        logger.info(msg1(k, i, c.f, c1.f, proj))
+                        logger.info(msg1(k+1, i, c.f, c1.f, proj))
 
                     # 'push' the parameter update together with H update
                     H1 = (s, y, proj)

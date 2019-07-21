@@ -159,7 +159,7 @@ class Worker(multiprocessing.Process):
         self.feedback = return_queue
         self.args = args
         self.kwargs = kwargs
-    def get_task(self, *args, **kwargs):
+    def get_task(self):
         """ Listen to the scheduler and get a job step to be run.
 
         The job step is loaded with the worker-local copy of the synchronized workspace.
@@ -221,15 +221,13 @@ def _pseudo_worker(worker):
             worker.__init__(self, _id, scheduler.workspace,
                 None, None, None, name=name, args=args, kwargs=kwargs)
             self._scheduler = scheduler
-        def get_task(self, *args, **kwargs):
+        def get_task(self):
             return self._scheduler.next_task()
         def push_update(self, update, status=None):
             i = update.resource_id
             self._scheduler.task[i] = update
             if self._scheduler.pseudo_stop(status):
                 raise NormalTermination
-        def pull_updates(self):
-            pass
         def run(self):
             self.target(*self.args, **self.kwargs)
     return PseudoWorker
@@ -261,6 +259,8 @@ class Scheduler(object):
         self.k_max = iter_max
         if worker_count is None:
             worker_count = multiprocessing.cpu_count() - 1
+        elif worker_count < 0:
+            worker_count = multiprocessing.cpu_count() - worker_count
         kwargs.update(_kwargs)
         if worker_count:
             self.task_queue = multiprocessing.Queue()
@@ -280,7 +280,8 @@ class Scheduler(object):
         else:
             self.workers = self.pseudo_worker(self, args=args, kwargs=kwargs)
     def init_resource_lock(self):
-        self.resource_lock = np.zeros(len(self.workspace), dtype=bool)
+        if 1 < self.worker_count:
+            self.resource_lock = np.zeros(len(self.workspace), dtype=bool)
     @property
     def worker(self):
         return Worker
@@ -301,15 +302,17 @@ class Scheduler(object):
             if i is not None:
                 task = self.task[i]
                 break
-        return self.k_eff, task
+        return self.k_eff-1, task
     def locked(self, step):
-        return False
-        return step.resource_id in self.active or \
-                np.any(self.resource_lock[step.resources])
+        return 1 < self.worker_count and \
+                (step.resource_id in self.active or \
+                np.any(self.resource_lock[step.resources]))
     def lock(self, step):
-        self.resource_lock[step.resources] = True
+        if 1 < self.worker_count:
+            self.resource_lock[step.resources] = True
     def unlock(self, step):
-        self.resource_lock[step.resources] = False
+        if 1 < self.worker_count:
+            self.resource_lock[step.resources] = False
     @property
     def available_slots(self):
         """

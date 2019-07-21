@@ -32,7 +32,14 @@ The generated documentation will be available at ``_build/html/index.html`` from
 Building the documentation requires Sphinx, preferably for Python3.
 
 
-Notes for Installation on Windows
+Notes on Python versions
+------------------------
+
+Some modules require Python>=3.7.
+These are *bayes_factor* for force “detection” based on Bayesian statistics, *snr* that extracts signal-to-noise ratios required by the *bayes_factor* module, and *d.conj_prior* which estimates the diffusion similarly to *degraded.d* with additional confidence intervals.
+
+
+Notes for installation on Windows
 ---------------------------------
 
 If after following the above steps, launching |tramway| on Windows generates the following error:

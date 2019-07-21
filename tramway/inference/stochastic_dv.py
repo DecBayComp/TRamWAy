@@ -36,7 +36,9 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
         ('potential_prior',     ('-v', dict(type=float, help='prior on the potential energy'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
-        ('time_prior',          ('-t', dict(type=float, help='prior on the temporal variations of the diffusivity and potential energy'))),
+        ('time_prior',          ('-t', dict(type=float, help='prior on the temporal variations of the diffusivity and potential energy (multiplies with `diffusivity_prior` and `potential_prior`'))),
+        ('diffusivity_time_prior',('--time-d', dict(type=float, help='prior on the temporal variations of the diffusivity'))),
+        ('potential_time_prior',('--time-v', dict(type=float, help='prior on the temporal variations of the potential'))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',            dict(type=int, help='maximum number of iterations')),
         ('compatibility',       ('-c', '--inferencemap', '--compatible',
@@ -54,21 +56,26 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
 module_logger = logging.getLogger(__name__)
 module_logger.setLevel(logging.DEBUG)
 _console = logging.StreamHandler()
-_console.setFormatter(logging.Formatter('%(message)s\n'))
+_console.setFormatter(logging.Formatter('%(message)s'))
 module_logger.addHandler(_console)
 
 
 class LocalDV(DV):
-    __slots__ = ('regions','prior_delay','_n_calls','_undefined_grad','_undefined_time_derivative',
+    __slots__ = ('regions','_diffusivity_time_prior','_potential_time_prior',
+            'prior_delay','_n_calls','_undefined_grad','_undefined_time_derivative',
             '_update_undefined_grad','_update_undefined_time_derivative','_logger')
 
-    def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None,
+    def __init__(self, diffusivity, potential,
+        diffusivity_spatial_prior=None, potential_spatial_prior=None,
+        diffusivity_time_prior=None, potential_time_prior=None,
         minimum_diffusivity=None, positive_diffusivity=None, prior_include=None,
-        regions=None, prior_delay=None, logger=None):
+        regions=None, prior_delay=None, logger=True):
         # positive_diffusivity is for backward compatibility
-        DV.__init__(self, diffusivity, potential, diffusivity_prior, potential_prior,
+        DV.__init__(self, diffusivity, potential, diffusivity_spatial_prior, potential_spatial_prior,
             minimum_diffusivity, positive_diffusivity, prior_include)
         self.regions = regions
+        self._diffusivity_time_prior = diffusivity_time_prior
+        self._potential_time_prior = potential_time_prior
         self.prior_delay = prior_delay
         self._n_calls = 0.
         self._undefined_grad = set()
@@ -76,6 +83,19 @@ class LocalDV(DV):
         self._update_undefined_grad = set()
         self._update_undefined_time_derivative = set()
         self._logger = logger
+
+    @property
+    def verbose(self):
+        return self._logger is not None
+
+    @verbose.setter
+    def verbose(self, b):
+        if b:
+            if not self.verbose:
+                self._logger = True
+        else:
+            if self.verbose:
+                self._logger = None
 
     def region(self, i):
         return self.regions[i]
@@ -109,6 +129,12 @@ class LocalDV(DV):
                 prior = DV.potential_prior(self, i)
         return prior
 
+    def potential_spatial_prior(self, i):
+        return self.potential_prior(i)
+
+    def potential_time_prior(self, i):
+        return self._potential_time_prior
+
     def diffusivity_prior(self, i):
         if self.prior_delay:
             if self._n_calls < self.prior_delay:
@@ -123,23 +149,33 @@ class LocalDV(DV):
                 prior = DV.diffusivity_prior(self, i)
         return prior
 
+    def diffusivity_spatial_prior(self, i):
+        return self.diffusivity_prior(i)
+
+    def diffusivity_time_prior(self, i):
+        return self._diffusivity_time_prior
+
     @property
     def logger(self):
-        if self._logger is None:
+        if self._logger is True:
             self._logger = module_logger
         return self._logger
 
+    @logger.setter
+    def logger(self, l):
+        self._logger = l
+
     def undefined_grad(self, i, feature=''):
-        if i not in self._undefined_grad:
+        if self.verbose and i not in self._undefined_grad:
             self._undefined_grad.add(i)
             self._update_undefined_grad.add(i)
-            self.logger.warning('grad{}({}) is not defined'.format(feature, i))
+            self.logger.debug('grad{}({}) is not defined'.format(feature, i))
 
     def undefined_time_derivative(self, i, feature=''):
-        if i not in self._undefined_time_derivative:
+        if self.verbose and i not in self._undefined_time_derivative:
             self._undefined_time_derivative.add(i)
             self._update_undefined_time_derivative.add(i)
-            self.logger.warning('d{}({})/dt failed'.format(feature, i))
+            self.logger.debug('d{}({})/dt failed'.format(feature, i))
 
     def pop_workspace_update(self):
         try:
@@ -149,8 +185,9 @@ class LocalDV(DV):
 
     def push_workspace_update(self, update):
         undefined_grad, undefined_time_derivative = update
-        self._undefined_grad.update(undefined_grad)
-        self._undefined_time_derivative.update(undefined_time_derivative)
+        if isinstance(undefined_grad, set):
+            self._undefined_grad.update(undefined_grad)
+            self._undefined_time_derivative.update(undefined_time_derivative)
 
 parallel.abc.WorkspaceExtension.register(LocalDV)
 
@@ -194,7 +231,7 @@ def lookup_space_cells(cells):
 
 
 def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
-    time_prior, dt_mean, index, reverse_index, grad_kwargs,
+    dt_mean, index, reverse_index, grad_kwargs,
     posterior_info=None, iter_num=None, verbose=False):
     """
     """
@@ -241,12 +278,12 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
 
     # priors
     standard_priors, time_priors = 0., 0.
-    V_prior = dv.potential_prior(j)
+    V_prior = dv.potential_spatial_prior(j)
     if V_prior:
         deltaV = cells.local_variation(i, V, reverse_index, **grad_kwargs)
         if deltaV is not None:
             standard_priors += V_prior * cells.grad_sum(i, deltaV * deltaV, reverse_index)
-    D_prior = dv.diffusivity_prior(j)
+    D_prior = dv.diffusivity_spatial_prior(j)
     if D_prior:
         D = x[:int(x.size/2)]
         # spatial gradient of the local diffusivity
@@ -260,23 +297,21 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
             raise ValueError('non positive diffusivity')
         standard_priors += jeffreys_prior * 2. * np.log(Dj * dt_mean[j] + sigma2) - np.log(Dj)
 
-    if time_prior:
-        D_time_prior, V_time_prior = time_prior
-        if D_prior and D_time_prior:
-            # as of version 0.3.8, `time_derivative` replaced by `temporal_variation`
-            dDdt = cells.temporal_variation(i, D, reverse_index)
-            if dDdt is None:
-                dv.undefined_time_derivative(i, 'D')
-            else:
-                # assume fixed-duration time window
-                time_priors += D_prior * D_time_prior * np.sum(dDdt * dDdt)
-        if V_prior and V_time_prior:
-            # as of version 0.3.8, `time_derivative` replaced by `temporal_variation`
-            dVdt = cells.temporal_variation(i, V, reverse_index)
-            if dVdt is None:
-                dv.undefined_time_derivative(i, 'V')
-            else:
-                time_priors += V_prior * V_time_prior * np.sum(dVdt * dVdt)
+    D_time_prior = dv.diffusivity_time_prior(i)
+    if D_time_prior:
+        dDdt = cells.temporal_variation(i, D, reverse_index)
+        if dDdt is None:
+            dv.undefined_time_derivative(i, 'D')
+        else:
+            # assume fixed-duration time window
+            time_priors += D_time_prior * np.sum(dDdt * dDdt)
+    V_time_prior = dv.potential_time_prior(i)
+    if V_time_prior:
+        dVdt = cells.temporal_variation(i, V, reverse_index)
+        if dVdt is None:
+            dv.undefined_time_derivative(i, 'V')
+        else:
+            time_priors += V_time_prior * np.sum(dVdt * dVdt)
 
     priors = standard_priors + time_priors
     result = raw_posterior + priors
@@ -301,12 +336,16 @@ def _local_dv_neg_posterior(*args, **kwargs):
         return np.inf
 
 
-def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, time_prior=None,
-    prior_delay=None, jeffreys_prior=False, min_diffusivity=None, max_iter=None,
+def infer_stochastic_DV(cells,
+    diffusivity_spatial_prior=None, potential_spatial_prior=None,
+    diffusivity_time_prior=None, potential_time_prior=None,
+    jeffreys_prior=False, min_diffusivity=None, max_iter=None,
     compatibility=False,
     export_centers=False, verbose=True, superlocal=True, stochastic=True,
-    D0=None, V0=None, x0=None, rgrad=None,
-    return_struct=False, debug=False, posterior_max_count=1000, fulltime=False,
+    D0=None, V0=None, x0=None, rgrad=None, debug=False, fulltime=False,
+    diffusion_prior=None, diffusion_spatial_prior=None, diffusion_time_prior=None,
+    prior_delay=None, return_struct=False, posterior_max_count=None,# deprecated
+    diffusivity_prior=None, potential_prior=None, time_prior=None,# deprecated
     **kwargs):
     """
     Arguments:
@@ -319,21 +358,28 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
             `diffusivity_prior`) and the second applies to potential energy (and
             is multiplied by `potential_prior`).
 
+        diffusivity_spatial_prior/diffusion_spatial_prior: alias for `diffusivity_prior`.
+
+        diffusivity_time_prior/diffusion_time_prior: penalizes the temporal derivative
+            of diffusivity; this coefficient does NOT multiply with `diffusivity_prior`.
+
+        potential_spatial_prior: alias for `potential_prior`.
+
+        potential_time_prior: penalizes the temporal derivative of potential;
+            this coefficient does NOT multiply with `potential_prior`.
+
         ...
 
     See also :func:`~tramway.inference.optimization.minimize_sparse_bfgs`.
     """
 
     # initial values
-    if stochastic and not superlocal and not potential_prior:
-        raise ValueError('regularization is required for the potential energy')
+    if stochastic and not (superlocal or potential_prior or potential_spatial_prior):
+        raise ValueError('spatial regularization is required for the potential energy')
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     index, reverse_index, n, dt_mean, D_initial, _min_diffusivity, D_bounds, border = \
-        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
-    # validate or undo some values returned by `smooth_infer_init`
-    if jeffreys_prior:
-        min_diffusivity = _min_diffusivity
-    elif min_diffusivity is None:
-        D_bounds = [(None, None)] * D_initial.size
+        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
+        sigma2=localization_error)
     # V initial values
     if x0 is None:
         if V0 is None:
@@ -361,35 +407,56 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
             raise ValueError('wrong size for D0')
     if V0 is not None:
         if np.isscalar(V0):
-            V_initial = np.full(D_initial.size, V0)
+            # V0 may be given as an integer
+            V_initial = np.full(D_initial.size, V0, dtype=D_initial.dtype)
         elif V0.size == D_initial.size:
             V_initial = V0
         else:
             raise ValueError('wrong size for V0')
 
-    dv = LocalDV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity,
-        prior_delay=prior_delay)
-    if posterior_max_count:
-        posterior_info = deque([], posterior_max_count)
+    if diffusivity_prior is None:
+        diffusivity_prior = diffusion_prior
+    if diffusivity_spatial_prior is None:
+        if diffusion_spatial_prior is None:
+            diffusivity_spatial_prior = diffusivity_prior
+        else:
+            diffusivity_spatial_prior = diffusion_spatial_prior
+    if potential_spatial_prior is None:
+        potential_spatial_prior = potential_prior
+    if not isinstance(time_prior, (tuple, list)):
+        time_prior = (time_prior, time_prior)
+    if diffusivity_time_prior is None:
+        diffusivity_time_prior = diffusion_time_prior
+    if diffusivity_time_prior is None and not (time_prior[0] is None or diffusivity_spatial_prior is None):
+        diffusivity_time_prior = time_prior[0] * diffusivity_spatial_prior
+    if potential_time_prior is None and not (time_prior[1] is None or potential_spatial_prior is None):
+        potential_time_prior = time_prior[1] * potential_spatial_prior
+    dv = LocalDV(D_initial, V_initial, diffusivity_spatial_prior, potential_spatial_prior,
+        diffusivity_time_prior, potential_time_prior, min_diffusivity, prior_delay=prior_delay)
+    if verbose:
+        logger = dv.logger
     else:
-        posterior_info = []
+        dv.logger = None
+        logger = module_logger
+    if posterior_max_count:
+        warn('`posterior_max_count` is deprecated', RuntimeWarning)
     posterior_info = None # parallelization makes this inoperant
 
     # gradient options
     grad_kwargs = get_grad_kwargs(kwargs)
     # bounds
-    V_bounds = [(0., None)] * V_initial.size
+    if np.isscalar(V0) and V0 == 0:
+        V_bounds = [(None, None)] * V_initial.size
+    else:
+        V_bounds = [(0., None)] * V_initial.size
     #if min_diffusivity is not None:
     #    assert np.all(min_diffusivity < D_initial)
     bounds = D_bounds + V_bounds
 
     # posterior function input arguments
-    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     if jeffreys_prior is True:
         jeffreys_prior = 1.
-    if time_prior and not isinstance(time_prior, (tuple, list)):
-        time_prior = (time_prior, time_prior)
-    args = (dv, cells, localization_error, jeffreys_prior, time_prior, dt_mean,
+    args = (dv, cells, localization_error, jeffreys_prior, dt_mean,
         index, reverse_index, grad_kwargs, posterior_info)
 
     m = len(index)
@@ -443,7 +510,7 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
 
     if os.name == 'nt':
         if sbfgs_kwargs.get('worker_count', None):
-            dv.logger.warning('multiprocessing may break on Windows')
+            logger.warning('multiprocessing may break on Windows')
         else:
             sbfgs_kwargs['worker_count'] = 0
 
@@ -470,9 +537,9 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
         sbfgs_kwargs['ls_step_max'] = sbfgs_kwargs.get('ls_step_max', default_step_max)
     if 'ls_armijo_max' not in sbfgs_kwargs:
         sbfgs_kwargs['ls_armijo_max'] = 5
-    ls_step_max_decay = sbfgs_kwargs.get('ls_step_max_decay', None)
-    if ls_step_max_decay:
-        sbfgs_kwargs['ls_step_max_decay'] /= float(m)
+    #ls_step_max_decay = sbfgs_kwargs.get('ls_step_max_decay', None)
+    #if ls_step_max_decay:
+    #    sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
         sbfgs_kwargs['ftol'] = 1e-5
     if 'gtol' not in sbfgs_kwargs:
@@ -484,7 +551,11 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
                 'projg_history': 'projg',
                 'error': 'err',
                 'diagnoses': 'diagnosis'}
-        if debug is not True:
+        if debug is True:
+            sbfgs_kwargs['returns'] = 'all'
+        else:
+            if isinstance(debug, str):
+                debug = (debug,)
             sbfgs_kwargs['returns'] = { debug_all[attr] for attr in debug }
     else:
         sbfgs_kwargs['returns'] = set()
@@ -498,8 +569,10 @@ def infer_stochastic_DV(cells, diffusivity_prior=None, potential_prior=None, tim
     # extract the different types of parameters
     dv.update(result.x)
     D, V = dv.D, dv.V
-    #if np.any(V < 0):
-    #    V -= np.min(V)
+    if np.isscalar(V0) and V0 == 0:
+        Vmin = np.min(V)
+        if Vmin < 0:
+            V -= Vmin
     DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index,
         columns=['diffusivity', 'potential'])
 

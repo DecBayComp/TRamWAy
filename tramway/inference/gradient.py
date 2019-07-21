@@ -21,7 +21,19 @@ from collections import OrderedDict
 
 def delta0(cells, i, X, index_map=None, **kwargs):
     """
-    Differences with neighbour values.
+    Differences with neighbour values:
+
+    .. math::
+
+        \\Delta X_i = \\frac{1}{\\sqrt{|\\mathcal{N}_i|}} \\left[ \\frac{X_i-X_j}{|| \\textbf{x}_i-\\textbf{x}_j ||} \\right]_{j \\in \\mathcal{N}_i}
+
+    The above scaling is chosen so that combining :meth:`~tramway.inference.base.Distributed.local_variation` with :meth:`~tramway.inference.base.Distributed.grad_sum` results in the following scalar penalty:
+
+    .. math::
+
+        \\Delta X_i^2 = \\frac{1}{ | \\mathcal{N}_i | } \\sum_{j \\in \\mathcal{N}_i} \\left( \\frac{X_i-X_j}{|| \\textbf{x}_i-\\textbf{x}_j ||} \\right)^2
+
+    Claims cache variable '*delta0*'.
 
     Arguments:
 
@@ -76,7 +88,8 @@ def delta0(cells, i, X, index_map=None, **kwargs):
 
     y0, y = y[i], y[adjacent]
 
-    return (y - y0) / dx_norm
+    # scale by the number of differences to make the sum of the returned values be a mean value instead
+    return (y - y0) / dx_norm / np.sqrt(float(len(y)))
 
 
 def gradn(cells, i, X, index_map=None):
@@ -222,8 +235,7 @@ def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selecti
     Arguments:
 
         _kwargs (dict):
-            mutable keyword arguments;
-            '*localization_error*', '*sigma*' and '*sigma2*' are popped out.
+            mutable keyword arguments; all the keywords below are popped out.
 
         gradient (str): either *grad1* or *gradn*.
 
@@ -373,7 +385,7 @@ def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
     return below, above
 
 
-def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
+def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None, na=np.nan):
     """
     Local gradient by 2 degree polynomial interpolation along each dimension independently.
 
@@ -408,9 +420,11 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
     minus those at a projected distance smaller than this value.
 
     If `selection_angle` is defined, neighbours are selected in two symmetric hypercones which
-    top angle is `selection_angle` times pi radians.
+    top angle is `selection_angle` times :math:`\pi` radians.
 
-    The default selection behaviour is equal to `selection_angle=.5` in 2D but not in higher dimensions.
+    If :func:`get_grad_kwargs` is called (most if not all the inference modes call this function),
+    the default selection behaviour is equal to `selection_angle=0.9`.
+    Otherwise, :func:`grad1` defaults to `selection_angle=0.5` in 2D.
 
     See also:
 
@@ -443,6 +457,9 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
             top angle of the neighbour selection hypercones;
             should be in the :math:`[0.5, 1.0[` range.
             Incompatible with `eps`.
+
+        na (float):
+            value for undefined components (no neighbours).
 
     Returns:
 
@@ -520,7 +537,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None):
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                grad_j = 0.
+                grad_j = na
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
                 grad_j = (y0 - np.mean(y[v])) * Xj

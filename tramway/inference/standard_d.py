@@ -30,7 +30,7 @@ setup = {'name': ('standard.d', 'smooth.d'),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
         ('max_iter',        dict(type=int, help='maximum number of iterations')),
-        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta1'")),
+        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta'/'delta0' or 'delta1'")),
         ('tol',             dict(type=float, help='tolerance for scipy minimizer')))),
     'cell_sampling': 'group'}
 setup_with_grad_arguments(setup)
@@ -112,7 +112,7 @@ def d_neg_posterior1(diffusivity, cells, sigma2, diffusivity_prior, \
     """
     if min_diffusivity is not None:
         observed_min = np.min(diffusivity)
-        if observed_min < min_diffusivity and not np.isclose(observed_min, min_diffusivity):
+        if observed_min < min_diffusivity:# and not np.isclose(observed_min, min_diffusivity):
             warn(DiffusivityWarning(observed_min, min_diffusivity))
     noise_dt = sigma2
     result = 0.
@@ -142,14 +142,16 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
 
     # initial values
+    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, _ = \
-        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior)
+        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
+        sigma2=localization_error)
 
     # gradient options
     grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon)
 
     # parametrize the optimization procedure
-    if min_diffusivity is not None:
+    if min_diffusivity not in (False, None):
         kwargs['bounds'] = D_bounds
     if max_iter:
         options = kwargs.get('options', {})
@@ -157,7 +159,7 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
         kwargs['options'] = options
 
     # posterior function
-    if rgrad in ('delta','delta1'):
+    if rgrad in ('delta','delta0','delta1'):
         fun = d_neg_posterior1
     else:
         if rgrad not in (None, 'grad', 'grad1', 'gradn'):
@@ -165,7 +167,6 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
         fun = smooth_d_neg_posterior
 
     # run the optimization
-    localization_error = cells.get_localization_error(kwargs, 0.03, True)
     result = minimize(fun, D_initial, \
         args=(cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs), \
         **kwargs)

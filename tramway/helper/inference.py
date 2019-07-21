@@ -237,12 +237,17 @@ class Infer(Helper):
                 val = eval(arg)
                 if val is not None:
                     kwargs[arg] = val
+        diffusion_prior = kwargs.pop('diffusion_prior', None)
+        if diffusion_prior is not None:
+            kwargs['diffusivity_prior'] = diffusion_prior
+
         if 'returns' in self.setup:
             kwargs['returns'] = self.setup['returns']
         if profile:
             kwargs['profile'] = profile
         if rgrad:
             kwargs['rgrad'] = rgrad
+
         x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
 
         ret = {}
@@ -284,14 +289,28 @@ class Infer(Helper):
 
         return maps
 
+    def plugin(self, name, plugins=None, verbose=None, func=None, **kwargs):
+        if func is not None:
+            if plugins is None:
+                plugins = {}
+            elif name in plugins:
+                warn('plugin `{}` will be overwritten'.format(name), RuntimeWarning)
+            setup = kwargs
+            setup['infer'] = 'func'
+            Plugin = collections.namedtuple('Plugin', ('func',))
+            module = Plugin(func)
+            plugins[name] = (setup, module)
+        Helper.plugin(self, name, plugins, verbose)
+
 
 def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=False, \
     localization_error=None, diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
     max_cell_count=None, dilation=None, worker_count=None, min_diffusivity=None, \
     store_distributed=False, new_cell=None, new_group=None, constructor=None, \
     include_empty_cells=False, cell_sampling=None, merge_threshold_count=False, \
-    grad=None, rgrad=None, priorD=None, priorV=None, input_label=None, output_label=None, comment=None, \
-    return_cells=None, profile=None, force=None, inplace=False, snr_extensions=False, **kwargs):
+    grad=None, rgrad=None, input_label=None, output_label=None, comment=None, \
+    return_cells=None, profile=None, overwrite=None, inplace=False, \
+    priorD=None, priorV=None, **kwargs):
     """
     Inference helper.
 
@@ -309,16 +328,14 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
 
         output_file (str): desired path for the output map file
 
-        partition (dict): keyword arguments for :func:`~tramway.helper.tessellation.find_partition`
-            if `cells` is a path; **deprecated**
-
         verbose (bool or int): verbosity level
 
-        localization_error (float): localization error
+        localization_error/sigma (float): localization error (see also sigma2)
 
-        diffusivity_prior (float): prior diffusivity
+        diffusivity_prior/diffusion_prior (float): hyperparameter of the prior on the
+            diffusivity/diffusion
 
-        potential_prior (float): prior potential
+        potential_prior (float): hyperparameter of the prior on the potential energy
 
         jeffreys_prior (float): Jeffreys' prior
 
@@ -385,9 +402,12 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
         Maps or pandas.DataFrame or tuple:
 
     `priorD` and `priorV` are legacy arguments.
-    They are deprecated and `diffusivity_prior` and `potential_prior` should be used instead
-    respectively.
+    They are deprecated and `diffusivity_prior`/`diffusion_prior` and `potential_prior` respectively
+    should be used instead.
     """
+    if bool(partition):
+        warn('the `partition` argument is ignored and will be removed', DeprecationWarning)
+
     helper = Infer()
     helper.verbose = verbose
     helper.labels(input_label=input_label, output_label=output_label, inplace=inplace, comment=comment)
@@ -397,6 +417,10 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
         mode = mode.lower()
         #warn('inference mode: please use degraded.{} instead'.format(mode), PendingDeprecationWarning)
     helper.plugin(mode)
+
+    if constructor is not None:
+        warn('the `constructor` argument is deprecated; please use `new_group` instead',
+                DeprecationWarning)
     _map = helper.distribute(new_cell=new_cell, \
             new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
             include_empty_cells=include_empty_cells, \
@@ -415,9 +439,9 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     maps = helper.infer(_map, worker_count=worker_count, profile=profile, \
         min_diffusivity=min_diffusivity, localization_error=localization_error, \
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-        jeffreys_prior=jeffreys_prior, rgrad=rgrad, snr_extensions=snr_extensions, **kwargs)
+        jeffreys_prior=jeffreys_prior, rgrad=rgrad, **kwargs)
 
-    helper.save_analyses(output_file, force=force)
+    helper.save_analyses(output_file, force=overwrite)
 
     if return_cells == True: # NOT `is`
         return maps, cells
@@ -716,7 +740,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
     alpha=None, point_style=None, feature=None, variable=None, segment=None, \
-    label=None, input_label=None, mode=None, title=True, \
+    label=None, input_label=None, mode=None, title=True, inferencemap=False, \
     **kwargs):
     """
     Plot scalar/vector 2D maps.
@@ -770,17 +794,22 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         mode (bool or str): inference mode; can be ``False`` so that mode information from
             files, analysis trees and encapsulated maps are not displayed
 
-        title (bool or str): add titles to the figures, based on the feature name and
-            inference mode
+        title (bool or str): add titles to the figures, based on the feature name;
+            from version *0.4*, the inference mode is no longer appended
+
+        inferencemap (bool): scales the arrows wrt to cell size only; for field maps only
 
         xlim (array-like): min and max values for the x-axis; this argument is keyworded only
 
         ylim (array-like): min and max values for the y-axis; this argument is keyworded only
 
+        zlim (array-like): min and max values for the z-axis; this argument is keyworded only;
+            applies only to scalar maps that are consequently plotted in 3D
+
         clim (array-like): min and max values for the colormap; this argument is keyworded only
 
-    Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d` and
-    :func:`~tramway.plot.map.field_map_2d`.
+    Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d`,
+    :func:`~tramway.plot.map.field_map_2d` and :func:`scalar_map_3d`.
     They can be dictionnaries with feature names as keys and the corresponding values for the
     parameters.
 
@@ -798,8 +827,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if label is None:
             label = input_label
         cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
-    else: # `maps` is a file path
+    elif isinstance(maps, str): # `maps` is a file path
         input_file = maps
+        if not os.path.isfile(input_file):
+            raise OSError('cannot find file: {}'.format(input_file))
         if label is None:
             label = input_label
         try:
@@ -836,6 +867,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             warn('HDF5 libraries may not be installed', ImportWarning)
         else:
             cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
+    else:
+        raise TypeError('unsupported type for maps: {}'.format(type(maps)))
     if isinstance(maps, Maps):
         if mode != False:
             mode = maps.mode
@@ -849,7 +882,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     if not cells._lazy.get('bounding_box', True):
         maps = box_crop(maps, cells.bounding_box, cells.tessellation)
 
-    xlim, ylim = kwargs.get('xlim', None), kwargs.get('ylim', None)
+    xlim, ylim, zlim = kwargs.get('xlim', None), kwargs.get('ylim', None), kwargs.pop('zlim', None)
     if xlim and ylim:
         maps = box_crop(maps,
             pd.DataFrame(
@@ -991,7 +1024,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             except IndexError:
                 raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(_map)-1))
 
-        tplt.scalar_map_2d(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
+        if zlim is None:
+            plot = tplt.scalar_map_2d
+        else:
+            plot = tplt.scalar_map_3d
+            col_kwargs['zlim'] = zlim
+
+        plot(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
         if point_style is not None:
             points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
@@ -1002,13 +1041,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if title:
             if isinstance(title, str):
                 _title = title
-            elif mode:
-                if short_name:
-                    _title = '{} ({} - {} mode)'.format(short_name, col, mode)
-                else:
-                    _title = '{} ({} mode)'.format(col, mode)
-            elif short_name:
-                _title = '{} ({})'.format(short_name, col)
+            #elif mode:
+            #    if short_name:
+            #        _title = '{} ({} - {} mode)'.format(short_name, col, mode)
+            #    else:
+            #        _title = '{} ({} mode)'.format(col, mode)
+            #elif short_name:
+            #    _title = '{} ({})'.format(short_name, col)
             else:
                 _title = '{}'.format(col)
             mplt.title(_title)
@@ -1040,6 +1079,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             else:
                 var_kwargs[kw] = arg
 
+        plot = tplt.field_map_2d
+        if point_style is not None:
+            var_kwargs['overlay'] = True
+        if inferencemap:
+            var_kwargs['inferencemap'] = inferencemap
+
         if new_fig or figs:
             fig = mplt.figure(figsize=figsize, dpi=dpi)
         else:
@@ -1064,16 +1109,15 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 var_kwargs['clim'] = [_scalar_map.values.min(), _scalar_map.values.max()]
             _vector_map = _cells.tessellation.split_frames(_vector_map)[segment]
 
-        if point_style is None:
-            tplt.field_map_2d(cells, _vector_map, aspect=aspect, **var_kwargs)
-        else:
+        if point_style is not None:
             _scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
             tplt.scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
             points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
             if 'color' not in point_style:
                 point_style['color'] = None
             tplt.plot_points(points, **point_style)
-            tplt.field_map_2d(cells, _vector_map, aspect=aspect, overlay=True, **var_kwargs)
+
+        plot(cells, _vector_map, aspect=aspect, **var_kwargs)
 
         extra = None
         if short_name:

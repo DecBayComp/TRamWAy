@@ -16,7 +16,7 @@ from tramway.core import *
 from tramway.core.exceptions import *
 from tramway.tessellation import format_cell_index, nearest_cell
 import tramway.tessellation as tessellation
-from .gradient import grad1, delta1
+from .gradient import grad1, delta0
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -412,7 +412,7 @@ class Distributed(Local):
             numpy.ndarray:
                 gradient vector with as many elements as spatial dimensions.
 
-        See also :func:`grad1`.
+        See also :func:`~tramway.inference.gradient.grad1` and documentation section :ref:`gradient`.
         """
         return grad1(self, i, X, index_map, **kwargs)
 
@@ -448,9 +448,12 @@ class Distributed(Local):
         """
         Local spatial variation, gradient-like, aimed at penalizing spatial variations.
 
-        See also :func:`delta1`.
+        See also :func:`~tramway.inference.gradient.delta0`.
 
         As of version *0.3.8*: new; called for spatial regularization in `stochastic_dv`.
+
+        As of version *0.4*: default implementation becomes :func:`~tramway.inference.gradient.delta0`.
+
         May become the new default for spatial regularization.
 
         Arguments:
@@ -470,7 +473,7 @@ class Distributed(Local):
                 delta vector with as many elements as there are spatial dimensions.
 
         """
-        return delta1(self, i, X, index_map, **kwargs)
+        return delta0(self, i, X, index_map, **kwargs)
 
     def flatten(self):
         def concat(arrays):
@@ -1153,6 +1156,9 @@ class Translocations(Cell):
         origins (array-like, ro property):
             Initial locations (both spatial coordinates and times).
 
+        destinations (array-like, ro property):
+            Final locations (both spatial coordinates and times).
+
     """
     __slots__ = ('origins', 'destinations')
 
@@ -1227,6 +1233,17 @@ class Translocations(Cell):
             return np.asarray(self.origins[self.space_cols])
         else:
             return np.asarray(self.origins[:,self.space_cols])
+
+
+class TrackedMolecules(Translocations):
+    """
+    Attributes:
+
+        n (numpy.ndarray):
+            Trajectory indices.
+
+    """
+    __slots__ = 'n',
 
 
 def identify_columns(points, trajectory_col=True):
@@ -1654,12 +1671,14 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         raise ValueError('NaN in location data')
     precomputed = ()
     if new_cell is None:
+        are_tracked_molecules = trajectory_col is not None and isinstance(cells.points, pd.DataFrame)
         are_translocations = trajectory_col is not None or has_precomputed_deltas
     else:
         if issubclass(new_cell, Locations):
             are_translocations = False
         elif issubclass(new_cell, Translocations):
             are_translocations = True
+            are_tracked_molecules = issubclass(new_cell, TrackedMolecules)
         else:
             raise TypeError('`new_cell` is neither `Locations` nor `Translocations`')
     if are_translocations:
@@ -1670,7 +1689,10 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         initial_point, final_point, initial_cell, final_cell, get_point = \
             get_translocations(cells.points, cells.cell_index, *precomputed)
         if new_cell is None:
-            new_cell = Translocations
+            if are_tracked_molecules:
+                new_cell = TrackedMolecules
+            else:
+                new_cell = Translocations
         fuzzy_args = ((initial_point, final_point), (initial_cell, final_cell), get_point)
     else:
         locations, location_index, get_point = \
@@ -1802,7 +1824,10 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         if not include_empty_cells and points.size == 0:
             J[j] = False
         else:
-            if are_translocations:
+            if are_tracked_molecules:
+                _trajectory_index = cells.points['n'][_origin.index].values
+                extra[j] = (_origin, _destination, _trajectory_index)
+            elif are_translocations:
                 extra[j] = (_origin, _destination)
             data[j] = points
 
@@ -1853,6 +1878,12 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
             try:
                 _cells[j].destinations = extra[j][1]
             except AttributeError: # `_cells` does not have the `destinations` attribute
+                pass
+            try:
+                _cells[j].n = extra[j][2]
+            except AttributeError: # `_cells` does not have the `n` attribute
+                pass
+            except IndexError: # extra[j] has two elements
                 pass
         try:
             _cells[j].fuzzy = _fuzzy[j]
@@ -2172,16 +2203,8 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
     * *border* (:class:`numpy.ndarray`) -- MxD boolean matrix with M the number of cells and D the number of space dimensions
 
     """
-    if min_diffusivity is None:
-        if jeffreys_prior:
-            min_diffusivity = 0.01
-        else:
-            min_diffusivity = 0
-    elif min_diffusivity is False:
-        min_diffusivity = None
-
     # initial values and sanity checks
-    index, n, dt_mean, D_initial, border = [], [], [], [], []
+    index, n, dt_min, dt_mean, D_initial, border = [], [], [], [], [], []
     reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
 
     j = 0
@@ -2215,6 +2238,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
             continue
 
         # initialize the local diffusivity parameter
+        dt_min_i = np.min(cell.dt)
         dt_mean_i = np.mean(cell.dt)
         D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
         #
@@ -2223,6 +2247,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
         reverse_index[i] = j
         j += 1
         n.append(float(len(cell)))
+        dt_min.append(dt_min_i)
         dt_mean.append(dt_mean_i)
         D_initial.append(D_initial_i)
 
@@ -2241,7 +2266,16 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
             border.append(None)
 
     n, dt_mean, D_initial = np.array(n), np.array(dt_mean), np.array(D_initial)
-    D_bounds = [(min_diffusivity, None)] * D_initial.size
+
+    if min_diffusivity is None:
+        noise_dt = kwargs['sigma2']
+        D_bounds = [( (1e-16 - noise_dt) * dt_min_i, None ) for dt_min_i in dt_min ]
+        min_diffusivity = 0
+    else:
+        if min_diffusivity is False:
+            min_diffusivity = None
+        D_bounds = [(min_diffusivity, None)] * D_initial.size
+
     try:
         border = np.vstack(border)
     except:
@@ -2252,6 +2286,6 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
     'identify_columns', 'get_locations', 'get_translocations', 'distributed',
-    'DistributeMerge',
+    'TrackedMolecules', 'DistributeMerge',
     'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']
 

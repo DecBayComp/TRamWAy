@@ -19,7 +19,7 @@ import pandas as pd
 import numpy.ma as ma
 from tramway.core.exceptions import NaNWarning
 from tramway.tessellation import *
-from tramway.inference import Distributed
+from tramway.inference import Distributed, Maps
 from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
 import scipy.spatial
@@ -363,9 +363,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         aspect=None, figure=None, axes=None,
-        cell_arrow_ratio=0.4,
+        cell_arrow_ratio=None,
         markercolor='y', markeredgecolor='k', markeralpha=0.8, markerlinewidth=None,
-        transform=None,
+        transform=None, inferencemap=False,
         **kwargs):
     """
     Plot a 2D field (vector) map as arrows.
@@ -387,7 +387,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         axes (matplotlib.axes.Axes): axes handle
 
         cell_arrow_ratio (float): size of the largest arrow relative to the median
-            inter-cell distance
+            inter-cell distance; default is ``0.4`` if `inferencemap` is ``True``,
+            else ``1``
 
         markercolor (str): colour of the arrows
 
@@ -399,6 +400,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
 
         transform ('log' or callable): if `overlay` is ``False``,
             transform applied to the amplitudes as a NumPy array
+
+        inferencemap (bool): if ``True``, the arrow length only depends on the cell size
 
     Extra keyword arguments are passed to :func:`scalar_map_2d` if called.
 
@@ -445,26 +448,47 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     else:
         aspect_ratio = (xmax - xmin) / (ymax - ymin)
     # identify the visible cell centers
-    if isinstance(cells, Distributed):
+    if isinstance(cells, Tessellation):
+        pts = cells.cell_centers
+    elif isinstance(cells, Distributed):
         pts = np.vstack([ cells[i].center for i in cells ])#values.index ])
     elif isinstance(cells, CellStats):
         assert isinstance(cells.tessellation, Tessellation)
         pts = cells.tessellation.cell_centers#[values.index]
     inside = (xmin<=pts[:,0]) & (pts[:,0]<=xmax) & (ymin<=pts[:,1]) & (pts[:,1]<=ymax)
     # compute the distance between adjacent cell centers
-    if isinstance(cells, Distributed):
+    if isinstance(cells, Delaunay):
+        A = cells.cell_adjacency
+    elif isinstance(cells, Distributed):
         A = cells.adjacency
     elif isinstance(cells, CellStats) and isinstance(cells.tessellation, Delaunay):
         A = cells.tessellation.cell_adjacency
-    A = sparse.triu(A, format='coo')
-    I, J = A.row, A.col
-    _inside = inside[I] & inside[J]
-    pts_i, pts_j = pts[I[_inside]], pts[J[_inside]]
-    inter_cell_distance = pts_i - pts_j
-    inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
-    # scale force amplitude
-    large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
-    scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
+    if inferencemap:
+        if cell_arrow_ratio is None:
+            cell_arrow_ratio = 1.
+        A = A.tocsr()
+        scale = np.full(A.shape[0], np.nan, dtype=pts.dtype)
+        for i in values.index:
+            if not inside[i]:
+                continue
+            js = A.indices[A.indptr[i]:A.indptr[i+1]]
+            pts_i, pts_j = pts[[i]], pts[js[inside[js]]]
+            if pts_j.size:
+                inter_cell_distance = pts_i - pts_j
+                inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
+                scale[i] = np.nanmean(inter_cell_distance)
+    else:
+        if cell_arrow_ratio is None:
+            cell_arrow_ratio = .4 # backward compatibility
+        A = sparse.triu(A, format='coo')
+        I, J = A.row, A.col
+        _inside = inside[I] & inside[J]
+        pts_i, pts_j = pts[I[_inside]], pts[J[_inside]]
+        inter_cell_distance = pts_i - pts_j
+        inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
+        # scale force amplitude
+        large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
+        scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
     #
     dw = float(angular_width) / 2.0
     t = tan(radians(dw))
@@ -473,7 +497,11 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     for i in values.index:
         center = pts[i]
         radius = force_amplitude[i]
-        f = np.asarray(values.loc[i]) * scale
+        if inferencemap:
+            f = np.asarray(values.loc[i])
+            f *= scale[i] / np.sqrt(np.sum(f * f))
+        else:
+            f = np.asarray(values.loc[i]) * scale
         #fx, fy = f
         #angle = degrees(atan2(fy, fx))
         #markers.append(Wedge(center, radius, angle - dw, angle + dw))
@@ -493,5 +521,177 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     if not overlay and obj:
         return obj
 
-__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d']
+
+def scalar_map_3d(cells, values, aspect=None, clim=None, figure=None, axes=None,
+        colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
+        xlim=None, ylim=None, zlim=None, triangulation_depth=2, **kwargs):
+    """
+    Plot a 2D scalar map as a colourful 3D surface.
+
+    Arguments:
+
+        cells (Tessellation or CellStats): spatial description of the cells
+
+        values (pandas.DataFrame, numpy.ndarray or Maps): feature value at each cell,
+            that will be represented as a colour
+
+        aspect (str): passed to :func:`~matplotlib.axes.Axes.set_aspect`
+
+        clim (2-element sequence): passed to :func:`~matplotlib.cm.ScalarMappable.set_clim`;
+            note `clim` affects colour, not height.
+
+        figure (matplotlib.figure.Figure): figure handle
+
+        axes (matplotlib.axes.Axes): axes handle
+
+        colorbar (bool or str or dict): add a colour bar; if ``dict``, options are passed to
+            :func:`~matplotlib.pyplot.colorbar`;
+            setting colorbar to '*nice*' allows to produce a colorbar close to the figure
+            of the same size as the figure
+
+        unit/clabel (str): colorbar label, usually the unit of displayed feature
+
+        alpha (float): alpha value of the cells
+
+        colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
+
+        xlim (2-element sequence): lower and upper x-axis bounds
+
+        ylim (2-element sequence): lower and upper y-axis bounds
+
+        zlim (2-element sequence): lower and upper z-axis bounds;
+            note `zlim` affects height, not colour.
+
+    Extra keyword arguments are passed to :func:`~matplotlib.collections.PatchCollection`.
+
+    """
+    coords = None
+    if isinstance(values, Maps):
+        values = values.maps
+    if isinstance(values, pd.DataFrame):
+        if values.shape[1] != 1:
+            coords = values[[ col for col in 'xyzt' if col in values.columns ]]
+            values = values[[ col for col in values.columns if col not in 'xyzt' ]]
+            if values.shape[1] != 1:
+                warn('multiple parameters available; mapping first one only', UserWarning)
+        values = values.iloc[:,0] # to Series
+
+    try:
+        mesh = cells.tessellation
+    except AttributeError:
+        mesh = cells
+    try:
+        mesh = mesh.spatial_mesh
+    except AttributeError:
+        pass
+    xy = centers = mesh.cell_centers
+    adjacency = mesh.simplified_adjacency(format='csr')
+
+    scalar_map = np.full(centers.shape[0], np.nan)
+    scalar_map[values.index] = values.values
+    elevation = np.array(scalar_map)
+    if zlim:
+        elevation[elevation < zlim[0]] = zlim[0]
+        elevation[zlim[1] < elevation] = zlim[1]
+    colour = np.array(scalar_map)
+    if clim:
+        colour[colour < clim[0]] = clim[0]
+        colour[clim[1] < colour] = clim[1]
+
+    if figure is None:
+        import matplotlib.pyplot as plt
+        figure = plt.gcf() # before PatchCollection
+    if axes is None:
+        import mpl_toolkits.mplot3d as plt3
+        axes = plt3.Axes3D(figure)
+
+    obj = None
+
+    if not xlim or not ylim:
+        xy_min, _, xy_max, _ = _bounding_box(cells, xy)
+        if not xlim:
+            xlim = (xy_min[0], xy_max[0])
+        if not ylim:
+            ylim = (xy_min[1], xy_max[1])
+    axes.set_xlim(*xlim)
+    axes.set_ylim(*ylim)
+    if aspect is not None:
+        axes.set_aspect(aspect)
+
+    tri = []
+    ok = np.zeros(mesh.number_of_cells, dtype=bool)
+    for i in range(mesh.number_of_cells):
+        J = adjacency.indices[adjacency.indptr[i]:adjacency.indptr[i+1]]
+        for j in J:
+            if i < j:
+                K = adjacency.indices[adjacency.indptr[j]:adjacency.indptr[j+1]]
+                for k in K:
+                    if j < k:
+                        tri.append([i,j,k])
+                        ok[i] = ok[j] = ok[k] = True
+    tri = np.array(tri)
+    #index_transform = np.full(mesh.number_of_cells, -1, dtype=int)
+    #index_transform[ok] = np.arange(np.sum(ok))
+    #import matplotlib.tri
+    # if `plot_trisurf` could interpolate each triangle's colour:
+    #tri_colour = [ np.mean(colour[_t]) for _t in tri ]
+    #tri = matplotlib.tri.Triangulation(xy[ok,0], xy[ok,1], index_transform(tri))
+    #axes.plot_trisurf(tri, elevation[ok], color=tri_colour, **kwargs)
+
+    import itertools
+    def split_triangle(_rdepth, _xy, *_zs):
+        if _rdepth == 0:
+            return tuple( [_a] for _a in (_xy,) + _zs )
+        else:
+            return tuple( itertools.chain(*_a) for _a in zip(
+                    split_triangle(_rdepth-1,
+                        np.stack((_xy[0], (_xy[0] + _xy[1]) * .5, (_xy[0] + _xy[2]) * .5), axis=0),
+                        *[ np.r_[_z[0], (_z[0] + _z[1]) * .5, (_z[0] + _z[2]) * .5] for _z in _zs ]),
+                    split_triangle(_rdepth-1,
+                        np.stack(((_xy[0] + _xy[1]) * .5, _xy[1], (_xy[1] + _xy[2]) * .5), axis=0),
+                        *[ np.r_[(_z[0] + _z[1]) * .5, _z[1], (_z[1] + _z[2]) * .5] for _z in _zs ]),
+                    split_triangle(_rdepth-1,
+                        np.stack(((_xy[0] + _xy[1]) * .5, (_xy[0] + _xy[2]) * .5, (_xy[1] + _xy[2]) * .5), axis=0),
+                        *[ np.r_[(_z[0] + _z[1]) * .5, (_z[0] + _z[2]) * .5, (_z[1] + _z[2]) * .5] for _z in _zs ]),
+                    split_triangle(_rdepth-1,
+                        np.stack(((_xy[0] + _xy[2]) * .5, (_xy[1] + _xy[2]) * .5, _xy[2]), axis=0),
+                        *[ np.r_[(_z[0] + _z[2]) * .5, (_z[1] + _z[2]) * .5, _z[2]] for _z in _zs ]),
+                    ))
+
+    subtri_xyz = []
+    subtri_colour = []
+    for ijk in tri:
+        boundary_xy = xy[ijk]
+        boundary_elevation = elevation[ijk]
+        boundary_colour = colour[ijk]
+        for _subtri_xy, _subtri_elevation, _subtri_colour in \
+                zip(*split_triangle(triangulation_depth, boundary_xy, boundary_elevation, boundary_colour)):
+            subtri_xyz.append(np.hstack((_subtri_xy, _subtri_elevation[:,np.newaxis])))
+            subtri_colour.append(np.mean(_subtri_colour))
+    subtri_xyz = np.vstack(subtri_xyz)
+    #subtri = matplotlib.tri.Triangulation(
+    #        subtri_xyz[:,0], subtri_xyz[:,1],
+    #        np.reshape(np.arange(len(subtri_xyz)), (-1, 3), order='C'))
+    #print(subtri.get_masked_triangles())
+    subtri_xyz = np.stack([np.reshape(c, (-1,3)) for c in subtri_xyz.T], axis=-1)
+
+    #obj = axes.plot_trisurf(subtri, subtri_elevation, facecolors=subtri_colour, norm=norm, **kwargs)
+    import mpl_toolkits.mplot3d.art3d as art
+    subtri = art.Poly3DCollection(subtri_xyz, **kwargs)
+    subtri.set_array(np.asarray(subtri_colour))
+
+    axes.add_collection(subtri)
+    #axes.auto_scale_xyz(subtri_xyz[:,0], subtri_xyz[:,1], subtri_xyz[:,2])
+    if xlim is not None:
+        axes.set_xlim(xlim[0], xlim[1])
+    if ylim is not None:
+        axes.set_ylim(ylim[0], ylim[1])
+    if zlim is not None:
+        axes.set_zlim(zlim[0], zlim[1])
+
+    return obj
+
+
+
+__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d', 'scalar_map_3d']
 

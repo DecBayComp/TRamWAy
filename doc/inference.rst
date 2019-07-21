@@ -81,7 +81,7 @@ upon which the general solution to that equation is a Gaussian distribution desc
 
 .. math::
 
-	P((\textbf{r}_2, t_2 | \textbf{r}_1, t_1) | D_i, V_i) = \frac{\textrm{exp} - \left(\frac{\left(\textbf{r}_2 - \textbf{r}_1 + \frac{\nabla V_i (t_2 - t_1)}{\gamma_i}\right)^2}{4 \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}\right)}{4 \pi \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}
+	P((\textbf{r}_2, t_2 | \textbf{r}_1, t_1) | D_i, V_i) = \frac{\textrm{exp} \left(- \frac{\left(\textbf{r}_2 - \textbf{r}_1 + \frac{\nabla V_i (t_2 - t_1)}{\gamma_i}\right)^2}{4 \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}\right)}{4 \pi \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}
 
 with :math:`i` the index for the cell, :math:`(\textbf{r}_1, t_1)` and :math:`(\textbf{r}_2, t_2)` two points in cell :math:`i` and :math:`\sigma` the experimental localization error.
 
@@ -100,14 +100,6 @@ and assuming:
 :math:`P(D,V|T)` is the *posterior probability*, :math:`P(D,V)` is the *prior probability* and :math:`P(T)` is the evidence which is treated as a normalization constant.
 
 Models other than :ref:`DV <inference_dv>` follow the same rule, with :math:`V` substituted by other model parameters.
-
-All the *standard* inference modes optimize the total posterior :math:`P(\textbf{D},...|T) = \prod_i P(D,...|T)`.
-The optimization considers all the cells and corresponding parameters at the same time.
-
-A degraded variant is available for the methods that do not necessarily imply the calculation of spatial gradients, namely :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>`.
-
-In the degraded mode, :math:`P(D,...|T)` is optimized for each cell independently.
-
 
 .. [Masson09] Masson J.-B., Casanova D., Türkcan S., Voisinne G., Popoff M.R., Vergassola M. and Alexandrou A. (2009) Inferring maps of forces inside cell membrane microdomains, *Physical Review Letters* 102(4):048103
 
@@ -174,7 +166,7 @@ The posterior probability used to infer the diffusivity :math:`D_i` in cell :mat
 
 The *D* inference mode is well-suited to freely diffusing molecules and the rapid characterization of the diffusivity.
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *standard.d* mode instead of *d*/*degraded.d*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *d* or *standard.d* mode instead of *degraded.d*.
 
 .. _inference_dd:
 
@@ -199,7 +191,7 @@ The drift :math:`\frac{\textbf{F}_i}{\gamma_i}` is treated as an indivisible var
 
 The *DD* inference mode is well-suited to active processes (e.g. active transport phenomena).
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *standard.dd* mode instead of *dd*/*degraded.dd*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`, and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *dd* or *standard.dd* mode instead of *degraded.dd*.
 
 .. _inference_df:
 
@@ -218,7 +210,7 @@ The posterior probability used to infer the local diffusivity :math:`D_i` and fo
 The *DF* inference mode is well-suited to mapping local force components, especially in the presence of non-potential forces (e.g. a rotational component).
 This mode allows for the rapid characterization of the diffusivity and directional biases of the trajectories.
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *standard.df* mode instead of *df*/*degraded.df*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *df* or *standard.df* mode instead of *degraded.df*.
 
 
 .. _inference_dv:
@@ -238,10 +230,37 @@ These factors are described in a :ref:`dedicated section <inference_smoothing>`.
 
 This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`.
 
+More information can be found about :ref:`gradient calculation <gradient>`.
+
+Variants
+^^^^^^^^
+
+The four major modes above feature variants.
+
+For example :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>` feature a *standard* and a *degraded* variant, available in infer as *standard.d* and *degraded.d* respectively for mode *D*.
+
+The *standard* inference modes optimize the total posterior :math:`P(\textbf{D},...|T) = \prod_i P(D,...|T)`.
+The optimization considers all the cells and corresponding parameters at the same time.
+This is anyway required when smoothing is on.
+
+In the *degraded* mode, :math:`P(D,...|T)` is optimized for each cell independently.
+This can be done only when smoothing is off.
+
+The default *D*, *DD* and *DF* modes (case-insensitive) automatically select either the *degraded* or the *standard* variant depending on smoothing priors.
+If *diffusivity_prior*/*diffusion_prior* (in *D*, *DD* and *DF*), *drift_prior* (*DD*) or *force_prior* (*DF*) are defined (not ``None``), then the *standard* variant is run.
+
+Stochastic DV
+"""""""""""""
+
+A key variant of the default *DV* mode is the *stochastic.dv* mode, which randomly picks and chooses a cell at each iteration and performs a gradient descent step on the associated parameters considering the neighbour cells instead of the full tessellation.
+
+It is showcased in the following `notebook <https://github.com/DecBayComp/COMPARE19/blob/master/1.%20Simulated%20data/2.%20dynamic%20inference.ipynb>`_ in the specific context of dynamic maps with temporal smoothing.
+
+
 .. _inference_parameters:
 
 Common parameters and default values
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------------------
 
 All the methods use :math:`\sigma = 0.03 \textrm{µm}` as default value for the experimental localization error.
 This parameter is defined by the experimental setup and can be set in |tramway| with the ``--sigma`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
@@ -256,19 +275,12 @@ Compare::
 
 	infer('example.rwa', 'dd', sigma=0.01, output_label='DD_sigma_10nm')
 
-
-.. Although not clearly indicated elsewhere, the diffusivity is bounded to the minimum value :math:`0` by default. 
-.. If the Jeffreys' prior is requested, then this minimum default value is :math:`0.01`. 
-.. This can be overwritten with the ``--min-diffusivity`` command-line option or the `min_diffusivity` argument to :func:`~tramway.helper.inference.infer`.
-
-.. Note that in some cases it can be beneficial to allow negative values for the diffusivity.
-
 If no specific prior is defined, a uniform prior is used by default.
 
 .. _inference_jeffreys:
 
 Jeffreys' prior
-"""""""""""""""
+^^^^^^^^^^^^^^^
 
 All the methods described here also feature an optional Jeffreys' prior on the diffusivity. 
 It is a non-informative prior used to ensure that the posterior probability distribution is invariant by re-parametrization.
@@ -310,7 +322,7 @@ Compare::
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'standard.dd', jeffreys_prior=True, output_label='DD_jeffreys')
+	infer('example.rwa', 'dd', jeffreys_prior=True, output_label='DD_jeffreys')
 
 
 Note that with this prior the default minimum diffusivity value is :math:`0.01`. 
@@ -319,19 +331,14 @@ Consider modifying this value.
 
 .. _inference_smoothing:
 
-Smoothing priors
-""""""""""""""""
+Spatial smoothing priors
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-A smoothing (improper) prior penalizes the gradients of the inferred parameters. 
+A smoothing (improper) prior penalizes the gradients or spatial variations of the inferred parameters. 
 It is meant to reinforce the physical plausibility of the inferred maps. 
-For example, in certain situations we do not expect large changes in the diffusion coefficient between neighbouring cells.
+For example, in certain situations we do not expect large changes in the diffusion coefficient between neighbour cells.
 
-|tramway| features *degraded* and *standard* variants for the :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>` inference modes.
-The *standard* variants add an optional smoothing factor :math:`P_S(\textbf{D})` for the diffusivity.
-
-These variants are available as the respective plugins: *standard.d* (or *smooth.d*), *standard.df* (or *smooth.df*), *standard.dd* (or *smooth.dd*).
-
-This prior multiplies with the original expression of the posterior probability and penalizes all the diffusivity gradients. 
+An optional smoothing factor, for example :math:`P_S(\textbf{D})` for the diffusivity, multiplies with the original expression of the posterior probability and penalizes all the diffusivity gradients. 
 :math:`P_S` is a function of the diffusivity at all the cells, hence the vectorial notation :math:`\textbf{D}` for the diffusivity.
 
 The maximized probability becomes:
@@ -351,13 +358,13 @@ where :math:`\mathcal{A}_i` is the area of bin :math:`i`.
 The :math:`\mu` parameter can be set with the ``-d`` command-line option or the `diffusivity_prior` argument to :func:`~tramway.helper.inference.infer`.
 Compare::
 
-	> tramway -i example.rwa infer standard.dd -d 1 -l DD_d_1
+	> tramway -i example.rwa infer dd -d 1 -l DD_d_1
 
 .. code-block:: python
 
 	from tramway.helper import infer
 
-	infer('example.rwa', 'standard.dd', diffusivity_prior=1., output_label='DD_d_1')
+	infer('example.rwa', 'dd', diffusivity_prior=1., output_label='DD_d_1')
 
 
 
@@ -369,19 +376,37 @@ Note that the :ref:`DV <inference_dv>` inference mode readily features this smoo
 
 Similarly to :math:`\mu`, the :math:`\lambda` parameter can be set with the ``-v`` command-line option or the `potential_prior` argument to :func:`~tramway.helper.inference.infer`.
 
+More information can be found about :ref:`gradient calculation <gradient>`.
+
 Alternative penalties
-'''''''''''''''''''''
+"""""""""""""""""""""
 
 Gradients :math:`\nabla X` are tangents and may not catch all the spatial variations,
 especially in the case of a regular mesh with an oscillating :math:`X`.
 
-From version *0.3.10*, the *standard* inference methods feature the ``rgrad='delta'`` argument
+From version *0.4*, all the methods feature the ``rgrad='delta'`` argument
 that replaces :math:`\nabla X_i` in :math:`P_S(\textbf{X})` by :math:`\Delta X_i`
-as described in :func:`~tramway.inference.gradient.delta1`
+as described in :func:`~tramway.inference.gradient.delta0`
 that considers the actual differences in :math:`X` with the neighbour bins.
 
 Beware that, in future versions, this alternative penalty may become the default behaviour.
 To keep these methods penalize the gradient, set ``rgrad='grad'``.
+
+Temporal smoothing prior
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+In combination with a time window, the dynamic maps can be inferred considering parameter smoothing across time.
+
+Temporal smoothing is available in the *stochastic.dv* mode.
+It is implemented with yet another improper prior:
+
+.. math::
+
+    P''_S(\textbf{D},\textbf{V}) = \textrm{exp}\left(-\left(\tau_\mu\sum_i \frac{\partial D_i}{\partial t}^2 + \tau_\lambda\sum_i \frac{\partial V_i}{\partial t}^2\right)\right)
+
+:math:`\tau_\mu` and :math:`\tau_\lambda` are available as arguments *diffusivity_time_prior*/*diffusion_time_prior* and *potential_time_prior* respectively.
+
+See also the following `notebook <https://github.com/DecBayComp/COMPARE19/blob/master/1.%20Simulated%20data/2.%20dynamic%20inference.ipynb>`_.
 
 
 Implementation details

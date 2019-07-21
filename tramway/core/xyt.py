@@ -108,6 +108,11 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
     index_max = 0
     df = []
     paths = list(itertools.chain(*paths))
+    if not paths:
+        if verbose:
+            print('nothing to load')
+        return
+    _failed = []
     for f in paths:
         try:
             if verbose:
@@ -134,7 +139,7 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
                     kwargs['names'] = columns
                     dff = pd.read_csv(f, **kwargs)
         except OSError:
-            warnings.warn(f, FileNotFoundWarning)
+            _failed.append(f)
         else:
             if 'n' in columns:
                 sample = dff[dff['n']==dff['n'].iloc[-1]]
@@ -165,6 +170,14 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
             if np.any(dff.isnull().values.all(axis=0)):
                 raise ValueError('too many specified columns: {}'.format(columns))
             df.append(dff)
+    if df:
+        for f in _failed:
+            warnings.warn(f, FileNotFoundWarning)
+    else:
+        if paths[1:]:
+            raise OSError('cannot load any of the files: {}'.format(paths))
+        else:
+            raise OSError('cannot load file: {}'.format(paths[0]))
     if reset_origin:
         if reset_origin == True:
             reset_origin = [ col for col in ['x', 'y', 'z', 't'] if col in columns ]
