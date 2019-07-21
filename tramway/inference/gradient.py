@@ -422,7 +422,9 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None, na=np.nan
     If `selection_angle` is defined, neighbours are selected in two symmetric hypercones which
     top angle is `selection_angle` times :math:`\pi` radians.
 
-    The default selection behaviour is equal to `selection_angle=.9`.
+    If :func:`get_grad_kwargs` is called (most if not all the inference modes call this function),
+    the default selection behaviour is equal to `selection_angle=0.9`.
+    Otherwise, :func:`grad1` defaults to `selection_angle=0.5` in 2D.
 
     See also:
 
