@@ -235,8 +235,7 @@ def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selecti
     Arguments:
 
         _kwargs (dict):
-            mutable keyword arguments;
-            '*localization_error*', '*sigma*' and '*sigma2*' are popped out.
+            mutable keyword arguments; all the keywords below are popped out.
 
         gradient (str): either *grad1* or *gradn*.
 

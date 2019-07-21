@@ -230,6 +230,8 @@ These factors are described in a :ref:`dedicated section <inference_smoothing>`.
 
 This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`.
 
+More information can be found about :ref:`gradient calculation <gradient>`.
+
 Variants
 ^^^^^^^^
 
@@ -373,6 +375,8 @@ Note that the :ref:`DV <inference_dv>` inference mode readily features this smoo
 	P_S(\textbf{V}) = \textrm{exp}\left(-\lambda\sum_i \mathcal{A}_i||\nabla V_i||^2\right)
 
 Similarly to :math:`\mu`, the :math:`\lambda` parameter can be set with the ``-v`` command-line option or the `potential_prior` argument to :func:`~tramway.helper.inference.infer`.
+
+More information can be found about :ref:`gradient calculation <gradient>`.
 
 Alternative penalties
 """""""""""""""""""""
