@@ -420,9 +420,9 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None, na=np.nan
     minus those at a projected distance smaller than this value.
 
     If `selection_angle` is defined, neighbours are selected in two symmetric hypercones which
-    top angle is `selection_angle` times pi radians.
+    top angle is `selection_angle` times :math:`\pi` radians.
 
-    The default selection behaviour is equal to `selection_angle=.5` in 2D but not in higher dimensions.
+    The default selection behaviour is equal to `selection_angle=.9`.
 
     See also:
 
