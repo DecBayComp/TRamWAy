@@ -412,7 +412,7 @@ class Distributed(Local):
             numpy.ndarray:
                 gradient vector with as many elements as spatial dimensions.
 
-        See also :func:`grad1` and documentation section :ref:`gradient`.
+        See also :func:`~tramway.inference.gradient.grad1` and documentation section :ref:`gradient`.
         """
         return grad1(self, i, X, index_map, **kwargs)
 
