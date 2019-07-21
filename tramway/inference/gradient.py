@@ -27,7 +27,7 @@ def delta0(cells, i, X, index_map=None, **kwargs):
 
         \\Delta X_i = \\frac{1}{\\sqrt{|\\mathcal{N}_i|}} \\left[ \\frac{X_i-X_j}{|| \\textbf{x}_i-\\textbf{x}_j ||} \\right]_{j \\in \\mathcal{N}_i}
 
-    The above scaling is chosen so that combining :meth:`~tramway.inference.base.Distributed.local_variation` with :meth:`~tramway.inference.base.Distributed.grad_sum` results in the following scalar penalty:
+    The above scaling is chosen so that combining the element-wise square of :meth:`~tramway.inference.base.Distributed.local_variation` with :meth:`~tramway.inference.base.Distributed.grad_sum` results in the following scalar penalty:
 
     .. math::
 
