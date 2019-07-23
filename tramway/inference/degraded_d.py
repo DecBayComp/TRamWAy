@@ -26,7 +26,7 @@ setup = {'name':    'degraded.d',
         'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
-        ('min_diffusivity',     dict(type=float, default=0, help='minimum diffusivity value allowed')))),
+        ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')))),
         'cell_sampling':    'individual'}
 
 
@@ -53,7 +53,7 @@ def d_neg_posterior(diffusivity, cell, sigma2, jeffreys_prior, dt_mean, \
         return -result;
 
     """
-    if diffusivity < min_diffusivity and not np.isclose(diffusivity, min_diffusivity):
+    if diffusivity < min_diffusivity:# and not np.isclose(diffusivity, min_diffusivity):
         warn(DiffusivityWarning(diffusivity, min_diffusivity))
     noise_dt = sigma2
     if cell.cache is None:
@@ -61,7 +61,7 @@ def d_neg_posterior(diffusivity, cell, sigma2, jeffreys_prior, dt_mean, \
     n = len(cell) # number of translocations
     D_dt = 4. * (diffusivity * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
     if np.any(D_dt <= 0):# or np.any(np.isclose(D_dt, 0)):
-        raise RuntimeError('near-0 diffusivity; increase `localization_error`')
+        raise RuntimeError('negative diffusion')
     d_neg_posterior = n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
     d_neg_posterior += np.sum(cell.cache / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
     if jeffreys_prior:
@@ -100,7 +100,7 @@ def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivit
         if min_diffusivity is not False:
             if min_diffusivity is None:
                 noise_dt = localization_error
-                min_diffusivity = (1e-16 - noise_dt) / np.min(cell.dt)
+                min_diffusivity = (1e-16-noise_dt) / np.max(cell.dt)
             kwargs['bounds'] = [(min_diffusivity,None)]
         # run the optimization
         result = minimize(d_neg_posterior, D_initial, \
