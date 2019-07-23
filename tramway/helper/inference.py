@@ -310,7 +310,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     include_empty_cells=False, cell_sampling=None, merge_threshold_count=False, \
     grad=None, rgrad=None, input_label=None, output_label=None, comment=None, \
     return_cells=None, profile=None, overwrite=None, inplace=False, \
-    priorD=None, priorV=None, **kwargs):
+    priorD=None, priorV=None, force=None, **kwargs):
     """
     Inference helper.
 
@@ -393,6 +393,8 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
             if `tuple`, print a report with :func:`~pstats.Stats.print_stats` and
             tuple elements as input arguments.
 
+        overwrite (bool): if an implicit output file already exists, overwrite it.
+
         inplace (bool): replace the input analysis by the output one.
 
         snr_extensions (bool): add snr extensions for Bayes factor calculation.
@@ -441,6 +443,9 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
         jeffreys_prior=jeffreys_prior, rgrad=rgrad, **kwargs)
 
+    if overwrite is None and force is not None:
+        warn('`force` is deprecated; please use `overwrite` instead')
+        overwrite = force
     helper.save_analyses(output_file, force=overwrite)
 
     if return_cells == True: # NOT `is`
