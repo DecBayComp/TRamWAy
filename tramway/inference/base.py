@@ -2204,7 +2204,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
     """
     # initial values and sanity checks
-    index, n, dt_min, dt_mean, D_initial, border = [], [], [], [], [], []
+    index, n, dt_max, dt_mean, D_initial, border = [], [], [], [], [], []
     reverse_index = np.full(cells.adjacency.shape[0], -1, dtype=int)
 
     j = 0
@@ -2238,7 +2238,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
             continue
 
         # initialize the local diffusivity parameter
-        dt_min_i = np.min(cell.dt)
+        dt_max_i = np.max(cell.dt)
         dt_mean_i = np.mean(cell.dt)
         D_initial_i = np.mean(cell.dr * cell.dr) / (2. * dt_mean_i)
         #
@@ -2247,7 +2247,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
         reverse_index[i] = j
         j += 1
         n.append(float(len(cell)))
-        dt_min.append(dt_min_i)
+        dt_max.append(dt_max_i)
         dt_mean.append(dt_mean_i)
         D_initial.append(D_initial_i)
 
@@ -2269,7 +2269,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
     if min_diffusivity is None:
         noise_dt = kwargs['sigma2']
-        D_bounds = [( (1e-16 - noise_dt) * dt_min_i, None ) for dt_min_i in dt_min ]
+        D_bounds = [( (1e-16 - noise_dt) * dt_max_i, None ) for dt_max_i in dt_max ]
         min_diffusivity = 0
     else:
         if min_diffusivity is False:

@@ -38,11 +38,26 @@ class Tessellate(Helper):
 
     def prepare_data(self, input_data, labels=None, types=None, verbose=None, \
             scaling=False, time_scale=None, **kwargs):
+
+        if (isinstance(input_data, six.string_types) and os.path.isdir(input_data)) or \
+                (self.are_multiple_files(input_data) and input_data and all(os.path.exists(_d) for _d in input_data)):
+            input_data, self.input_file = load_xyt(input_data, return_paths=True, **kwargs)
+        elif isinstance(input_data, six.string_types):
+            if not os.path.exists(input_data):
+                raise OSError('file not found: {}'.format(input_data))
+            try:
+                input_data, self.input_file = load_xyt(input_data, return_paths=True, **kwargs)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except: # UnicodeDecodeError/CParserError: rwa file
+                pass
+
         if labels is None:
             labels = self.input_label
         nesting = labels is not None
         if types is None and nesting:
             types = CellStats
+
         data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
 
         if nesting:
@@ -340,8 +355,9 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         time_window_duration=None, time_window_shift=None, time_window_options=None, \
         enable_time_regularization=False, time_knn=None, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
-        force=None, return_analyses=False, \
+        overwrite=None, return_analyses=False, \
         load_options=None, tessellation_options=None, partition_options=None, save_options=None, \
+        force=None, \
         **kwargs):
     """
     Tessellation from points series and partitioning.
@@ -489,6 +505,8 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         comment (str):
             Description message for the resulting analysis.
 
+        overwrite (bool): if an implicit output file already exists, overwrite it.
+
         return_analyses (bool):
             Return a :class:`~tramway.core.analyses.base.Analyses` object instead of
             the default :class:`~tramway.tessellation.base.CellStats` output.
@@ -573,9 +591,12 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     cells = helper.tessellate(comment=comment)
     cells.param.update(kwargs)
 
+    if overwrite is None and force is not None:
+        warn('`force` is deprecated; please use `overwrite` instead')
+        overwrite = force
     if save_options is None:
         save_options = {}
-    helper.save_analyses(output_file, force=force, **save_options)
+    helper.save_analyses(output_file, force=overwrite, **save_options)
 
     if return_analyses:
         return helper.analyses

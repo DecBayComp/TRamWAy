@@ -145,19 +145,20 @@ class Worker(multiprocessing.Process):
 
     """
     def __init__(self, _id, workspace, task_queue, return_queue, update_queue,
-            name=None, args=(), kwargs={}, daemon=None):
+            name=None, args=(), kwargs={}, daemon=None, **_kwargs):
         # `daemon` is not supported in Py2; pass `daemon` only if defined
         if daemon is None:
-            _kwargs = {}
+            __kwargs = {}
         else:
-            _kwargs = dict(daemon=daemon)
-        multiprocessing.Process.__init__(self, name=name, args=args, kwargs=kwargs, **_kwargs)
+            __kwargs = dict(daemon=daemon)
+        multiprocessing.Process.__init__(self, name=name, **__kwargs)
         self._id = _id
         self.workspace = workspace
         self.tasks = task_queue
         self.update = update_queue
         self.feedback = return_queue
         self.args = args
+        kwargs.update(_kwargs)
         self.kwargs = kwargs
     def get_task(self):
         """ Listen to the scheduler and get a job step to be run.
