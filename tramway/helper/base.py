@@ -57,30 +57,11 @@ class Helper(object):
             self.analyses = Analyses(data)
         elif isinstance(data, Analyses):
             self.analyses = data
-        elif (self.are_multiple_files(data) and data and all(os.path.exists(_d) for _d in data)) or \
-                (isinstance(data, six.string_types) and os.path.isdir(data)):
-            data, self.input_file = load_xyt(data, return_paths=True, **kwargs)
-            self.analyses = Analyses(data)
-        elif isinstance(data, six.string_types) and os.path.isfile(data):
+        elif isinstance(data, six.string_types):
+            if not os.path.isfile(data):
+                raise OSError('file not found: {}'.format(data))
             self.input_file = [data]
-            try:
-                self.analyses = data = load_rwa(data, lazy=True, verbose=verbose)
-            except (SystemExit, KeyboardInterrupt):
-                raise
-            except Exception as e:
-                if labels is None and types is None:
-                    try:
-                        data = load_xyt(data, **kwargs)
-                    except (SystemExit, KeyboardInterrupt):
-                        raise
-                    except:
-                        raise e
-                    else:
-                        if kwargs.get('return_paths', False):
-                            data, = data
-                        self.analyses = Analyses(data)
-                else:
-                    raise
+            self.analyses = data = load_rwa(data, lazy=True, verbose=verbose)
         if isinstance(data, Analyses):
             if not (labels is None and types is None):
                 data = find_artefacts(data, types, labels)

@@ -38,11 +38,26 @@ class Tessellate(Helper):
 
     def prepare_data(self, input_data, labels=None, types=None, verbose=None, \
             scaling=False, time_scale=None, **kwargs):
+
+        if (isinstance(input_data, six.string_types) and os.path.isdir(input_data)) or \
+                (self.are_multiple_files(input_data) and input_data and all(os.path.exists(_d) for _d in input_data)):
+            input_data, self.input_file = load_xyt(input_data, return_paths=True, **kwargs)
+        elif isinstance(input_data, six.string_types):
+            if not os.path.exists(input_data):
+                raise OSError('file not found: {}'.format(input_data))
+            try:
+                input_data, self.input_file = load_xyt(input_data, return_paths=True, **kwargs)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except: # UnicodeDecodeError/CParserError: rwa file
+                pass
+
         if labels is None:
             labels = self.input_label
         nesting = labels is not None
         if types is None and nesting:
             types = CellStats
+
         data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
 
         if nesting:
