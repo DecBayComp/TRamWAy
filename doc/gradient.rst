@@ -15,6 +15,8 @@ Together with the center bin, the gradient calculation can be expressed as a thr
 
 In the case of no neighbours on the one side, the resulting two-point problem is solved similarly with a linear function.
 
+See also the formulae in :func:`~tramway.inference.gradient.grad1` documentation.
+
 InferenceMAP
 ^^^^^^^^^^^^
 

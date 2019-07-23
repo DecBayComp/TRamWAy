@@ -345,7 +345,7 @@ def infer_stochastic_DV(cells,
     D0=None, V0=None, x0=None, rgrad=None, debug=False, fulltime=False,
     diffusion_prior=None, diffusion_spatial_prior=None, diffusion_time_prior=None,
     prior_delay=None, return_struct=False, posterior_max_count=None,# deprecated
-    diffusivity_prior=None, potential_prior=None, time_prior=None,# deprecated
+    diffusivity_prior=None, potential_prior=None, time_prior=None,
     **kwargs):
     """
     Arguments:
@@ -367,6 +367,30 @@ def infer_stochastic_DV(cells,
 
         potential_time_prior: penalizes the temporal derivative of potential;
             this coefficient does NOT multiply with `potential_prior`.
+
+        stochastic (bool): if ``False``, emulate standard *DV* with sparse gradient.
+
+        D0 (float or ndarray): initial diffusivity value(s).
+
+        V0 (float or ndarray): initial potential energy value(s).
+
+        x0 (ndarray): initial parameter vector [diffusivities, potentials].
+
+        rgrad (str): either 'grad'/'grad1', 'gradn' (none recommended), 'delta'/'delta0'
+            or 'delta1';
+            see the corresponding functions in module :mod:`~tramway.inference.gradient`.
+
+        debug (bool or sequence of str): any subset of {'ncalls', 'f_history',
+            'df_history', 'projg_history', 'error', 'diagnoses'}.
+
+        xref (ndarray): reference parameter vector [diffusivities, potentials];
+            required to compute the 'error' debug variable.
+
+        diagnosis (callable): function of the iteration number, current component and
+            candidate updated component;
+            required to compute the 'diagnoses' debug variable.
+
+        prior_delay/return_struct/posterior_max_count: all deprecated.
 
         ...
 

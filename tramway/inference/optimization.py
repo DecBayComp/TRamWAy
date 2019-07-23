@@ -969,7 +969,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
         independent_components=False, newton=True, verbose=False, diagnosis=None,
-        returns=(), xref=None, **kwargs):
+        returns=(), **kwargs):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
