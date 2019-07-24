@@ -444,7 +444,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
         jeffreys_prior=jeffreys_prior, rgrad=rgrad, **kwargs)
 
     if overwrite is None and force is not None:
-        warn('`force` is deprecated; please use `overwrite` instead')
+        warn('`force` is deprecated; please use `overwrite` instead', PendingDeprecationWarning)
         overwrite = force
     helper.save_analyses(output_file, force=overwrite)
 
