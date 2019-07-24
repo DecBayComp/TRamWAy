@@ -92,6 +92,44 @@ def delta0(cells, i, X, index_map=None, **kwargs):
     return (y - y0) / dx_norm / np.sqrt(float(len(y)))
 
 
+def delta0_without_scaling(cells, i, X, index_map=None, **kwargs):
+    cell = cells[i]
+    # below, the measurement is renamed y and the coordinates are X
+    y = X
+
+    # cache neighbours (indices and center locations)
+    if not isinstance(cell.cache, dict):
+        cell.cache = {}
+    try:
+        i, adjacent, dx_norm = cell.cache['delta0']
+    except KeyError:
+        adjacent = _adjacent = cells.neighbours(i)
+        if index_map is not None:
+            adjacent = index_map[_adjacent]
+            ok = 0 <= adjacent
+            if not np.all(ok):
+                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+        if _adjacent.size:
+            x0 = cell.center[np.newaxis,:]
+            x = np.vstack([ cells[j].center for j in _adjacent ])
+            dx_norm = x - x0
+            dx_norm = np.sqrt(np.sum(dx_norm * dx_norm, axis=1))
+        else:
+            dx_norm = None
+
+        if index_map is not None:
+            i = index_map[i]
+        cell.cache['delta0'] = (i, adjacent, dx_norm)
+
+    if dx_norm is None:
+        return None
+
+    y0, y = y[i], y[adjacent]
+
+    # scale by the number of differences to make the sum of the returned values be a mean value instead
+    return (y - y0) / dx_norm
+
+
 def gradn(cells, i, X, index_map=None):
     """
     Local gradient by multi-dimensional 2 degree polynomial interpolation.
@@ -759,5 +797,5 @@ setup_with_grad_arguments(setup)
 
 
 __all__ = ['default_selection_angle', 'get_grad_kwargs', 'neighbours_per_axis', 'grad1', 'gradn',
-        'delta0', 'delta1', 'setup_with_grad_arguments', 'setup', 'gradient_map']
+        'delta0', 'delta0_without_scaling', 'delta1', 'setup_with_grad_arguments', 'setup', 'gradient_map']
 

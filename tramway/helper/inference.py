@@ -101,6 +101,8 @@ class Infer(Helper):
                         rgrad = delta0
                     elif rgrad == 'delta1':
                         rgrad = delta1
+                    elif rgrad == 'delta0_without_scaling':
+                        rgrad = delta0_without_scaling
                     elif rgrad is not None:
                         raise ValueError("unsupported regularizing 'gradient'")
                         rgrad = None
