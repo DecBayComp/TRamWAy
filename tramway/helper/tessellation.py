@@ -592,7 +592,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     cells.param.update(kwargs)
 
     if overwrite is None and force is not None:
-        warn('`force` is deprecated; please use `overwrite` instead')
+        warn('`force` is deprecated; please use `overwrite` instead', PendingDeprecationWarning)
         overwrite = force
     if save_options is None:
         save_options = {}
