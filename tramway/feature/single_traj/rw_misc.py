@@ -48,7 +48,7 @@ def normalize_init(X, dim):
     X : float or list, the starting point.
     dim : int, in {1,2,3}, the dimension of the random walk.
     """
-    if type(X) != list:
+    if not hasattr(X, '__iter__'):
         if X is None:
             X = 0
         return [X] * dim
