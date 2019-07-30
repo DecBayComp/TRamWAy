@@ -41,7 +41,18 @@ def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
 
     # iterate over the cells
     for key in tqdm(cells):
-        calculate_bayes_factors_for_one_cell(cells[key], localization_error, **kwargs)
+        try:
+            calculate_bayes_factors_for_one_cell(cells[key], localization_error, **kwargs)
+        except NaNInputError:
+            nan_cells_list.append(key)
+
+    # Report error if any
+    if nan_cells_list:
+        logging.warn(
+            "A NaN value was present in the input parameters for the following cells: {nan_cells_list}.\nBayes factor calculations were skipped for them".format(nan_cells_list=nan_cells_list))
+
+        # Group cells by Bayes factor
+    group_by_sign(cells=cells, tqdm=tqdm, **kwargs)
 
 
 setup = {

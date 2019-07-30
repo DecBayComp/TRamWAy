@@ -114,7 +114,16 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
         for i in _trange(M):
             lg_Bs[i], forces[i], min_ns[i] = _calculate_one_bayes_factor(
                 zeta_ts[i, :], zeta_sps[i, :], ns[i], Vs[i], Vs_pi[i], loc_error, dim)
+            try:
+                lg_Bs[i], forces[i], min_ns[i] = _calculate_one_bayes_factor(
+                    zeta_ts[i, :], zeta_sps[i, :], ns[i], Vs[i], Vs_pi[i], loc_error, dim)
+            except NaNInputError:
+                nan_cells_list.append(i)
 
+        # Report error if any
+        if nan_cells_list:
+            logging.warn(
+                "A NaN value was present in the input parameters for the following cells: {nan_cells_list}.\nBayes factor calculations were skipped for them".format(nan_cells_list=nan_cells_list))
         return [lg_Bs, forces, min_ns]
 
 
@@ -189,7 +198,8 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     test = check_for_nan(zeta_t, zeta_sp, n0, V, V_pi, loc_error)
     if test is not 'ok':
         logging.warning(
-            f'>>A {test} value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
+            '>>A {test} value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<'.format(
+                test=test, zeta_t=zeta_t, zeta_sp=zeta_sp, n0=n0, V=V, V_pi=V_pi, loc_error=loc_error))
         return np.nan
 
     if np.isnan(n0):
@@ -261,6 +271,6 @@ def check_for_nan(*args):
             elif np.any(np.isnan(var)):
                 return 'nan'
         except:
-            logging.warning(f'Unable to check for nan value for variable #{i}')
+            logging.warning('Unable to check for nan value for variable #{i}'.format(i=i))
             return 'unidentified'
     return 'ok'
