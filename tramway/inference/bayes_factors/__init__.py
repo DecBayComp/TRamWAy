@@ -1,9 +1,11 @@
 # import datetime
+import logging
 import sys
 from collections import OrderedDict
 
 from .calculate_bayes_factors import (calculate_bayes_factors,
-                                      calculate_bayes_factors_for_one_cell)
+                                      calculate_bayes_factors_for_one_cell,
+                                      group_by_sign)
 
 # The package can be imported by just `import bayes_factors`.
 __all__ = ['calculate_bayes_factors', 'calculate_bayes_factors_for_one_cell', 'setup']
@@ -18,7 +20,6 @@ def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
         try:
             from tqdm import tqdm
         except:
-            import logging
             logging.warning(
                 "Consider installing `tqdm` package (`pip install tqdm`) to see Bayes factors calculation progress.")
 
@@ -47,9 +48,11 @@ def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
             nan_cells_list.append(key)
 
     # Report error if any
-    if nan_cells_list:
+    try:
         logging.warn(
             "A NaN value was present in the input parameters for the following cells: {nan_cells_list}.\nBayes factor calculations were skipped for them".format(nan_cells_list=nan_cells_list))
+    except NameError:
+        pass
 
         # Group cells by Bayes factor
     group_by_sign(cells=cells, tqdm=tqdm, **kwargs)
