@@ -27,6 +27,10 @@ except ImportError:
     trange = range
 
 
+class NaNInputError(ValueError):
+    pass
+
+
 # def calculate_bayes_factors_for_cells(cells, loc_error, dim=2, B_threshold=10, verbose=True):
 #     """Calculate Bayes factors for an iterable ensemble of cells."""
 #
@@ -49,16 +53,20 @@ def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10,
 
     check_dimensionality(dim)
 
-    cell.lg_B, cell.force, cell.min_n = _calculate_one_bayes_factor(
-        zeta_t=cell.zeta_total,
-        zeta_sp=cell.zeta_spurious,
-        n=cell.n,
-        V=cell.V,
-        V_pi=cell.V_prior,
-        loc_error=loc_error,
-        dim=dim,
-        bl_need_min_n=True,
-        B_threshold=B_threshold)
+    try:
+        cell.lg_B, cell.force, cell.min_n = _calculate_one_bayes_factor(
+            zeta_t=cell.zeta_total,
+            zeta_sp=cell.zeta_spurious,
+            n=cell.n,
+            V=cell.V,
+            V_pi=cell.V_prior,
+            loc_error=loc_error,
+            dim=dim,
+            bl_need_min_n=True,
+            B_threshold=B_threshold)
+    except NaNInputError:
+        cell.lg_B, cell.force, cell.min_n = [np.nan] * 3
+        raise NaNInputError()
 
     # cell.lamb_MAP = get_lambda_MAP(zeta_t=cell.zeta_total, zeta_sp=cell.zeta_spurious)
     return [cell.lg_B, cell.force, cell.min_n]
@@ -110,6 +118,7 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
     lg_Bs = np.zeros_like(ns) * np.nan
     forces = np.zeros_like(ns) * np.nan
     min_ns = np.zeros_like(ns, dtype=int) * np.nan
+    nan_cells_list = []
     with stopwatch("Bayes factor calculation", verbose):
         for i in _trange(M):
             lg_Bs[i], forces[i], min_ns[i] = _calculate_one_bayes_factor(
@@ -135,9 +144,10 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_t
 
     test = check_for_nan(zeta_t, zeta_sp, n, V, V_pi, loc_error)
     if test is not 'ok':
-        logging.warning(
-            f'>>A {test} value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
-        return [np.nan] * 3
+        raise NaNInputError()
+        # logging.warning(
+        #     f'>>A {test} value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
+        # return [np.nan] * 3
 
     # # Check if None is present
     # if any(var is None for var in [zeta_t, zeta_sp, n, V, V_pi, loc_error]):

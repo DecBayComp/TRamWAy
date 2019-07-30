@@ -3,8 +3,13 @@ import logging
 import sys
 from collections import OrderedDict
 
-from .calculate_bayes_factors import (calculate_bayes_factors,
+import numpy as np
+
+from tramway.tessellation.base import point_adjacency_matrix
+
+from .calculate_bayes_factors import (NaNInputError, calculate_bayes_factors,
                                       calculate_bayes_factors_for_one_cell)
+from .group_by_sign import group_by_sign
 
 # The package can be imported by just `import bayes_factors`.
 __all__ = ['calculate_bayes_factors', 'calculate_bayes_factors_for_one_cell', 'setup']
@@ -14,7 +19,7 @@ if sys.version_info <= (3, 6):
     raise RuntimeError("Python 3.6+ is required for calculating Bayes factors")
 
 
-def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
+def _bayes_factor(cells, B_threshold=None, verbose=True, **kwargs):
     if verbose:
         try:
             from tqdm import tqdm
@@ -22,9 +27,9 @@ def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
             logging.warning(
                 "Consider installing `tqdm` package (`pip install tqdm`) to see Bayes factors calculation progress.")
 
-            def tqdm(x): return x
+            def tqdm(x, desc=None): return x
     else:
-        def tqdm(x): return x
+        def tqdm(x, desc=None): return x
 
     # TODO: use the same localization error as for inference
     # input arguments
@@ -40,6 +45,7 @@ def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
         kwargs['verbose'] = verbose
 
     # iterate over the cells
+    nan_cells_list = []
     for key in tqdm(cells):
         try:
             calculate_bayes_factors_for_one_cell(cells[key], localization_error, **kwargs)
@@ -53,8 +59,8 @@ def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
     except NameError:
         pass
 
-        # Group cells by Bayes factor
-    # group_by_sign(cells=cells, tqdm=tqdm, **kwargs)
+    # Group cells by Bayes factor
+    group_by_sign(cells=cells, tqdm=tqdm, **kwargs)
 
 
 setup = {
@@ -66,5 +72,5 @@ setup = {
         ('verbose', ()),
     )),
     # List of variables that the module returns as cell properties, e.g. cell.lg_B
-    'returns': ['lg_B', 'force', 'min_n'],
+    'returns': ['lg_B', 'force', 'min_n', 'groups', 'group_lg_B', 'group_forces'],
 }
