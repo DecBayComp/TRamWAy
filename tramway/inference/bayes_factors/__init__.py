@@ -4,8 +4,7 @@ import sys
 from collections import OrderedDict
 
 from .calculate_bayes_factors import (calculate_bayes_factors,
-                                      calculate_bayes_factors_for_one_cell,
-                                      group_by_sign)
+                                      calculate_bayes_factors_for_one_cell)
 
 # The package can be imported by just `import bayes_factors`.
 __all__ = ['calculate_bayes_factors', 'calculate_bayes_factors_for_one_cell', 'setup']
@@ -55,7 +54,7 @@ def _bayes_factor(cells, B_threshold=None, verbose=False, **kwargs):
         pass
 
         # Group cells by Bayes factor
-    group_by_sign(cells=cells, tqdm=tqdm, **kwargs)
+    # group_by_sign(cells=cells, tqdm=tqdm, **kwargs)
 
 
 setup = {
