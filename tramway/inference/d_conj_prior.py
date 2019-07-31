@@ -58,6 +58,8 @@ def infer_d_conj_prior(cells, alpha=.95, return_zeta_spurious=True, trust=False,
     dim = cells.dim
     dt = cells.any_cell().dt[0]
     sigma2 = cells.get_localization_error(kwargs)
+    if sigma2 is None:
+        raise ValueError('undefined localization precision; please define `sigma` or `sigma2`')
     maps = add_snr_extensions(cells, _zeta_spurious=False)
     n, zeta_t, V, V_pi = maps['n'], Maps(maps)['zeta_total'], maps['V'], maps['V_prior']
     index, D_map, D_ci = [], [], []

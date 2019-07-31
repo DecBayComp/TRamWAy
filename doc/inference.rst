@@ -218,11 +218,11 @@ This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:
 *DV* inference
 ^^^^^^^^^^^^^^
 
-The posterior probability used to infer the local diffusivity :math:`D_i` and potential energy :math:`V_i` is given by:
+The total posterior probability used to infer the local diffusivities :math:`\textbf{D}` and potential energies :math:`\textbf{V}` is given by:
 
 .. math::
 
-	P(D_i, V_i | T_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + \frac{D_i\nabla V_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}P_S(\textbf{D})P_S(\textbf{V})
+	P(\textbf{D}, \textbf{V} | T) \propto \prod_i\prod_{j \in T_i} \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + \frac{D_i\nabla V_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}P_S(\textbf{D})P_S(\textbf{V})
 
 :math:`P_S(\textbf{D})` and :math:`P_S(\textbf{V})` are smoothing factors for the diffusivity and potential energy respectively.
 The :math:`P_S(\textbf{D})` smoothing factor is also available for the other inference modes.
