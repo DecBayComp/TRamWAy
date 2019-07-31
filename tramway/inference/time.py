@@ -47,22 +47,31 @@ class DynamicTranslocations(Translocations):
 class DynamicCells(Distributed):
 
     def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None,
-        boundary=None, spatial_adjacency=None, temporal_adjacency=None):
+        boundary=None, spatial_adjacency=None, temporal_adjacency=None, time_adjacency=None):
         Distributed.__init__(self, cells, adjacency, index, center, span, central, boundary)
-        if temporal_adjacency is None and spatial_adjacency is None and \
+        if time_adjacency is None:
+            time_adjacency = temporal_adjacency
+        if time_adjacency is None and spatial_adjacency is None and \
                 adjacency.dtype not in (bool, np.bool_):
             # separate spatial adjacency and temporal adjacency
             A = adjacency.tocoo()
             ok = 1 < A.data
-            temporal_adjacency = sparse.csr_matrix((np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape)
+            time_adjacency = sparse.csr_matrix((np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape)
             ok = A.data == 1
             spatial_adjacency = sparse.csr_matrix((np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape)
         self.spatial_adjacency = spatial_adjacency
-        self.temporal_adjacency = temporal_adjacency
+        self.time_adjacency = time_adjacency
+
+    @property
+    def temporal_adjacency(self):
+        """
+        alias for :attr:`time_adjacency`.
+        """
+        return self.time_adjacency
 
     def neighbours(self, i):
         """
-        Indices of spatially-neighbour cells.
+        Indices of spatial-neighbour cells.
 
         Argument:
 
@@ -75,6 +84,21 @@ class DynamicCells(Distributed):
         """
         return self.spatial_adjacency.indices[self.spatial_adjacency.indptr[i]:self.spatial_adjacency.indptr[i+1]]
 
+    def time_neighbours(self, i):
+        """
+        Indices of time-neighbour cells.
+
+        Argument:
+
+            i (int): cell index.
+
+        Returns:
+
+            numpy.ndarray: indices of the neighbour cells of cell *i*.
+
+        """
+        return self.time_adjacency.indices[self.time_adjacency.indptr[i]:self.time_adjacency.indptr[i+1]]
+
     def time_derivative(self, i, X, index_map=None, na=np.nan, **kwargs):
         cell = self.cells[i]
         t0 = cell.center_t
@@ -85,7 +109,7 @@ class DynamicCells(Distributed):
         try:
             i, adjacent, t = cell.cache['time_derivative']
         except KeyError:
-            A = self.temporal_adjacency
+            A = self.time_adjacency
             adjacent = _adjacent = A.indices[A.indptr[i]:A.indptr[i+1]]
             if index_map is not None:
                 adjacent = index_map[_adjacent]
@@ -144,7 +168,7 @@ class DynamicCells(Distributed):
 
         return deriv
 
-    def temporal_variation(self, i, X, index_map=None, na=0., **kwargs):
+    def time_variation(self, i, X, index_map=None, na=0., **kwargs):
         cell = self.cells[i]
         t0 = cell.center_t
 
@@ -154,7 +178,7 @@ class DynamicCells(Distributed):
         try:
             i, adjacent, t = cell.cache['time_derivative']
         except KeyError:
-            A = self.temporal_adjacency
+            A = self.time_adjacency
             adjacent = _adjacent = A.indices[A.indptr[i]:A.indptr[i+1]]
             if index_map is not None:
                 adjacent = index_map[_adjacent]
@@ -217,6 +241,18 @@ class DynamicCells(Distributed):
             #delta = np.abs(delta)
 
         return delta
+
+    def temporal_variation(self, *args, **kwargs):
+        """
+        alias for :meth:`time_variation`.
+        """
+        return self.time_variation(*args, **kwargs)
+
+    def spatial_variation(self, *args, **kwargs):
+        """
+        alias for :meth:`local_variation`.
+        """
+        return self.local_variation(*args, **kwargs)
 
 
 __all__ = ['DynamicTranslocations', 'DynamicCells']

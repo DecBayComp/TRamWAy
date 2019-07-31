@@ -92,7 +92,14 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
         analyses = load_rwa(input_file, lazy=True)
 
     if isinstance(label, str):
-        label = label.split(',')
+        _label = []
+        for _l in label.split(','):
+            try:
+                _l = int(_l)
+            except (TypeError, ValueError):
+                pass
+            _label.append(_l)
+        label = _label
 
     cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
 
