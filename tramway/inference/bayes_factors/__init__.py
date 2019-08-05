@@ -15,8 +15,8 @@ from .group_by_sign import group_by_sign
 __all__ = ['calculate_bayes_factors', 'calculate_bayes_factors_for_one_cell', 'setup']
 
 
-if sys.version_info <= (3, 6):
-    raise RuntimeError("Python 3.6+ is required for calculating Bayes factors")
+if sys.version_info < (3, 5):
+    raise RuntimeError("Python 3.5+ is required for calculating Bayes factors")
 
 
 def _bayes_factor(cells, B_threshold=None, verbose=True, **kwargs):
@@ -53,11 +53,9 @@ def _bayes_factor(cells, B_threshold=None, verbose=True, **kwargs):
             nan_cells_list.append(key)
 
     # Report error if any
-    try:
+    if len(nan_cells_list) > 0:
         logging.warn(
             "A NaN value was present in the input parameters for the following cells: {nan_cells_list}.\nBayes factor calculations were skipped for them".format(nan_cells_list=nan_cells_list))
-    except NameError:
-        pass
 
     # Group cells by Bayes factor
     group_by_sign(cells=cells, tqdm=tqdm, **kwargs)
