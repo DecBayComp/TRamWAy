@@ -42,7 +42,7 @@ def animate_trajectories_2d_helper(input_data, *args, **kwargs):
     else:
         input_file = os.path.expanduser(input_data)
         if not os.path.isfile(input_file):
-            raise "file '{}' not found".format(input_file)
+            raise OSError("file '{}' not found".format(input_file))
         load_kwargs = {}
         if columns is not None:
             if isinstance(columns, str):
@@ -88,7 +88,7 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
         from tramway.core.hdf5 import load_rwa
         input_file = os.path.expanduser(input_data)
         if not os.path.isfile(input_file):
-            raise "file '{}' not found".format(input_file)
+            raise OSError("file '{}' not found".format(input_file))
         analyses = load_rwa(input_file, lazy=True)
 
     if isinstance(label, str):

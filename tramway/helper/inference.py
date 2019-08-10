@@ -1186,7 +1186,7 @@ def _clip(m, q):
     amplitude = amplitude.values
     exceed = amplitude > amax
     factor = amax / amplitude[exceed]
-    M, index, m = type(m), m.index, m.values
+    M, index, m = type(m), m.index, np.array(m.values)
     if m.shape[1:]:
         m[exceed, :] = m[exceed, :] * factor[:, np.newaxis]
         m = M(m, columns=columns, index=index)
