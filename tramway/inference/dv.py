@@ -146,7 +146,7 @@ def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
     if dv.minimum_diffusivity is not None:
         observed_min = np.min(D)
         if observed_min < dv.minimum_diffusivity and not \
-                np.isclose(observed_min, dv.min_diffusivity):
+                np.isclose(observed_min, dv.minimum_diffusivity):
             warn(DiffusivityWarning(observed_min, dv.minimum_diffusivity))
     noise_dt = sigma2
 
