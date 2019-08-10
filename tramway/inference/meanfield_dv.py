@@ -88,22 +88,31 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
     neighbours = []
     Bu, B, B2 = [], [], []
-    scale = []
+    C = []
     sum_dr, sum_dr2 = [], []
-    for _i, i in enumerate(index):
+    for i in index:
         _neighbours = cells.neighbours(i)
         neighbours.append(reverse_index[_neighbours])
+        # r_l - r_k \forall l in N_k, with N_k the set of spatial neighbours of k
         _d = np.stack([ cells[j].center for j in _neighbours ], axis=0) - cells[i].center[np.newaxis,:]
-        _scale = 1./ (np.sum(_d * _d, axis=1) * len(_neighbours))
-        _B2 = np.sum(_scale * _scale)
+        # C_{V_l} = \lambda / (|| r_l - r_k ||^2 * |N_k|)  let's omit lambda for now
+        _C = 1./ np.sum(_d * _d, axis=1)
+        _scale = np.sqrt(_C)
+        _u = _d * _scale[:,np.newaxis]
+        _C /= len(_neighbours)
+        # B_l = 1 / (|| r_l - r_k || * |N_k|)
+        _Bl = _scale / len(_neighbours)
+        # B^2 = \sum_{l \in N_k} B_l^2
+        _B2 = np.sum(_Bl * _Bl)
         #assert not np.any(_scale == 0) # null inter-cell distance?
         #assert not np.any(np.isinf(_scale)) # infinite inter-cell distance?
-        _Bu = _d * _scale[:,np.newaxis]
-        scale.append(_scale)
+        # Bu is \{B_l u_{k->l}\}_{\forall l}
+        _Bu = _u * _Bl[:,np.newaxis]
         Bu.append(_Bu)
         B2.append(_B2)
         _B = np.sum(_Bu, axis=0, keepdims=True)
         B.append(_B)
+        C.append(_C)
         sum_dr.append(np.sum(cells[i].dr, axis=0, keepdims=True))
         sum_dr2.append(np.sum(cells[i].dr * cells[i].dr))
     region_size = np.array([ 1+len(_n) for _n in neighbours ])
@@ -121,92 +130,99 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     bV_constant_factor = (n * B2) / (2. * dt)
 
     # priors
-    Bx_space = np.array([ np.sum(_scale) for _scale in scale ])
+    sumC = np.array([ np.sum(_C) for _C in C ]) # used for both D and V
     # do not scale time;
     # assume constant window shift and let time_prior hyperparameters bear all the responsibility
     if diffusivity_spatial_prior is None:
         BD_constant_term = 0.
     else:
-        BD_constant_term = 2. * diffusivity_spatial_prior * Bx_space
+        BD_constant_term = 2. * diffusivity_spatial_prior * sumC
     if diffusivity_time_prior is not None:
         BD_constant_term += 2. * diffusivity_time_prior
     if potential_spatial_prior is None:
         BV_constant_term = 0.
     else:
-        BV_constant_term = 2. * potential_spatial_prior * Bx_space
+        BV_constant_term = 2. * potential_spatial_prior * sumC
     if potential_time_prior is not None:
         BV_constant_term += 2. * potential_time_prior
 
     neg_L = np.inf
-    while True:
-        neg_L_prev = neg_L
+    try:
+        while True:
+            neg_L_prev = neg_L
 
-        # mean-field parameters
-        aD, bD, aV, bV = [], [], [], []
-        for _i, i in enumerate(index):
-            V_neighbours = V[neighbours[_i]]
-            nabla_V = np.dot(V_neighbours - V[_i], Bu[_i])
-            nabla_V_star = nabla_V
-            residual_dr = cells[i].dr - nabla_V_star[np.newaxis,:]
-            chi2 = np.sum(residual_dr * residual_dr)
-            _aD = chi2 * aD_constant_factor[_i]
-            _aV = aV_constant_factor1[_i] / _aD + _aD / D[_i] * np.dot(aV_constant_factor2[_i], V_neighbours)
-            _bD = n[_i] / (_aD * _aD) * (1. + (_aD * np.dot(nabla_V_star, nabla_V_star)) / (2. * dt[_i]))
-            _bV = _aD * bV_constant_factor[_i]
-            aD.append(_aD)
-            bD.append(_bD)
-            aV.append(_aV)
-            bV.append(_bV)
-        aD, bD, aV, bV = np.array(aD), np.array(bD), np.array(aV), np.array(bV)
+            # mean-field parameters
+            aD, bD, aV, bV = [], [], [], []
+            for _i, i in enumerate(index):
+                V_neighbours = V[neighbours[_i]]
+                nabla_V = np.dot(V_neighbours - V[_i], Bu[_i])
+                nabla_V_star = nabla_V
+                residual_dr = cells[i].dr - nabla_V_star[np.newaxis,:]
+                chi2 = np.sum(residual_dr * residual_dr)
+                _aD = chi2 * aD_constant_factor[_i]
+                _aV = aV_constant_factor1[_i] / _aD + _aD / D[_i] * np.dot(aV_constant_factor2[_i], V_neighbours)
+                _bD = n[_i] / (_aD * _aD) * (1. + (_aD * np.dot(nabla_V_star, nabla_V_star)) / (2. * dt[_i]))
+                _bV = _aD * bV_constant_factor[_i]
+                aD.append(_aD)
+                bD.append(_bD)
+                aV.append(_aV)
+                bV.append(_bV)
+            aD, bD, aV, bV = np.array(aD), np.array(bD), np.array(aV), np.array(bV)
 
-        # priors
-        BD = bD + BD_constant_term
-        BV = bV + BV_constant_term
-        AD = aD * (bD / 2.)
-        AV = aV * (bV / 2.)
-        if diffusivity_spatial_prior is not None:
-            AD += diffusivity_spatial_prior * \
-                    np.array([ np.dot(aD[_neighbours], _scale) for _neighbours, _scale in zip(neighbours, scale) ])
-            AV += potential_spatial_prior * \
-                    np.array([ np.dot(aV[_neighbours], _scale) for _neighbours, _scale in zip(neighbours, scale) ])
-        if diffusivity_time_prior is not None:
-            aD_neighbours, aV_neighbours = [], []
-            for i in index:
-                _neighbours = reverse_index[cells.time_neighbours(i)]
-                if _neighbours.size == 0:
-                    aD_neighbours.append(0.)
-                    aV_neighbours.append(0.)
-                else:
-                    aD_neighbours.append( np.mean(aD[_neighbours]) )
-                    aV_neighbours.append( np.mean(aV[_neighbours]) )
-            AD += diffusivity_time_prior * np.array(aD_neighbours)
-            AV += potential_time_prior * np.array(aV_neighbours)
-        AD /= BD / 2.
-        AV /= BV / 2.
-        aD, bD, aV, bV = AD, BD, AV, BV
+            # priors
+            BD = bD + BD_constant_term
+            BV = bV + BV_constant_term
+            AD = aD * (bD / 2.)
+            AV = aV * (bV / 2.)
+            if diffusivity_spatial_prior is not None:
+                # reminder: C comes without mu (global diffusion prior) or lambda (global potential prior)
+                AD += diffusivity_spatial_prior * \
+                        np.array([ np.dot(aD[_neighbours], _C) for _neighbours, _C in zip(neighbours, C) ])
+                AV += potential_spatial_prior * \
+                        np.array([ np.dot(aV[_neighbours], _C) for _neighbours, _C in zip(neighbours, C) ])
+            if diffusivity_time_prior is not None:
+                aD_neighbours, aV_neighbours = [], []
+                for i in index:
+                    _neighbours = reverse_index[cells.time_neighbours(i)]
+                    if _neighbours.size == 0:
+                        aD_neighbours.append(0.)
+                        aV_neighbours.append(0.)
+                    else:
+                        aD_neighbours.append( np.mean(aD[_neighbours]) )
+                        aV_neighbours.append( np.mean(aV[_neighbours]) )
+                AD += diffusivity_time_prior * np.array(aD_neighbours)
+                AV += potential_time_prior * np.array(aV_neighbours)
+            AD /= BD / 2.
+            AV /= BV / 2.
+            aD, bD, aV, bV = AD, BD, AV, BV
 
-        # ELBO
-        nablaV_neighbours = [ np.dot(aV[_neighbours], _Bu) for _neighbours, _Bu in zip(neighbours, Bu) ]
-        nabla_V_star = np.stack(nablaV_neighbours, axis=0) - B * aV[:,np.newaxis]
-        nabla_V_star2 = np.sum(nabla_V_star * nabla_V_star, axis=1)
-        B2_over_bV = B2 / bV
-        B2_over_bV_neighbours = np.array([ np.sum(B2_over_bV[_neighbours]) for _neighbours in neighbours ])
-        B2_over_bV_star = B2_over_bV + B2_over_bV_neighbours
-        log_bV = np.log(bV)
-        log_bV_neighbours = np.array([ np.sum(log_bV[_neighbours]) for _neighbours in neighbours ])
-        log_bV_star = log_bV + log_bV_neighbours
+            # ELBO
+            nablaV_neighbours = [ np.dot(aV[_neighbours], _Bu) for _neighbours, _Bu in zip(neighbours, Bu) ]
+            nabla_V_star = np.stack(nablaV_neighbours, axis=0) - B * aV[:,np.newaxis]
+            nabla_V_star2 = np.sum(nabla_V_star * nabla_V_star, axis=1)
+            B2_over_bV = B2 / bV
+            B2_over_bV_neighbours = np.array([ np.sum(B2_over_bV[_neighbours]) for _neighbours in neighbours ])
+            B2_over_bV_star = B2_over_bV + B2_over_bV_neighbours
+            log_bV = np.log(bV)
+            log_bV_neighbours = np.array([ np.sum(log_bV[_neighbours]) for _neighbours in neighbours ])
+            log_bV_star = log_bV + log_bV_neighbours
 
-        neg_L = neg_L_global_constant + np.dot(n, np.log(aD) - 1./ (2. * aD * aD * bD)) + \
-                np.dot(1./ aD + 1./ (aD**3 * bD), L_local_factor_for_D) + \
-                np.sum(nabla_V_star * L_local_factor_for_V) + \
-                np.dot((n * aD) / (4. * dt), nabla_V_star2 + B2_over_bV_star) + \
-                .5 * np.sum(np.log(bD) + log_bV_star)
+            neg_L = neg_L_global_constant + np.dot(n, np.log(aD) - 1./ (2. * aD * aD * bD)) + \
+                    np.dot(1./ aD + 1./ (aD**3 * bD), L_local_factor_for_D) + \
+                    np.sum(nabla_V_star * L_local_factor_for_V) + \
+                    np.dot((n * aD) / (4. * dt), nabla_V_star2 + B2_over_bV_star) + \
+                    .5 * np.sum(np.log(bD) + log_bV_star)
 
-        # step forward
-        D, V = aD, aV
-        # stopping criterion
-        if abs(neg_L - neg_L_prev) < tol:
-            break
+            # step forward
+            D, V = aD, aV
+            # stopping criterion
+            if abs(neg_L - neg_L_prev) < tol:
+                break
+
+    except KeyboardInterrupt:
+        print('interrupted')
+        print('D={} V={}'.format(D,V))
+        pass
 
     DV = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
         columns=['diffusivity', 'potential'])
