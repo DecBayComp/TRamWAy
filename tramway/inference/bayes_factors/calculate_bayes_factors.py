@@ -27,6 +27,10 @@ except ImportError:
     trange = range
 
 
+class NaNInputError(ValueError):
+    pass
+
+
 # def calculate_bayes_factors_for_cells(cells, loc_error, dim=2, B_threshold=10, verbose=True):
 #     """Calculate Bayes factors for an iterable ensemble of cells."""
 #
@@ -49,16 +53,20 @@ def calculate_bayes_factors_for_one_cell(cell, loc_error, dim=2, B_threshold=10,
 
     check_dimensionality(dim)
 
-    cell.lg_B, cell.force, cell.min_n = _calculate_one_bayes_factor(
-        zeta_t=cell.zeta_total,
-        zeta_sp=cell.zeta_spurious,
-        n=cell.n,
-        V=cell.V,
-        V_pi=cell.V_prior,
-        loc_error=loc_error,
-        dim=dim,
-        bl_need_min_n=True,
-        B_threshold=B_threshold)
+    try:
+        cell.lg_B, cell.force, cell.min_n = _calculate_one_bayes_factor(
+            zeta_t=cell.zeta_total,
+            zeta_sp=cell.zeta_spurious,
+            n=cell.n,
+            V=cell.V,
+            V_pi=cell.V_prior,
+            loc_error=loc_error,
+            dim=dim,
+            bl_need_min_n=True,
+            B_threshold=B_threshold)
+    except NaNInputError:
+        cell.lg_B, cell.force, cell.min_n = [np.nan] * 3
+        raise NaNInputError()
 
     # cell.lamb_MAP = get_lambda_MAP(zeta_t=cell.zeta_total, zeta_sp=cell.zeta_spurious)
     return [cell.lg_B, cell.force, cell.min_n]
@@ -110,10 +118,23 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
     lg_Bs = np.zeros_like(ns) * np.nan
     forces = np.zeros_like(ns) * np.nan
     min_ns = np.zeros_like(ns, dtype=int) * np.nan
+    nan_cells_list = []
     with stopwatch("Bayes factor calculation", verbose):
         for i in _trange(M):
             lg_Bs[i], forces[i], min_ns[i] = _calculate_one_bayes_factor(
                 zeta_ts[i, :], zeta_sps[i, :], ns[i], Vs[i], Vs_pi[i], loc_error, dim)
+            try:
+                lg_Bs[i], forces[i], min_ns[i] = _calculate_one_bayes_factor(
+                    zeta_ts[i, :], zeta_sps[i, :], ns[i], Vs[i], Vs_pi[i], loc_error, dim)
+            except NaNInputError:
+                nan_cells_list.append(i)
+
+        # Report error if any
+        try:
+            logging.warn(
+                "A NaN value was present in the input parameters for the following cells: {nan_cells_list}.\nBayes factor calculations were skipped for them".format(nan_cells_list=nan_cells_list))
+        except NameError:
+            pass
 
         return [lg_Bs, forces, min_ns]
 
@@ -123,9 +144,10 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_t
 
     test = check_for_nan(zeta_t, zeta_sp, n, V, V_pi, loc_error)
     if test is not 'ok':
-        logging.warning(
-            f'>>A {test} value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
-        return [np.nan] * 3
+        raise NaNInputError()
+        # logging.warning(
+        #     f'>>A {test} value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
+        # return [np.nan] * 3
 
     # # Check if None is present
     # if any(var is None for var in [zeta_t, zeta_sp, n, V, V_pi, loc_error]):
@@ -189,7 +211,8 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     test = check_for_nan(zeta_t, zeta_sp, n0, V, V_pi, loc_error)
     if test is not 'ok':
         logging.warning(
-            f'>>A {test} value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
+            '>>A {test} value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<'.format(
+                test=test, zeta_t=zeta_t, zeta_sp=zeta_sp, n0=n0, V=V, V_pi=V_pi, loc_error=loc_error))
         return np.nan
 
     if np.isnan(n0):
@@ -261,6 +284,6 @@ def check_for_nan(*args):
             elif np.any(np.isnan(var)):
                 return 'nan'
         except:
-            logging.warning(f'Unable to check for nan value for variable #{i}')
+            logging.warning('Unable to check for nan value for variable #{i}'.format(i=i))
             return 'unidentified'
     return 'ok'
