@@ -14,12 +14,13 @@
 
 from tramway.core import *
 from tramway.core.hdf5 import *
-from tramway.inference import *
+from tramway.inference.base import *
 from .base import *
 import tramway.inference as inference # inference.plugins
 import tramway.tessellation.time
 import tramway.inference.time
 from tramway.helper.tessellation import *
+import tramway.helper.gradient
 from warnings import warn
 import os
 import time
@@ -65,10 +66,11 @@ class Infer(Helper):
 
     def distribute(self, new_cell=None, new_group=None, cell_sampling=None,
             include_empty_cells=False, merge_threshold_count=False,
-            max_cell_count=None, dilation=None, grad=None, rgrad=None):
+            max_cell_count=None, dilation=None, grad=None, rgrad=None,
+            discretizer=None):
         cells = self.cells
         if isinstance(cells, Distributed):
-            _map = cells
+            _map = self.overload_cells(cells)
         else:
             if not isinstance(cells, CellStats) or cells.tessellation is None:
                 raise ValueError('no cells found')
@@ -78,6 +80,12 @@ class Infer(Helper):
             distributed_kwargs = {}
             if new_cell is None and has_time_linking:
                 new_cell = tramway.inference.time.DynamicTranslocations
+            try:
+                new_cell = self.overload_finite_element_cls(new_cell)
+            except TypeError:
+                post_overload = True
+            else:
+                post_overload = False
             if new_group is None:
                 if has_time_linking:
                     new_group = tramway.inference.time.DynamicCells
@@ -85,44 +93,12 @@ class Infer(Helper):
                     new_group = DistributeMerge
                     distributed_kwargs['new_group_kwargs'] = \
                         {'min_location_count': merge_threshold_count}
-                else:
-                    new_group = Distributed
-            if grad is not None or rgrad is not None:
-                if not callable(grad):
-                    if grad == 'grad1':
-                        grad = grad1
-                    elif grad == 'gradn':
-                        grad = gradn
-                    elif grad is not None:
-                        raise ValueError('unsupported gradient')
-                        grad = None
-                if not callable(rgrad):
-                    if rgrad == 'delta0':
-                        rgrad = delta0
-                    elif rgrad == 'delta1':
-                        rgrad = delta1
-                    elif rgrad == 'delta0_without_scaling':
-                        rgrad = delta0_without_scaling
-                    elif rgrad is not None:
-                        raise ValueError("unsupported regularizing 'gradient'")
-                        rgrad = None
-                if grad is None:
-                    class Distr(new_group):
-                        def local_variation(self, *args, **kwargs):
-                            return rgrad(self, *args, **kwargs)
-                elif rgrad is None:
-                    class Distr(new_group):
-                        def grad(self, *args, **kwargs):
-                            return grad(self, *args, **kwargs)
-                else:
-                    class Distr(new_group):
-                        def grad(self, *args, **kwargs):
-                            return grad(self, *args, **kwargs)
-                        def local_variation(self, *args, **kwargs):
-                            return rgrad(self, *args, **kwargs)
-                new_group = Distr
-            detailled_map = distributed(cells, new_cell=new_cell, new_group=new_group,
-                    include_empty_cells=include_empty_cells, **distributed_kwargs)
+            new_group = tramway.helper.gradient.overload_finite_elements_cls(self.setup, grad, rgrad, new_group)
+            discretizer = Discretizer(finite_element_cls=new_cell, finite_elements_cls=new_group)
+            detailled_map = discretizer.deal_finite_elements(cells,
+                    include_empty_elements=include_empty_cells, **distributed_kwargs)
+            if post_overload:
+                detailled_map = self.overload_cells(detailled_map)
 
             if cell_sampling is None:
                 try:
@@ -151,7 +127,7 @@ class Infer(Helper):
                 _map = detailled_map
         return _map
 
-    def overload_cells(self, cells):
+    def overload_finite_element_cls(self, finite_element_cls=None, any_finite_element=None):
         if self.input_maps is None:
             input_features = ()
         else:
@@ -173,13 +149,17 @@ class Infer(Helper):
         else:
             output_features = (output_features,)
         if input_features or output_features:
-            any_cell = cells.any_cell()
-            cell_type = type(any_cell)
+            if finite_element_cls is None:
+                if any_finite_element is None:
+                    raise TypeError('either `finite_element_cls` or `any_finite_element` should be defined')
+                else:
+                    finite_element_cls = type(any_finite_element)
             try:
-                attrs = any_cell.__dict__
+                attrs = Lazy.__slots__ + Local.__slots__ + FiniteElement.__slots__ + finite_element_cls.__slots__
             except AttributeError:
-                attrs = Lazy.__slots__ + Local.__slots__ + Cell.__slots__ + cell_type.__slots__
-            class OverloadedCell(cell_type):
+                attrs = any_finite_element.__dict__
+            print(attrs)
+            class FiniteElementCls(finite_element_cls):
                 __slots__ = input_features + output_features
                 def __init__(self, cell, **kwargs):
                     for attr in attrs:
@@ -188,6 +168,12 @@ class Infer(Helper):
                         setattr(self, attr, kwargs[attr])
                     for attr in output_features:
                         setattr(self, attr, None)
+            finite_element_cls = FiniteElementCls
+        return finite_element_cls
+
+    def overload_cells(self, cells):
+        OverloadedCell = self.overload_finite_element_cls(any_finite_element=cells.any_cell())
+        if OverloadedCell is not None:
             kwargs = {}
             overloaded_cells = {}
             for i in cells:
@@ -221,7 +207,7 @@ class Infer(Helper):
 
     def infer(self, cells, worker_count=None, profile=None, min_diffusivity=None, \
             localization_error=None, sigma=None, sigma2=None, \
-            diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, rgrad=None, \
+            diffusivity_prior=None, potential_prior=None, jeffreys_prior=None, \
             comment=None, verbose=None, snr_extensions=False, **kwargs):
         if verbose is None:
             verbose = self.verbose
@@ -247,8 +233,6 @@ class Infer(Helper):
             kwargs['returns'] = self.setup['returns']
         if profile:
             kwargs['profile'] = profile
-        if rgrad:
-            kwargs['rgrad'] = rgrad
 
         x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
 
@@ -430,7 +414,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
             include_empty_cells=include_empty_cells, \
             merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
             dilation=dilation, grad=grad, rgrad=rgrad)
-    _map = helper.overload_cells(_map)
+    #_map = helper.overload_cells(_map)
 
     if store_distributed:
         helper.insert_mappable_cells(_map, anchor=cells, \
@@ -443,7 +427,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     maps = helper.infer(_map, worker_count=worker_count, profile=profile, \
         min_diffusivity=min_diffusivity, localization_error=localization_error, \
         diffusivity_prior=diffusivity_prior, potential_prior=potential_prior, \
-        jeffreys_prior=jeffreys_prior, rgrad=rgrad, **kwargs)
+        jeffreys_prior=jeffreys_prior, **kwargs)
 
     if overwrite is None and force is not None:
         warn('`force` is deprecated; please use `overwrite` instead', PendingDeprecationWarning)

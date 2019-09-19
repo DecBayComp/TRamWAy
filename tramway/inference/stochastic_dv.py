@@ -46,10 +46,11 @@ setup = {'name': ('stochastic.dv', 'stochastic.dv1'),
         ('gradient',            ('--grad', dict(help="spatial gradient implementation; any of 'grad1', 'gradn'"))),
         ('grad_epsilon',        dict(args=('--eps', '--epsilon'), kwargs=dict(type=float, help='if defined, every spatial gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)),
         ('grad_selection_angle',('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; if not -c, default is: {})'.format(default_selection_angle)))),
-        ('rgrad',               dict(help="local spatial variation; any of 'delta0' (highly recommended), 'delta1'")),
+        ('rgrad',               dict(help="local spatial variation; any of 'delta0' (default), 'delta1'")),
         ('export_centers',      dict(action='store_true')),
         ('verbose',             ()))),
         #('region_size',         ('-s', dict(type=int, help='radius of the regions, in number of adjacency steps'))))),
+    'default_rgrad': 'delta0',
     'cell_sampling': 'group'}
 
 
@@ -280,14 +281,14 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
     standard_priors, time_priors = 0., 0.
     V_prior = dv.potential_spatial_prior(j)
     if V_prior:
-        deltaV = cells.local_variation(i, V, reverse_index, **grad_kwargs)
+        deltaV = cells.rgrad(i, V, reverse_index, **grad_kwargs)#local_variation
         if deltaV is not None:
             standard_priors += V_prior * cells.grad_sum(i, deltaV * deltaV, reverse_index)
     D_prior = dv.diffusivity_spatial_prior(j)
     if D_prior:
         D = x[:int(x.size/2)]
         # spatial gradient of the local diffusivity
-        deltaD = cells.local_variation(i, D, reverse_index, **grad_kwargs)
+        deltaD = cells.rgrad(i, D, reverse_index, **grad_kwargs)#local_variation
         if deltaD is not None:
             # `grad_sum` memoizes and can be called several times at no extra cost
             standard_priors += D_prior * cells.grad_sum(i, deltaD * deltaD, reverse_index)
