@@ -236,8 +236,9 @@ class Distributed(Local):
             margin cells are not central.
 
     """
-    __slots__ = ('_reverse', '_adjacency', 'central', '_degree', '_ccount', '_tcount')
-    __lazy__  = Local.__lazy__ + ('reverse', 'degree', 'ccount', 'tcount')
+    __slots__ = ('_reverse', '_adjacency', 'central', '_degree', '_ccount', '_tcount',
+            '_grad', '_grad_impl', '_rgrad', '_rgrad_impl')
+    __lazy__  = Local.__lazy__ + ('reverse', 'degree', 'ccount', 'tcount', 'grad', 'rgrad')
 
     def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None, \
         boundary=None):
@@ -245,6 +246,7 @@ class Distributed(Local):
         self.cells = cells # let's `cells` setter perform the necessary checks
         self.adjacency = adjacency
         self.central = central
+        self._grad = self._rgrad = self._grad_impl = self._rgrad_impl = None
 
     @property
     def cells(self):
@@ -454,7 +456,9 @@ class Distributed(Local):
 
         As of version *0.4*: default implementation becomes :func:`~tramway.inference.gradient.delta0`.
 
-        May become the new default for spatial regularization.
+        As of version *0.4.2*: default implementation becomes :met:`grad`;
+            controled by the 'rgrad' argument/option;
+            default implementation is independently set by each inference mode.
 
         Arguments:
 
@@ -473,7 +477,12 @@ class Distributed(Local):
                 delta vector with as many elements as there are spatial dimensions.
 
         """
-        return delta0(self, i, X, index_map, **kwargs)
+        #return delta0(self, i, X, index_map, **kwargs)
+        return self.grad(i, X, index_map, **kwargs)
+
+    def rgrad(self, i, X, index_map=None, **kwargs):
+        '''Alias for :met:`local_variation`.'''
+        return self.local_variation(i, X, index_map, **kwargs)
 
     def flatten(self):
         def concat(arrays):
@@ -868,6 +877,8 @@ class Distributed(Local):
             if not first:
                 raise
 
+FiniteElements = Distributed
+
 
 def __run__(func, cell):
     function, args, kwargs = func
@@ -1092,6 +1103,8 @@ class Cell(Local):
 
     def clear_cache(self):
         self.cache = None
+
+FiniteElement = Cell
 
 
 class Locations(Cell):
@@ -1989,6 +2002,19 @@ class DistributeMerge(Distributed):
         assert set(self.cells.keys()) == set(self.adjacency.indices.tolist())
 
 
+class Discretizer(Lazy):
+    __slots__ = 'finite_element_cls', 'finite_elements_cls'
+    def __init__(self, finite_element_cls=None, finite_elements_cls=None):
+        Lazy.__init__(self)
+        self.finite_element_cls = finite_element_cls
+        self.finite_elements_cls = finite_elements_cls
+    def deal_finite_elements(self, partition, include_empty_elements=False, **kwargs):
+        return distributed(partition,
+                new_cell=self.finite_element_cls,
+                new_group=Distributed if self.finite_elements_cls is None else self.finite_elements_cls,
+                include_empty_cells=include_empty_elements, **kwargs)
+
+
 class Maps(Lazy):
     """
     Basic container for maps, posteriors and the associated input parameters used to generate
@@ -2287,5 +2313,6 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
     'identify_columns', 'get_locations', 'get_translocations', 'distributed',
     'TrackedMolecules', 'DistributeMerge',
-    'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']
+    'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init',
+    'FiniteElement', 'FiniteElements', 'Discretizer']
 

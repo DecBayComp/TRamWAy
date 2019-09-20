@@ -19,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.4.1',
+    version = '0.4.2',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -50,6 +50,7 @@ setup(
         'tramway.tessellation.kmeans',
         'tramway.inference',
         'tramway.inference.bayes_factors',
+        'tramway.inference.gradient',
         'tramway.feature',
         'tramway.feature.single_traj',
         'tramway.plot',

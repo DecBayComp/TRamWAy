@@ -352,11 +352,11 @@ class Scheduler(object):
             #module_logger.debug('get_processed_step: received {}'.format(self.active[step.resource_id])) # DEBUG
             if step is None:
                 if isinstance(status, WorkerNearDeathException):
-                    self.dead_workers[status._id] = self.workers.pop(status._id)
+                    self.dead_workers[status._id] = self.workers.pop(status._id, None)
                     try:
                         self.logger.critical(str(status))
                     except AttributeError:
-                        pass
+                        print('error: {}'.format(status))
                     if not self.workers:
                         return False
                 else:

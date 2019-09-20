@@ -14,120 +14,7 @@
 
 import math
 import numpy as np
-import pandas as pd
 from numpy.polynomial import polynomial as poly
-from collections import OrderedDict
-
-
-def delta0(cells, i, X, index_map=None, **kwargs):
-    """
-    Differences with neighbour values:
-
-    .. math::
-
-        \\Delta X_i = \\frac{1}{\\sqrt{|\\mathcal{N}_i|}} \\left[ \\frac{X_i-X_j}{|| \\textbf{x}_i-\\textbf{x}_j ||} \\right]_{j \\in \\mathcal{N}_i}
-
-    The above scaling is chosen so that combining the element-wise square of :meth:`~tramway.inference.base.Distributed.local_variation` with :meth:`~tramway.inference.base.Distributed.grad_sum` results in the following scalar penalty:
-
-    .. math::
-
-        \\Delta X_i^2 = \\frac{1}{ | \\mathcal{N}_i | } \\sum_{j \\in \\mathcal{N}_i} \\left( \\frac{X_i-X_j}{|| \\textbf{x}_i-\\textbf{x}_j ||} \\right)^2
-
-    Claims cache variable '*delta0*'.
-
-    Arguments:
-
-        cells (tramway.inference.base.Distributed):
-            distributed cells.
-
-        i (int):
-            cell index at which the differences are evaluated.
-
-        X (array):
-            vector of a scalar measurement at every cell.
-
-        index_map (array):
-            index map that converts cell indices to indices in X.
-
-    Returns:
-
-        array:
-            difference vector with as many elements as there are neighbours.
-
-    """
-    cell = cells[i]
-    # below, the measurement is renamed y and the coordinates are X
-    y = X
-
-    # cache neighbours (indices and center locations)
-    if not isinstance(cell.cache, dict):
-        cell.cache = {}
-    try:
-        i, adjacent, dx_norm = cell.cache['delta0']
-    except KeyError:
-        adjacent = _adjacent = cells.neighbours(i)
-        if index_map is not None:
-            adjacent = index_map[_adjacent]
-            ok = 0 <= adjacent
-            if not np.all(ok):
-                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
-        if _adjacent.size:
-            x0 = cell.center[np.newaxis,:]
-            x = np.vstack([ cells[j].center for j in _adjacent ])
-            dx_norm = x - x0
-            dx_norm = np.sqrt(np.sum(dx_norm * dx_norm, axis=1))
-        else:
-            dx_norm = None
-
-        if index_map is not None:
-            i = index_map[i]
-        cell.cache['delta0'] = (i, adjacent, dx_norm)
-
-    if dx_norm is None:
-        return None
-
-    y0, y = y[i], y[adjacent]
-
-    # scale by the number of differences to make the sum of the returned values be a mean value instead
-    return (y - y0) / dx_norm / np.sqrt(float(len(y)))
-
-
-def delta0_without_scaling(cells, i, X, index_map=None, **kwargs):
-    cell = cells[i]
-    # below, the measurement is renamed y and the coordinates are X
-    y = X
-
-    # cache neighbours (indices and center locations)
-    if not isinstance(cell.cache, dict):
-        cell.cache = {}
-    try:
-        i, adjacent, dx_norm = cell.cache['delta0']
-    except KeyError:
-        adjacent = _adjacent = cells.neighbours(i)
-        if index_map is not None:
-            adjacent = index_map[_adjacent]
-            ok = 0 <= adjacent
-            if not np.all(ok):
-                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
-        if _adjacent.size:
-            x0 = cell.center[np.newaxis,:]
-            x = np.vstack([ cells[j].center for j in _adjacent ])
-            dx_norm = x - x0
-            dx_norm = np.sqrt(np.sum(dx_norm * dx_norm, axis=1))
-        else:
-            dx_norm = None
-
-        if index_map is not None:
-            i = index_map[i]
-        cell.cache['delta0'] = (i, adjacent, dx_norm)
-
-    if dx_norm is None:
-        return None
-
-    y0, y = y[i], y[adjacent]
-
-    # scale by the number of differences to make the sum of the returned values be a mean value instead
-    return (y - y0) / dx_norm
 
 
 def gradn(cells, i, X, index_map=None):
@@ -263,100 +150,6 @@ def _poly2_deriv_eval(W, X):
             i += 1
         Q.append(Qd)
     return np.hstack(Q)
-
-
-default_selection_angle = .9
-
-def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selection_angle=None, compatibility=None, grad=None, epsilon=None, **kwargs):
-    """Parse :func:`grad1` keyworded arguments.
-
-    Arguments:
-
-        _kwargs (dict):
-            mutable keyword arguments; all the keywords below are popped out.
-
-        gradient (str): either *grad1* or *gradn*.
-
-        grad_epsilon (float): `eps` argument for :func:`grad1` (or :func:`neighbours_per_axis`).
-
-        grad_selection_angle (float): `selection_angle` argument for :func:`grad1` (or :func:`neighbours_per_axis`).
-
-        compatibility (bool): backward compatibility with InferenceMAP.
-
-        grad (str): alias for `gradient`.
-
-        epsilon (float): alias for `grad_epsilon`.
-
-    Returns:
-
-        dict: keyworded arguments to :meth:`~tramway.inference.base.Distributed.grad`.
-
-    Note: `grad` and `gradient` are currently ignored.
-    """
-    if _kwargs is not None:
-        assert isinstance(_kwargs, dict)
-        try:
-            _epsilon = _kwargs.pop('epsilon')
-        except KeyError:
-            pass
-        else:
-            if epsilon is None:
-                epsilon = _epsilon
-            elif epsilon != _epsilon:
-                # TODO: warn or raise an exception
-                pass
-        try:
-            _grad_epsilon = _kwargs.pop('grad_epsilon')
-        except KeyError:
-            pass
-        else:
-            if grad_epsilon is None:
-                grad_epsilon = _grad_epsilon
-            elif grad_epsilon != _grad_epsilon:
-                # TODO: warn or raise an exception
-                pass
-        try:
-            _compatibility = _kwargs.pop('compatibility')
-        except KeyError:
-            pass
-        else:
-            if compatibility is None:
-                compatibility = _compatibility
-            elif compatibility != _compatibility:
-                # TODO: warn or raise an exception
-                pass
-        try:
-            _grad_selection_angle = _kwargs.pop('grad_selection_angle')
-        except KeyError:
-            pass
-        else:
-            if grad_selection_angle is None:
-                grad_selection_angle = _grad_selection_angle
-            elif grad_selection_angle != _grad_selection_angle:
-                # TODO: warn or raise an exception
-                pass
-
-    grad_kwargs = {}
-    if epsilon is not None:
-        if grad_epsilon is None:
-            grad_epsilon = epsilon
-        elif epsilon != grad_epsilon:
-            raise ValueError('`epsilon` is an alias for `grad_epsilon`; these arguments do not admit distinct values')
-    if grad_epsilon is not None:
-        if compatibility:
-            warn('grad_epsilon breaks backward compatibility with InferenceMAP', RuntimeWarning)
-        if grad_selection_angle:
-            warn('grad_selection_angle is not compatible with epsilon and will be ignored', RuntimeWarning)
-        grad_kwargs['eps'] = grad_epsilon
-    else:
-        if grad_selection_angle:
-            if compatibility:
-                warn('grad_selection_angle breaks backward compatibility with InferenceMAP', RuntimeWarning)
-        else:
-            grad_selection_angle = default_selection_angle
-        if grad_selection_angle:
-            grad_kwargs['selection_angle'] = grad_selection_angle
-    return grad_kwargs
 
 
 def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
@@ -590,53 +383,26 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None, na=np.nan
     return np.hstack(grad)
 
 
-def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
-    """
-    Local spatial variation.
+def _vander(x, y):
+    #P = poly.polyfit(x, y, 2)
+    #dP = poly.polyder(P)
+    #return poly.polyval(x[0], dP)
+    _, b, a = poly.polyfit(x, y, 2)
+    return b + 2. * a * x[0]
 
-    Similar to `grad1`.
-    Considering spatial coordinate :math:`x`, bin :math:`i` and its neighbour bins :math:`\\mathcal{N}_i`:
 
-    .. math::
-
-        \\left.\\Delta X_i\\right|_x = \\left(
-            \\begin{array}{ll}
-                \\frac{X_i - \\overline{X}_{\\mathcal{N}_i^-}}{x_i - \\overline{x}_{\\mathcal{N}_i^-}} &
-                    \\textrm{ or } 0 \\textrm{ if } \\mathcal{N}_i^- \\textrm{ is } \\emptyset \\\\
-                \\frac{X_i - \\overline{X}_{\\mathcal{N}_i^+}}{x_i - \\overline{x}_{\\mathcal{N}_i^+}} &
-                    \\textrm{ or } 0 \\textrm{ if } \\mathcal{N}_i^+ \\textrm{ is } \\emptyset \\\\
-            \\end{array}
-        \\right)
-
-    Also claims cache variable *grad1* in a compatible way.
-
-    Arguments:
-
-        i (int):
-            cell index at which the gradient is evaluated.
-
-        X (numpy.ndarray):
-            vector of a scalar measurement at every cell.
-
-        index_map (numpy.ndarray):
-            index map that converts cell indices to indices in X.
-
-    Returns:
-
-        numpy.ndarray:
-            delta vector with as many elements as there are spatial dimensions.
-
-    """
+def onesided_gradient(cells, i, X, index_map=None, side='+', eps=None, selection_angle=None, na=np.nan):
     cell = cells[i]
-    # below, the measurement is renamed y and the coordinates are X
-    y = X
+
+    # below, the measurement is renamed Y and the coordinates are X
+    Y = X
     X0 = cell.center
 
     # cache neighbours (indices and center locations)
     if not isinstance(cell.cache, dict):
         cell.cache = {}
     try:
-        i, adjacent, X = cell.cache['grad1']
+        i, adjacent_minus, X_minus, adjacent_plus, X_plus = cell.cache['onesided_gradient']
     except KeyError:
         adjacent = _adjacent = cells.neighbours(i)
         if index_map is not None:
@@ -666,14 +432,14 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
                     Xj = 1. / (X0[j] - np.mean(X[u,j]))
                 else:
                     Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
-                #if np.isscalar(Xj):
-                #    try:
-                #        Xj = Xj.tolist()
-                #    except AttributeError:
-                #        pass
-                #    else:
-                #        if isinstance(Xj, list):
-                #            Xj = Xj[0]
+                if np.isscalar(Xj):
+                    try:
+                        Xj = Xj.tolist()
+                    except AttributeError:
+                        pass
+                    else:
+                        if isinstance(Xj, list):
+                            Xj = Xj[0]
 
                 X_neighbours.append((u, v, Xj))
 
@@ -690,112 +456,25 @@ def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
 
     y0, y = y[i], y[adjacent]
 
-    # compute the delta for each dimension separately
-    delta = []
+    # compute the gradient for each dimension separately
+    grad = []
     for u, v, Xj in X: # j= dimension index
         #u, v, Xj= below, above, X term
         if u is None:
             if v is None:
-                delta_j = np.r_[0., 0.]
+                grad_j = na
             else:
                 # 1./Xj = X0[j] - np.mean(X[v,j])
-                delta_j = np.r_[0., (y0 - np.mean(y[v])) * Xj]
+                grad_j = (y0 - np.mean(y[v])) * Xj
         elif v is None:
             # 1./Xj = X0[j] - np.mean(X[u,j])
-            delta_j = np.r_[(y0 - np.mean(y[u])) * Xj, 0.]
+            grad_j = (y0 - np.mean(y[u])) * Xj
         else:
             # Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
-            x0, xu, xv = Xj
-            delta_j = np.r_[
-                (y0 - np.mean(y[u])) / (x0 - xu),
-                (y0 - np.mean(y[v])) / (x0 - xv),
-                ]
-            #delta_j = np.mean(np.abs(delta_j))
-        delta.append(delta_j)
+            grad_j = _vander(Xj, np.r_[y0, np.mean(y[u]), np.mean(y[v])])
+        grad.append(grad_j)
 
-    return np.stack(delta, axis=1) # columns must represent the space dimensions
+    return np.hstack(grad)
 
-
-def _vander(x, y):
-    #P = poly.polyfit(x, y, 2)
-    #dP = poly.polyder(P)
-    #return poly.polyval(x[0], dP)
-    _, b, a = poly.polyfit(x, y, 2)
-    return b + 2. * a * x[0]
-
-
-def setup_with_grad_arguments(setup):
-    """Add :meth:`~tramway.inference.base.Distributed.grad` related arguments to inference plugin setup.
-
-    Input argument `setup` is modified inplace.
-    """
-    args = setup.get('arguments', OrderedDict())
-    if not ('gradient' in args or 'grad' in args):
-        args['gradient'] = ('--grad', dict(help="spatial gradient implementation; any of 'grad1', 'gradn'"))
-    if not ('grad_epsilon' in args or 'grad' in args):
-        args['grad_epsilon'] = dict(args=('--eps', '--epsilon'), kwargs=dict(type=float, help='if defined, every spatial gradient component can recruit all of the neighbours, minus those at a projected distance less than this value'), translate=True)
-    if 'grad_selection_angle' not in args:
-        if 'compatibility' in args:
-            compatibility_note = 'if not -c, '
-        else:
-            compatibility_note = ''
-        args['grad_selection_angle'] = ('-a', dict(type=float, help='top angle of the selection hypercone for neighbours in the spatial gradient calculation (1= pi radians; {}default is: {})'.format(compatibility_note, default_selection_angle)))
-    setup['arguments'] = args
-
-
-def gradient_map(cells, feature=None, **kwargs):
-    grad_kwargs = get_grad_kwargs(**kwargs)
-    if feature:
-        if isinstance(feature, str):
-            feature = [f.strip() for f in feature.split(',')]
-    else:
-        raise ValueError('please define `feature`')
-    grads = None
-    for f in feature:
-        I, X = [], []
-        for i in cells:
-            try:
-                x = getattr(cells[i], f)
-            except (SystemExit, KeyboardInterrupt):
-                raise
-            except:
-                pass
-            else:
-                I.append(i)
-                X.append(x)
-        #I = np.array(I)
-        X = np.array(X)
-        reverse_index = np.full(max(cells.keys())+1, -1, dtype=int)
-        reverse_index[I] = np.arange(len(I))
-        index, gradX = [], []
-        for i in I:
-            try:
-                g = cells.grad(i, X, reverse_index, **grad_kwargs)
-            except (SystemExit, KeyboardInterrupt):
-                raise
-            except:
-                g = None
-            if g is not None:
-                index.append(i)
-                gradX.append(g)
-        gradX = np.vstack(gradX)
-        assert gradX.shape[1:] and gradX.shape[1] == len(cells.space_cols)
-        columns = [ '{} {}'.format(f, col) for col in cells.space_cols ]
-        gradX = pd.DataFrame(gradX, index=index, columns=columns)
-        if grads is None:
-            grads = gradX
-        else:
-            grads.join(gradX)
-    return grads
-
-setup = dict(
-        infer='gradient_map',
-        arguments=OrderedDict((
-            ('feature', ('-f', dict(help='feature or comma-separated list of features which gradient is expected'))),
-        )))
-setup_with_grad_arguments(setup)
-
-
-__all__ = ['default_selection_angle', 'get_grad_kwargs', 'neighbours_per_axis', 'grad1', 'gradn',
-        'delta0', 'delta0_without_scaling', 'delta1', 'setup_with_grad_arguments', 'setup', 'gradient_map']
+__all__ = [ 'neighbours_per_axis', 'grad1', 'gradn', 'onesided_gradient' ]
 
