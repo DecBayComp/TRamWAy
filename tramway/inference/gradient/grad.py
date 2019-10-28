@@ -23,7 +23,7 @@ def gradn(cells, i, X, index_map=None):
 
     Arguments:
 
-        cells (tramway.inference.base.Distributed):
+        cells (tramway.inference.base.FiniteElements):
             distributed cells.
 
         i (int):
@@ -152,8 +152,12 @@ def _poly2_deriv_eval(W, X):
     return np.hstack(Q)
 
 
-def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
+def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None, return_indices=None):
     """
+    New in version `0.4.2`:
+        the returned arrays can be indices in `cells` or `centers` instead of booleans in
+        `cells.neighbours(i)` or `centers`, setting ``return_indices=True``.
+
     See also :func:`grad1`.
     """
     try:
@@ -162,7 +166,10 @@ def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
         A = cells.adjacency
 
     if centers is None:
-        centers = np.vstack([ cells[j].center for j in cells.neighbours(i) ])
+        neighbours = cells.neighbours(i)
+        centers = np.vstack([ cells[j].center for j in neighbours ])
+    else:
+        neighbours = np.arange(len(centers))
 
     cell = cells[i]
     center = cell.center
@@ -212,6 +219,10 @@ def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
             x, x0 = centers[:,j], center[j]
             below[ j, x < x0 - eps ] = True
             above[ j, x0 + eps < x ] = True
+
+    if return_indices:
+        below = [ neighbours[b] for b in below ]
+        above = [ neighbours[b] for b in above ]
 
     return below, above
 
@@ -263,7 +274,7 @@ def grad1(cells, i, X, index_map=None, eps=None, selection_angle=None, na=np.nan
 
     Arguments:
 
-        cells (tramway.inference.base.Distributed):
+        cells (tramway.inference.base.FiniteElements):
             distributed cells.
 
         i (int):
@@ -391,18 +402,79 @@ def _vander(x, y):
     return b + 2. * a * x[0]
 
 
-def onesided_gradient(cells, i, X, index_map=None, side='+', eps=None, selection_angle=None, na=np.nan):
+def onesided_neighbours(i, cells=None, points=None, side='<>', selection_angle=.5):
+    """
+    2D only!
+
+    For ``side=='>'``, `selection_angle` is:
+
+    * ``0``: x=y positive half-line (null angle)
+    * ``0.25``: top right quadrant (pi/2 actual angle)
+    * ``0.5``: upper half-plane bounded by the x=-y line (pi actual angle)
+    * ``0.75``: all quadrants but the bottom left one (3*pi/2 actual angle)
+    * ``1``: full plane (2*pi actual angle)
+
+    Arguments:
+
+        i (int): cell index in `cells`.
+
+        cells (FiniteElements): distributed (trans-)locations.
+
+        points (numpy.ndarray): alternative relative centers;
+            default centers are those in `cells` centered at `cells[i].center`.
+
+        side (str): either '<' or '>'.
+
+        selection_angle (float): any value in [0,1].
+
+    Returns:
+
+        numpy.ndarray: indices of the selected neighbours in `cells` or `points`.
+
+    See also :func:`onesided_gradient`.
+    """
+    if points is None:
+        center = cells[i].center
+        __neighbours = cells.neighbours(i)
+        points = np.vstack([ cells[j].center for j in __neighbours ]) - center[np.newaxis, :]
+    else:
+        __neighbours = None
+
+    neighbours = []
+    for s in side:
+
+        # rotate the difference vectors onto the x=y axis (pi/4 or -3*pi/4)
+        angle = math.pi/4
+        rot = np.array([[math.cos(angle), -math.sin(angle)],[math.sin(angle), math.cos(angle)]])
+        if s == '<':
+            rot = -rot # not exactly -3*pi/4, but further processing is symmetric
+
+        proj = np.dot(points, rot.T)
+        angle = np.arctan2(proj[:,0], proj[:,1])
+        _neighbours = (selection_angle * math.pi) <= abs(angle)
+
+        if __neighbours is not None:
+            _neighbours = __neighbours[_neighbours]
+        neighbours.append(_neighbours)
+
+    if neighbours[1:]:
+        return tuple(neighbours)
+    else:
+        return neighbours[0]
+
+
+def onesided_gradient(cells, i, X, index_map=None, side='>', selection_angle=None, na=np.nan):
     cell = cells[i]
 
     # below, the measurement is renamed Y and the coordinates are X
-    Y = X
+    y = X
     X0 = cell.center
 
     # cache neighbours (indices and center locations)
     if not isinstance(cell.cache, dict):
         cell.cache = {}
     try:
-        i, adjacent_minus, X_minus, adjacent_plus, X_plus = cell.cache['onesided_gradient']
+        i, neighbours_lt, B_lt, neighbours_gt, B_gt = cell.cache['onesided_gradient']
     except KeyError:
         adjacent = _adjacent = cells.neighbours(i)
         if index_map is not None:
@@ -410,71 +482,42 @@ def onesided_gradient(cells, i, X, index_map=None, side='+', eps=None, selection
             ok = 0 <= adjacent
             if not np.all(ok):
                 adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+        # pre-compute the X (or B) terms
         if _adjacent.size:
-            X = np.vstack([ cells[j].center for j in _adjacent ])
-            below, above = neighbours_per_axis(i, cells, X, eps, selection_angle)
-
-            # pre-compute the X terms for each dimension
-            X_neighbours = []
-            for j in range(cell.dim):
-                u, v = below[j], above[j]
-                if not np.any(u):
-                    u = None
-                if not np.any(v):
-                    v = None
-
-                if u is None:
-                    if v is None:
-                        Xj = None
-                    else:
-                        Xj = 1. / (X0[j] - np.mean(X[v,j]))
-                elif v is None:
-                    Xj = 1. / (X0[j] - np.mean(X[u,j]))
+            dX = cell.center[np.newaxis,:] - np.vstack([ cells[j].center for j in _adjacent ])
+            dist2 = np.sum(dX * dX, axis=1)
+            Bs = []
+            for _neighbours in onesided_neighbours(i, points=dX, side='<>', selection_angle=selection_angle):
+                if np.any(_neighbours):
+                    Bs.append( adjacent[_neighbours] )
+                    Bs.append( dX[_neighbours] / dist2[_neighbours] )
                 else:
-                    Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
-                if np.isscalar(Xj):
-                    try:
-                        Xj = Xj.tolist()
-                    except AttributeError:
-                        pass
-                    else:
-                        if isinstance(Xj, list):
-                            Xj = Xj[0]
-
-                X_neighbours.append((u, v, Xj))
-
-            X = X_neighbours
+                    Bs.append(None)
+                    Bs.append(None)
         else:
-            X = []
+            Bs = [None]*4
 
         if index_map is not None:
             i = index_map[i]
-        cell.cache['grad1'] = (i, adjacent, X)
 
-    if not X:
+        neighbours_lt, B_lt, neighbours_gt, B_gt = Bs
+        cell.cache['onesided_gradient'] = (i,) + tuple(Bs)
+
+    y0 = y[i]
+
+    if side == '<':
+        neighbours, B = neighbours_lt, B_lt
+    elif side == '>':
+        neighbours, B = neighbours_gt, B_gt
+    else:
+        raise ValueError("unknown side '{}'".format(side))
+
+    # compute the gradient
+    if neighbours is None:
         return None
+    else:
+        return np.dot(B.T, y0 - y[neighbours])
 
-    y0, y = y[i], y[adjacent]
 
-    # compute the gradient for each dimension separately
-    grad = []
-    for u, v, Xj in X: # j= dimension index
-        #u, v, Xj= below, above, X term
-        if u is None:
-            if v is None:
-                grad_j = na
-            else:
-                # 1./Xj = X0[j] - np.mean(X[v,j])
-                grad_j = (y0 - np.mean(y[v])) * Xj
-        elif v is None:
-            # 1./Xj = X0[j] - np.mean(X[u,j])
-            grad_j = (y0 - np.mean(y[u])) * Xj
-        else:
-            # Xj = np.r_[X0[j], np.mean(X[u,j]), np.mean(X[v,j])]
-            grad_j = _vander(Xj, np.r_[y0, np.mean(y[u]), np.mean(y[v])])
-        grad.append(grad_j)
-
-    return np.hstack(grad)
-
-__all__ = [ 'neighbours_per_axis', 'grad1', 'gradn', 'onesided_gradient' ]
+__all__ = [ 'neighbours_per_axis', 'grad1', 'gradn', 'onesided_neighbours', 'onesided_gradient' ]
 

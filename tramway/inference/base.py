@@ -398,6 +398,9 @@ class Distributed(Local):
         they exhibit as many columns as there are dimensions in the (trans-)location data.
         :meth:`grad_sum` is then responsible for summing all the elements of such matrices.
 
+        Undefined components are NaNs but, if none are defined, None should be returned
+        instead.
+
         Arguments:
 
             i (int):
@@ -428,7 +431,7 @@ class Distributed(Local):
                 cell index.
 
             grad (numpy.ndarray):
-                local gradient.
+                defined local gradient; should NOT be None.
 
             index_map (numpy.ndarray):
                 index mapping, useful to convert cell indices to positional indices in
@@ -440,11 +443,12 @@ class Distributed(Local):
                 weighted sum of the elements of `grad`.
 
         """
+        sum_grad = np.nansum(grad)
         cell = self.cells[i]
         if cell.volume:
-            return cell.volume * np.sum(grad)
+            return cell.volume * sum_grad
         else:
-            return np.sum(grad)
+            return sum_grad
 
     def local_variation(self, i, X, index_map=None, **kwargs):
         """

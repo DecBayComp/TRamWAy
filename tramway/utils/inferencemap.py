@@ -248,6 +248,7 @@ def export_to_cluster_file(cells, cluster_file, neighbours=None, neighbours_kwar
         zones = distributed(cells, new_cell=new_cell, **distributed_kwargs)
     if neighbours is None:
         neighbours = neighbours_per_axis
+        neighbours_kwargs['return_indices'] = True
     with open(cluster_file, 'w') as f:
         for i in zones:
             zone = zones[i]
@@ -260,12 +261,11 @@ def export_to_cluster_file(cells, cluster_file, neighbours=None, neighbours_kwar
             f.write('AREA: {}\n'.format(area))
             f.write('AREA_CONVHULL: {}\n'.format(area))
             below, above = neighbours(i, zones, **neighbours_kwargs)
-            _neighbours = zones.adjacency[i].indices
             _neighbours = OrderedDict(
-                left = _neighbours[below[0]],
-                right = _neighbours[above[0]],
-                top = _neighbours[above[1]],
-                bottom = _neighbours[below[1]],
+                left = below[0],
+                right = above[0],
+                top = above[1],
+                bottom = below[1],
                 )
             for side in _neighbours:
                 f.write('NUMBER_OF_{}_NEIGHBOURS: {}\n'.format(

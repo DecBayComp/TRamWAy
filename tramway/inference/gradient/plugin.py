@@ -63,8 +63,12 @@ def gradient_map(cells, feature=None, **kwargs):
     return grads
 
 
+default_selection_angle = .9
+
 def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selection_angle=None, compatibility=None, grad=None, epsilon=None, **kwargs):
     """Parse :func:`grad1` keyworded arguments.
+
+    Identifies 'grad_'-prefixed keyword arguments.
 
     Arguments:
 
@@ -85,10 +89,12 @@ def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selecti
 
     Returns:
 
-        dict: keyworded arguments to :meth:`~tramway.inference.base.Distributed.grad`.
+        dict: keyworded arguments to :meth:`~tramway.inference.base.FiniteElements.grad`.
 
     Note: `grad` and `gradient` are currently ignored.
     """
+    grad_kwargs = {}
+
     if _kwargs is not None:
         assert isinstance(_kwargs, dict)
         try:
@@ -132,7 +138,14 @@ def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selecti
                 # TODO: warn or raise an exception
                 pass
 
-    grad_kwargs = {}
+        for kw in _kwargs:
+            if kw.startswith('grad_'):
+                grad_kwargs[kw[5:]] = _kwargs.pop(kw)
+
+    for kw in kwargs:
+        if kw.startswith('grad_'):
+            grad_kwargs[kw[5:]] = kwargs.get(kw)
+
     if epsilon is not None:
         if grad_epsilon is None:
             grad_epsilon = epsilon
@@ -152,13 +165,12 @@ def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selecti
             grad_selection_angle = default_selection_angle
         if grad_selection_angle:
             grad_kwargs['selection_angle'] = grad_selection_angle
+
     return grad_kwargs
 
-
-default_selection_angle = .9
-
 def setup_with_grad_arguments(setup):
-    """Add :meth:`~tramway.inference.base.Distributed.grad` related arguments to inference plugin setup.
+    """Add :meth:`~tramway.inference.base.FiniteElements.grad` related arguments
+    to inference plugin setup.
 
     Input argument `setup` is modified inplace.
     """

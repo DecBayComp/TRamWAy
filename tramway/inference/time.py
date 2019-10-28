@@ -183,8 +183,8 @@ class DynamicCells(Distributed):
             if index_map is not None:
                 adjacent = index_map[_adjacent]
                 ok = 0 <= adjacent
-                assert np.all(ok)
-                #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+                #assert np.all(ok)
+                adjacent, _adjacent = adjacent[ok], _adjacent[ok]
             if _adjacent.size:
                 t = np.array([ self.cells[j].center_t for j in _adjacent ])
                 before, after = t<t0, t0<t
@@ -226,6 +226,7 @@ class DynamicCells(Distributed):
         #u, v, t= before, after, t term
         if u is None:
             if v is None:
+                assert False
                 delta = np.r_[na, na]
             else:
                 # 1./X = X0[j] - np.mean(X[v,j])

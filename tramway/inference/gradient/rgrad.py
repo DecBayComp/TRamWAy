@@ -86,7 +86,7 @@ def delta0(cells, i, X, index_map=None, **kwargs):
     y0, y = y[i], y[adjacent]
 
     # scale by the number of differences to make the sum of the returned values be a mean value instead
-    return (y - y0) / dx_norm / np.sqrt(float(len(y)))
+    return (y0 - y) / dx_norm / np.sqrt(float(len(y)))
 
 
 def delta0_without_scaling(cells, i, X, index_map=None, **kwargs):
@@ -124,7 +124,7 @@ def delta0_without_scaling(cells, i, X, index_map=None, **kwargs):
     y0, y = y[i], y[adjacent]
 
     # scale by the number of differences to make the sum of the returned values be a mean value instead
-    return (y - y0) / dx_norm
+    return (y0 - y) / dx_norm
 
 
 def delta1(cells, i, X, index_map=None, eps=None, selection_angle=None):
