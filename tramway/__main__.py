@@ -504,6 +504,7 @@ def main():
     map_parser.add_argument('--dpi', type=int, help='dots per inch')
     map_parser.add_argument('--inferencemap', action='store_true', help='for field maps, size the arrows wrt cell size only')
     map_parser.add_argument('--title', help='figure title')
+    map_parser.add_argument('--unit', help="add units to colorbars, in latex maths; if 'std', set diffusivity to \mu\\rm{m}^2\\rm{s}^{-1}, and potential and force amplitude to k_{\\rm{B}}T")
     try:
         map_parser.add_argument('input_file', nargs='?', help='path to input file')
     except:

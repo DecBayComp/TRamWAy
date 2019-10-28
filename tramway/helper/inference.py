@@ -897,6 +897,13 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 columns=['x', 'y']),
             cells.tessellation)
 
+    unit = kwargs.pop('unit', None)
+    if unit == 'std':
+        unit = {'diffusivity': '$\mu\\rm{m}^2\\rm{s}^{-1}$',
+                'potential': '$k_{\\rm{B}}T$',
+                'force': '$k_{\\rm{B}}T$',
+               }
+
     # identify time segments, if any
     try:
         import tramway.tessellation.time as lattice
@@ -985,6 +992,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         else:
             standard_kwargs[kw] = arg
     kwargs = standard_kwargs
+
+    if unit:
+        if isinstance(unit, dict):
+            differential_kwargs['unit'] = unit
+        else:
+            kwargs['unit'] = unit
 
     scalar_vars = {'diffusivity': 'D', 'potential': 'V'}
     scalar_vars = [ (v, scalar_vars.get(v, None)) for v in all_vars if len(all_vars[v]) == 1 ]
