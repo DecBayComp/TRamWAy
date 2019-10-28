@@ -81,6 +81,17 @@ def _render_cells(args):
     sys.exit(0)
 
 
+def _single_molecule(args):
+    input_file, kwargs = _parse_args(args)
+    output_file = kwargs.pop('output', None)
+    if output_file is None:
+        output_file = input_file[0]
+    xyt = load_xyt(input_file, columns=list('xyt'))
+    xyt['n'] = 1
+    xyt = xyt[list('nxyt')]
+    xyt.to_csv(output_file, sep='\t', index=False)
+
+
 def _sample(method, parse_extra=None):
     def sample(args):
         input_file, kwargs = _parse_args(args)
@@ -310,6 +321,18 @@ def main():
         parser.add_argument(arg1, arg2, dest=arg1[1]+'pre', **kwargs)
     sub = parser.add_subparsers(title='commands', \
         description="type '%(prog)s command --help' for additional help")
+
+
+    # track
+    track_name = 'track'
+    track_aliases = ['preprocess']
+    ksub, _ = _add_subparsers(sub, track_name, track_aliases,
+            'track or preprocess location data', target='preprocesses')
+    single_molecule_parser = ksub.add_parser('single')
+    for short_arg, long_arg, kwargs in global_arguments:
+        dest = short_arg[1:] + 'post'
+        single_molecule_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
+    single_molecule_parser.set_defaults(func=_single_molecule)
 
 
     # tessellate
