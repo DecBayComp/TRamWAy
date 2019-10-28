@@ -49,7 +49,7 @@ class Tessellate(Helper):
                 input_data, self.input_file = load_xyt(input_data, return_paths=True, **kwargs)
             except (KeyboardInterrupt, SystemExit):
                 raise
-            except: # UnicodeDecodeError/CParserError: rwa file
+            except (UnicodeDecodeError, pd.errors.ParserError): # rwa file
                 pass
 
         if labels is None:

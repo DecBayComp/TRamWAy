@@ -167,8 +167,12 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
                 if dff['n'].min() < index_max:
                     dff['n'] += index_max
                     index_max = dff['n'].max()
-            if np.any(dff.isnull().values.all(axis=0)):
-                raise ValueError('too many specified columns: {}'.format(columns))
+            undefined = dff.isnull().values.all(axis=0)
+            if np.any(undefined):
+                if columns == list('nxyt') and np.sum(undefined) == 1:
+                    raise ValueError('the molecules are not tracked')
+                else:
+                    raise ValueError('too many specified columns: {}'.format(columns))
             df.append(dff)
     if df:
         for f in _failed:
