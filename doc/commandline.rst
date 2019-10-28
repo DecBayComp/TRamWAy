@@ -45,6 +45,21 @@ All the analyses derivating from a same dataset are stored in a single |rwa| fil
 	:ref:`datamodel`
 
 
+Non-tracked data
+^^^^^^^^^^^^^^^^
+
+As of version `0.4.2`, |tramway| does not include any tracking algorithm yet.
+In future releases, tracking algorithms will be available under the ``track`` subcommand.
+
+For now, the only available "tracking" tool converts untracked data of a single molecule into tracked data, appending a constant trajectory index column::
+
+    > tramway track single -i example.xyt -o example.trxyt
+
+This can be useful for simulated single molecules or single beads trapped by optical tweezers for example.
+
+The output file (``-o`` argument) is optional. If not provided, the input file will be overwritten.
+
+
 .. _commandline_tessellation:
 
 Partitioning the data points
