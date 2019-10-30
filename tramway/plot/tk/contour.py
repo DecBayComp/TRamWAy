@@ -31,7 +31,7 @@ except ImportError: # Sphinx?
     pass
 import tramway.core.hdf5.compat
 from tramway.core.analyses import *
-from tramway.tessellation import CellStats
+from tramway.tessellation import Partition
 from tramway.inference import Maps
 from ..contour import ContourEditor
 try:
@@ -333,7 +333,7 @@ class ContourEditingApp(tk.Frame):
                 except (TypeError, ValueError):
                     pass
                 labels.append(label)
-            cells, maps = find_artefacts(self.analyses, (CellStats, Maps), labels)
+            cells, maps = find_artefacts(self.analyses, (Partition, Maps), labels)
             assert isinstance(maps, Maps)
             self.editor.cells = cells
             self.set_maps(maps)

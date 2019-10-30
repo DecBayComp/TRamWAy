@@ -38,7 +38,7 @@ class Infer(Helper):
 
     def prepare_data(self, input_data, types=None, labels=None, verbose=None, output_file=None, \
             **kwargs):
-        Cells = (CellStats, Distributed)
+        Cells = (Partition, Distributed)
         if types is None:
             if labels is None and self.inplace:
                 types = (Cells, (Maps, ))
@@ -70,7 +70,7 @@ class Infer(Helper):
         if isinstance(cells, Distributed):
             _map = cells
         else:
-            if not isinstance(cells, CellStats) or cells.tessellation is None:
+            if not isinstance(cells, Partition) or cells.tessellation is None:
                 raise ValueError('no cells found')
             has_time_linking = isinstance(cells.tessellation, tramway.tessellation.time.TimeLattice) \
                     and bool(cells.tessellation.time_dimension)
@@ -318,7 +318,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
 
     Arguments:
 
-        cells (str or CellStats or tramway.core.analyses.base.Analyses):
+        cells (str or Partition or tramway.core.analyses.base.Analyses):
             data partition or path to partition file
 
         mode (str or callable): plugin name; see for example
@@ -387,7 +387,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
 
         comment (str): description message for the resulting analysis
 
-        return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.CellStats`
+        return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.Partition`
             object as extra element
 
         profile (bool or str): profile each child job if any;
@@ -472,7 +472,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
     Arguments:
 
-        cells (str or CellStats or tramway.core.analyses.base.Analyses):
+        cells (str or Partition or tramway.core.analyses.base.Analyses):
             data partition or path to partition file
 
         mode (str or callable): plugin name; see for example
@@ -535,7 +535,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
 
         comment (str): description message for the resulting analysis
 
-        return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.CellStats`
+        return_cells (bool): return a tuple with a :class:`~tramway.tessellation.base.Partition`
             object as extra element
 
         profile (bool or str): profile each child job if any;
@@ -578,7 +578,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
             print('loading file: {}'.format(input_file))
     elif isinstance(cells, Analyses):
         all_analyses, cells = cells, None
-    elif not isinstance(cells, CellStats):
+    elif not isinstance(cells, Partition):
         raise TypeError('wrong type for argument `cells`')
 
     if cells is None:
@@ -596,14 +596,14 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
                     analysis = analysis[label]
                 cells = analysis.data
                 #analysis = analysis[input_label[-1]]
-                #if not isinstance(cells, CellStats):
+                #if not isinstance(cells, Partition):
                 #       cells = analysis.data
             else:
                 input_label = input_label[0]
         if cells is None:
             analysis = all_analyses[input_label]
             cells = analysis.data
-        if not isinstance(cells, (CellStats, Distributed)):
+        if not isinstance(cells, (Partition, Distributed)):
             raise ValueError('cannot find cells at the specified label')
     elif all_analyses is None:
         all_analyses = Analyses(cells.points)
@@ -760,7 +760,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             filepaths and analysis trees may require `label` (or equivalently `input_label`)
             to be defined; dataframes and encapsulated maps require `cells` to be defined
 
-        cells (CellStats or Tessellation or Distributed): mesh with optional partition
+        cells (Partition or Tessellation or Distributed): mesh with optional partition
 
         clip (float): clips map values by absolute values;
             if ``clip < 1``, it is the quantile at which to clip absolute values of the map;
@@ -824,7 +824,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     # get cells and maps objects from the first input argument
     input_file = None
     if isinstance(maps, tuple):
-        warn('`maps` as (CellStats, str, DataFrame) tuple are deprecated', DeprecationWarning)
+        warn('`maps` as (Partition, str, DataFrame) tuple are deprecated', DeprecationWarning)
         cells, mode, maps = maps
     elif isinstance(maps, (pd.DataFrame, Maps, pd.Series)):
         if cells is None:
@@ -833,7 +833,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         analyses = maps
         if label is None:
             label = input_label
-        cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
+        cells, maps = find_artefacts(analyses, ((Partition, Distributed), Maps), label)
     elif isinstance(maps, str): # `maps` is a file path
         input_file = maps
         if not os.path.isfile(input_file):
@@ -873,7 +873,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         except ImportError:
             warn('HDF5 libraries may not be installed', ImportWarning)
         else:
-            cells, maps = find_artefacts(analyses, ((CellStats, Distributed), Maps), label)
+            cells, maps = find_artefacts(analyses, ((Partition, Distributed), Maps), label)
     else:
         raise TypeError('unsupported type for maps: {}'.format(type(maps)))
     if isinstance(maps, Maps):
@@ -920,7 +920,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             segment = segment.pop()
             print('plotting segment {}'.format(segment))
         _mesh = cells.tessellation.spatial_mesh
-        _cells, cells = cells, CellStats(tessellation=_mesh, location_count=np.ones(_mesh.cell_centers.shape[0]))
+        _cells, cells = cells, Partition(tessellation=_mesh, location_count=np.ones(_mesh.cell_centers.shape[0]))
     elif segment is not None:
         warn('cannot find time segments', RuntimeWarning)
 
@@ -1053,7 +1053,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         plot(cells, _map, aspect=aspect, alpha=alpha, **col_kwargs)
 
         if point_style is not None:
-            points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
+            points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `Partition`
             if 'color' not in point_style:
                 point_style['color'] = None
             tplt.plot_points(points, **point_style)
@@ -1132,7 +1132,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if point_style is not None:
             _scalar_map = _vector_map.pow(2).sum(1).apply(np.sqrt)
             tplt.scalar_map_2d(cells, _scalar_map, aspect=aspect, alpha=alpha, **var_kwargs)
-            points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `CellStats`
+            points = cells.descriptors(cells.points, asarray=True) # `cells` should be a `Partition`
             if 'color' not in point_style:
                 point_style['color'] = None
             tplt.plot_points(points, **point_style)

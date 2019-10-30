@@ -294,13 +294,13 @@ def truth(cells, t=None, diffusivity=None, force=None, potential=None, **kwargs)
     """
     Generate maps for the true diffusivity/force distribution.
 
-    If `cells` is a :class:`~tramway.tessellation.base.CellStats` object,
+    If `cells` is a :class:`~tramway.tessellation.base.Partition` object,
     :func:`~tramway.inference.base.distributed` is called on `cells` and with the trailing
     keyword arguments to build a :class:`~tramway.inference.base.Distributed` object.
 
     Arguments:
 
-        cells (CellStats or Distributed): distributed data ready for inference
+        cells (Partition or Distributed): distributed data ready for inference
 
         t (float): time as understood by `diffusivity` and `force`
 

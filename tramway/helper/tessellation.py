@@ -56,14 +56,14 @@ class Tessellate(Helper):
             labels = self.input_label
         nesting = labels is not None
         if types is None and nesting:
-            types = CellStats
+            types = Partition
 
         data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
 
         if nesting:
             assert isinstance(data, tuple) and not data[1:]
             data, = data
-            if isinstance(data, CellStats):
+            if isinstance(data, Partition):
                 self.input_partition = data
                 self.xyt_data = data.points
             else:
@@ -327,7 +327,7 @@ class Tessellate(Helper):
             warn('memory error: cannot assign points to cells', RuntimeWarning)
             cell_index = None
 
-        self.cells = cells = CellStats(self.xyt_data, tess, cell_index)
+        self.cells = cells = Partition(self.xyt_data, tess, cell_index)
 
         # store some parameters together with the partition
         method = self.name
@@ -509,7 +509,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
 
         return_analyses (bool):
             Return a :class:`~tramway.core.analyses.base.Analyses` object instead of
-            the default :class:`~tramway.tessellation.base.CellStats` output.
+            the default :class:`~tramway.tessellation.base.Partition` output.
 
         load_options (dict):
             Pass extra keyword arguments to :func:`~tramway.core.xyt.load_xyt` if called.
@@ -529,8 +529,8 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
             Pass extra keyword arguments to :func:`~tramway.core.xyt.save_rwa` if called.
 
     Returns:
-        tramway.tessellation.base.CellStats: A partition of the data with its
-            :attr:`~tramway.tessellation.base.CellStats.tessellation` attribute set.
+        tramway.tessellation.base.Partition: A partition of the data with its
+            :attr:`~tramway.tessellation.base.Partition.tessellation` attribute set.
 
 
     Apart from the parameters defined above, extra input arguments are admitted and may be passed
@@ -758,7 +758,7 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
 
         return_analyses (bool):
             Return a :class:`~tramway.core.analyses.base.Analyses` object instead of
-            the default :class:`~tramway.tessellation.base.CellStats` output.
+            the default :class:`~tramway.tessellation.base.Partition` output.
 
         load_options (dict):
             Pass extra keyword arguments to :func:`~tramway.core.xyt.load_xyt` if called.
@@ -778,8 +778,8 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
             Pass extra keyword arguments to :func:`~tramway.core.xyt.save_rwa` if called.
 
     Returns:
-        tramway.tessellation.base.CellStats: A partition of the data with its
-            :attr:`~tramway.tessellation.base.CellStats.tessellation` attribute set.
+        tramway.tessellation.base.Partition: A partition of the data with its
+            :attr:`~tramway.tessellation.base.Partition.tessellation` attribute set.
 
 
     Apart from the parameters defined above, extra input arguments are admitted and may be passed
@@ -839,7 +839,7 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
             else:
                 xyt_file = False
                 if input_label:
-                    input_partition, = find_artefacts(analyses, CellStats, input_label)
+                    input_partition, = find_artefacts(analyses, Partition, input_label)
                 xyt_data = analyses.data
         if xyt_file:
             xyt_data, xyt_files = load_xyt(xyt_files, return_paths=True, verbose=verbose,
@@ -1103,7 +1103,7 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
         warn('memory error: cannot assign points to cells', RuntimeWarning)
         cell_index = None
 
-    stats = CellStats(xyt_data, tess, cell_index)
+    stats = Partition(xyt_data, tess, cell_index)
 
     # store some parameters together with the partition
     stats.param['method'] = method
@@ -1176,8 +1176,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
     Plots a spatial representation of the tessellation and partition if data are 2D.
 
     Arguments:
-        cells (str or CellStats or tramway.core.analyses.base.Analyses):
-            Path to a *.rwa* file or :class:`~tramway.tessellation.CellStats`
+        cells (str or Partition or tramway.core.analyses.base.Analyses):
+            Path to a *.rwa* file or :class:`~tramway.tessellation.Partition`
             instance or analysis tree; files and analysis trees may require
             `label`/`input_label` to be defined.
 
@@ -1256,7 +1256,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
 
     """
     input_file = ''
-    if not isinstance(cells, CellStats):
+    if not isinstance(cells, Partition):
         if label is None:
             labels = input_label
         else:
@@ -1373,7 +1373,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         else:
             warn('ignoring `time_knn`', RuntimeWarning)
         bb = cells.bounding_box
-        cells = CellStats(xyt, mesh, mesh.cell_index(xyt, **prms))
+        cells = Partition(xyt, mesh, mesh.cell_index(xyt, **prms))
         cells.bounding_box = bb
     elif segment is not None:
         warn('cannot find time segments', RuntimeWarning)
@@ -1626,7 +1626,7 @@ def find_mesh(path, method=None, full_list=False):
             hdf.lazy = False
             try:
                 cells = hdf.peek('cells')
-                if isinstance(cells, CellStats) and \
+                if isinstance(cells, Partition) and \
                     (method is None or cells.param['method'] == method):
                     found = True
                     if cells.tessellation is None:

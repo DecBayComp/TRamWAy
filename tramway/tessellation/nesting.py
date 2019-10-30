@@ -70,10 +70,10 @@ class NestedTessellations(Tessellation):
         self._children = tessellations
 
     def _parent_index(self, points):
-        if isinstance(self.parent, CellStats):
+        if isinstance(self.parent, Partition):
             parent = self.parent
         else: # preferred usage
-            parent = CellStats(tessellation=self.parent)
+            parent = Partition(tessellation=self.parent)
         if points is not parent.points or \
                 (self.parent_index_arguments and parent._cell_index is None):
             parent.points = points

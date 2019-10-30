@@ -77,7 +77,7 @@ class RandomMesh(Voronoi):
         Voronoi.tessellate(self, centroids)
         #
         if not allow_empty_cells:
-            cells = CellStats(points, self)
+            cells = Partition(points, self)
             #cells.cell_index = cells.cell_index(centroids, **kwargs)
             ok = 0 < cells.location_count
             self.cell_centers = None

@@ -21,7 +21,7 @@ from copy import deepcopy
 import scipy.sparse as sparse
 from scipy.spatial.distance import cdist
 from ..core import *
-from ..tessellation.base import dict_to_sparse, format_cell_index, nearest_cell, CellStats, Tessellation
+from ..tessellation.base import dict_to_sparse, format_cell_index, nearest_cell, Partition, Tessellation
 import traceback
 from collections import defaultdict
 
@@ -35,7 +35,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
 
     Arguments:
 
-        cells (CellStats or Distributed):
+        cells (Partition or Distributed):
             full partition
 
         min_count (int):
@@ -60,7 +60,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
     if isinstance(cells, np.ndarray):
         points = cells
         label = None
-    elif isinstance(cells, CellStats):
+    elif isinstance(cells, Partition):
         points = cells.descriptors(cells.points, asarray=True)
         label = cells.cell_index
         npts = points.shape[0]
@@ -149,7 +149,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 
     Arguments:
 
-        cells (CellStats):
+        cells (Partition):
             full partition
 
         labels (numpy.ndarray):
@@ -264,7 +264,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 
     Arguments:
 
-        cells (CellStats):
+        cells (Partition):
             full partition
 
         labels (numpy.ndarray):
@@ -483,7 +483,7 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
 
     Arguments:
 
-        cells (CellStats or Tessellation or Distributed):
+        cells (Partition or Tessellation or Distributed):
             tessellation
 
         font_size (int):
@@ -501,7 +501,7 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
     import matplotlib.pyplot as plt
     kwargs['fontsize'] = kwargs.get('fontsize', font_size)
     handles = []
-    if isinstance(cells, CellStats):
+    if isinstance(cells, Partition):
         cells = cells.tessellation
     # common plotting logic
     def text(x, y, i):
@@ -515,7 +515,7 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
             return
         h = plt.text(x, y, str(i+1 if shift_indices else i), **kwargs)
         handles.append(h)
-    # CellStats and Tessellation
+    # Partition and Tessellation
     if isinstance(cells, Tessellation):
         i = 0
         for x,y in cells.cell_centers:

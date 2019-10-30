@@ -26,12 +26,12 @@ from collections import Counter, namedtuple
 import sys
 
 
-class CellStats(Lazy):
-    """Container datatype for a point dataset together with a tessellation.
+class Partition(Lazy):
+    """Container datatype for molecule location datasets partitioned using a tessellation.
 
-    A `CellStats` instance conveniently stores the tessellation (:attr:`tessellation`) and the
-    partition of the data (:attr:`cell_index`) together with the data itself (:attr:`points`) and
-    a few more intermediate results frequently derivated from a data partition.
+    A `Partition` instance conveniently stores the tessellation (:attr:`tessellation`) and the
+    proper partition of the data (:attr:`cell_index`) together with the data itself (:attr:`points`)
+    and a few more intermediate results frequently derivated from a data partition.
 
     :attr:`locations` and :attr:`translocations` are aliases of :attr:`points`.
     No control is performed on whether :attr:`translocations` are actual translocations for example.
@@ -82,7 +82,7 @@ class CellStats(Lazy):
 
         param (dict):
             Arguments involved in the tessellation and the partition steps, as key-value
-            pairs. Such information is maintained in :class:`~tramway.tessellation.CellStats`
+            pairs. Such information is maintained in :class:`~tramway.tessellation.Partition`
             so that it can be stored in *.rwa* files and retrieve for traceability.
 
     Functional dependencies:
@@ -292,6 +292,9 @@ class CellStats(Lazy):
         return s
 
 
+CellStats = Partition # for backward compatibility
+
+
 
 def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwargs):
     """
@@ -400,8 +403,8 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
     Arguments:
 
-        cells (CellStats):
-            CellStats with both partition and tessellation defined.
+        cells (Partition):
+            Partition with both partition and tessellation defined.
 
         symetric (bool):
             If ``False``, the returned matrix will not be symetric, i.e. wherever i->j is
@@ -1885,7 +1888,7 @@ def cell_index_by_radius(tessellation, points, radius, format=None, select=None,
     return format_cell_index(associations, format=format, select=select, shape=shape)
 
 
-__all__ = ['CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
+__all__ = ['Partition', 'CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
     'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict', \
     '_Voronoi', 'boxed_voronoi_2d', 'cell_index_by_radius']
 

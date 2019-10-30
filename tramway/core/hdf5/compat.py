@@ -6,7 +6,7 @@ import copy
 
 # 0.2 -> 0.3: typo
 translation_table = [
-        ('tramway.tesselation.base.CellStats',  'tramway.tessellation.base.CellStats'),
+        ('tramway.tesselation.base.CellStats',  'tramway.tessellation.base.Partition'),
         ('tramway.tesselation.base.Delaunay',   'tramway.tessellation.base.Delaunay'),
         ('tramway.tesselation.base.Voronoi',    'tramway.tessellation.base.Voronoi'),
         ('tramway.tesselation.base.RegularMesh',        'tramway.tessellation.base.RegularMesh'),
