@@ -130,9 +130,9 @@ You can check the content of the *example.rwa* file::
 
 	in example.rwa:
 		<class 'pandas.core.frame.DataFrame'>
-			'kmeans' <class 'tramway.tessellation.base.CellStats'>
-			'gwr0' <class 'tramway.tessellation.base.CellStats'>
-			'gwr1' <class 'tramway.tessellation.base.CellStats'>
+			'kmeans' <class 'tramway.tessellation.base.Partition'>
+			'gwr0' <class 'tramway.tessellation.base.Partition'>
+			'gwr1' <class 'tramway.tessellation.base.Partition'>
 
 .. seealso::
 
@@ -235,11 +235,11 @@ The content of the *example.rwa* file that results from all the above steps can 
 
 	in example.rwa:
 		<class 'pandas.core.frame.DataFrame'>
-			'kmeans' <class 'tramway.tessellation.base.CellStats'>
+			'kmeans' <class 'tramway.tessellation.base.Partition'>
 				'df-map0' <class 'tramway.inference.base.Maps'>
 					'curl_2' <class 'tramway.inference.base.Maps'>
-			'gwr0' <class 'tramway.tessellation.base.CellStats'>
-			'gwr1' <class 'tramway.tessellation.base.CellStats'>
+			'gwr0' <class 'tramway.tessellation.base.Partition'>
+			'gwr1' <class 'tramway.tessellation.base.Partition'>
 				'dv-map0' <class 'tramway.inference.base.Maps'>
 
 As mentioned before, some analysis artefacts can be inspected specifying the corresponding label.

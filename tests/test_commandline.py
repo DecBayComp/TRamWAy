@@ -123,7 +123,8 @@ class TestTessellation(object):
                 out = '\n'.join([ '\n'.join((line1, line2)) \
                     for (line1, line2) in zip(out[:-1:2], out[1::2])
                     if not (line1.startswith('Failed reading attribute') or \
-                        line1.startswith('attribute: <TITLE of ')) ])
+                        line1.startswith('attribute: <TITLE of ') or \
+                        line1 == 'attribute: <type of </analyses/_instances/items/0/_data>> and <type of </analyses/_instances/items/0/_data>>') ])
             if err:
                 if not isinstance(err, str):
                     err = err.decode('utf-8')
@@ -208,6 +209,7 @@ class TestInference(object):
                 for (line1, line2) in zip(out[:-1:2], out[1::2])
                 if not (line1.startswith('Failed reading attribute') or \
                     line1.startswith('attribute: <TITLE of ') or \
+                    line1 == 'attribute: <type of </analyses/_instances/items/0/_data>> and <type of </analyses/_instances/items/0/_data>>' or \
                     line1.endswith('/runtime>')) ])
             self.print(out)
         if err:

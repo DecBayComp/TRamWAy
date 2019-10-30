@@ -27,11 +27,11 @@ and can be applied with the :func:`~tramway.helper.inference.infer` helper funct
 	maps = infer(cells, 'DV')
 
 
-However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed diffusivities are low and the experimental localization error is also low.
+However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed diffusivities are low and the experimental localisation error is also low.
 
 An argument that should be first considered in an attempt to deal with runtime errors is `min_diffusivity`.
 
-Another important argument that can help is `localization_error` or `sigma` or `sigma2`.
+Another important argument that can help is the localisation precision or error (`sigma` or `sigma2`).
 See also the `Common parameters and default values`_ section.
 
 
@@ -263,7 +263,7 @@ Common parameters and default values
 ------------------------------------
 
 All the methods use :math:`\sigma = 0.03 \textrm{µm}` as default value for the experimental localization error.
-This parameter is defined by the experimental setup and can be set in |tramway| with the ``--sigma`` command-line option or the `localization_error` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
+This parameter is defined by the experimental setup and can be set in |tramway| with the ``--sigma`` command-line option or the `sigma` argument to :func:`~tramway.helper.inference.infer` and is expressed in |um|.
 
 Compare::
 
@@ -423,25 +423,25 @@ The maps are available as :class:`~tramway.inference.base.Maps` objects that exp
 Distributed cells
 ^^^^^^^^^^^^^^^^^
 
-The :func:`~tramway.helper.inference.infer` function prepares the :class:`~tramway.tessellation.base.CellStats` partition (see the :ref:`tessellation` section) before the inference is run.
+The :func:`~tramway.helper.inference.infer` function prepares the :class:`~tramway.tessellation.base.Partition` (see the :ref:`tessellation` section) before the inference is run.
 
 Cells are represented by either :class:`~tramway.inference.base.Locations` or :class:`~tramway.inference.base.Translocations` objects. 
-Both types of objects derivate from the :class:`~tramway.inference.base.Cell` class.
+Both types of objects derivate from the :class:`~tramway.inference.base.Cell`/:class:`~tramway.inference.base.FiniteElement` class.
 
-These cell objects are grouped together in a dict-like :class:`~tramway.inference.base.Distributed` object.
-The :class:`~tramway.inference.base.Distributed` class controls how the cells and the associated (trans-)locations are passed to the inference algorithm.
+These cell objects are grouped together in a dict-like :class:`~tramway.inference.base.FiniteElements` object.
+The :class:`~tramway.inference.base.FiniteElements` class controls how the cells and the associated (trans-)locations are passed to the inference algorithm.
 
 For example cells can be grouped in subsets of cells.
-In this case the top :class:`~tramway.inference.base.Distributed` object will contain other :class:`~tramway.inference.base.Distributed` objects that will in turn contain :class:`~tramway.inference.base.Cell` objects.
+In this case the top :class:`~tramway.inference.base.FiniteElements` object will contain other :class:`~tramway.inference.base.FiniteElements` objects that will in turn contain :class:`~tramway.inference.base.Cell` objects.
 
-The main routine of an inference plugin receives a :class:`~tramway.inference.base.Distributed` object and can:
+The main routine of an inference plugin receives a :class:`~tramway.inference.base.FiniteElements` object and can:
 
-* iterate over the contained cells (:class:`~tramway.inference.base.Distributed` features a dict-like interface),
-* take benefit from the cell adjacency matrix (attribute :attr:`~tramway.inference.base.Distributed.adjacency`)
-* and other convenience calculations such as gradient components (method :meth:`~tramway.inference.base.Distributed.grad`) that can be summed (method :meth:`~tramway.inference.base.Distributed.grad_sum`).
+* iterate over the contained cells (:class:`~tramway.inference.base.FiniteElements` features a dict-like interface),
+* take benefit from the cell adjacency matrix (attribute :attr:`~tramway.inference.base.FiniteElements.adjacency`)
+* and other convenience calculations such as gradient components (method :meth:`~tramway.inference.base.FiniteElements.grad`) that can be summed (method :meth:`~tramway.inference.base.FiniteElements.grad_sum`).
 
 
-The :meth:`~tramway.inference.base.Distributed.run` applies the inference routine on the defined subsets of cells.
+The :meth:`~tramway.inference.base.FiniteElements.run` applies the inference routine on the defined subsets of cells.
 It handles the multi-processing logic and combines the regional maps into a full map.
 The number of workers (or processes) can be set with the `worker_count` argument.
 

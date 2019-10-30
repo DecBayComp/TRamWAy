@@ -92,8 +92,8 @@ class CommentsView(AnalysesView):
 
 class Analyses(object):
     """
-    Analysis tree - Generic container with labels and comments to structure the analyses
-    that derive from the same data.
+    Analysis tree - Generic container with labels, comments and other metadata to structure
+    the analyses that apply to the same data.
 
     An :class:`Analyses` object is a node of a tree.
     In attribute `data` (or equivalently `artefact`)
@@ -104,6 +104,10 @@ class Analyses(object):
     A label is a key in the dict-like interface.
 
     Comments associated to children analyses are also addressable with labels.
+
+    Metadata are attached to each node, including the top node.
+
+    Setting the `data` attribute unsets the other attributes.
 
     Example:
 
@@ -139,20 +143,24 @@ class Analyses(object):
 
     Attributes:
 
-        data/artefact (any): common data which the instances apply to or derive from.
+        data/artefact (any): input data to the children instances.
 
         instances (dict): analyses on the data; keys are natural integers or string labels.
 
         comments (dict): comments associated to the analyses; keys are a subset of the keys
             in `instances`.
 
-    """
-    __slots__ = ('_data', '_instances', '_comments')
+        metadata (dict): additional metadata associated to the input data; keys are attributes
+            and are not related to children instances.
 
-    def __init__(self, data=None):
+    """
+    __slots__ = ('_data', '_instances', '_comments', '_metadata')
+
+    def __init__(self, data=None, metadata=None):
         self._data = data
         self._instances = {}
         self._comments = {}
+        self._metadata = {} if metadata is None else metadata
 
     @property
     def data(self):
@@ -163,6 +171,7 @@ class Analyses(object):
         self._data = d
         self._instances = {}
         self._comments = {}
+        self._metadata = {}
 
     @property
     def artefact(self):
@@ -171,6 +180,16 @@ class Analyses(object):
     @artefact.setter
     def artefact(self, a):
         self.data = a
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = {}
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, d):
+        self._metadata = {} if d is None else d
 
     @property
     def instances(self):
@@ -331,19 +350,17 @@ def extract_analysis(analyses, labels):
 
         tramway.core.analyses.base.Analyses: copy of the analyses along the path defined by `labels`.
     """
-    if not labels:
-        raise ValueError('labels required')
-    if not isinstance(labels, (tuple, list)):
-        labels = [labels]
-    analysis = instance = type(analyses)(analyses._data)
-    for label in labels:
-        analysis.instances[label] = copy.copy(analyses.instances[label])
+    analysis = type(analyses)(analyses._data, analyses.metadata)
+    if labels:
+        if not isinstance(labels, (tuple, list)):
+            labels = [labels]
+        label = labels[0]
+        analysis.instances[label] = extract_analyses(analyses.instances[label], labels[1:])
         try:
             analysis.comments[label] = analyses.comments[label]
         except KeyError:
             pass
-        analysis, analyses = analysis.instances[label], analyses.instances[label]
-    return instance
+    return analysis
 
 
 def _append(s, ls):

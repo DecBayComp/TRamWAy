@@ -38,17 +38,21 @@ if sys.version_info[0] < 3:
     __all__ += rules.__all__ + ['rules']
 
 
-# backward compatibility trick for `CellStats`
+# backward compatibility trick for `CellStats` (now `Partition`)
 try:
-    from tramway.tessellation.base import CellStats
+    from tramway.tessellation.base import Partition
 except:
     pass
 else:
     from ..lazy import Lazy
-    cell_stats_expose = Lazy.__slots__ + CellStats.__slots__ + ('_tesselation',)
-    __all__.append('cell_stats_expose')
+    partition_exposes = cell_stats_expose = Lazy.__slots__ + Partition.__slots__ + ('_tesselation',)
+    __all__.append('cell_stats_expose') # keep it for backward compatibility
+    #__all__.append('partition_exposes')
     if _rwa_available:
-        hdf5_storable(default_storable(CellStats, exposes=cell_stats_expose), agnostic=True)
+        hdf5_storable(default_storable(Partition, exposes=partition_exposes), agnostic=True)
+        # quick'n dirty fix; [TODO] check this is legal:
+        hdf5.hdf5_service.by_storable_type['tramway.tessellation.base.CellStats'] = \
+                hdf5.hdf5_service.by_storable_type['tramway.tessellation.base.Partition']
 
 try:
     from tramway.tessellation.kdtree.dichotomy import Dichotomy, ConnectedDichotomy
