@@ -29,6 +29,6 @@ def infer_DF(cells, diffusivity_prior=None, force_prior=None, jeffreys_prior=Fal
         return degraded_df.infer_DF(cells, jeffreys_prior=jeffreys_prior,
                 min_diffusivity=min_diffusivity, **kwargs)
     else:
-        return standard_df.infer_smooth_DF(cells, diffusivity_prior, force_prior,
+        return standard_df.infer_smooth_DF(cells, diffusivity_prior, force_prior, None,
                 jeffreys_prior, min_diffusivity, max_iter, epsilon, rgrad, **kwargs)
 

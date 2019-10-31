@@ -52,6 +52,13 @@ def _parse_args(args):
         if not os.path.isfile(input_file):
             print("cannot find file: {}".format(input_file))
             sys.exit(1)
+    try:
+        comment = kwargs.pop('comment')
+    except KeyError:
+        pass
+    else:
+        if comment is not None:
+            kwargs['comment'] = comment.replace('\\n', '\n')
     seed = kwargs.pop('seed', False)
     if seed is None:
         import time
@@ -199,7 +206,7 @@ def _dump_rwa(args):
         for input_file in input_files:
             print('in {}:'.format(input_file))
             analyses = load_rwa(input_file, lazy=True)
-            print(format_analyses(analyses, global_prefix='\t', node=lazytype))
+            print(format_analyses(analyses, global_prefix='\t', node=lazytype, metadata=kwargs.get('metadata', False)))
 
 def _curl(args):
     import copy
@@ -355,7 +362,7 @@ def main():
                 else:
                     method_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
             method_parser.add_argument('-l', '--label', '--output-label', help='output label')
-            method_parser.add_argument('--comment', help='description message')
+            method_parser.add_argument('--comment', help='description message (newlines must be escaped)')
             method_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
             method_parser.add_argument('--inplace', action='store_true', \
                 help='replace the input sampling by the output one (only when --input-label is defined)')
@@ -376,6 +383,7 @@ def main():
                 help='minimum number of locations per cell; this is enforced at partition time; cells with insufficient locations are discarded and not compensated for')
             method_parser.add_argument('--seed', nargs='?', default=False, \
                 help='random generator seed (for testing purposes)')
+            method_parser.add_argument('--disable-metadata', action='store_true', help="do not record additional metadata in the output file")
             translations = add_arguments(method_parser, setup.get('make_arguments', {}), name=method)
             try:
                 method_parser.add_argument('input_file', nargs='*', help='path to input file(s)')
@@ -403,7 +411,7 @@ def main():
                     mode_parser.add_argument(short_arg, long_arg, dest=dest, **kwargs)
             mode_parser.add_argument('-L', '--input-label', help='comma-separated list of input labels')
             mode_parser.add_argument('-l', '--output-label', help='output label')
-            mode_parser.add_argument('--comment', help='description message for the output artefact')
+            mode_parser.add_argument('--comment', help='description message for the output artefact (newlines must be escaped)')
             # shouldn't `inplace` be optional?
             mode_parser.add_argument('--inplace', action='store_true', \
                 help='replace the input maps by the output ones')
@@ -413,6 +421,7 @@ def main():
                 translations = None
             mode_parser.add_argument('--seed', nargs='?', default=False, help='random generator seed (for testing purposes)')
             mode_parser.add_argument('--profile', nargs='?', default=False, help='profile each individual child process if any')
+            mode_parser.add_argument('--disable-metadata', action='store_true', help="do not record additional metadata in the output file")
             try:
                 mode_parser.add_argument('input_file', nargs='?', help='path to input file')
             except:
@@ -431,6 +440,7 @@ def main():
     dump_parser.add_argument('-c', '--cluster', metavar='FILE', help='path to cluster file')
     dump_parser.add_argument('-v', '--vmesh', metavar='FILE', help='path to vmesh file')
     dump_parser.add_argument('-L', '--label', help='comma-separated list of labels')
+    dump_parser.add_argument('-m', '--metadata', action='store_true', help='print metadata as @key=val')
     dump_parser.add_argument('--eps', '--epsilon', metavar='EPSILON', type=float, help='margin for half-space gradient calculation (cluster file exports only; see also `tramway.inference.base.neighbours_per_axis`)')
     dump_parser.add_argument('--auto', action='store_true', help='infer default values for missing parameters')
     try:

@@ -86,7 +86,7 @@ def infer_DD(cells, localization_error=None, jeffreys_prior=False, min_diffusivi
         if min_diffusivity is not False:
             if min_diffusivity is None:
                 noise_dt = localization_error
-                min_diffusivity = (1e-16 - noise_dt) / np.min(cell.dt)
+                min_diffusivity = (1e-16 - noise_dt) / np.max(cell.dt)
             kwargs['bounds'] = [(min_diffusivity, None)] + [(None, None)] * cell.dim
         #cell.cache = None # no cache needed
         result = minimize(dd_neg_posterior, dd.combined, \

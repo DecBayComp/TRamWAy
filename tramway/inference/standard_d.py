@@ -151,7 +151,7 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon)
 
     # parametrize the optimization procedure
-    if min_diffusivity not in (False, None):
+    if min_diffusivity is not None:
         kwargs['bounds'] = D_bounds
     if max_iter:
         options = kwargs.get('options', {})

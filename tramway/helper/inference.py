@@ -36,15 +36,15 @@ class Infer(Helper):
         self.cells = None
         self.input_maps = None
 
-    def prepare_data(self, input_data, types=None, labels=None, verbose=None, output_file=None, \
-            **kwargs):
+    def prepare_data(self, input_data, types=None, labels=None, metadata=True, verbose=None, \
+            output_file=None, **kwargs):
         Cells = (Partition, Distributed)
         if types is None:
             if labels is None and self.inplace:
                 types = (Cells, (Maps, ))
             else:
                 types = (Cells, )
-        data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
+        data = Helper.prepare_data(self, input_data, labels, types, metadata, verbose, **kwargs)
         if types[1:]:
             self.cells, self.input_maps = data
             data = self.input_maps
@@ -415,7 +415,7 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
     helper = Infer()
     helper.verbose = verbose
     helper.labels(input_label=input_label, output_label=output_label, inplace=inplace, comment=comment)
-    cells = helper.prepare_data(cells, labels=input_label)
+    cells = helper.prepare_data(cells, labels=input_label, metadata=not kwargs.pop('disable_metadata',None))
 
     if mode in ('D', 'DF', 'DD', 'DV'):
         mode = mode.lower()

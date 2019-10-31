@@ -36,12 +36,13 @@ class Tessellate(Helper):
         self.tessellation_kwargs = {}
         self.partition_kwargs = {}
 
-    def prepare_data(self, input_data, labels=None, types=None, verbose=None, \
-            scaling=False, time_scale=None, **kwargs):
+    def prepare_data(self, input_data, labels=None, types=None, metadata=True, \
+            verbose=None, scaling=False, time_scale=None, **kwargs):
 
         if (isinstance(input_data, six.string_types) and os.path.isdir(input_data)) or \
                 (self.are_multiple_files(input_data) and input_data and all(os.path.exists(_d) for _d in input_data)):
             input_data, self.input_file = load_xyt(input_data, return_paths=True, **kwargs)
+            self.metadata['datafile'] = self.input_file if self.input_file[1:] else self.input_file[0]
         elif isinstance(input_data, six.string_types):
             if not os.path.exists(input_data):
                 raise OSError('file not found: {}'.format(input_data))
@@ -51,6 +52,9 @@ class Tessellate(Helper):
                 raise
             except (UnicodeDecodeError, pd.errors.ParserError): # rwa file
                 pass
+            else:
+                assert self.input_file and not self.input_file[1:]
+                self.metadata['datafile']= self.input_file[0]
 
         if labels is None:
             labels = self.input_label
@@ -58,7 +62,7 @@ class Tessellate(Helper):
         if types is None and nesting:
             types = Partition
 
-        data = Helper.prepare_data(self, input_data, labels, types, verbose, **kwargs)
+        data = Helper.prepare_data(self, input_data, labels, types, metadata, verbose, **kwargs)
 
         if nesting:
             assert isinstance(data, tuple) and not data[1:]
@@ -341,7 +345,7 @@ class Tessellate(Helper):
 
         # insert the resulting analysis in the analysis tree
         if self.analyses is not None:
-            self.insert_analysis(cells, comment)
+            self.insert_analysis(cells, comment=comment)
 
         return cells
 
@@ -548,7 +552,8 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         load_options = {}
     if helper.are_multiple_files(xyt_data) and len(xyt_data) == 1:
         xyt_data = next(iter(xyt_data))
-    helper.prepare_data(xyt_data, scaling=scaling, time_scale=time_scale, **load_options)
+    helper.prepare_data(xyt_data, scaling=scaling, time_scale=time_scale,
+            metadata=not kwargs.pop('disable_metadata',None), **load_options)
     helper.plugin(method)
 
     # distinguish between tessellation and partition arguments

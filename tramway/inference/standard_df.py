@@ -28,7 +28,7 @@ setup = {'name': ('standard.df', 'smooth.df'),
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
         ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
-        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential (use force_prior instead)'))),
+        #('potential_prior',     ('-v', dict(type=float, help='prior on the potential (use force_prior instead)'))),
         ('force_prior',         ('-f', dict(type=float, help='prior on the amplitude of the force'))),
         ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
         ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
@@ -149,6 +149,7 @@ def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None, potential_p
 
     if force_prior is None:
         if potential_prior is not None:
+            raise ValueError('potential prior: {}'.format(potential_prior))
             warn('please use `force_prior` instead of `potential_prior`', PendingDeprecationWarning)
         force_prior = potential_prior
 

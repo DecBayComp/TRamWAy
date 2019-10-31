@@ -288,8 +288,9 @@ class Analyses(object):
         self.instances.__delitem__(label)
 
 
-def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_tuples=False):
-    with_label, with_comment, with_depth = label is 0 or label, comment, depth
+def map_analyses(fun, analyses, label=False, comment=False, metadata=False, depth=False,
+        allow_tuples=False):
+    with_label, with_comment, with_metadata, with_depth = label is 0 or label, comment, metadata, depth
     def _fun(x, **kwargs):
         y = fun(x, **kwargs)
         if not allow_tuples and isinstance(y, tuple):
@@ -301,6 +302,8 @@ def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_t
             kwargs['label'] = label
         if with_comment:
             kwargs['comment'] = comment
+        if with_metadata:
+            kwargs['metadata'] = analyses.metadata
         if with_depth:
             kwargs['depth'] = depth
         node = _fun(analyses._data, **kwargs)
@@ -320,7 +323,7 @@ def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_t
                     if with_depth:
                         kwargs['depth'] = depth
                     tree.append(_fun(child, **kwargs))
-            return (node, tuple(tree))
+            return node, tuple(tree)
         else:
             return node
     return _map(analyses)
@@ -560,11 +563,16 @@ def coerce_labels(analyses):
     return analyses
 
 
-def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None):
+def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None,
+        metadata=False):
     if format_standalone_root is None:
-        format_standalone_root = lambda r: '<Analyses {}>'.format(r)
-    def _format(data, label=None, comment=None, depth=0):
-        s = [global_prefix + prefix * depth]
+        if metadata:
+            format_standalone_root = lambda r: '<Analyses {}> {}'.format(*r.split('\n'))
+        else:
+            format_standalone_root = lambda r: '<Analyses {}>'.format(r)
+    def _format(data, label=None, comment=None, metadata=None, depth=0):
+        _prefix = global_prefix + prefix * depth
+        s = [_prefix]
         t = []
         if label is None:
             assert comment is None
@@ -585,8 +593,22 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
                 t.append(node(data))
             if comment:
                 assert isinstance(comment, str)
-                s.append(':\t"{}"')
-                t.append(comment)
+                _comment = comment.split('\n')
+                s.append('\n{}"{}')
+                t.append(_prefix)
+                t.append(_comment[0])
+                for _line in _comment[1:]:
+                    s.append('\n{} {}')
+                    t.append(_prefix)
+                    t.append(_line)
+                s.append('"')
+        if metadata:
+            for key in metadata:
+                val = metadata[key]
+                s.append('\n{}@{}={}')
+                t.append(_prefix)
+                t.append(key)
+                t.append(val)
         return ''.join(s).format(*t)
     def _flatten(_node):
         if _node is None:
@@ -600,11 +622,11 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
         else:
             assert isinstance(_node, str)
             return itertools.chain([_node], *[_flatten(c) for c in _children])
-    lines = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
-    if lines[1:]:
-        return '\n'.join(lines)
+    entries = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, metadata=metadata, depth=True)))
+    if entries[1:]:
+        return '\n'.join(entries)
     else:
-        return format_standalone_root(lines[0])
+        return format_standalone_root(entries[0])
 
 
 def append_leaf(analysis_tree, augmented_branch, overwrite=False):
