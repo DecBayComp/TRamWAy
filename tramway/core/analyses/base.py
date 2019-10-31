@@ -540,7 +540,15 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
     return tuple(matches)
 
 
-def coerce_labels(analyses):
+def coerce_labels_and_metadata(analyses):
+    for key in analyses.metadata:
+        val = analyses.metadata[key]
+        if not isinstance(val, str):
+            if isinstance(val, bytes):
+                val = val.decode('utf-8')
+            elif isinstance(val, unicode):
+                val = val.encode('utf-8')
+        analyses.metadata[key] = val
     for label in tuple(analyses.labels):
         if isinstance(label, (int, str)):
             coerced = label
@@ -556,11 +564,13 @@ def coerce_labels(analyses):
         comment = analyses.comments[label]
         analysis = analyses.instances.pop(label)
         if isinstance(analysis, Analyses):
-            analysis = coerce_labels(analysis)
+            analysis = coerce_labels_and_metadata(analysis)
         analyses.instances[coerced] = analysis
         if comment:
             analyses.comments[coerced] = comment
     return analyses
+
+coerce_labels = coerce_labels_and_metadata
 
 
 def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None,
@@ -664,6 +674,7 @@ __all__ = [
     'extract_analysis',
     'label_paths',
     'find_artefacts',
+    'coerce_labels_and_metadata',
     'coerce_labels',
     'format_analyses',
     'append_leaf',
