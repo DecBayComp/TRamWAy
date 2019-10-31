@@ -12,12 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-#from .analysis import *
 from .tessellation import *
 from .inference import *
 #from .feature import *
-
-#__all__ = ['UseCaseWarning', 'IgnoredInputWarning', 'hdf_extensions', 'imt_extensions', 'fig_formats', \
-#	'tessellate', 'cell_plot', 'find_imt', \
-#	'infer', 'map_plot']
 

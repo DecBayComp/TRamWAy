@@ -17,9 +17,9 @@ import traceback
 import random
 
 
-py2_hash, py3_hash = 'YbzoBr2g', '8HluCrql'
+py2_hash, py3_hash = 'ycyrC4rP', 'pIdDAnzt'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '190430'
+data_update = '191031'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
@@ -123,7 +123,8 @@ class TestTessellation(object):
                 out = '\n'.join([ '\n'.join((line1, line2)) \
                     for (line1, line2) in zip(out[:-1:2], out[1::2])
                     if not (line1.startswith('Failed reading attribute') or \
-                        line1.startswith('attribute: <TITLE of ')) ])
+                        line1.startswith('attribute: <TITLE of ') or \
+                        '/_metadata/' in line1) ])
             if err:
                 if not isinstance(err, str):
                     err = err.decode('utf-8')
@@ -171,7 +172,8 @@ class TestTessellation(object):
                 out = '\n'.join([ '\n'.join((line1, line2)) \
                     for (line1, line2) in zip(out[:-1:2], out[1::2])
                     if not (line1.startswith('Failed reading attribute') or \
-                        line1.startswith('attribute: <TITLE of ')) ])
+                        line1.startswith('attribute: <TITLE of ') or \
+                        '/_metadata/' in line1) ])
             if err:
                 if not isinstance(err, str):
                     err = err.decode('utf-8')
@@ -208,7 +210,8 @@ class TestInference(object):
                 for (line1, line2) in zip(out[:-1:2], out[1::2])
                 if not (line1.startswith('Failed reading attribute') or \
                     line1.startswith('attribute: <TITLE of ') or \
-                    line1.endswith('/runtime>')) ])
+                    line1.endswith('/runtime>') or \
+                    '/_metadata/' in line1) ])
             self.print(out)
         if err:
             if not isinstance(err, str): # Py3
@@ -227,9 +230,9 @@ class TestInference(object):
     def test_dv1(self, tmpdir, datadir):
         self.common(tmpdir, datadir, 'dv -d 1 -v 1 --max-iter 10', 'dv1')
     def test_smooth_d(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'd -d 0 -j --max-iter 10', 'd1')
+        self.common(tmpdir, datadir, 'd -d 1 -j --max-iter 10', 'd1')
     def test_smooth_df(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'df -d 0 -j --max-iter 10', 'df1')
+        self.common(tmpdir, datadir, 'df -d 1 -j --max-iter 10', 'df1')
     def test_smooth_dd(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'dd -d 0 -j --max-iter 10', 'dd1')
+        self.common(tmpdir, datadir, 'dd -d 1 -j --max-iter 10', 'dd1')
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018, Institut Pasteur
+# Copyright © 2018-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -16,6 +16,9 @@ from ..core.hdf5 import *
 import os.path
 import six
 import pandas as pd
+import pkg_resources
+import platform
+import time
 
 
 class UseCaseWarning(UserWarning):
@@ -36,11 +39,36 @@ class Helper(object):
         self.setup = None
         self.verbose = False
         self._label_is_output = None
+        self.metadata = {}
+
+    def add_metadata(self, analysis, pkg_version=[]):
+        if self.metadata is None:
+            return
+        analysis.metadata.update(self.metadata)
+        if 'os' not in analysis.metadata:
+            analysis.metadata['os'] = platform.system()
+        if 'python' not in analysis.metadata:
+            analysis.metadata['python'] = platform.python_version()
+        for pkg in pkg_version:
+            analysis.metadata['pkg'] = pkg_resources.get_distribution(pkg).version
+        if 'tramway' not in analysis.metadata:
+            analysis.metadata['tramway'] = pkg_resources.get_distribution('tramway').version
+        if 'datetime' not in analysis.metadata:
+            analysis.metadata['datetime'] = time.strftime('%Y-%m-%d %H:%M:%S UTC%z')
+        if 'plugin' not in analysis.metadata:
+            plugin = None
+            try:
+                if self.name in self.plugins:
+                    plugin = self.name
+            except AttributeError:
+                pass
+            if plugin:
+                analysis.metadata['plugin'] = plugin
 
     def are_multiple_files(self, files):
         return isinstance(files, (tuple, list, frozenset, set))
 
-    def prepare_data(self, data, labels=None, types=None, verbose=None, **kwargs):
+    def prepare_data(self, data, labels=None, types=None, metadata=True, verbose=None, **kwargs):
         """
         Load the data if the input argument is a file (can be rwa or txt).
         If the input file is a trajectory file, trailing keyworded arguments are passed
@@ -49,12 +77,18 @@ class Helper(object):
         Isolate the requested artefacts if the input is an analysis tree or an rwa file
         and `labels` or `types` is defined.
         """
+        if metadata is (None, False):
+            self.metadata = None
         if verbose is None:
             verbose = self.verbose
         if labels is None:
             labels = self.input_label
         if isinstance(data, pd.DataFrame):
             self.analyses = Analyses(data)
+            if self.metadata:
+                self.analyses.metadata.update(self.metadata)
+                self.add_metadata(self.analyses)
+                self.metadata = {}
         elif isinstance(data, Analyses):
             self.analyses = data
         elif isinstance(data, six.string_types):
@@ -225,6 +259,8 @@ class Helper(object):
         return self.module, self.setup
 
     def insert_analysis(self, analysis_or_artefact, label=None, comment=None, anchor=None):
+        if comment is None:
+            comment = self.comment
         labels = None
         if isinstance(analysis_or_artefact, Analyses):
             artefact = analysis_or_artefact.data
@@ -232,6 +268,7 @@ class Helper(object):
         else:
             artefact = analysis_or_artefact
             analysis = Analyses(analysis_or_artefact)
+        self.add_metadata(analysis)
         if self.analyses is None:
             raise RuntimeError('no root analysis')
         if anchor:

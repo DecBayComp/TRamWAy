@@ -138,7 +138,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
     Arguments:
 
-        cells (CellStats or Distributed): spatial description of the cells
+        cells (Partition or Distributed): spatial description of the cells
 
         values (pandas.DataFrame or numpy.ndarray): feature value at each cell,
             that will be represented as a colour
@@ -210,7 +210,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                     c, xy, voronoi, bb, rp, True)
                 polygons.append(Polygon(vertices, True))
 
-    elif isinstance(cells, CellStats) and isinstance(cells.tessellation, Voronoi):
+    elif isinstance(cells, Partition) and isinstance(cells.tessellation, Voronoi):
 
         Av = cells.tessellation.vertex_adjacency.tocsr()
         xy = cells.tessellation.cell_centers
@@ -372,7 +372,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
 
     Arguments:
 
-        cells (CellStats or Distributed): spatial description of the cells
+        cells (Partition or Distributed): spatial description of the cells
 
         values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
 
@@ -452,7 +452,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         pts = cells.cell_centers
     elif isinstance(cells, Distributed):
         pts = np.vstack([ cells[i].center for i in cells ])#values.index ])
-    elif isinstance(cells, CellStats):
+    elif isinstance(cells, Partition):
         assert isinstance(cells.tessellation, Tessellation)
         pts = cells.tessellation.cell_centers#[values.index]
     inside = (xmin<=pts[:,0]) & (pts[:,0]<=xmax) & (ymin<=pts[:,1]) & (pts[:,1]<=ymax)
@@ -461,7 +461,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         A = cells.cell_adjacency
     elif isinstance(cells, Distributed):
         A = cells.adjacency
-    elif isinstance(cells, CellStats) and isinstance(cells.tessellation, Delaunay):
+    elif isinstance(cells, Partition) and isinstance(cells.tessellation, Delaunay):
         A = cells.tessellation.cell_adjacency
     if inferencemap:
         if cell_arrow_ratio is None:
@@ -530,7 +530,7 @@ def scalar_map_3d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
     Arguments:
 
-        cells (Tessellation or CellStats): spatial description of the cells
+        cells (Tessellation or Partition): spatial description of the cells
 
         values (pandas.DataFrame, numpy.ndarray or Maps): feature value at each cell,
             that will be represented as a colour

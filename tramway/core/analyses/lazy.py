@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2018, Institut Pasteur
+# Copyright © 2017-2019, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -70,14 +70,32 @@ class Analyses(base.Analyses):
         self._data = d
         self._instances = {}
         self._comments = {}
+        self._metadata = {}
 
     @property
     def comments(self):
         if rwa.islazy(self._comments):
             self._comments = self._comments.deep()
+            if rwa.islazy(self._metadata):
+                self._metadata = self._metadata.deep()
             if rwa.islazy(self._instances):
                 self._instances = self._instances.shallow()
         return base.CommentsView(self)
+
+    @property
+    def metadata(self):
+        if rwa.islazy(self._metadata):
+            self._metadata = self._metadata.deep()
+            if rwa.islazy(self._comments):
+                self._comments = self._comments.deep()
+            if rwa.islazy(self._instances):
+                self._instances = self._instances.shallow()
+        return self._metadata
+
+    # copy/paste
+    @metadata.setter
+    def metadata(self, d):
+        self._metadata = {} if d is None else d
 
     @property
     def instances(self):
@@ -85,6 +103,8 @@ class Analyses(base.Analyses):
             self._instances = self._instances.shallow()
             if rwa.islazy(self._comments):
                 self._comments = self._comments.deep()
+            if rwa.islazy(self._metadata):
+                self._metadata = self._metadata.deep()
         return InstancesView(self)
 
     def __str__(self):

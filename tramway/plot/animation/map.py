@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.tessellation.base import CellStats
+from tramway.tessellation.base import Partition
 from tramway.tessellation.time import TimeLattice
 from tramway.plot.map import *
 from tramway.plot.animation import *
@@ -31,7 +31,7 @@ def animate_map_2d(_map, cells, output_file=None,
 
         _map (pandas.DataFrame): scalar or vector map.
 
-        cells (tramway.tessellation.base.CellStats): spatial-temporal binning.
+        cells (tramway.tessellation.base.Partition): spatial-temporal binning.
 
         output_file (str): path to .mp4 file.
 
@@ -85,7 +85,7 @@ def animate_map_2d(_map, cells, output_file=None,
         tmin, tmax = segments.min(), segments.max()
         _map = cells.tessellation.split_frames(_map)
         _mesh = cells.tessellation.spatial_mesh
-        cells = CellStats(tessellation=_mesh, location_count=np.ones(_mesh.number_of_cells))
+        cells = Partition(tessellation=_mesh, location_count=np.ones(_mesh.number_of_cells))
     else:
         _map = [_map]
         t = cells.locations['t']

@@ -92,8 +92,8 @@ class CommentsView(AnalysesView):
 
 class Analyses(object):
     """
-    Analysis tree - Generic container with labels and comments to structure the analyses
-    that derive from the same data.
+    Analysis tree - Generic container with labels, comments and other metadata to structure
+    the analyses that apply to the same data.
 
     An :class:`Analyses` object is a node of a tree.
     In attribute `data` (or equivalently `artefact`)
@@ -104,6 +104,10 @@ class Analyses(object):
     A label is a key in the dict-like interface.
 
     Comments associated to children analyses are also addressable with labels.
+
+    Metadata are attached to each node, including the top node.
+
+    Setting the `data` attribute unsets the other attributes.
 
     Example:
 
@@ -139,20 +143,24 @@ class Analyses(object):
 
     Attributes:
 
-        data/artefact (any): common data which the instances apply to or derive from.
+        data/artefact (any): input data to the children instances.
 
         instances (dict): analyses on the data; keys are natural integers or string labels.
 
         comments (dict): comments associated to the analyses; keys are a subset of the keys
             in `instances`.
 
-    """
-    __slots__ = ('_data', '_instances', '_comments')
+        metadata (dict): additional metadata associated to the input data; keys are attributes
+            and are not related to children instances.
 
-    def __init__(self, data=None):
+    """
+    __slots__ = ('_data', '_instances', '_comments', '_metadata')
+
+    def __init__(self, data=None, metadata=None):
         self._data = data
         self._instances = {}
         self._comments = {}
+        self._metadata = {} if metadata is None else metadata
 
     @property
     def data(self):
@@ -163,6 +171,7 @@ class Analyses(object):
         self._data = d
         self._instances = {}
         self._comments = {}
+        self._metadata = {}
 
     @property
     def artefact(self):
@@ -171,6 +180,16 @@ class Analyses(object):
     @artefact.setter
     def artefact(self, a):
         self.data = a
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = {}
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, d):
+        self._metadata = {} if d is None else d
 
     @property
     def instances(self):
@@ -269,8 +288,9 @@ class Analyses(object):
         self.instances.__delitem__(label)
 
 
-def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_tuples=False):
-    with_label, with_comment, with_depth = label is 0 or label, comment, depth
+def map_analyses(fun, analyses, label=False, comment=False, metadata=False, depth=False,
+        allow_tuples=False):
+    with_label, with_comment, with_metadata, with_depth = label is 0 or label, comment, metadata, depth
     def _fun(x, **kwargs):
         y = fun(x, **kwargs)
         if not allow_tuples and isinstance(y, tuple):
@@ -282,6 +302,8 @@ def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_t
             kwargs['label'] = label
         if with_comment:
             kwargs['comment'] = comment
+        if with_metadata:
+            kwargs['metadata'] = analyses.metadata
         if with_depth:
             kwargs['depth'] = depth
         node = _fun(analyses._data, **kwargs)
@@ -301,7 +323,7 @@ def map_analyses(fun, analyses, label=False, comment=False, depth=False, allow_t
                     if with_depth:
                         kwargs['depth'] = depth
                     tree.append(_fun(child, **kwargs))
-            return (node, tuple(tree))
+            return node, tuple(tree)
         else:
             return node
     return _map(analyses)
@@ -331,19 +353,17 @@ def extract_analysis(analyses, labels):
 
         tramway.core.analyses.base.Analyses: copy of the analyses along the path defined by `labels`.
     """
-    if not labels:
-        raise ValueError('labels required')
-    if not isinstance(labels, (tuple, list)):
-        labels = [labels]
-    analysis = instance = type(analyses)(analyses._data)
-    for label in labels:
-        analysis.instances[label] = copy.copy(analyses.instances[label])
+    analysis = type(analyses)(analyses._data, analyses.metadata)
+    if labels:
+        if not isinstance(labels, (tuple, list)):
+            labels = [labels]
+        label = labels[0]
+        analysis.instances[label] = extract_analyses(analyses.instances[label], labels[1:])
         try:
             analysis.comments[label] = analyses.comments[label]
         except KeyError:
             pass
-        analysis, analyses = analysis.instances[label], analyses.instances[label]
-    return instance
+    return analysis
 
 
 def _append(s, ls):
@@ -520,7 +540,15 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
     return tuple(matches)
 
 
-def coerce_labels(analyses):
+def coerce_labels_and_metadata(analyses):
+    for key in analyses.metadata:
+        val = analyses.metadata[key]
+        if not isinstance(val, str):
+            if isinstance(val, bytes):
+                val = val.decode('utf-8')
+            elif isinstance(val, unicode):
+                val = val.encode('utf-8')
+        analyses.metadata[key] = val
     for label in tuple(analyses.labels):
         if isinstance(label, (int, str)):
             coerced = label
@@ -536,18 +564,25 @@ def coerce_labels(analyses):
         comment = analyses.comments[label]
         analysis = analyses.instances.pop(label)
         if isinstance(analysis, Analyses):
-            analysis = coerce_labels(analysis)
+            analysis = coerce_labels_and_metadata(analysis)
         analyses.instances[coerced] = analysis
         if comment:
             analyses.comments[coerced] = comment
     return analyses
 
+coerce_labels = coerce_labels_and_metadata
 
-def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None):
+
+def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None,
+        metadata=False):
     if format_standalone_root is None:
-        format_standalone_root = lambda r: '<Analyses {}>'.format(r)
-    def _format(data, label=None, comment=None, depth=0):
-        s = [global_prefix + prefix * depth]
+        if metadata:
+            format_standalone_root = lambda r: '<Analyses {}> {}'.format(*r.split('\n'))
+        else:
+            format_standalone_root = lambda r: '<Analyses {}>'.format(r)
+    def _format(data, label=None, comment=None, metadata=None, depth=0):
+        _prefix = global_prefix + prefix * depth
+        s = [_prefix]
         t = []
         if label is None:
             assert comment is None
@@ -568,8 +603,22 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
                 t.append(node(data))
             if comment:
                 assert isinstance(comment, str)
-                s.append(':\t"{}"')
-                t.append(comment)
+                _comment = comment.split('\n')
+                s.append('\n{}"{}')
+                t.append(_prefix)
+                t.append(_comment[0])
+                for _line in _comment[1:]:
+                    s.append('\n{} {}')
+                    t.append(_prefix)
+                    t.append(_line)
+                s.append('"')
+        if metadata:
+            for key in metadata:
+                val = metadata[key]
+                s.append('\n{}@{}={}')
+                t.append(_prefix)
+                t.append(key)
+                t.append(val)
         return ''.join(s).format(*t)
     def _flatten(_node):
         if _node is None:
@@ -583,11 +632,11 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
         else:
             assert isinstance(_node, str)
             return itertools.chain([_node], *[_flatten(c) for c in _children])
-    lines = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, depth=True)))
-    if lines[1:]:
-        return '\n'.join(lines)
+    entries = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, metadata=metadata, depth=True)))
+    if entries[1:]:
+        return '\n'.join(entries)
     else:
-        return format_standalone_root(lines[0])
+        return format_standalone_root(entries[0])
 
 
 def append_leaf(analysis_tree, augmented_branch, overwrite=False):
@@ -625,6 +674,7 @@ __all__ = [
     'extract_analysis',
     'label_paths',
     'find_artefacts',
+    'coerce_labels_and_metadata',
     'coerce_labels',
     'format_analyses',
     'append_leaf',

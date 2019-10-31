@@ -936,6 +936,9 @@ def __profile_run_star__(args):
     return __profile_run__(*args)
 
 
+FiniteElements = Distributed
+
+
 
 class Cell(Local):
     """
@@ -1092,6 +1095,10 @@ class Cell(Local):
 
     def clear_cache(self):
         self.cache = None
+
+
+FiniteElement = Cell
+
 
 
 class Locations(Cell):
@@ -2269,7 +2276,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
     if min_diffusivity is None:
         noise_dt = kwargs['sigma2']
-        D_bounds = [( (1e-16 - noise_dt) * dt_max_i, None ) for dt_max_i in dt_max ]
+        D_bounds = [( (1e-16 -noise_dt)/dt_max_i, None ) for dt_max_i in dt_max ]
         min_diffusivity = 0
     else:
         if min_diffusivity is False:
@@ -2285,6 +2292,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
 
 __all__ = ['Local', 'Distributed', 'Cell', 'Locations', 'Translocations', 'Maps',
+    'FiniteElement', 'FiniteElements',
     'identify_columns', 'get_locations', 'get_translocations', 'distributed',
     'TrackedMolecules', 'DistributeMerge',
     'DiffusivityWarning', 'OptimizationWarning', 'smooth_infer_init']

@@ -78,7 +78,7 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
     The other keyword arguments are passed to :func:`~tramway.plot.animation.map.animate_map_2d`.
     """
     from tramway.core.analyses import find_artefacts
-    from tramway.tessellation.base import CellStats
+    from tramway.tessellation.base import Partition
     from tramway.inference.base import Maps
     from tramway.plot.animation.map import animate_map_2d
 
@@ -101,7 +101,7 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
             _label.append(_l)
         label = _label
 
-    cells, maps = find_artefacts(analyses, (CellStats, Maps), label)
+    cells, maps = find_artefacts(analyses, (Partition, Maps), label)
 
     if feature is None:
         feature = variable

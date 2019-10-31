@@ -14,7 +14,7 @@ The term *analysis* here refers to a process that takes a single data input and 
 Artefacts are thus organized in a tree structure such that artefacts are nodes and analyses are edges.
 
 A typical *.rwa* file or :class:`~tramway.core.analyses.lazy.Analyses` object will contain an array of molecule locations or trajectories as topmost data element.
-The first levels of analyses will typically consist of spatial tessellations (or data partitions) with resulting :class:`~tramway.tessellation.base.CellStats` partition objects (one per analysis).
+The first levels of analyses will typically consist of spatial tessellations (or data partitions) with resulting :class:`~tramway.tessellation.base.Partition` partition objects (one per analysis).
 The next levels of analyses will usually consist of :class:`~tramway.inference.base.Maps` maps (again, one per analysis) that result from inference or feature extraction.
 
 Each analysis can be identified with a label and documented with comments.
@@ -53,11 +53,11 @@ In the REPL, the *analyses* object can be quickly inspected as follows:
 
 	>>> print(analyses)
 	<class 'pandas.core.frame.DataFrame'>
-		'kmeans' <class 'tramway.tessellation.base.CellStats'>
+		'kmeans' <class 'tramway.tessellation.base.Partition'>
 			'df-map0' <class 'tramway.inference.base.Maps'>
 				'curl_2' <class 'tramway.inference.base.Maps'>
-		'gwr0' <class 'tramway.tessellation.base.CellStats'>
-		'gwr1' <class 'tramway.tessellation.base.CellStats'>
+		'gwr0' <class 'tramway.tessellation.base.Partition'>
+		'gwr1' <class 'tramway.tessellation.base.Partition'>
 			'dv-map0' <class 'tramway.inference.base.Maps'>
 	>>> analyses['kmeans']['df-map0']
 	<tramway.core.analyses.lazy.Analyses object at 0x7fc41e5b5f08>
@@ -79,21 +79,21 @@ To extract analysis artefacts of particular types from an analysis tree with a s
 
 	>>> print(analyses)
 	<class 'pandas.core.frame.DataFrame'>
-		'kmeans' <class 'tramway.tessellation.base.CellStats'>
+		'kmeans' <class 'tramway.tessellation.base.Partition'>
 			'df-map0' <class 'tramway.inference.base.Maps'>
 				'curl_2' <class 'tramway.inference.base.Maps'>
 
-	>>> from tramway.tessellation import CellStats
+	>>> from tramway.tessellation import Partition
 	>>> from tramway.inference import Maps
 
-	>>> cells, maps = find_artefacts(analyses, (CellStats, Maps))
+	>>> cells, maps = find_artefacts(analyses, (Partition, Maps))
 
 Here `maps` will correspond to the *curl_2* label.
 To select *df-map0* instead:
 
 .. code-block:: python
 
-	>>> cells, maps = find_artefacts(analyses, (CellStats, Maps), quantifiers=('last', 'first'))
+	>>> cells, maps = find_artefacts(analyses, (Partition, Maps), quantifiers=('last', 'first'))
 
 
 Quantifier '*last*' is the default one.

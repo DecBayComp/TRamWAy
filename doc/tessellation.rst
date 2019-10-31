@@ -217,14 +217,14 @@ Implementation details
 
 The concept of tessellation or windowing in itself is independent of the proper partition of the molecule locations or translocations in subsets corresponding to cells or segments.
 
-These data are combined together in a :class:`~tramway.tessellation.base.CellStats`.
+These data are combined together in a :class:`~tramway.tessellation.base.Partition`.
 
-Its :attr:`~tramway.tessellation.base.CellStats.tessellation` attribute of type :class:`~tramway.tessellation.base.Tessellation` is the "tessellation" or binning/sampling strategy grown from (trans-)location data and in principle suitable for partitioning/sampling any other similar set of (trans-)locations.
+Its :attr:`~tramway.tessellation.base.Partition.tessellation` attribute of type :class:`~tramway.tessellation.base.Tessellation` is the "tessellation" or binning/sampling strategy grown from (trans-)location data and in principle suitable for partitioning/sampling any other similar set of (trans-)locations.
 
 The partition itself, i.e. the proper assignment of locations to cells/bins or segments - whether these locations are those involved in growing the tessellation or others, is referred to as *cell_index*.
-This naming appears in the :class:`~tramway.tessellation.base.Tessellation` class as a method, in the :class:`~tramway.tessellation.base.CellStats` class as an attribute (actually a property) and at other locations.
+This naming appears in the :class:`~tramway.tessellation.base.Tessellation` class as a method, in the :class:`~tramway.tessellation.base.Partition` class as an attribute (actually a property) and at other locations.
 
-From a particular partition a series of derivative products are commonly extracted, such as the location count per cell, and some of these products are conveniently provided by the :class:`~tramway.tessellation.base.CellStats`.
+From a particular partition a series of derivative products are commonly extracted, such as the location count per cell, and some of these products are conveniently provided by the :class:`~tramway.tessellation.base.Partition`.
 
 Note that, because tessellating and partitioning are considered two different procedures, some input arguments to the :func:`~tramway.helper.tessellation.tessellate` helper function may have multiple understandings.
 Some constraints may be taken as directions by the tessellation algorithm while the same constraints would typically be enforced by the partitioning.
@@ -290,7 +290,7 @@ Both can be used to implemented such a use case:
 	tessellation.tessellate(centroids)
 
 	# find the nearest neighbours
-	cells = CellStats(translocations, tessellation)
+	cells = Partition(translocations, tessellation)
 	cells.cell_index = tessellation.cell_index(translocations,
 		knn=(n_nearest_neighbours, n_nearest_neighbours)) # knn is (min, max)
 

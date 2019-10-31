@@ -72,7 +72,7 @@ class RWAStore(HDF5Store):
     def special_load(self, obj):
         if 'data0' in self.__special__:
             import tramway.tessellation.base as tessellation
-            if lazytype(obj) is tessellation.CellStats:
+            if lazytype(obj) is tessellation.Partition:
                 obj = lazyvalue(obj, deep=True)
                 try:
                     if obj._points is None:
@@ -89,7 +89,7 @@ class RWAStore(HDF5Store):
     def special_unload(self, obj):
         if 'data0' in self.__special__:
             import tramway.tessellation.base as tessellation
-            if isinstance(obj, tessellation.CellStats) and obj.points is self.__special__['data0']:
+            if isinstance(obj, tessellation.Partition) and obj.points is self.__special__['data0']:
                 import copy
                 obj = copy.copy(obj)
                 obj._points = None
