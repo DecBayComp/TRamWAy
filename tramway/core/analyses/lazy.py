@@ -90,6 +90,8 @@ class Analyses(base.Analyses):
                 self._comments = self._comments.deep()
             if rwa.islazy(self._instances):
                 self._instances = self._instances.shallow()
+        if self._metadata is None:
+            self._metadata = {}
         return self._metadata
 
     # copy/paste

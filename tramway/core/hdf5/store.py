@@ -153,7 +153,7 @@ def load_rwa(path, verbose=None, lazy=False):
 
 
 
-def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=False):
+def save_rwa(path, analyses, verbose=False, force=None, compress=True, append=False, overwrite=None):
     """
     Save an analysis tree into a .rwa file.
 
@@ -165,7 +165,7 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=F
 
         verbose (bool or int): verbose mode
 
-        force (bool): do not ask whether to overwrite an existing file or not
+        force/overwrite (bool): do not ask whether to overwrite an existing file or not
 
         compress (bool): delete the lazy attributes that can be computed again automatically
 
@@ -175,6 +175,8 @@ def save_rwa(path, analyses, verbose=False, force=False, compress=True, append=F
     """
     if not isinstance(analyses, ba.Analyses):
         raise TypeError('`analyses` is not an `Analyses` instance')
+    if force is None:
+        force = False if overwrite is None else overwrite
     if os.path.isfile(path):
         if append:
             extra_analyses = analyses
