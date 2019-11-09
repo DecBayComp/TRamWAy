@@ -23,6 +23,9 @@ setup = {'name': 'spherical.volume',
         'provides': 'volume'}
 
 def ritter(points):
+    if len(points) == 1:
+        return points, 0.
+
     eps = 1e-8
 
     i = 0
@@ -65,7 +68,7 @@ def infer_spherical_volume(cells, **kwargs):
     return None if vol is None else pd.DataFrame(vol, columns=['volume'])
 
 
-def spherical_volume(cells, which='all', bounding_sphere='ritter', min_location_count=2, **kwargs):
+def spherical_volume(cells, which='all', bounding_sphere='ritter', **kwargs):
     """
     Volume is evaluated looking for a bounding sphere.
     If the sphere does not include locations from neighbour cells as well,
@@ -81,23 +84,23 @@ def spherical_volume(cells, which='all', bounding_sphere='ritter', min_location_
         if bounding_sphere.lower() != 'ritter':
             raise ValueError("unsupported bounding sphere algorithm: '{}'".format(bounding_sphere))
         bounding_sphere = ritter
-    if min_location_count == 'dim':
-        min_location_count = cells.dim
     indices, radii = [], []
     for index in (cells if which == 'all' else which):
         cell = cells[index]
-        if len(cell) < min_location_count:
-            sphere = None
-        else:
-            sphere = bounding_sphere(cell.r, **kwargs)
+        sphere = bounding_sphere(cell.r, **kwargs)
         if sphere is not None:
             center, radius = sphere
-            neighbour_locations = [ cells[neighbour].r for neighbour in cells.neighbours(index) ]
-            neighbour_locations = np.vstack(neighbour_locations)
-            dist = neighbour_locations - center
-            dist = np.sqrt(np.min(np.sum(dist * dist, axis=1)))
-            if radius < dist:
-                radius = dist
+            neighbour_cells = cells.neighbours(index)
+            if neighbour_cells.size:
+                neighbour_locations = [ cells[neighbour].r for neighbour in neighbour_cells ]
+                neighbour_locations = np.vstack(neighbour_locations)
+                dist = neighbour_locations - center
+                dist = np.sqrt(np.min(np.sum(dist * dist, axis=1)))
+                if radius < dist:
+                    radius = dist
+            else:
+                # all the neighbour cells were discarded
+                continue
             indices.append(index)
             radii.append(radius)
     if not radii:

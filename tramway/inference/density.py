@@ -65,6 +65,7 @@ def infer_density(cells, convex_hull='fallback', trust_volume=False, scale=False
                 scale = cell.volume # any cell; regular tessellations only
             densities *= scale
     else:
+        assert volume == 'spherical'
         plugin_name = volume+'.volume'
         from tramway.inference import plugins
         setup, module = plugins[plugin_name]

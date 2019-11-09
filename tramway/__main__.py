@@ -176,6 +176,8 @@ def _render_map(args):
         kwargs['clip'] = 4.
     elif kwargs['clip'] == 0.:
         del kwargs['clip']
+    if kwargs['title'] is None:
+        kwargs.pop('title')
     map_plot(input_file[0], output_file=output_file, fig_format=fig_format, figsize=True, **kwargs)
     sys.exit(0)
 
@@ -289,8 +291,11 @@ def _add_subparsers(sub, subcommand, aliases=None, help=None, title=None, target
             _parser = sub.add_parser(subcommand, help=help)
     else:
         _parser = sub.add_parser(subcommand, help=help)
-    _subsub = _parser.add_subparsers(title=subcommand if title is None else title,
+    if help:
+        _subsub = _parser.add_subparsers(title=subcommand if title is None else title,
             description='{}; the available {} are:'.format(help, target))
+    else:
+        _subsub = None
     return _subsub, _parser
 
 
@@ -495,7 +500,7 @@ def main():
         pass
 
     # plot map(s)
-    map_parser = psub.add_parser('map')
+    _, map_parser = _add_subparsers(psub, 'map', ['maps'])
     map_parser.set_defaults(func=_render_map)
     for arg1, arg2, kwargs in global_arguments:
         map_parser.add_argument(arg1, arg2, dest=arg1[1]+'post', **kwargs)

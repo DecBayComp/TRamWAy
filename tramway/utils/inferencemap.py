@@ -311,11 +311,11 @@ def export_to_vmesh_file(cells, maps, vmesh_file, cluster_file=None, auto=False,
         # Inference Mode
         mode = maps.mode.upper()
         if mode is None and auto:
-            if 'potential' in maps.variables:
+            if 'potential' in maps.features:
                 mode = 'DV'
-            elif 'force' in maps.variables:
+            elif 'force' in maps.features:
                 mode = 'DF'
-            elif 'drift' in maps.variables:
+            elif 'drift' in maps.features:
                 mode = 'DD'
             else:
                 mode = 'D'
@@ -354,15 +354,15 @@ def export_to_vmesh_file(cells, maps, vmesh_file, cluster_file=None, auto=False,
         data0 = [ [i, len(zones[i]), zones[i].center] for i in maps.maps.index[ok] ]
         data1 = []
         nvars = 0
-        if 'diffusivity' in maps.variables:
+        if 'diffusivity' in maps.features:
             f.write('\tDiffusion')
             data1.append(maps['diffusivity'].values[ok])
             nvars += 1
-        if 'force' in maps.variables:
+        if 'force' in maps.features:
             f.write('\tx-Force\ty-Force')
             data1.append(maps['force'].values[ok])
             nvars += 2
-        if 'potential' in maps.variables:
+        if 'potential' in maps.features:
             f.write('\tPotential')
             data1.append(maps['potential'].values[ok])
             nvars += 1
