@@ -57,7 +57,7 @@ def smooth_dd_neg_posterior(x, dd, cells, sigma2, diffusivity_prior, drift_prior
         # various posterior terms
         denominator = 4. * (D[j] * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
         dr_minus_drift_dt = cell.dr - np.outer(cell.dt, drift[j])
-        # non-directional squared displacement
+        # non-directional square displacement
         ndsd = np.sum(dr_minus_drift_dt * dr_minus_drift_dt, axis=1)
         result += n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
         # priors

@@ -487,7 +487,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         inter_cell_distance = pts_i - pts_j
         inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
         # scale force amplitude
-        large_arrow_length = np.max(force_amplitude[inside[values.index]]) # TODO: clipping
+        large_arrow_length = np.nanmax(force_amplitude[inside[values.index]]) # TODO: clipping
         scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
     #
     dw = float(angular_width) / 2.0
@@ -499,7 +499,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         radius = force_amplitude[i]
         if inferencemap:
             f = np.asarray(values.loc[i])
-            f *= scale[i] / np.sqrt(np.sum(f * f))
+            f *= scale[i] / max(1e-16, np.sqrt(np.sum(f * f)))
         else:
             f = np.asarray(values.loc[i]) * scale
         #fx, fy = f
