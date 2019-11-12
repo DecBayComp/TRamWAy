@@ -369,7 +369,12 @@ def neighbours_per_axis(i, cells, centers=None, eps=None, selection_angle=None):
         A = cells.adjacency
 
     if centers is None:
-        centers = np.vstack([ cells[j].center for j in cells.neighbours(i) ])
+        centers = [ cells[j].center for j in cells.neighbours(i) ]
+        if centers:
+            centers = np.vstack(centers)
+        else:
+            no_centers = np.zeros((cells.dim, 0), dtype=bool)
+            return no_centers, no_centers
 
     cell = cells[i]
     center = cell.center
