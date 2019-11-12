@@ -114,7 +114,8 @@ def df_neg_posterior1(x, df, cells, sigma2, diffusivity_prior,
 
 
 def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None, potential_prior=None,
-        jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
+        jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None,
+        verbose=False, **kwargs):
     """
     Argument `potential_prior` is an alias for `force_prior` which penalizes the large force amplitudes.
     """
@@ -125,18 +126,29 @@ def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None, potential_p
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
         sigma2=localization_error)
     F_initial = np.zeros((len(index), cells.dim), dtype=D_initial.dtype)
-    F_bounds = [(None, None)] * F_initial.size # no bounds
     df = ChainArray('D', D_initial, 'F', F_initial)
 
     # gradient options
     grad_kwargs = get_grad_kwargs(epsilon=epsilon, **kwargs)
 
     # parametrize the optimization algorithm
-    if min_diffusivity is not None:
+    default_lBFGSb_options = dict(maxiter=1e3, maxfun=1e10, ftol=1e-6)
+    # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
+    # function evaluations is much higher (~1e4-1e5);
+    # with maxfun defined, an iteration can stop anytime and the optimization may terminate
+    # with an error message
+    if min_diffusivity is None:
+        options = {}
+    else:
+        F_bounds = [(None, None)] * F_initial.size # no bounds
         kwargs['bounds'] = D_bounds + F_bounds
+        options = dict(default_lBFGSb_options)
+    options.update(kwargs.pop('options', {}))
     if max_iter:
-        options = kwargs.get('options', {})
         options['maxiter'] = max_iter
+    if verbose:
+        options['disp'] = verbose
+    if options:
         kwargs['options'] = options
 
     # posterior function
@@ -157,6 +169,8 @@ def infer_smooth_DF(cells, diffusivity_prior=None, force_prior=None, potential_p
     #cell.cache = None # no cache needed
     args = (df, cells, localization_error, diffusivity_prior, force_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
     result = minimize(fun, df.combined, args=args, **kwargs)
+    if not (result.success or verbose):
+        warn('{}'.format(result.message), OptimizationWarning)
 
     # collect the result
     df.update(result.x)

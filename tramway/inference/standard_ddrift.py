@@ -109,7 +109,7 @@ def dd_neg_posterior1(x, dd, cells, sigma2, diffusivity_prior, drift_prior,
 
 
 def infer_smooth_DD(cells, diffusivity_prior=None, drift_prior=None, jeffreys_prior=False,
-    min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
+    min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, verbose=False, **kwargs):
 
     # initial values
     localization_error = cells.get_localization_error(kwargs, 0.03, True)
@@ -117,18 +117,29 @@ def infer_smooth_DD(cells, diffusivity_prior=None, drift_prior=None, jeffreys_pr
         smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
         sigma2=localization_error)
     initial_drift = np.zeros((len(index), cells.dim), dtype=D_initial.dtype)
-    drift_bounds = [(None, None)] * initial_drift.size # no bounds
     dd = ChainArray('D', D_initial, 'drift', initial_drift)
 
     # gradient options
     grad_kwargs = get_grad_kwargs(epsilon=epsilon, **kwargs)
 
     # parametrize the optimization algorithm
-    if min_diffusivity is not None:
+    default_lBFGSb_options = dict(maxiter=1e3, maxfun=1e10, ftol=1e-6)
+    # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
+    # function evaluations is much higher (~1e4-1e5);
+    # with maxfun defined, an iteration can stop anytime and the optimization may terminate
+    # with an error message
+    if min_diffusivity is None:
+        options = {}
+    else:
+        drift_bounds = [(None, None)] * initial_drift.size # no bounds
         kwargs['bounds'] = D_bounds + drift_bounds
+        options = dict(default_lBFGSb_options)
+    options.update(kwargs.pop('options', {}))
     if max_iter:
-        options = kwargs.get('options', {})
         options['maxiter'] = max_iter
+    if verbose:
+        options['disp'] = verbose
+    if options:
         kwargs['options'] = options
 
     # posterior function
@@ -144,6 +155,8 @@ def infer_smooth_DD(cells, diffusivity_prior=None, drift_prior=None, jeffreys_pr
     args = (dd, cells, localization_error, diffusivity_prior, drift_prior, jeffreys_prior, \
             dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
     result = minimize(fun, dd.combined, args=args, **kwargs)
+    if not (result.success or verbose):
+        warn('{}'.format(result.message), OptimizationWarning)
 
     # collect the result
     dd.update(result.x)

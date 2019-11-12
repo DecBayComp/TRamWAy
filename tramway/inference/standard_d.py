@@ -139,7 +139,7 @@ def d_neg_posterior1(diffusivity, cells, sigma2, diffusivity_prior, \
 
 
 def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
-    min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
+    min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, verbose=False, **kwargs):
 
     # initial values
     localization_error = cells.get_localization_error(kwargs, 0.03, True)
@@ -150,12 +150,23 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     # gradient options
     grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon)
 
-    # parametrize the optimization procedure
-    if min_diffusivity is not None:
+    # parametrize the optimization algorithm
+    default_lBFGSb_options = dict(maxiter=1e3, maxfun=1e10, ftol=1e-6)
+    # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
+    # function evaluations is much higher (~1e4-1e5);
+    # with maxfun defined, an iteration can stop anytime and the optimization may terminate
+    # with an error message
+    if min_diffusivity is None:
+        options = {}
+    else:
         kwargs['bounds'] = D_bounds
+        options = dict(default_lBFGSb_options)
+    options.update(kwargs.pop('options', {}))
     if max_iter:
-        options = kwargs.get('options', {})
         options['maxiter'] = max_iter
+    if verbose:
+        options['disp'] = verbose
+    if options:
         kwargs['options'] = options
 
     # posterior function
@@ -166,14 +177,16 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
             warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
         fun = smooth_d_neg_posterior
 
+    args = (cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
+
     # run the optimization
-    result = minimize(fun, D_initial, \
-        args=(cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs), \
-        **kwargs)
+    result = minimize(fun, D_initial, args=args, **kwargs)
+    if not (result.success or verbose):
+        warn('{}'.format(result.message), OptimizationWarning)
 
     # format the result
     D = result.x
-    DD = pd.DataFrame(D, index=index, columns=['diffusivity'])
+    D = pd.DataFrame(D, index=index, columns=['diffusivity'])
 
-    return DD
+    return D
 

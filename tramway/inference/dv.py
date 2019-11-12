@@ -322,24 +322,28 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon, compatibility=compatibility)
 
     # parametrize the optimization algorithm
-    default_BFGS_options = dict(maxiter=1e3, disp=verbose)
-    if min_diffusivity not in (False, None):
-        default_BFGS_options.update(dict(maxcor=dv.combined.size, ftol=1e-8))
-    #default_BFGS_options = dict(maxiter=1e3, disp=verbose)
-    options = kwargs.pop('options', default_BFGS_options)
+    default_lBFGSb_options = dict(maxiter=1e3, maxfun=1e10, maxcor=dv.combined.size, ftol=1e-8)
+    # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
+    # function evaluations is much higher (~1e4-1e5);
+    # with maxfun defined, an iteration can stop anytime and the optimization may terminate
+    # with an error message
+    if min_diffusivity is None:
+        bounds = None
+        options = {}
+    else:
+        V_bounds = [(None, None)] * V_initial.size
+        bounds = D_bounds + V_bounds
+        options = dict(default_lBFGSb_options)
+    options.update(kwargs.pop('options', {}))
+    options.update(**kwargs) # for backward compatibility
     if max_iter:
         options['maxiter'] = max_iter
-    V_bounds = [(None, None)] * V_initial.size
-    if min_diffusivity not in (False, None):
-        bounds = None
+    if verbose:
+        options['disp'] = verbose
+    if options:
+        _kwargs = dict(options = options)
     else:
-        bounds = D_bounds + V_bounds
-        options['maxfun'] = 1e10
-        # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
-        # function evaluations is much higher (~1e4-1e5);
-        # with maxfun defined, an iteration can stop anytime and the optimization may terminate
-        # with an error message
-    options.update(kwargs)
+        _kwargs = {}
 
     # posterior function
     if rgrad in ('delta','delta0','delta1'):
@@ -361,7 +365,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     args = args + (y0, 1 < int(verbose), posteriors)
 
     # run the optimization routine
-    result = minimize(fun, dv.combined, args=args, bounds=bounds, options=options)
+    result = minimize(fun, dv.combined, args=args, bounds=bounds, **_kwargs)
     if not (result.success or verbose):
         warn('{}'.format(result.message), OptimizationWarning)
 
