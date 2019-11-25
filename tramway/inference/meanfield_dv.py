@@ -65,7 +65,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
     index = np.array(index)
     ok = 1<n
-    print(ok.size, np.sum(ok))
+    #print(ok.size, np.sum(ok))
     if not np.all(ok):
         reverse_index[index] -= np.cumsum(~ok)
         reverse_index[index[~ok]] = -1
@@ -76,20 +76,20 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     if sides in ('<','>'):
         grad_kwargs['side'] = sides
 
-    while True:
-        ok, all_ok = np.ones(index.size, dtype=bool), True
-        for k, i in enumerate(index):
-            _grad = cells.grad(i, dt, reverse_index, **grad_kwargs)
-            if _grad is None:
-                ok[k] = all_ok = False
-        print(np.sum(ok))
-        if all_ok:
-            break
-        else:
-            reverse_index[index] -= np.cumsum(~ok)
-            reverse_index[index[~ok]] = -1
-            index, n, dt = index[ok], n[ok], dt[ok]
-        cells.clear_caches()
+    #while True:
+    #    ok, all_ok = np.ones(index.size, dtype=bool), True
+    #    for k, i in enumerate(index):
+    #        _grad = cells.grad(i, dt, reverse_index, **grad_kwargs)
+    #        if _grad is None:
+    #            ok[k] = all_ok = False
+    #    print(np.sum(ok))
+    #    if all_ok:
+    #        break
+    #    else:
+    #        reverse_index[index] -= np.cumsum(~ok)
+    #        reverse_index[index[~ok]] = -1
+    #        index, n, dt = index[ok], n[ok], dt[ok]
+    #    cells.clear_caches()
     if index.size == 0:
         raise ValueError('no valid cell')
 
@@ -113,7 +113,9 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     mean_dr, sum_dr2, chi2 = [], [], []
     Bstar, B2 = {s: [] for s in sides}, {s: [] for s in sides}
     C_neighbours, C = [], []
+    Ct_neighbours, Ct = [], []
     regions = []
+    reg_Z, time_reg_Z = [], []
 
     for k, i in enumerate(index):
         # local variables
@@ -128,17 +130,36 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
             _B = grad(i, _one, s)
             _B2 = np.dot(_B, _B)
             if _B2 == 0:
-                raise ValueError('cannot compute finite differences')
-            Bstar[s].append(_B / _B2)
+                #raise ValueError('cannot compute finite differences')
+                assert np.all(_B == 0)
+                Bstar[s].append(_B)
+            else:
+                Bstar[s].append(_B / _B2)
             B2[s].append(_B2)
         _one[k] = 0
         # spatial smoothing
         _neighbours = cells.neighbours(i)
-        __neighbours = reverse_index[_neighbours]
-        C_neighbours.append(__neighbours)
-        _dr = np.stack([ cells[j].center for j in _neighbours ], axis=0) - cells[i].center[np.newaxis,:]
-        C.append(1./np.sum(_dr*_dr,axis=1)/len(_dr))
-        regions.append(np.r_[k,__neighbours])
+        if _neighbours.size:
+            _dr = np.stack([ cells[j].center for j in _neighbours ], axis=0) - cells[i].center[np.newaxis,:]
+            _C = 1. / np.sum(_dr*_dr,axis=1) / len(_dr)
+            _neighbours = reverse_index[_neighbours]
+        else:
+            _C = _neighbours = None
+        C.append(_C)
+        C_neighbours.append(_neighbours)
+        reg_Z.append(0. if _C is None else np.sum(_C))
+        regions.append(np.r_[k,_neighbours])
+        # temporal smoothing
+        _neighbours = cells.time_neighbours(i)
+        if _neighbours.size:
+            _dt = np.array([ cells[j].center_t for j in _neighbours ]) - cells[i].center_t
+            _Ct = 1. / (_dt*_dt) / len(_dt)
+            _neighbours = reverse_index[_neighbours]
+        else:
+            _Ct = _neighbours = None
+        Ct.append(_Ct)
+        Ct_neighbours.append(_neighbours)
+        time_reg_Z.append(0. if _Ct is None else np.sum(_Ct))
 
     mean_dr = np.vstack(mean_dr)
     sum_dr2 = np.array(sum_dr2)
@@ -146,6 +167,18 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     chi2_over_n = np.array(chi2) / n
     Bstar = {s: np.vstack(Bstar[s]) for s in Bstar}
     B2 = {s: np.array(B2[s]) for s in B2}
+
+    def spatial_background(_a):
+        return np.array([
+                0. if _neighbours is None else np.dot(_a[_neighbours], _C)
+                for _neighbours, _C in zip(C_neighbours, C)
+            ])
+    def temporal_background(_a):
+        return np.array([
+                0. if _neighbours is None else np.dot(_a[_neighbours], _Ct)
+                for _neighbours, _Ct in zip(Ct_neighbours, Ct)
+            ])
+    reg_Z, time_reg_Z = np.array(reg_Z), np.array(time_reg_Z)
 
     aD_scale = 1. / (4. * dt)
     bD_scale = n / (2. * dt)
@@ -159,28 +192,21 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     L_local_factor_for_V = bD_scale[:,np.newaxis] * mean_dr
     L_local_factor_for_D_times_V = aD_scale * n
 
-    gradV, gradV2 = {}, {}
-    #for s in sides:
-    #    gradV[s] = np.vstack([ grad(i, V, s) for i in index ])
-    #    gradV2[s] = np.sum(gradV * gradV, axis=1)
-
     # priors
-    sumC = np.array([ np.sum(_C) for _C in C ]) # used for both D and V
-    # do not scale time;
-    # assume constant window shift and let time_prior hyperparameters bear all the responsibility
     if diffusivity_spatial_prior is None:
         BD_constant_term = 0.
     else:
-        BD_constant_term = 2. * diffusivity_spatial_prior * sumC
+        BD_constant_term = 2. * diffusivity_spatial_prior * reg_Z
     if diffusivity_time_prior is not None:
-        BD_constant_term += 2. * diffusivity_time_prior
+        BD_constant_term += 2. * diffusivity_time_prior * time_reg_Z
     if potential_spatial_prior is None:
         BV_constant_term = 0.
     else:
-        BV_constant_term = 2. * potential_spatial_prior * sumC
+        BV_constant_term = 2. * potential_spatial_prior * reg_Z
     if potential_time_prior is not None:
-        BV_constant_term += 2. * potential_time_prior
+        BV_constant_term += 2. * potential_time_prior * time_reg_Z
 
+    gradV, gradV2 = {}, {}
     neg_L = np.inf
     try:
         while True:
@@ -198,44 +224,41 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                 bV = D * bV_scale[s]
 
                 D2 = D * D
+                assert np.all(1e-16 < D2)
                 chi2_over_n = mean_dr2 + 2 * D * np.sum(mean_dr * gradV[s], axis=1) + D2 * gradV2[s]
 
                 aD = chi2_over_n * aD_scale
                 bD = n / D2 + bD_scale * gradV2[s] / D
+                assert np.all(1e-16 < bD)
 
                 # priors
                 BD = bD + BD_constant_term
                 BV = bV + BV_constant_term
-                AD = aD * (bD / 2.)
-                AV = aV * (bV / 2.)
+                AD = aD * bD
+                AV = aV * bV
                 if diffusivity_spatial_prior is not None:
                     # reminder: C comes without mu (global diffusion prior) or lambda (global potential prior)
-                    AD += diffusivity_spatial_prior * \
-                            np.array([ np.dot(aD[_neighbours], _C) for _neighbours, _C in zip(C_neighbours, C) ])
-                    AV += potential_spatial_prior * \
-                            np.array([ np.dot(aV[_neighbours], _C) for _neighbours, _C in zip(C_neighbours, C) ])
+                    AD += 2. * diffusivity_spatial_prior * spatial_background(aD)
+                    AV += 2. * potential_spatial_prior * spatial_background(aV)
                 if diffusivity_time_prior is not None:
-                    aD_neighbours, aV_neighbours = [], []
-                    for i in index:
-                        _neighbours = reverse_index[cells.time_neighbours(i)]
-                        if _neighbours.size == 0:
-                            aD_neighbours.append(0.)
-                            aV_neighbours.append(0.)
-                        else:
-                            aD_neighbours.append( np.mean(aD[_neighbours]) )
-                            aV_neighbours.append( np.mean(aV[_neighbours]) )
-                    AD += diffusivity_time_prior * np.array(aD_neighbours)
-                    AV += potential_time_prior * np.array(aV_neighbours)
-                AD /= BD / 2.
-                AV /= BV / 2.
+                    AD += 2. * diffusivity_time_prior * temporal_background(aD)
+                    AV += 2. * potential_time_prior * temporal_background(aV)
+                AD /= BD
+                AV /= BV
+                AD[np.isnan(AD)] = 0.
+                AV[np.isnan(AV)] = 0.
                 aD, bD, aV, bV = AD, BD, AV, BV
 
                 # ELBO
                 grad_aV = np.vstack([ grad(i, aV, s) for i in index ])
                 grad_aV2 = np.sum(grad_aV * grad_aV, axis=1)
                 B2_over_bV = B2[s] / bV
+                assert not np.any(np.isinf(B2_over_bV))
+                assert not np.any(np.isnan(B2_over_bV))
                 B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in regions ])
                 log_bV = np.log(bV)
+                assert not np.any(np.isinf(log_bV))
+                assert not np.any(np.isnan(log_bV))
                 log_bV_star = np.array([ np.sum(log_bV[_region]) for _region in regions ])
 
                 #neg_L = neg_L_global_constant + \
