@@ -49,6 +49,14 @@ def infer_meanfield_DD(cells, diffusivity_spatial_prior=None, drift_spatial_prio
     elif np.isscalar(dt):
         dt = np.full_like(dt_mean, dt)
 
+    index = np.array(index)
+    ok = 1<n
+    #print(ok.size, np.sum(ok))
+    if not np.all(ok):
+        reverse_index[index] -= np.cumsum(~ok)
+        reverse_index[index[~ok]] = -1
+        index, n, dt = index[ok], n[ok], dt[ok]
+
     if diffusivity_prior is None:
         diffusivity_prior = diffusion_prior
     if diffusivity_spatial_prior is None:
@@ -63,19 +71,12 @@ def infer_meanfield_DD(cells, diffusivity_spatial_prior=None, drift_spatial_prio
         drift_spatial_prior = drift_prior
     if drift_time_prior is None:
         drift_time_prior = drift_prior
-    mu_spatial_prior, mu_time_prior = drift_spatial_prior, drift_time_prior
+    mu_spatial_prior = None if drift_spatial_prior is None else drift_spatial_prior * dt
+    mu_time_prior = None if drift_time_prior is None else drift_time_prior * dt
 
     spatial_reg = diffusivity_spatial_prior or drift_spatial_prior
     time_reg = diffusivity_time_prior or drift_time_prior
     reg = spatial_reg or time_reg
-
-    index = np.array(index)
-    ok = 1<n
-    #print(ok.size, np.sum(ok))
-    if not np.all(ok):
-        reverse_index[index] -= np.cumsum(~ok)
-        reverse_index[index[~ok]] = -1
-        index, n, dt = index[ok], n[ok], dt[ok]
 
     def spatial_background(__i, __x):
         _dx = []
@@ -102,18 +103,19 @@ def infer_meanfield_DD(cells, diffusivity_spatial_prior=None, drift_spatial_prio
         else:
             return 0.
 
-    dr, chi2 = [], []
+    dr, dr2 = [], []
     if reg:
         reg_Z = []
         time_reg_Z = []
         ones = np.ones(n.size, dtype=dt.dtype)
-    for _i, i in enumerate(index):
+    for i in index:
         # local variables
         dr_mean = np.mean(cells[i].dr, axis=0, keepdims=True)
-        dr_centered = cells[i].dr - dr_mean
-        dr2 = np.sum(dr_centered * dr_centered, axis=1)
+        #dr_centered = cells[i].dr - dr_mean
+        #dr2 = np.sum(dr_centered * dr_centered, axis=1)
         dr.append(dr_mean)
-        chi2.append(np.sum(dr2))
+        #chi2.append(np.sum(dr2))
+        dr2.append(np.sum(cells[i].dr * cells[i].dr))
         # regularization constants
         if reg:
             if spatial_reg:
@@ -121,63 +123,99 @@ def infer_meanfield_DD(cells, diffusivity_spatial_prior=None, drift_spatial_prio
             if time_reg:
                 time_reg_Z.append( temporal_background(i, ones) )
     dr = np.vstack(dr)
-    chi2 = np.array(chi2)
+    dr2 = np.array(dr2) / n
+    chi2_over_n = dr2 - np.sum(dr * dr, axis=1)
     if reg:
         reg_Z = np.array(reg_Z)
         time_reg_Z = np.array(time_reg_Z)
+        drift_scaling = 1. / dt # scale the penalty terms for a_mu and b_mu so that
 
-    aD = chi2 / (4. * n * dt)
+    # constants
+    aD_constant_factor = 1. / (4. * dt)
+    b_mu_constant_factor = n / (2. * dt)
+
+    # initial values
+    #aD = aD_constant_factor * chi2_over_n
     a_mu = dr
-    bD = n / (aD * aD)
-    b_mu = n / (2. * dt * aD)
+    neg_L = np.inf
 
-    # priors
-    if diffusivity_spatial_prior or diffusivity_time_prior:
-        AD = aD * bD
-        BD = bD # no need for copying
-        # do not scale time;
-        # assume constant window shift and let time_prior hyperparameters bear all the responsibility
-        D_spatial_penalty = []
-        D_time_penalty = []
-        for _i, i in enumerate(index):
-            if diffusivity_spatial_prior is not None:
-                D_spatial_penalty.append( spatial_background(i, aD) )
-            if diffusivity_time_prior is not None:
-                D_time_penalty.append( temporal_background(i, aD) )
-        if diffusivity_spatial_prior is not None:
-            AD += 2. * diffusivity_spatial_prior * np.array(D_spatial_penalty)
-            BD += 2. * diffusivity_spatial_prior * reg_Z
-        if diffusivity_time_prior is not None:
-            AD += 2. * diffusivity_time_prior * np.array(D_time_penalty)
-            BD += 2. * diffusivity_time_prior * time_reg_Z
-        AD /= BD
-        aD, bD = AD, BD
-    if mu_spatial_prior or mu_time_prior:
-        A_mu = a_mu * b_mu[:,np.newaxis]
-        B_mu = b_mu # no need for copying
-        mu_spatial_penalty = []
-        mu_time_penalty = []
-        for _i, i in enumerate(index):
-            if mu_spatial_prior is not None:
-                delta_a_mu = []
-                for d in range(cells.dim):
-                    delta_a_mu.append( spatial_background(i, a_mu[:,d]) )
-                mu_spatial_penalty.append(delta_a_mu)
-            if mu_time_prior is not None:
-                ddt_a_mu = []
-                for d in range(cells.dim):
-                    ddt_a_mu.append( temporal_background(i, a_mu[:,d]) )
-                mu_time_penalty.append(ddt_a_mu)
-        if mu_spatial_prior is not None:
-            A_mu += 2. * mu_spatial_prior * np.array(mu_spatial_penalty)
-            B_mu += 2. * mu_spatial_prior * reg_Z
-        if mu_time_prior is not None:
-            A_mu += 2. * mu_time_prior * np.array(mu_time_penalty)
-            B_mu += 2. * mu_time_prior * time_reg_Z
-        A_mu /= B_mu[:,np.newaxis]
-        a_mu, b_mu = A_mu, B_mu
+    try:
+        while True:
+            neg_L_prev = neg_L
 
-    D, drift = aD, a_mu / dt[:,np.newaxis]
+            aD = aD_constant_factor * chi2_over_n
+            bD = n / (aD * aD)
+            b_mu = b_mu_constant_factor / aD
+
+            # priors
+            if diffusivity_spatial_prior or diffusivity_time_prior:
+                AD = aD * bD
+                BD = bD # no need for copying
+                # do not scale time;
+                # assume constant window shift and let time_prior hyperparameters bear all the responsibility
+                D_spatial_penalty = []
+                D_time_penalty = []
+                for i in index:
+                    if diffusivity_spatial_prior is not None:
+                        D_spatial_penalty.append( spatial_background(i, aD) )
+                    if diffusivity_time_prior is not None:
+                        D_time_penalty.append( temporal_background(i, aD) )
+                if diffusivity_spatial_prior is not None:
+                    AD += 2 * diffusivity_spatial_prior * np.array(D_spatial_penalty)
+                    BD += 2 * diffusivity_spatial_prior * reg_Z
+                if diffusivity_time_prior is not None:
+                    AD += 2 * diffusivity_time_prior * np.array(D_time_penalty)
+                    BD += 2 * diffusivity_time_prior * time_reg_Z
+                AD /= BD
+                aD, bD = AD, BD
+            if mu_spatial_prior is None and mu_time_prior is None:
+                resolution = 'CONVERGENCE: TRIVIAL'
+                break
+            else:
+                a_mu_norm = np.sqrt(np.sum(a_mu * a_mu, axis=1))
+                #A_mu = a_mu * b_mu[:,np.newaxis]
+                A_mu = dr * b_mu[:,np.newaxis]
+                B_mu = b_mu # no need for copying
+                mu_spatial_penalty = []
+                mu_time_penalty = []
+                for i in index:
+                    if mu_spatial_prior is not None:
+                        mu_spatial_penalty.append( spatial_background(i, a_mu_norm) )
+                    if mu_time_prior is not None:
+                        mu_time_penalty.append( temporal_background(i, a_mu_norm) )
+                if mu_spatial_prior is not None:
+                    mu_spatial_penalty = np.array(mu_spatial_penalty) / a_mu_norm
+                    A_mu += (2 * mu_spatial_prior * mu_spatial_penalty)[:,np.newaxis] * a_mu
+                    B_mu += 2 * mu_spatial_prior * reg_Z
+                if mu_time_prior is not None:
+                    mu_time_penalty = np.array(mu_time_penalty) / a_mu_norm
+                    A_mu += (2 * mu_time_prior * mu_time_penalty)[:,np.newaxis] * a_mu
+                    B_mu += 2 * mu_time_prior * time_reg_Z
+                A_mu /= B_mu[:,np.newaxis]
+                a_mu, b_mu = A_mu, B_mu
+
+            chi2_over_n = dr2 - 2 * np.sum(dr * a_mu, axis=1) + np.sum(a_mu * a_mu, axis=1)
+
+            inv_abD = .5 / (aD * aD * bD)
+            neg_L = np.sum(
+                    n * (np.log(aD) - inv_abD) + \
+                    (.5 + inv_abD) / (2. * aD * dt) * n * (chi2_over_n + 2. / b_mu) + \
+                    .5 * (np.log(bD) + np.log(b_mu))
+                    )
+
+            # stopping criterion
+            if verbose:
+                print('-logP approx', neg_L)
+            if abs(neg_L - neg_L_prev) < tol:
+                resolution = 'CONVERGENCE: DELTA -L < TOL'
+                break
+
+    except KeyboardInterrupt:
+        resolution = 'INTERRUPTED'
+        pass
+
+    D = aD
+    drift = a_mu / dt[:,np.newaxis]
 
     DD = pd.DataFrame(np.hstack((D[:,np.newaxis], drift)), index=index, \
         columns=[ 'diffusivity' ] + \

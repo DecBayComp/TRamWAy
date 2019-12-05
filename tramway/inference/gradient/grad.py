@@ -451,7 +451,7 @@ def onesided_neighbours(i, cells=None, points=None, side='<>', selection_angle=.
 
         proj = np.dot(points, rot.T)
         angle = np.arctan2(proj[:,0], proj[:,1])
-        _neighbours = (selection_angle * math.pi) <= abs(angle)
+        _neighbours = (1. - selection_angle) * math.pi <= abs(angle)
 
         if __neighbours is not None:
             _neighbours = __neighbours[_neighbours]
@@ -463,7 +463,7 @@ def onesided_neighbours(i, cells=None, points=None, side='<>', selection_angle=.
         return neighbours[0]
 
 
-def onesided_gradient(cells, i, X, index_map=None, side='>', selection_angle=None, na=np.nan):
+def onesided_gradient(cells, i, X, index_map=None, side='>', selection_angle=None, na=None):
     cell = cells[i]
 
     # below, the measurement is renamed Y and the coordinates are X
@@ -490,7 +490,7 @@ def onesided_gradient(cells, i, X, index_map=None, side='>', selection_angle=Non
             for _neighbours in onesided_neighbours(i, points=dX, side='<>', selection_angle=selection_angle):
                 if np.any(_neighbours):
                     Bs.append( adjacent[_neighbours] )
-                    Bs.append( dX[_neighbours] / dist2[_neighbours] )
+                    Bs.append( dX[_neighbours] / dist2[_neighbours] / np.sum(_neighbours) )
                 else:
                     Bs.append(None)
                     Bs.append(None)
@@ -513,10 +513,19 @@ def onesided_gradient(cells, i, X, index_map=None, side='>', selection_angle=Non
         raise ValueError("unknown side '{}'".format(side))
 
     # compute the gradient
-    if neighbours is None:
+    if neighbours is None or np.isnan(y0):
+        if na is None:
+            return None
+        else:
+            return np.full(cells.dim, na, dtype=y.dtype)
+    y_ = y[neighbours]
+    ok = ~np.isnan(y_)
+    if np.any(ok):
+        return np.dot(y_[ok] - y0, B[ok])
+    elif na is None:
         return None
     else:
-        return np.dot(B.T, y0 - y[neighbours])
+        return np.full(cells.dim, na, dtype=y.dtype)
 
 
 __all__ = [ 'neighbours_per_axis', 'grad1', 'gradn', 'onesided_neighbours', 'onesided_gradient' ]

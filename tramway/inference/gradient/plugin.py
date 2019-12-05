@@ -68,7 +68,7 @@ default_selection_angle = .9
 def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selection_angle=None, compatibility=None, grad=None, epsilon=None, **kwargs):
     """Parse :func:`grad1` keyworded arguments.
 
-    Identifies 'grad_'-prefixed keyword arguments.
+    Identifies 'grad_'- or 'gradient_'-prefixed keyword arguments.
 
     Arguments:
 
@@ -138,13 +138,17 @@ def get_grad_kwargs(_kwargs=None, gradient=None, grad_epsilon=None, grad_selecti
                 # TODO: warn or raise an exception
                 pass
 
-        for kw in _kwargs:
+        for kw in dict(_kwargs):
             if kw.startswith('grad_'):
                 grad_kwargs[kw[5:]] = _kwargs.pop(kw)
+            if kw.startswith('gradient_'):
+                grad_kwargs[kw[9:]] = _kwargs.pop(kw)
 
-    for kw in kwargs:
+    for kw in dict(kwargs):
         if kw.startswith('grad_'):
             grad_kwargs[kw[5:]] = kwargs.get(kw)
+        elif kw.startswith('gradient_'):
+            grad_kwargs[kw[9:]] = kwargs.get(kw)
 
     if epsilon is not None:
         if grad_epsilon is None:
