@@ -57,6 +57,17 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     dtype = dt.dtype
     dim = cells.dim
 
+    try:
+        if False:#compatibility:
+            raise Exception # skip to the except block
+        volume = [ cells[i].volume for i in index ]
+    except:
+        V_initial = -np.log(n / np.max(n))
+    else:
+        density = n / np.array([ np.inf if v is None else v for v in volume ])
+        density[density == 0] = np.min(density[0 < density])
+        V_initial = np.log(np.max(density)) - np.log(density)
+
     if diffusivity_prior is None:
         diffusivity_prior = diffusion_prior
     if diffusivity_spatial_prior is None:
@@ -114,8 +125,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
         raise ValueError('no valid cell')
 
     D_spatial_prior, D_time_prior = diffusivity_spatial_prior, diffusivity_time_prior
-    V_spatial_prior = None if potential_spatial_prior is None else potential_spatial_prior * dt
-    V_time_prior = None if potential_time_prior is None else potential_time_prior * dt
+    V_spatial_prior, V_time_prior = potential_spatial_prior, potential_time_prior
 
     def f_(_x, sign=None, invalid=0., inplace=True):
         _valid = ~(np.isnan(_x) | np.isinf(_x))
@@ -123,6 +133,9 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
         #    _valid[_valid] = (eps < _x[_valid]) & (_x[_valid] < 1./eps)
         #else:
         #    _valid[_valid] = (-1./eps < _x[_valid]) & (_x[_valid] < 1./eps)
+        if verbose and not np.all(_valid):
+            _is, = (~_valid).nonzero()
+            warn('invalid value(s) encountered at indices: {}'.format(_is), RuntimeWarning)
         __x = _x if inplace else np.array(_x) # copy
         __x[~_valid] = invalid
         return __x
@@ -219,8 +232,8 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     # constants
     aD_constant_factor = 1. / (4. * dt)
     bD_constant_factor = n / (2. * dt)
-    alt_aD_constant_factor_1 = mean_dr2 / (2. * dt)
-    alt_aD_constant_factor_2 = alt_aD_constant_factor_1 / (2. * dt)
+    exact_aD_constant_factor_1 = mean_dr2 / (2. * dt)
+    exact_aD_constant_factor_2 = exact_aD_constant_factor_1 / (2. * dt)
     bV_constant_factor = {s: B2[s] * bD_constant_factor for s in B2}
 
     # initial values
@@ -276,6 +289,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     gradV, gradV2 = {}, {}
     resolution = None
     neg_L = np.inf
+    i = 0
     try:
         while True:
             neg_L_prev = neg_L
@@ -288,34 +302,30 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                 gradV[s] = _gradV = grad(V, s)
                 gradV2[s] = np.sum(_gradV * _gradV, axis=1)
                 if verbose:
-                    print('max values for side:', s, '||gradV||', np.sqrt(np.nanmax(gradV2[s])), 'V', np.nanmax(np.abs(V)), 'D', np.nanmax(D))
+                    print('[', i, '] max values for side:', s, '||gradV||', np.sqrt(np.nanmax(gradV2[s])), 'V', np.nanmax(np.abs(V)), 'D', np.nanmax(D))
 
                 aV = np.sum(  Bstar[s] * (diff_grad(V, s) + dr_over_D)  ,axis=1)
+
+                gradV[s] = _gradV = grad(aV, s)
+                gradV2[s] = np.sum(_gradV * _gradV, axis=1)
+                sqrt_discr = np.sqrt( 1. + exact_aD_constant_factor_2 * gradV2[s] )
+                exact_aD = exact_aD_constant_factor_1 / (1. + sqrt_discr)
+                D = aD = exact_aD
+
                 bV = D * bV_constant_factor[s]
 
                 D2 = D * D
                 #chi2_over_n = mean_dr2 + 2 * D * np.sum(mean_dr * gradV[s], axis=1) + D2 * gradV2[s]
+                #gaussian_aD = chi2_over_n * aD_constant_factor
 
-                #aD = chi2_over_n * aD_constant_factor
+                #sqrt_discr = np.sqrt( 1. + exact_aD_constant_factor_2 * gradV2[s] )
+                #exact_aD = exact_aD_constant_factor_1 / (1. + sqrt_discr)
 
-                sqrt_discr = np.sqrt( 1. + alt_aD_constant_factor_2 * gradV2[s] )
-                aD = alt_aD_constant_factor_1 / (1. + sqrt_discr)
+                #if verbose:
+                #    aD_diff = np.abs(exact_aD - gaussian_aD)
+                #    print('D difference:', 'min=', np.min(aD_diff), 'max=', np.max(aD_diff))
 
-                if verbose: # debug
-                    # a few assertions (to be removed in the future)
-                    roots = alt_aD_constant_factor_1[:,np.newaxis] / np.stack(( 1. - sqrt_discr, 1. + sqrt_discr ), axis=1)
-                    roots[roots<=0] = np.nan
-                    root_count = np.sum(~np.isnan(roots), axis=1)
-                    #print(np.stack(np.unique(root_count,return_counts=True),axis=1))
-                    multiple_roots, = (1<root_count).nonzero()
-                    opt_aD = roots[multiple_roots]
-                    chi2_over_nD = mean_dr2[multiple_roots][:,np.newaxis] / opt_aD + 2 * np.sum(mean_dr[multiple_roots] * gradV[s][multiple_roots], axis=1, keepdims=True) + opt_aD
-                    minus_logP_over_n = np.log(opt_aD) + aD_constant_factor[multiple_roots][:,np.newaxis] * chi2_over_nD
-                    discard = np.argmax(minus_logP_over_n, axis=1)
-                    roots[multiple_roots, discard] = np.nan
-                    first_root, second_root = roots[:,0], roots[:,1]
-                    assert np.all(np.isnan(first_root))
-                    assert not np.any(np.isnan(second_root))
+                #aD = exact_aD
 
                 bD = n / D2 + bD_constant_factor * gradV2[s] / D
 
@@ -383,6 +393,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
             if abs(neg_L - neg_L_prev) < tol:
                 resolution = 'CONVERGENCE: DELTA -L < TOL'
                 break
+            i += 1
 
     except KeyboardInterrupt:
         resolution = 'INTERRUPTED'
@@ -397,7 +408,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     V /= dt
 
     if np.any(V<0):
-        V -= np.min(V)
+        V -= np.nanmin(V)
 
     DV = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
         columns=['diffusivity', 'potential'])
