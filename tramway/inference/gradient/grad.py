@@ -451,7 +451,7 @@ def onesided_neighbours(i, cells=None, points=None, side='<>', selection_angle=.
 
         proj = np.dot(points, rot.T)
         angle = np.arctan2(proj[:,0], proj[:,1])
-        _neighbours = (1. - selection_angle) * math.pi <= abs(angle)
+        _neighbours = abs(angle) <= (1. - selection_angle) * math.pi
 
         if __neighbours is not None:
             _neighbours = __neighbours[_neighbours]
@@ -484,7 +484,7 @@ def onesided_gradient(cells, i, X, index_map=None, side='>', selection_angle=Non
                 adjacent, _adjacent = adjacent[ok], _adjacent[ok]
         # pre-compute the X (or B) terms
         if _adjacent.size:
-            dX = cell.center[np.newaxis,:] - np.vstack([ cells[j].center for j in _adjacent ])
+            dX = np.vstack([ cells[j].center for j in _adjacent ]) - cell.center[np.newaxis,:]
             dist2 = np.sum(dX * dX, axis=1, keepdims=True)
             Bs = []
             for _neighbours in onesided_neighbours(i, points=dX, side='<>', selection_angle=selection_angle):

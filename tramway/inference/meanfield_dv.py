@@ -299,10 +299,10 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
             aVs, bVs, aDs, bDs, neg_Ls = [], [], [], [], []
             for s in sides:
 
-                gradV[s] = _gradV = grad(V, s)
-                gradV2[s] = np.sum(_gradV * _gradV, axis=1)
-                if verbose:
-                    print('[', i, '] max values for side:', s, '||gradV||', np.sqrt(np.nanmax(gradV2[s])), 'V', np.nanmax(np.abs(V)), 'D', np.nanmax(D))
+                #gradV[s] = _gradV = grad(V, s)
+                #gradV2[s] = np.sum(_gradV * _gradV, axis=1)
+                #if verbose:
+                #    print('[', i, '] max values for side:', s, '||gradV||', np.sqrt(np.nanmax(gradV2[s])), 'V', np.nanmax(np.abs(V)), 'D', np.nanmax(D))
 
                 aV = np.sum(  Bstar[s] * (diff_grad(V, s) + dr_over_D)  ,axis=1)
 
@@ -311,6 +311,9 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                 sqrt_discr = np.sqrt( 1. + exact_aD_constant_factor_2 * gradV2[s] )
                 exact_aD = exact_aD_constant_factor_1 / (1. + sqrt_discr)
                 D = aD = exact_aD
+
+                if verbose:
+                    print('[', i, '] max values for side:', s, '||gradV||', np.sqrt(np.nanmax(gradV2[s])), 'V', np.nanmax(np.abs(aV)), 'D', np.nanmax(aD))
 
                 bV = D * bV_constant_factor[s]
 

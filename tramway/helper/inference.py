@@ -99,6 +99,8 @@ class Infer(Helper):
                     include_empty_elements=include_empty_cells, **distributed_kwargs)
             if post_overload:
                 detailled_map = self.overload_cells(detailled_map)
+            else:
+                self.load_cells(detailled_map)
 
             if cell_sampling is None:
                 try:
@@ -127,7 +129,8 @@ class Infer(Helper):
                 _map = detailled_map
         return _map
 
-    def overload_finite_element_cls(self, finite_element_cls=None, any_finite_element=None):
+    @property
+    def input_features(self):
         if self.input_maps is None:
             input_features = ()
         else:
@@ -142,12 +145,20 @@ class Infer(Helper):
                 else:
                     input_features.append(input_feature)
             input_features = tuple(input_features)
-            maps = { v: self.input_maps[v] for v in input_features }
+        return input_features
+
+    @property
+    def output_features(self):
         output_features = self.setup.get('returns', [])
         if isinstance(output_features, (tuple, list, frozenset, set)):
             output_features = tuple(output_features)
         else:
             output_features = (output_features,)
+        return output_features
+
+    def overload_finite_element_cls(self, finite_element_cls=None, any_finite_element=None):
+        input_features = self.input_features
+        output_features = self.output_features
         if input_features or output_features:
             if finite_element_cls is None:
                 if any_finite_element is None:
@@ -158,30 +169,54 @@ class Infer(Helper):
                 attrs = Lazy.__slots__ + Local.__slots__ + FiniteElement.__slots__ + finite_element_cls.__slots__
             except AttributeError:
                 attrs = any_finite_element.__dict__
-            print(attrs)
-            class FiniteElementCls(finite_element_cls):
-                __slots__ = input_features + output_features
-                def __init__(self, cell, **kwargs):
-                    for attr in attrs:
-                        setattr(self, attr, getattr(cell, attr))
-                    for attr in input_features:
-                        setattr(self, attr, kwargs[attr])
-                    for attr in output_features:
-                        setattr(self, attr, None)
-            finite_element_cls = FiniteElementCls
-        return finite_element_cls
+            if any_finite_element is None:
+                class FiniteElementCls(finite_element_cls):
+                    __slots__ = input_features + output_features
+                    def __init__(self, *args, **kwargs):
+                        finite_element_cls.__init__(self, *args, **kwargs)
+                        for attr in input_features + output_features:
+                            setattr(self, attr, None)
+            else:
+                class FiniteElementCls(finite_element_cls):
+                    __slots__ = input_features + output_features
+                    def __init__(self, cell, **kwargs):
+                        for attr in attrs:
+                            setattr(self, attr, getattr(cell, attr))
+                        for attr in input_features:
+                            setattr(self, attr, kwargs[attr])
+                        for attr in output_features:
+                            setattr(self, attr, None)
+            return FiniteElementCls
+        else:
+            return finite_element_cls
 
-    def overload_cells(self, cells):
-        OverloadedCell = self.overload_finite_element_cls(any_finite_element=cells.any_cell())
-        if OverloadedCell is not None:
-            kwargs = {}
-            overloaded_cells = {}
+    def load_cells(self, cells):
+        input_features = self.input_features
+        if input_features:
             for i in cells:
                 cell = cells[i]
-                if self.input_maps is not None:
-                    for k in maps:
+                for k in input_features:
+                    try:
+                        val = self.input_maps[k].loc[i].values
+                    except KeyError:
+                        pass
+                    else:
+                        if np.isscalar(val):
+                            val = val.tolist()
+                        setattr(cell, k, val)
+
+    def overload_cells(self, cells):
+        input_features = self.input_features
+        if input_features:
+            OverloadedCell = self.overload_finite_element_cls(any_finite_element=cells.any_cell())
+            if OverloadedCell is not None:
+                kwargs = {}
+                overloaded_cells = {}
+                for i in cells:
+                    cell = cells[i]
+                    for k in input_features:
                         try:
-                            val = maps[k].loc[i].values
+                            val = self.input_maps[k].loc[i].values
                         except KeyError:
                             val = None
                         else:
