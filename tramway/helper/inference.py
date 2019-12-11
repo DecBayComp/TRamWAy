@@ -203,6 +203,8 @@ class Infer(Helper):
                     else:
                         if np.isscalar(val):
                             val = val.tolist()
+                        elif val.size == 1:
+                            val = val.tolist()[0]
                         setattr(cell, k, val)
 
     def overload_cells(self, cells):
@@ -658,12 +660,15 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
         if grad is not None:
             if not callable(grad):
                 if grad == 'grad1':
-                    grad = grad1
+                    grad = inference.gradient.grad1
                 elif grad == 'gradn':
-                    grad = gradn
+                    grad = inference.gradient.gradn
                 else:
-                    raise ValueError('unsupported gradient')
-                    grad = None
+                    try:
+                        grad = getattr(inference.gradient, grad)
+                    except AttributeError:
+                        raise ValueError('unsupported gradient: {}'.format(grad))
+                        grad = None
             if grad is not None:
                 class Distr(new_group):
                     def grad(self, *args, **kwargs):

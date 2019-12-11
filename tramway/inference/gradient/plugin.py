@@ -15,9 +15,15 @@
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
+import traceback
+from warnings import warn
 
 
-def gradient_map(cells, feature=None, **kwargs):
+class SpatialOperatorFailure(UserWarning):
+    pass
+
+
+def gradient_map(cells, feature=None, verbose=False, **kwargs):
     grad_kwargs = get_grad_kwargs(**kwargs)
     if feature:
         if isinstance(feature, str):
@@ -35,10 +41,12 @@ def gradient_map(cells, feature=None, **kwargs):
             except:
                 pass
             else:
-                I.append(i)
-                X.append(x)
+                if x is not None:
+                    I.append(i)
+                    X.append(x)
         #I = np.array(I)
-        X = np.array(X)
+        X = np.hstack(X) # hstack instead of array just in the case elements in X are single-element arrays
+        #print(X, X.dtype)
         reverse_index = np.full(max(cells.keys())+1, -1, dtype=int)
         reverse_index[I] = np.arange(len(I))
         index, gradX = [], []
@@ -47,11 +55,17 @@ def gradient_map(cells, feature=None, **kwargs):
                 g = cells.grad(i, X, reverse_index, **grad_kwargs)
             except (SystemExit, KeyboardInterrupt):
                 raise
-            except:
+            except Exception as e:
+                if verbose:
+                    traceback.print_exc()
+                else:
+                    warn(e.args[0], SpatialOperatorFailure)
                 g = None
             if g is not None:
                 index.append(i)
                 gradX.append(g)
+        if not index:
+            return None
         gradX = np.vstack(gradX)
         assert gradX.shape[1:] and gradX.shape[1] == len(cells.space_cols)
         columns = [ '{} {}'.format(f, col) for col in cells.space_cols ]
@@ -196,6 +210,7 @@ setup = dict(
         infer='gradient_map',
         arguments=OrderedDict((
             ('feature', ('-f', dict(help='feature or comma-separated list of features which gradient is expected'))),
+            ('verbose',             ()),
         )))
 setup_with_grad_arguments(setup)
 

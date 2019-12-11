@@ -423,13 +423,14 @@ def onesided_neighbours(i, cells=None, points=None, side='<>', selection_angle=.
         points (numpy.ndarray): alternative relative centers;
             default centers are those in `cells` centered at `cells[i].center`.
 
-        side (str): either '<' or '>'.
+        side (str): either '<', '>', '<>' or '><'.
 
         selection_angle (float): any value in [0,1].
 
     Returns:
 
-        numpy.ndarray: indices of the selected neighbours in `cells` or `points`.
+        numpy.ndarray: indices of the selected neighbours in `cells` or `points`;
+            if `side` is double, 2 arrays of indices are returned instead.
 
     See also :func:`onesided_gradient`.
     """
@@ -464,6 +465,9 @@ def onesided_neighbours(i, cells=None, points=None, side='<>', selection_angle=.
 
 
 def onesided_gradient(cells, i, X, index_map=None, side='>', selection_angle=None, na=None):
+    """
+    Remember to explicitly pass ``selection_angle=0.5`` if you use `get_grad_kwargs`.
+    """
     cell = cells[i]
 
     # below, the measurement is renamed Y and the coordinates are X
