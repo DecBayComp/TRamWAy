@@ -21,7 +21,7 @@ from collections import OrderedDict
 from warnings import warn
 
 
-setup = {'name': 'meanfield.dv2',
+setup = {'name': 'meanfield.dv',
         'provides': 'dv',
         'arguments': OrderedDict((
             #('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
@@ -285,12 +285,12 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
             aVs, bVs, aDs, bDs, neg_Ls = [], [], [], [], []
             for s in sides:
 
-                gradV_plus_BVk = diff_grad(V, s)
+                gradV_plus_VB = diff_grad(V, s)
 
                 aD, aV = D, V
 
                 dr_over_aD = dr_over_D
-                grad_aV = gradV_plus_BVk - aV[:,np.newaxis] * B[s]
+                grad_aV = gradV_plus_VB - aV[:,np.newaxis] * B[s]
                 grad_aV2 = np.sum(grad_aV * grad_aV, axis=1)
 
                 if reg:
@@ -308,9 +308,8 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
                 epoch_neg_L_prev = np.inf
                 while True:
-                    epoch_neg_L_prev = neg_L
 
-                    aV = np.sum(  Bstar[s] * (gradV_plus_BVk + dr_over_aD)  ,axis=1)
+                    aV = np.sum(  Bstar[s] * (gradV_plus_VB + dr_over_aD)  ,axis=1)
 
                     bV = aD * bV_constant_factor[s]
 
@@ -342,7 +341,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                         aV, bV = AV, BV
 
                     # ELBO
-                    grad_aV = gradV_plus_BVk - aV[:,np.newaxis] * B[s]
+                    grad_aV = gradV_plus_VB - aV[:,np.newaxis] * B[s]
                     grad_aV2 = np.sum(grad_aV * grad_aV, axis=1)
                     B2_over_bV = B2[s] / bV
                     B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in regions ])
@@ -366,6 +365,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
                     # prepare next iteration
                     dr_over_aD = mean_dr / aD[:,np.newaxis]
+                    epoch_neg_L_prev = neg_L
 
                 aVs.append(aV)
                 bVs.append(bV)
