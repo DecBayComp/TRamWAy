@@ -21,8 +21,8 @@ from collections import OrderedDict
 from warnings import warn
 
 
-setup = {'name': 'meanfield.dv',
-        'provides': 'dv',
+setup = {'name': ('meanfield.dv', 'meanfield diffusivity,potential'),
+        'provides': ('dv', 'diffusivity,potential'),
         'arguments': OrderedDict((
             #('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
             ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
@@ -39,7 +39,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
         diffusivity_time_prior=None, potential_time_prior=None,
         diffusivity_prior=None, potential_prior=None,
         diffusion_prior=None, diffusion_spatial_prior=None, diffusion_time_prior=None,
-        dt=None, tol=1e-6, eps=1e-3, verbose=False, **kwargs):
+        dt=None, tol=1e-6, eps=1e-3, verbose=False, aD_formula='exact', **kwargs):
     """
     """
     #localization_error = cells.get_localization_error(kwargs, 0.03, True)
@@ -75,7 +75,9 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
         potential_spatial_prior = potential_prior
     if diffusivity_time_prior is None:
         diffusivity_time_prior = diffusion_time_prior
-    reg = diffusivity_spatial_prior or diffusivity_time_prior or potential_spatial_prior or potential_time_prior
+    regularize_diffusivity = diffusivity_spatial_prior or diffusivity_time_prior
+    regularize_potential = potential_spatial_prior or potential_time_prior
+    reg = regularize_diffusivity or regularize_potential
 
     index = np.array(index)
     ok = 1<n
@@ -116,7 +118,9 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
         raise ValueError('no valid cell')
 
     D_spatial_prior, D_time_prior = diffusivity_spatial_prior, diffusivity_time_prior
-    V_spatial_prior, V_time_prior = potential_spatial_prior, potential_time_prior
+    #V_spatial_prior, V_time_prior = potential_spatial_prior, potential_time_prior
+    V_spatial_prior = None if potential_spatial_prior is None else potential_spatial_prior * dt
+    V_time_prior = None if potential_time_prior is None else potential_time_prior * dt
 
     def f_(_x, sign=None, invalid=0., inplace=True):
         _valid = ~(np.isnan(_x) | np.isinf(_x))
@@ -223,6 +227,15 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     exact_aD_constant_factor_2 = exact_aD_constant_factor_1 / (2. * dt)
     bV_constant_factor = {s: B2[s] * bD_constant_factor for s in B2}
 
+    if aD_formula.startswith('exact'):
+        exact_aD_formula = True
+        approximate_aD_formula = aD_formula.endswith('+')
+    elif aD_formula.startswith('approx'):
+        approximate_aD_formula = True
+        exact_aD_formula = aD_formula.endswith('+')
+    else:
+        raise ValueError("aD_formula='{}' not supported".format(aD_formula))
+
     # initial values
     D = approx_aD_constant_factor * mean_dr2#chi2_over_n
     V = np.zeros_like(D)
@@ -233,12 +246,14 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     L_local_factor_for_D_times_V = approx_aD_constant_factor * n
 
     # priors
-    if reg:
-        BD_constant_term = BV_constant_term = 0.
+    if regularize_diffusivity:
+        BD_constant_term = 0.
         if diffusivity_spatial_prior is not None:
             BD_constant_term += 2 * D_spatial_prior * Z
         if diffusivity_time_prior is not None:
             BD_constant_term += 2 * D_time_prior * Zt
+    if regularize_potential:
+        BV_constant_term = 0.
         if potential_spatial_prior is not None:
             BV_constant_term += 2 * V_spatial_prior * Z
         if potential_time_prior is not None:
@@ -294,7 +309,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                 grad_aV2 = np.sum(grad_aV * grad_aV, axis=1)
 
                 if reg:
-                    # reminder: C comes without mu (global diffusion prior) or lambda (global potential prior)
+                    # reminder: C comes without mu (diffusion hyperparameter) or lambda (potential hyperparameter)
                     AD_additive_term = 0.
                     if diffusivity_spatial_prior is not None:
                         AD_additive_term = AD_additive_term + 2 * D_spatial_prior * background(D, C)
@@ -314,19 +329,22 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                     bV = aD * bV_constant_factor[s]
 
                     aD2 = aD * aD
-                    #chi2_over_n = mean_dr2 + 2 * aD * np.sum(mean_dr * grad_aV, axis=1) + aD2 * grad_aV2
-                    #approx_aD = approx_aD_constant_factor * chi2_over_n
-
-                    sqrt_discr = np.sqrt( 1. + exact_aD_constant_factor_2 * grad_aV2 )
-                    exact_aD = exact_aD_constant_factor_1 / (1. + sqrt_discr)
+                    if approximate_aD_formula:
+                        chi2_over_n = mean_dr2 + 2 * aD * np.sum(mean_dr * grad_aV, axis=1) + aD2 * grad_aV2
+                        approx_aD = approx_aD_constant_factor * chi2_over_n
+                    if exact_aD_formula:
+                        sqrt_discr = np.sqrt( 1. + exact_aD_constant_factor_2 * grad_aV2 )
+                        exact_aD = exact_aD_constant_factor_1 / (1. + sqrt_discr)
 
                     bD = n / aD2 + bD_constant_factor * grad_aV2 / aD
 
-                    aD = exact_aD
-                    #aD = approx_aD
+                    if verbose and aD_formula.endswith('+'):
+                        print('[{}|{}] max aD difference: {}'.format(i, s, np.max(np.abs(exact_aD-approx_aD))))
+
+                    aD = approx_aD if aD_formula.startswith('approx') else exact_aD
 
                     if verbose:
-                        print('[', i, '] max values for side:', s, '||gradV||', np.sqrt(np.nanmax(grad_aV2)), 'V', np.nanmax(np.abs(aV)), 'D', np.nanmax(aD))
+                        print('[{}|{}] max values for: ||gradV|| {} V {} D {}'.format(i, s, np.sqrt(np.nanmax(grad_aV2)), np.nanmax(np.abs(aV)), np.nanmax(aD)))
 
                     # priors
                     if diffusivity_spatial_prior or diffusivity_time_prior:
@@ -358,9 +376,10 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
                     # epoch-wide stopping criterion
                     if verbose:
-                        print('-logP approx', neg_L)
+                        print('[{}] approx -logP: {}'.format(i, neg_L))
                     if abs(neg_L - epoch_neg_L_prev) < tol:
-                        print('epoch is complete')
+                        if verbose:
+                            print('[{}] epoch is complete'.format(i))
                         break
 
                     # prepare next iteration
@@ -423,7 +442,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
             columns=[ 'force ' + col for col in cells.space_cols ])
     DVF = DV.join(F)
 
-    info = dict(resolution=resolution)
+    info = dict(resolution=resolution, log_likelyhood=-neg_L)
 
     return DVF, info
 

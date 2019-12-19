@@ -20,8 +20,8 @@ import pandas as pd
 from collections import OrderedDict
 
 
-setup = {'name': ('meanfield.dd', 'meanfield.ddrift'),
-        'provides': ('dd', 'ddrift'),
+setup = {'name': ('meanfield.dd', 'meanfield diffusivity,drift'),
+        'provides': ('dd', 'ddrift', 'diffusivity,drift'),
         'arguments': OrderedDict((
             #('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
             ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
@@ -69,8 +69,9 @@ def infer_meanfield_DD(cells, diffusivity_spatial_prior=None, drift_spatial_prio
 
     if drift_spatial_prior is None:
         drift_spatial_prior = drift_prior
-    if drift_time_prior is None:
-        drift_time_prior = drift_prior
+    #if drift_time_prior is None:
+    #    drift_time_prior = drift_prior
+    #mu_spatial_prior, mu_time_prior = drift_spatial_prior, drift_time_prior
     mu_spatial_prior = None if drift_spatial_prior is None else drift_spatial_prior * dt
     mu_time_prior = None if drift_time_prior is None else drift_time_prior * dt
 
@@ -117,18 +118,17 @@ def infer_meanfield_DD(cells, diffusivity_spatial_prior=None, drift_spatial_prio
         #chi2.append(np.sum(dr2))
         dr2.append(np.sum(cells[i].dr * cells[i].dr))
         # regularization constants
-        if reg:
-            if spatial_reg:
-                reg_Z.append( spatial_background(i, ones) )
-            if time_reg:
-                time_reg_Z.append( temporal_background(i, ones) )
+        if spatial_reg:
+            reg_Z.append( spatial_background(i, ones) )
+        if time_reg:
+            time_reg_Z.append( temporal_background(i, ones) )
     dr = np.vstack(dr)
     dr2 = np.array(dr2) / n
     chi2_over_n = dr2 - np.sum(dr * dr, axis=1)
-    if reg:
+    if spatial_reg:
         reg_Z = np.array(reg_Z)
+    if time_reg:
         time_reg_Z = np.array(time_reg_Z)
-        drift_scaling = 1. / dt # scale the penalty terms for a_mu and b_mu so that
 
     # constants
     aD_constant_factor = 1. / (4. * dt)
@@ -151,8 +151,6 @@ def infer_meanfield_DD(cells, diffusivity_spatial_prior=None, drift_spatial_prio
             if diffusivity_spatial_prior or diffusivity_time_prior:
                 AD = aD * bD
                 BD = bD # no need for copying
-                # do not scale time;
-                # assume constant window shift and let time_prior hyperparameters bear all the responsibility
                 D_spatial_penalty = []
                 D_time_penalty = []
                 for i in index:
