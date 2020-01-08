@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2019, Institut Pasteur
+# Copyright © 2019-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -35,8 +35,22 @@ setup = {'name': ('meanfield.fd', 'meanfield friction,drift'),
 #setup_with_grad_arguments(setup)
 
 
+def _regularize_D_or_psi(aD, bD, a_psi, b_psi):
+    _exc = ValueError('either specify aD and bD, or a_psi and b_psi')
+    if aD is None:
+        if bD is not None or a_psi is None or b_psi is None:
+            raise _exc
+        return False
+    else:
+        if bD is None or a_psi is not None or b_psi is not None:
+            raise _exc
+        return True
+
 class Meanfield(object):
-    def __init__(self, cells, dt=None):
+    def __init__(self, cells, dt=None,
+            diffusivity_spatial_prior=None, diffusivity_time_prior=None,
+            friction_spatial_prior=None, friction_time_prior=None,
+            _inherit=False):
         index, reverse_index, n, dt_mean, _, _, _, _ = \
             smooth_infer_init(cells, sigma2=0)#localization_error)
         if dt is None:
@@ -68,81 +82,57 @@ class Meanfield(object):
         self.index = index
         self.reverse_index = reverse_index
 
+        self.spatial_prior, self.time_prior = {}, {}
+        self.add_feature('D')
+        self.add_feature('psi')
 
-class FrictionDrift(Meanfield):
-    def __init__(self, cells, dt=None,
-            friction_spatial_prior=None, friction_time_prior=None,
-            drift_spatial_prior=None, drift_time_prior=None,
-            diffusivity_spatial_prior=None, diffusivity_time_prior=None):
-        Meanfield.__init__(self, cells, dt)
-        n = self.n
-        dt = self.dt
-
-        self.psi_spatial_prior = psi_spatial_prior = friction_spatial_prior / (2 * dt) \
+        self.psi_spatial_prior = friction_spatial_prior / (2 * dt) \
                 if friction_spatial_prior else None
-        self.psi_time_prior = psi_time_prior = friction_time_prior / (2 * dt) \
+        self.psi_time_prior = friction_time_prior / (2 * dt) \
                 if friction_time_prior else None
-        self.mu_spatial_prior = mu_spatial_prior = drift_spatial_prior * dt \
-                if drift_spatial_prior else None
-        self.mu_time_prior = mu_time_prior = drift_time_prior * dt \
-                if drift_time_prior else None
-        self.D_spatial_prior = D_spatial_prior = diffusivity_spatial_prior \
+        self.D_spatial_prior = diffusivity_spatial_prior \
                 if diffusivity_spatial_prior else None
-        self.D_time_prior = D_time_prior = diffusivity_time_prior \
+        self.D_time_prior = diffusivity_time_prior \
                 if diffusivity_time_prior else None
 
-        spatial_reg = friction_spatial_prior or drift_spatial_prior or diffusivity_spatial_prior
-        time_reg = friction_time_prior or drift_time_prior or diffusivity_time_prior
-        if spatial_reg or time_reg:
-            # regularization constants
-            reg_Z = []
-            time_reg_Z = []
-            ones = np.ones(n.size, dtype=dt.dtype)
+        self._first_warning = True
+
+        if not _inherit:
+            self.__post_init__()
+
+    @property
+    def psi_spatial_prior(self):
+        return self.spatial_prior['psi']
+
+    @psi_spatial_prior.setter
+    def psi_spatial_prior(self, psi_spatial_prior):
+        self.spatial_prior['psi'] = psi_spatial_prior
+
+    @property
+    def D_spatial_prior(self):
+        return self.spatial_prior['D']
+
+    @D_spatial_prior.setter
+    def D_spatial_prior(self, D_spatial_prior):
+        self.spatial_prior['D'] = D_spatial_prior
+
+    def __post_init__(self):
+        any_spatial_prior = not all([ p is None for p in self.spatial_prior.values() ])
+        any_time_prior = not all([ p is None for p in self.time_prior.values() ])
+        if any_spatial_prior or any_time_prior:
+
+            spatial_constants = []
+            time_constants = []
+            ones = np.ones(self.n.size, dtype=self.dt.dtype)
             for i in self.index:
-                if spatial_reg:
-                    reg_Z.append( self.spatial_background(i, ones) )
-                if time_reg:
-                    time_reg_Z.append( self.temporal_background(i, ones) )
+                if any_spatial_prior:
+                    spatial_constants.append( self.spatial_background(i, ones) )
+                if any_time_prior:
+                    time_constants.append( self.temporal_background(i, ones) )
+            spatial_constants = np.array(spatial_constants) if any_spatial_prior else None
+            time_constants = np.array(time_constants) if any_time_prior else None
 
-            B_psi_additive_term = 0.
-            B_mu_additive_term = 0.
-            BD_additive_term = 0.
-            if reg_Z:
-                reg_Z = np.array(reg_Z)
-                if friction_spatial_prior:
-                    B_psi_additive_term = B_psi_additive_term + \
-                            2 * psi_spatial_prior * reg_Z
-                if drift_spatial_prior:
-                    B_mu_additive_term = B_mu_additive_term + \
-                            2 * mu_spatial_prior * reg_Z
-                if D_spatial_prior:
-                    BD_additive_term = BD_additive_term + \
-                            2 * D_spatial_prior * reg_Z
-            if time_reg_Z:
-                time_reg_Z = np.array(time_reg_Z)
-                if friction_time_prior:
-                    B_psi_additive_term = B_psi_additive_term + \
-                            2 * psi_time_prior * time_reg_Z
-                if drift_time_prior:
-                    B_mu_additive_term = B_mu_additive_term + \
-                            2 * mu_time_prior * time_reg_Z
-                if D_time_prior:
-                    BD_additive_term = BD_additive_term + \
-                            2 * D_time_prior * time_reg_Z
-
-            self.B_psi_additive_term = B_psi_additive_term
-            self.B_mu_additive_term = B_mu_additive_term
-            self.BD_additive_term = BD_additive_term
-
-    @property
-    def regularize_friction(self):
-        return not (self.psi_spatial_prior is None and self.psi_time_prior is None)
-    @property
-    def regularize_drift(self):
-        return not (self.mu_spatial_prior is None and self.mu_time_prior is None)
-    @property
-    def regularize_diffusion(self):
-        return not (self.D_spatial_prior is None and self.D_time_prior is None)
+            self.set_B_constants(spatial_constants, time_constants)
 
     def spatial_background(self, i, x):
         dxs = []
@@ -164,30 +154,86 @@ class FrictionDrift(Meanfield):
                 dxs.append(dx)
         return np.mean(dxs) if dxs else 0.
 
-    def set_psi_regularizer(self, a_psi):
-        spatial_reg = self.psi_spatial_prior is not None
-        time_reg = self.psi_time_prior is not None
+    def set_B_constants(self, spatial_constants, time_constants):
+        self.A_additive_term, self.B_additive_term = {}, {}
+        priors = self.spatial_prior
+        for v in priors:
+            B_additive_term = 0.
+            if self.spatial_prior.get(v, None) is not None:
+                B_additive_term = B_additive_term + \
+                        2 * self.spatial_prior[v] * spatial_constants
+            if self.time_prior.get(v, None) is not None:
+                B_additive_term = B_additive_term + \
+                        2 * self.time_prior[v] * time_constants
+            self.B_additive_term[v] = B_additive_term
 
-        psi_spatial_penalty = []
-        psi_time_penalty = []
+    @property
+    def regularize_friction(self):
+        return not (self.psi_spatial_prior is None and self.psi_time_prior is None)
+    @property
+    def regularize_diffusion(self):
+        return not (self.D_spatial_prior is None and self.D_time_prior is None)
+
+    def set_psi_regularizer(self, a_psi=None, aD=None):
+        if a_psi is None:
+            a_psi = 1. / aD
+        self.set_regularizer('psi', a_psi)
+
+    def set_D_regularizer(self, aD=None, a_psi=None):
+        if aD is None:
+            aD = 1. / a_psi
+        self.set_regularizer('D', aD)
+
+    def regularize_psi(self, a_psi=None, b_psi=None, A_psi=None, B_psi=None, oneshot=True,
+            aD=None, bD=None, AD=None, BD=None):
+        _in_D = _regularize_D_or_psi(aD, bD, a_psi, b_psi)
+        if _in_D:
+            a_psi, b_psi = 1./aD, bD
+            A_psi, B_psi = None if AD is None else 1./AD, BD
+        A_psi, B_psi = self.regularize('psi', a_psi, b_psi, A_psi, B_psi, oneshot)
+        if _in_D:
+            AD, BD = 1./A_psi, B_psi
+            return AD, BD
+        else:
+            return A_psi, B_psi
+
+    def regularize_D(self, aD=None, bD=None, AD=None, BD=None, oneshot=True,
+            a_psi=None, b_psi=None, A_psi=None, B_psi=None):
+        _in_D = _regularize_D_or_psi(aD, bD, a_psi, b_psi)
+        if not _in_D:
+            aD, bD = 1./a_psi, b_psi
+            AD, BD = None if A_psi is None else 1./A_psi, B_psi
+        AD, BD = self.regularize('D', aD, bD, AD, BD, oneshot)
+        if _in_D:
+            return AD, BD
+        else:
+            A_psi, B_psi = 1./AD, BD
+            return A_psi, B_psi
+
+    def set_regularizer(self, psi, a_psi):
+        spatial_reg = self.spatial_prior[psi] is not None
+        time_reg = self.time_prior[psi] is not None
+
+        spatial_penalty = []
+        time_penalty = []
         for i in self.index:
             if spatial_reg:
-                psi_spatial_penalty.append( self.spatial_background(i, a_psi) )
+                spatial_penalty.append( self.spatial_background(i, a_psi) )
             if time_reg:
-                psi_time_penalty.append( self.temporal_background(i, a_psi) )
+                time_penalty.append( self.temporal_background(i, a_psi) )
 
         A_psi_additive_term = 0.
         if spatial_reg:
             A_psi_additive_term = A_psi_additive_term + \
-                    2 * self.psi_spatial_prior * np.array(psi_spatial_penalty)
+                    2 * self.spatial_prior[psi] * np.array(spatial_penalty)
         if time_reg:
             A_psi_additive_term = A_psi_additive_term + \
-                    2 * self.psi_time_prior * np.array(psi_time_penalty)
-        self.A_psi_additive_term = A_psi_additive_term
+                    2 * self.time_prior[psi] * np.array(time_penalty)
+        self.A_additive_term[psi] = A_psi_additive_term
 
-    def set_mu_regularizer(self, a_mu):
-        spatial_reg = self.mu_spatial_prior is not None
-        time_reg = self.mu_time_prior is not None
+    def set_norm_regularizer(self, mu, a_mu):
+        spatial_reg = self.spatial_prior[mu] is not None
+        time_reg = self.time_prior[mu] is not None
 
         mu_spatial_penalty = []
         mu_time_penalty = []
@@ -206,60 +252,109 @@ class FrictionDrift(Meanfield):
         if time_reg:
             A_mu_additive_term = A_mu_additive_term + \
                     2 * self.mu_time_prior * np.array(mu_time_penalty)
-        self.A_mu_additive_term = A_mu_additive_term[:,np.newaxis] * u_mu
+        self.A_additive_term[mu] = A_mu_additive_term[:,np.newaxis] * u_mu
 
-    def set_D_regularizer(self, a_psi):
-        spatial_reg = self.D_spatial_prior is not None
-        time_reg = self.D_time_prior is not None
-
-        aD = 1. / a_psi
-
-        D_spatial_penalty = []
-        D_time_penalty = []
-        for i in self.index:
-            if spatial_reg:
-                D_spatial_penalty.append( self.spatial_background(i, aD) )
-            if time_reg:
-                D_time_penalty.append( self.temporal_background(i, aD) )
-
-        AD_additive_term = 0.
-        if spatial_reg:
-            AD_additive_term = AD_additive_term + \
-                    2 * self.D_spatial_prior * np.array(D_spatial_penalty)
-        if time_reg:
-            AD_additive_term = AD_additive_term + \
-                    2 * self.D_time_prior * np.array(D_time_penalty)
-        self.AD_additive_term = AD_additive_term
-
-    def regularize_psi(self, a_psi, b_psi, oneshot=True):
+    def regularize(self, psi, a_psi, b_psi, A_psi=None, B_psi=None, oneshot=True):
         if oneshot:
-            self.set_psi_regularizer(a_psi)
-        A_psi = a_psi * b_psi + self.A_psi_additive_term
-        B_psi = b_psi + self.B_psi_additive_term
+            if A_psi is None:
+                A_psi = a_psi
+            self.set_regularizer(psi, A_psi)
+        A_psi = a_psi * b_psi + self.A_additive_term[psi]
+        if B_psi is None:
+            B_psi = b_psi + self.B_additive_term[psi]
         A_psi /= B_psi
         return A_psi, B_psi
 
-    def regularize_mu(self, a_mu, b_mu, oneshot=True):
+    def regularize_norm(self, mu, a_mu, b_mu, A_mu=None, B_mu=None, oneshot=True, verbose=True):
+        if A_mu is None:
+            A_mu = a_mu
+
+        elif verbose:
+            a_max = np.sqrt(np.max(np.sum(a_mu*a_mu,axis=1)))
+            A_max = np.sqrt(np.max(np.sum(A_mu*A_mu,axis=1)))
+            if 10 < (A_max + 1) / (a_max + 1):
+                print('potential divergence: max ||a||: {}  max ||A||: {}'.format(a_max, A_max))
+                if self._first_warning:
+                    self._first_warning = False
+                    if B_mu is None:
+                        B_mu = b_mu + self.B_additive_term[mu]
+                    print('min b: {}  max b: {}  min B: {}  max B: {}'.format(np.min(b_mu), np.max(b_mu), np.min(B_mu), np.max(B_mu)))
+
         if oneshot:
-            self.set_mu_regularizer(a_mu)
-        a_mu = self.dr
-        A_mu = a_mu * b_mu[:,np.newaxis] + self.A_mu_additive_term
-        B_mu = b_mu + self.B_mu_additive_term
+            self.set_norm_regularizer(mu, A_mu)
+        A_mu = a_mu * b_mu[:,np.newaxis] + self.A_additive_term[mu]
+        if B_mu is None:
+            B_mu = b_mu + self.B_additive_term[mu]
         A_mu /= B_mu[:,np.newaxis]
         return A_mu, B_mu
 
-    def regularize_D(self, a_psi, b_psi, oneshot=True):
-        if oneshot:
-            self.set_D_regularizer(a_psi)
-        AD = b_psi / a_psi + self.AD_additive_term
-        BD = B_psi = b_psi + self.BD_additive_term
-        A_psi = BD / AD
-        return A_psi, B_psi
+    def add_feature(self, v):
+        self.spatial_prior[v] = self.time_prior[v] = None
+
+
+class MeanfieldDrift(Meanfield):
+    def __init__(self, cells, dt=None,
+            diffusivity_spatial_prior=None, diffusivity_time_prior=None,
+            friction_spatial_prior=None, friction_time_prior=None,
+            drift_spatial_prior=None, drift_time_prior=None,
+            _inherit=False):
+        Meanfield.__init__(self, cells, dt,
+                diffusivity_spatial_prior, diffusivity_time_prior,
+                friction_spatial_prior, friction_time_prior,
+                _inherit=True)
+        self.add_feature('mu')
+
+        dt = self.dt
+        self.mu_spatial_prior = drift_spatial_prior * dt \
+                if drift_spatial_prior else None
+        self.mu_time_prior = drift_time_prior * dt \
+                if drift_time_prior else None
+
+        if not _inherit:
+            self.__post_init__()
+
+    @property
+    def mu_spatial_prior(self):
+        return self.spatial_prior['mu']
+
+    @mu_spatial_prior.setter
+    def mu_spatial_prior(self, mu_spatial_prior):
+        self.spatial_prior['mu'] = mu_spatial_prior
+
+    @property
+    def mu_time_prior(self):
+        return self.time_prior['mu']
+
+    @mu_time_prior.setter
+    def mu_time_prior(self, mu_time_prior):
+        self.time_prior['mu'] = mu_time_prior
+
+    @property
+    def regularize_drift(self):
+        return not (self.mu_spatial_prior is None and self.mu_time_prior is None)
+
+    def set_mu_regularizer(self, a_mu):
+        self.set_norm_regularizer('mu', a_mu)
+
+    def regularize_mu(self, a_mu, b_mu, A_mu=None, B_mu=None, oneshot=True):
+        return self.regularize_norm('mu', a_mu, b_mu, A_mu, B_mu, oneshot)
+
+
+class FrictionDrift(MeanfieldDrift):
+    def __init__(self, cells, dt=None,
+            friction_spatial_prior=None, friction_time_prior=None,
+            drift_spatial_prior=None, drift_time_prior=None,
+            _inherit=False):
+        MeanfieldDrift.__init__(self, cells, dt,
+                friction_spatial_prior=friction_spatial_prior,
+                friction_time_prior=friction_time_prior,
+                drift_spatial_prior=drift_spatial_prior,
+                drift_time_prior=drift_time_prior,
+                _inherit=_inherit)
 
 
 def infer_meanfield_friction_drift(cells, friction_spatial_prior=None, drift_spatial_prior=None,
         friction_time_prior=None, drift_time_prior=None,
-        diffusivity_spatial_prior=None, diffusivity_time_prior=None,
         friction_prior=None, drift_prior=None, diffusivity_prior=None,
         dt=None, tol=1e-6, verbose=True, **kwargs):
     """
@@ -271,13 +366,11 @@ def infer_meanfield_friction_drift(cells, friction_spatial_prior=None, drift_spa
         friction_spatial_prior = friction_prior
     if drift_spatial_prior is None:
         drift_spatial_prior = drift_prior
-    if diffusivity_spatial_prior is None:
-        diffusivity_spatial_prior = diffusivity_prior
 
     mf = FrictionDrift(cells, dt,
             friction_spatial_prior, friction_time_prior,
-            drift_spatial_prior, drift_time_prior,
-            diffusivity_spatial_prior, diffusivity_time_prior)
+            drift_spatial_prior, drift_time_prior)
+
     n = mf.n
     dt = mf.dt
     dr = mf.dr
@@ -290,54 +383,63 @@ def infer_meanfield_friction_drift(cells, friction_spatial_prior=None, drift_spa
     b_psi = n / (a_psi * a_psi)
     b_mu = n * a_psi
 
-    neg_L = np.inf
-    k = 0
-    try:
-        while True:
-            neg_L_prev = neg_L
+    # regularize
+    if mf.regularize_friction or mf.regularize_drift:
 
-            if mf.regularize_friction:
-                a_psi, b_psi = mf.regularize_psi(a_psi, b_psi)
-            if mf.regularize_diffusion:
-                a_psi, b_psi = mf.regularize_D(a_psi, b_psi)
-            if mf.regularize_drift:
-                a_mu, b_mu = mf.regularize_mu(a_mu, b_mu)
+        A_psi, A_mu = a_psi, a_mu
+        B_psi = None if mf.regularize_friction else b_psi
+        B_mu = None if mf.regularize_drift else b_mu
+        neg_L = np.inf
+        k = 0
+        try:
+            while True:
+                neg_L_prev = neg_L
 
-                chi2_over_n = dr2 - 2 * np.sum(dr * a_mu, axis=1) + np.sum(a_mu * a_mu, axis=1)
+                if mf.regularize_friction:
+                    A_psi, B_psi = mf.regularize_psi(a_psi, b_psi, A_psi, B_psi)
+                if mf.regularize_drift:
+                    A_mu, B_mu = mf.regularize_mu(a_mu, b_mu, A_mu, B_mu)
+                    chi2_over_n = dr2 - 2 * np.sum(dr * A_mu, axis=1) + np.sum(A_mu * A_mu, axis=1)
 
                 neg_L = np.sum(
                         n * ( \
-                            1./ (2 * a_psi * a_psi * b_psi) - \
-                            np.log(a_psi) + \
-                            a_psi * (chi2_over_n / 2 + 1. / b_mu)
+                            1./ (2 * A_psi * A_psi * B_psi) - \
+                            np.log(A_psi) + \
+                            A_psi * (chi2_over_n / 2 + 1. / B_mu)
                             ) + \
-                        .5 * (np.log(b_psi) + np.log(b_mu))
+                        .5 * (np.log(B_psi) + np.log(B_mu))
                         )
 
                 # stopping criterion
                 if verbose:
-                    print('[{}] approx -logP: {}'.format(k, neg_L))
+                    print('[{}] approx -logP: {}  max A_psi: {}  max ||A_mu||: {}'.format(k, neg_L, np.max(A_psi), np.sqrt(np.max(np.sum(A_mu*A_mu,1)))))
 
-                if abs(neg_L - neg_L_prev) < tol:
+                if np.isinf(neg_L) or np.isnan(neg_L):
+                    resolution = 'DIVERGENCE: L UNDEFINED'
+                    break
+
+                elif abs(neg_L - neg_L_prev) < tol:
                     resolution = 'CONVERGENCE: DELTA -L < TOL'
                     break
 
-                #else: update and iterate
-                a_psi = 2. / chi2_over_n
-                b_psi = n / (a_psi * a_psi)
-                b_mu = n * a_psi
+                if False:
+                    a_psi = 2. / chi2_over_n
+                    b_psi = n / (a_psi * a_psi)
+                    a_mu = A_mu
+                    b_mu = n * a_psi
 
                 k += 1
 
-            else:
-                resolution = 'CONVERGENCE: TRIVIAL'
-                break
+        except KeyboardInterrupt:
+            resolution = 'INTERRUPTED'
+            if verbose:
+                print('interrupted')
+            pass
 
-    except KeyboardInterrupt:
-        resolution = 'INTERRUPTED'
-        if verbose:
-            print('interrupted')
-        pass
+        a_psi, a_mu = A_psi, A_mu
+
+    else:
+        resolution = 'CONVERGENCE: TRIVIAL'
 
     gamma = a_psi * (2 * dt)
     drift = a_mu / dt[:,np.newaxis]
@@ -349,5 +451,5 @@ def infer_meanfield_friction_drift(cells, friction_spatial_prior=None, drift_spa
     return FD
 
 
-__all__ = ['setup', 'infer_meanfield_friction_drift', 'Meanfield', 'FrictionDrift']
+__all__ = ['setup', 'infer_meanfield_friction_drift', 'Meanfield', 'MeanfieldDrift', 'FrictionDrift']
 
