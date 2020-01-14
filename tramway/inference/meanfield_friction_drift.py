@@ -211,48 +211,34 @@ class Meanfield(object):
             return A_psi, B_psi
 
     def set_regularizer(self, psi, a_psi):
-        spatial_reg = self.spatial_prior[psi] is not None
-        time_reg = self.time_prior[psi] is not None
-
-        spatial_penalty = []
-        time_penalty = []
-        for i in self.index:
-            if spatial_reg:
-                spatial_penalty.append( self.spatial_background(i, a_psi) )
-            if time_reg:
-                time_penalty.append( self.temporal_background(i, a_psi) )
-
         A_psi_additive_term = 0.
-        if spatial_reg:
+        if self.spatial_prior[psi] is not None:
             A_psi_additive_term = A_psi_additive_term + \
-                    2 * self.spatial_prior[psi] * np.array(spatial_penalty)
-        if time_reg:
+                    2 * self.spatial_prior[psi] * self.spatial_penalties(a_psi)
+        if self.time_prior[psi] is not None:
             A_psi_additive_term = A_psi_additive_term + \
-                    2 * self.time_prior[psi] * np.array(time_penalty)
+                    2 * self.time_prior[psi] * self.temporal_penalties(a_psi)
         self.A_additive_term[psi] = A_psi_additive_term
 
     def set_norm_regularizer(self, mu, a_mu):
-        spatial_reg = self.spatial_prior[mu] is not None
-        time_reg = self.time_prior[mu] is not None
-
-        mu_spatial_penalty = []
-        mu_time_penalty = []
         a_mu_norm = np.sqrt(np.sum(a_mu * a_mu, axis=1))
         u_mu = a_mu / a_mu_norm[:,np.newaxis]
-        for i in self.index:
-            if spatial_reg:
-                mu_spatial_penalty.append( self.spatial_background(i, a_mu_norm) )
-            if time_reg:
-                mu_time_penalty.append( self.temporal_background(i, a_mu_norm) )
 
         A_mu_additive_term = 0.
-        if spatial_reg:
+        if self.spatial_prior[mu] is not None:
             A_mu_additive_term = A_mu_additive_term + \
-                    2 * self.mu_spatial_prior * np.array(mu_spatial_penalty)
-        if time_reg:
+                    2 * self.mu_spatial_prior * self.spatial_penalties(a_mu_norm)
+        if self.time_prior[mu] is not None:
             A_mu_additive_term = A_mu_additive_term + \
-                    2 * self.mu_time_prior * np.array(mu_time_penalty)
+                    2 * self.mu_time_prior * self.temporal_penalties(a_mu_norm)
+
         self.A_additive_term[mu] = A_mu_additive_term[:,np.newaxis] * u_mu
+
+    def spatial_penalties(self, a):
+        return np.array([ self.spatial_background(i, a) for i in self.index ])
+
+    def temporal_penalties(self, a):
+        return np.array([ self.temporal_background(i, a) for i in self.index ])
 
     def regularize(self, psi, a_psi, b_psi, A_psi=None, B_psi=None, oneshot=True):
         if oneshot:
