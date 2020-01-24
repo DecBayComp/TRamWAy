@@ -7,6 +7,9 @@ import argparse
 from   os.path import abspath
 import gc
 import os
+import matplotlib.pyplot as plt
+from scipy.optimize import linear_sum_assignment
+
 ####################################################################
 ####################################################################
 ####################################################################
@@ -83,10 +86,132 @@ def get_cost_function(number_movie, movie_per_frame):
 	dx = x2[:,np.newaxis] - x1
 	dy = y2[:,np.newaxis] - y1
 
-	C  = dx**2 + dy**2
 
+	C  = dx**2 + dy**2
+	C = C.transpose()
 
 	return C
+
+
+####################################################################
+####################################################################
+####################################################################
+def correct_cost_function(C,length_high):
+
+
+	(M,N)            = C.shape
+	l2               = length_high**2
+#print(np.sqrt(l2))
+	C[C>l2]          = np.inf
+
+
+	non_inf          = ~np.isinf(C)
+	num_col          = np.sum(non_inf,axis=0)
+	num_row          = np.sum(non_inf,axis=1)
+
+	row_reduced      = np.where(num_row != 0);
+	col_reduced      = np.where(num_col != 0);
+	n_row_reduced    = np.size(row_reduced)
+	n_col_reduced    = np.size(col_reduced)
+
+	nn               = np.maximum(n_row_reduced,n_col_reduced)
+	#print((n_row_reduced,n_col_reduced,nn))
+	CC               = np.squeeze(C[row_reduced,:])
+	CC               = np.squeeze(CC[:,col_reduced])
+	#print(CC)
+	nn               = np.maximum(n_row_reduced,n_col_reduced)
+	C_reduced        = np.zeros((nn,nn))
+	C_reduced[0:n_row_reduced,0:n_col_reduced] = CC[:,:]
+	d_max            = np.amax(C_reduced , where=~np.isinf(C_reduced) , initial=-1)
+
+	edge             = np.zeros((nn,nn)) 
+	edge[:,:]        = C_reduced[:,:]
+	non_inf          = ~np.isinf(C_reduced)
+	edge[non_inf]    = 0
+
+	n_add            = correct_deficiencies(edge)
+	nn               = nn + n_add
+
+	C_reduced_corrected  = np.ones((nn,nn))*d_max
+	C_reduced_corrected[0:n_row_reduced,0:n_col_reduced] =  CC[:,:]
+
+	return C_reduced_corrected, C_reduced, edge, d_max
+
+####################################################################
+####################################################################
+####################################################################
+
+####################################################################
+####################################################################
+####################################################################
+def correct_deficiencies(edge):
+
+
+	(K_edge, L_edge) = edge.shape
+	#print((K_edge, L_edge))
+	row              = np.zeros((K_edge,1))
+	col              = np.zeros((K_edge,1))
+	edge_eff         = np.zeros((K_edge,K_edge))
+
+
+
+	for ii in range(K_edge):
+		for jj in range(K_edge):
+			if (edge[ii,jj]==0)&(row[ii]==0)&(col[jj]==0):
+				edge_eff[ii,jj] = 1
+				row[ii]=1
+				col[jj]=1
+				break
+
+
+	row = np.zeros((K_edge,1))
+	indicateur_1 = 1
+
+	while indicateur_1:
+		row_loc = -1
+		col_loc = -1
+		indicateur_2 = 1
+		ii      = 0
+		jj      = 0
+		#print(indicateur_1)
+		while indicateur_2:
+			if (edge[ii,jj]==0)&(row[ii]==0)&(col[jj]==0):
+				row_loc = ii
+				col_loc = jj
+				indicateur_2 = 0
+
+			jj = jj + 1
+			if (jj>=K_edge):
+#				print("here jj\n")
+				jj=0
+				ii=ii+1
+				#print(ii)
+			if (ii>=K_edge):
+#				print("here ii \n")
+				indicateur_2=0
+
+		if row_loc ==-1:
+			#print("here")
+			indicateur_1 = 0
+		else:
+			#print((row_loc,col_loc))
+			edge_eff[row_loc,col_loc] = 2
+			III = edge_eff[row_loc,:] ==1
+			#print(III)
+			if (np.sum(III) !=0):
+				row[row_loc]  = 1
+				col_col2      = edge_eff[row_loc,:]==1
+				col[col_col2] = 0
+			else:
+				#print("here\n")
+				indicateur_1 = 0
+		#print(indicateur_1)
+
+
+
+
+	n_add = K_edge - np.sum(col) - np.sum(row)
+	return int(n_add)
 
 
 ####################################################################
@@ -96,6 +221,7 @@ def give_optimal_assigment(C, length_high):
 	##. cutoff
 	(M,N)            = C.shape
 	l2               = length_high**2
+	#print(np.sqrt(l2))
 	C[C>l2]          = np.inf
 	## where there is a possibility to do a match
 	non_inf          = ~np.isinf(C)
@@ -105,21 +231,58 @@ def give_optimal_assigment(C, length_high):
 	row_reduced      = np.where(num_row != 0);
 	col_reduced      = np.where(num_col != 0);
 	CC               = np.squeeze(C[row_reduced,:])
+
+	row_reduced      = np.squeeze(np.array(row_reduced))
+	#print(row_reduced.shape)
 	## reduced matrix with non-inf value
 	CC[np.isinf(CC)] = np.amax(CC , where=~np.isinf(CC) , initial=-1)
+
 	## optimal assingment
 	row_ind, col_ind = linear_sum_assignment(CC)
-
+	#print(row_ind.shape)
+	index            = row_reduced[row_ind]
 	assingment       = np.zeros((M,N))
-	assingment[row_reduced,col_ind]     = 1
+	assingment[index,col_ind]     = 1
 
-	return C
+	return assingment, index, col_ind
+####################################################################
+####################################################################
+####################################################################
+def give_optimal_assigment_with_frobidden_link(C, length_high):
+
+
+	return 1
 
 ####################################################################
 ####################################################################
 ####################################################################
+def plot_linking_two_images(movie_per_frame, indice, row_ind, col_ind):
+	## red first frame
+	## blue second frame
+
+	xyt1 = movie_per_frame[indice]
+	xyt2 = movie_per_frame[indice+1]
+
+	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
+	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
+
+	dx      = np.squeeze( xyt2[col_ind,0] -xyt1[row_ind,0] )
+	dy      = np.squeeze( xyt2[col_ind,1] -xyt1[row_ind,1] )
+	x_start = np.squeeze(xyt1[row_ind,0])
+	y_start = np.squeeze(xyt1[row_ind,1])
+
+
+	for idx in range( len(dx) ):
+		plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
 
 
 
+	plt.show()
 
+
+	return 1
+
+####################################################################
+####################################################################
+####################################################################
 
