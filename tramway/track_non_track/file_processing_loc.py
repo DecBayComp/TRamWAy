@@ -66,7 +66,7 @@ def get_dt(movie_per_frame, n_unique):
 def get_local_parameters_accessible_elsewhere_in_tramway(dt_theo):
 
 	sigma        = 0.025
-	D_high       = 0.5
+	D_high       = 0.4
 	length_high  = 2.*np.sqrt(2*D_high*dt_theo)
 
 
@@ -101,7 +101,7 @@ def correct_cost_function(C,length_high):
 
 	(M,N)            = C.shape
 	l2               = length_high**2
-#print(np.sqrt(l2))
+ #print(np.sqrt(l2))
 	C[C>l2]          = np.inf
 
 
@@ -118,28 +118,82 @@ def correct_cost_function(C,length_high):
 	#print((n_row_reduced,n_col_reduced,nn))
 	CC               = np.squeeze(C[row_reduced,:])
 	CC               = np.squeeze(CC[:,col_reduced])
-	#print(CC)
+	#square the matrix
 	nn               = np.maximum(n_row_reduced,n_col_reduced)
 	C_reduced        = np.zeros((nn,nn))
 	C_reduced[0:n_row_reduced,0:n_col_reduced] = CC[:,:]
 	d_max            = np.amax(C_reduced , where=~np.isinf(C_reduced) , initial=-1)
 
+	# adjust the isze of the matrix to ensure reasonnable assugments
 	edge             = np.zeros((nn,nn)) 
 	edge[:,:]        = C_reduced[:,:]
 	non_inf          = ~np.isinf(C_reduced)
 	edge[non_inf]    = 0
-
 	n_add            = correct_deficiencies(edge)
 	nn               = nn + n_add
+	## corrected matric cost function 
 
 	C_reduced_corrected  = np.ones((nn,nn))*d_max
 	C_reduced_corrected[0:n_row_reduced,0:n_col_reduced] =  CC[:,:]
+	##elements usefull for final assigment 
+
+	row_reduced      = np.squeeze(np.array(row_reduced))
+	col_reduced      = np.squeeze(np.array(col_reduced))
+
+	inf_loc          = np.isinf(C_reduced_corrected)
+	C_reduced_corrected[inf_loc] = d_max*1e10
 
 	return C_reduced_corrected, C_reduced, edge, d_max, row_reduced, col_reduced,M,N, n_row_reduced, n_col_reduced
 
 ####################################################################
 ####################################################################
 ####################################################################
+def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_reduced,M,N,n_col_reduced):
+
+	row_ind, col_ind = linear_sum_assignment(C_reduced_corrected)
+	global_row       = []
+	global_col       = []
+
+	assingment       = np.zeros((M,N))
+	for i in range(len(row_reduced)):
+		if col_ind[i] < n_col_reduced:
+			coll    = col_reduced[col_ind[i]]
+			index   = row_reduced[i]
+				
+			global_row.append(index)
+			global_col.append(coll)
+			assingment[index,col_ind]  = 1 
+    
+ 
+
+
+
+	return assingment, global_row, global_col
+
+####################################################################
+####################################################################
+####################################################################
+def get_all_assigment_stack(path_xyt):
+
+	## load files and provide para
+	xyt, xyt_pandas            = load_xyt(path_xyt)
+	movie_per_frame, n_unique  = convert_to_list(xyt)
+	dt_theo, t_init, t_end     = get_dt(movie_per_frame, n_unique)
+	sigma, D_high, length_high = get_local_parameters_accessible_elsewhere_in_tramway(dt_theo)
+
+	liste_assingment  = []
+	liste_row         = []
+	liste_col         = []
+	for indice in range(n_unique):
+		print(indice)
+		C        = get_cost_function(indice, movie_per_frame)
+		C_eff, _, _, _, row_eff, col_eff,M,N, _, n_col_eff = correct_cost_function(C,length_high)
+		assingment, global_row, global_col = get_assigment_matrix_from_reduced_cost(C_eff,row_eff,col_eff,M,N,n_col_eff)
+		liste_assingment.append(assingment)
+		liste_row.append(global_row)
+		liste_col.append(global_col)
+
+	return liste_assingment, liste_row, liste_col
 
 ####################################################################
 ####################################################################
@@ -217,41 +271,39 @@ def correct_deficiencies(edge):
 ####################################################################
 ####################################################################
 ####################################################################
-def give_optimal_assigment(C, length_high):
+#def give_optimal_assigment(C, length_high):
 	##. cutoff
-	(M,N)            = C.shape
-	l2               = length_high**2
+#	(M,N)            = C.shape
+#	l2               = length_high**2
 	#print(np.sqrt(l2))
-	C[C>l2]          = np.inf
+#	C[C>l2]          = np.inf
 	## where there is a possibility to do a match
-	non_inf          = ~np.isinf(C)
-	num_col          = np.sum(non_inf,axis=0)
-	num_row          = np.sum(non_inf,axis=1)
+#	non_inf          = ~np.isinf(C)
+#	num_col          = np.sum(non_inf,axis=0)
+#	num_row          = np.sum(non_inf,axis=1)
 
-	row_reduced      = np.where(num_row != 0);
-	col_reduced      = np.where(num_col != 0);
-	CC               = np.squeeze(C[row_reduced,:])
+#	row_reduced      = np.where(num_row != 0);
+#	col_reduced      = np.where(num_col != 0);
+#	CC               = np.squeeze(C[row_reduced,:])
 
-	row_reduced      = np.squeeze(np.array(row_reduced))
+#	row_reduced      = np.squeeze(np.array(row_reduced))
 	#print(row_reduced.shape)
 	## reduced matrix with non-inf value
-	CC[np.isinf(CC)] = np.amax(CC , where=~np.isinf(CC) , initial=-1)
+#	CC[np.isinf(CC)] = np.amax(CC , where=~np.isinf(CC) , initial=-1)
 
 	## optimal assingment
-	row_ind, col_ind = linear_sum_assignment(CC)
+#	row_ind, col_ind = linear_sum_assignment(CC)
 	#print(row_ind.shape)
-	index            = row_reduced[row_ind]
-	assingment       = np.zeros((M,N))
-	assingment[index,col_ind]     = 1
+#	index            = row_reduced[row_ind]
+#	assingment       = np.zeros((M,N))
+#	assingment[index,col_ind]     = 1
 
-	return assingment, index, col_ind
+#	return assingment, index, col_ind
 ####################################################################
 ####################################################################
 ####################################################################
-def give_optimal_assigment_with_frobidden_link(C, length_high):
 
 
-	return 1
 
 ####################################################################
 ####################################################################
