@@ -135,7 +135,7 @@ def correct_cost_function(C,length_high):
 	C_reduced_corrected  = np.ones((nn,nn))*d_max
 	C_reduced_corrected[0:n_row_reduced,0:n_col_reduced] =  CC[:,:]
 
-	return C_reduced_corrected, C_reduced, edge, d_max
+	return C_reduced_corrected, C_reduced, edge, d_max, row_reduced, col_reduced,M,N, n_row_reduced, n_col_reduced
 
 ####################################################################
 ####################################################################
