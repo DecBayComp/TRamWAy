@@ -66,7 +66,7 @@ def get_dt(movie_per_frame, n_unique):
 def get_local_parameters_accessible_elsewhere_in_tramway(dt_theo):
 
 	sigma        = 0.025
-	D_high       = 0.4
+	D_high       = 0.3
 	length_high  = 2.*np.sqrt(2*D_high*dt_theo)
 
 
@@ -117,8 +117,8 @@ def correct_cost_function(C,length_high):
 	#print((n_row_reduced,n_col_reduced,nn))
 	#print(row_reduced)
 	#print(col_reduced)
-	CC               = np.squeeze(C[row_reduced,:])
-	if n_row_reduced>1:
+	if (n_row_reduced>1)&(n_col_reduced > 1):  
+		CC               = np.squeeze(C[row_reduced,:])
 		CC               = np.squeeze(CC[:,col_reduced])
 		#square the matrix
 		nn               = np.maximum(n_row_reduced,n_col_reduced)
@@ -144,35 +144,51 @@ def correct_cost_function(C,length_high):
 
 		inf_loc          = np.isinf(C_reduced_corrected)
 		C_reduced_corrected[inf_loc] = d_max*1e10
-		elif n_row_reduced ==
+		anomaly          = 0
+	elif (n_row_reduced==0)&(n_col_reduced==0):
+		C_reduced_corrected = np.zeros(1)
+		C_reduced           = np.zeros(1)
+		edge                = np.zeros(1)
+		d_max               = np.inf
+		row_reduced         = np.zeros(1)
+		col_reduced         = np.zeros(1)
+		n_row_reduced       = 0
+		n_col_reduced       = 0
+		anomaly             = 2
+		elif 
 
-	return C_reduced_corrected, C_reduced, edge, d_max, row_reduced, col_reduced,M,N, n_row_reduced, n_col_reduced
+	return C_reduced_corrected, C_reduced, edge, d_max, row_reduced, col_reduced,M,N, n_row_reduced, n_col_reduced, anomaly
 
 ####################################################################
 ####################################################################
 ####################################################################
-def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_reduced,M,N,n_col_reduced):
+def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_reduced,M,N,n_col_reduced, anomaly):
 
-	row_ind, col_ind = linear_sum_assignment(C_reduced_corrected)
-	global_row       = []
-	global_col       = []
+	if anomaly == 0:
 
-	#print("M and N : %d, %d" % (M,N))
-	assingment       = np.zeros((M,N))
-	#print("shape of the assigment %d, %d" % assingment.shape)
+		row_ind, col_ind = linear_sum_assignment(C_reduced_corrected)
+		global_row       = []
+		global_col       = []
 
-	for i in range(len(row_reduced)):
-		if col_ind[i] < n_col_reduced:
-			coll    = col_reduced[col_ind[i]]
-			index   = row_reduced[i]
-				
-			global_row.append(index)
-			global_col.append(coll)
-			assingment[index,coll]  = 1 
-    
- 
-	global_row = np.array(global_row)
-	global_col = np.array(global_col)
+		#print("M and N : %d, %d" % (M,N))
+		assingment       = np.zeros((M,N))
+		#print("shape of the assigment %d, %d" % assingment.shape)
+
+		for i in range(len(row_reduced)):
+			if col_ind[i] < n_col_reduced:
+				coll    = col_reduced[col_ind[i]]
+				index   = row_reduced[i]
+					
+				global_row.append(index)
+				global_col.append(coll)
+				assingment[index,coll]  = 1 
+		global_row = np.array(global_row)
+		global_col = np.array(global_col)
+
+	elif anomaly == 2:
+		assingment       = np.zeros((M,N))
+		global_row       = np.array([])
+		global_col       = np.array([])
 
 
 
@@ -199,6 +215,7 @@ def get_all_assigment_stack(path_xyt):
 		
 		try:
 			C        = get_cost_function(indice, movie_per_frame)
+
 			C_eff, _, _, _, row_eff, col_eff,M,N, _, n_col_eff = correct_cost_function(C,length_high)
 			assingment, global_row, global_col = get_assigment_matrix_from_reduced_cost(C_eff,row_eff,col_eff,M,N,n_col_eff)
 			liste_assingment.append(assingment)
@@ -250,12 +267,12 @@ def correct_deficiencies(edge):
 
 			jj = jj + 1
 			if (jj>=K_edge):
-#				print("here jj\n")
+ #				print("here jj\n")
 				jj=0
 				ii=ii+1
 				#print(ii)
 			if (ii>=K_edge):
-#				print("here ii \n")
+ #				print("here ii \n")
 				indicateur_2=0
 
 		if row_loc ==-1:
@@ -342,7 +359,7 @@ def plot_linking_two_images(movie_per_frame, indice, row_ind, col_ind):
 		plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
 
 
-
+	plt.axis('scaled')
 	plt.show()
 
 
