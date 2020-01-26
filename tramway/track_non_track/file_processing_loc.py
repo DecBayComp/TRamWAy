@@ -146,6 +146,7 @@ def correct_cost_function(C,length_high):
 		C_reduced_corrected[inf_loc] = d_max*1e10
 		anomaly          = 0
 	elif (n_row_reduced==0)&(n_col_reduced==0):
+
 		C_reduced_corrected = np.zeros(1)
 		C_reduced           = np.zeros(1)
 		edge                = np.zeros(1)
@@ -155,7 +156,37 @@ def correct_cost_function(C,length_high):
 		n_row_reduced       = 0
 		n_col_reduced       = 0
 		anomaly             = 2
-		elif 
+
+	elif (n_row_reduced==1):
+		
+		CC               = np.squeeze(C[row_reduced,:])
+		CC               = np.squeeze(CC[:,col_reduced])
+		#square the matrix
+		nn               = np.maximum(n_row_reduced,n_col_reduced)
+		C_reduced        = np.zeros((nn,nn))
+		C_reduced[0:n_row_reduced,0:n_col_reduced] = CC[:,:]
+		d_max            = np.amax(C_reduced , where=~np.isinf(C_reduced) , initial=-1)
+
+		# adjust the isze of the matrix to ensure reasonnable assugments
+		edge             = np.zeros((nn,nn)) 
+		edge[:,:]        = C_reduced[:,:]
+		non_inf          = ~np.isinf(C_reduced)
+		edge[non_inf]    = 0
+		n_add            = correct_deficiencies(edge)
+		nn               = nn + n_add
+		## corrected matric cost function 
+
+		C_reduced_corrected  = np.ones((nn,nn))*d_max
+		C_reduced_corrected[0:n_row_reduced,0:n_col_reduced] =  CC[:,:]
+		##elements usefull for final assigment 
+
+		row_reduced      = np.squeeze(np.array(row_reduced))
+		col_reduced      = np.squeeze(np.array(col_reduced))
+
+		inf_loc          = np.isinf(C_reduced_corrected)
+		C_reduced_corrected[inf_loc] = d_max*1e10
+		anomaly          = 0
+
 
 	return C_reduced_corrected, C_reduced, edge, d_max, row_reduced, col_reduced,M,N, n_row_reduced, n_col_reduced, anomaly
 
