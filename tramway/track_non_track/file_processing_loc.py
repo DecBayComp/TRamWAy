@@ -460,16 +460,21 @@ def plot_linking_two_images(movie_per_frame, indice, row_ind, col_ind):
 
 	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
 	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
-	
+
 
 	dx      = np.squeeze( xyt2[col_ind,0] -xyt1[row_ind,0] )
 	dy      = np.squeeze( xyt2[col_ind,1] -xyt1[row_ind,1] )
 	x_start = np.squeeze(xyt1[row_ind,0])
 	y_start = np.squeeze(xyt1[row_ind,1])
+	print(x_start, y_start, dx, dy)
+
+	try:
+		for idx in range( len(dx) ):
+			plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
+	except TypeError:
+			plt.arrow(x_start,y_start, dx ,dy , fc='k', ec='k',head_width=0.5 )
 
 
-	for idx in range( len(dx) ):
-		plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
 
 
 	plt.axis('scaled')
