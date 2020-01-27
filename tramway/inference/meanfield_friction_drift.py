@@ -101,6 +101,10 @@ class Meanfield(object):
             self.__post_init__()
 
     @property
+    def dtype(self):
+        return self.dt.dtype
+
+    @property
     def psi_spatial_prior(self):
         return self.spatial_prior['psi']
 
@@ -123,7 +127,7 @@ class Meanfield(object):
 
             spatial_constants = []
             time_constants = []
-            ones = np.ones(self.n.size, dtype=self.dt.dtype)
+            ones = np.ones(self.n.size, dtype=self.dtype)
             for i in self.index:
                 if any_spatial_prior:
                     spatial_constants.append( self.spatial_background(i, ones) )
@@ -153,6 +157,24 @@ class Meanfield(object):
             if not np.isnan(dx):
                 dxs.append(dx)
         return np.mean(dxs) if dxs else 0.
+
+    def regularized_cost(self, v, x, a, b):
+        ax = x - a
+        ax[np.isnan(ax)] = 0
+        b = np.array(b) # copy
+        b[b==0] = np.inf
+        cost = np.sum(ax * ax / (2 * b)) + self.neg_prior(v, a, x)
+        return cost
+
+    def neg_prior(self, v, a, x):
+        cost = 0.
+        if self.spatial_prior.get(v, None) is not None:
+            cost += np.dot(self.spatial_prior[v],
+                    x * (self.spatial_neighbour_count * x - 2 * self.spatial_penalties(a)) + self.spatial_penalties(a * a))
+        if self.time_prior.get(v, None) is not None:
+            cost += np.dot(self.time_prior[v],
+                    x * (self.time_neighbour_count * x - 2 * self.temporal_penalties(a)) + self.temporal_penalties(a * a))
+        return cost
 
     def set_B_constants(self, spatial_constants, time_constants):
         self.A_additive_term, self.B_additive_term = {}, {}
@@ -239,6 +261,14 @@ class Meanfield(object):
 
     def temporal_penalties(self, a):
         return np.array([ self.temporal_background(i, a) for i in self.index ])
+
+    @property
+    def spatial_neighbour_count(self):
+        return np.array([ len(self.cells.neighbours(i)) for i in self.index ])
+
+    @property
+    def time_neighbour_count(self):
+        return np.array([ len(self.cells.time_neighbours(i)) for i in self.index ])
 
     def regularize(self, psi, a_psi, b_psi, A_psi=None, B_psi=None, oneshot=True):
         if oneshot:
