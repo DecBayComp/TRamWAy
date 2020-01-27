@@ -308,35 +308,13 @@ def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_r
 ####################################################################
 ####################################################################
 ####################################################################
-def get_all_assigment_stack(path_xyt):
 
-	## load files and provide para
-	xyt, xyt_pandas            = load_xyt(path_xyt)
-	movie_per_frame, n_unique  = convert_to_list(xyt)
-	dt_theo, t_init, t_end     = get_dt(movie_per_frame, n_unique)
-	sigma, D_high, length_high = get_local_parameters_accessible_elsewhere_in_tramway(dt_theo)
 
-	liste_assingment  = []
-	liste_row         = []
-	liste_col         = []
+####################################################################
+####################################################################
+####################################################################
 
-	for indice in range(n_unique-1):
-		#if (indice>18000):
-		#	print((indice,n_unique))
-		if (indice%1000)==0:
-			print((indice,n_unique))
 
-		#try:
-		C        = get_cost_function(indice, movie_per_frame)
-		C_eff, _, _, _, row_eff, col_eff,M,N, n_row_eff, n_col_eff,anomaly = correct_cost_function(C,length_high)
-		assingment, global_row, global_col = get_assigment_matrix_from_reduced_cost(C_eff,row_eff,col_eff,M,N,n_col_eff,n_row_eff,anomaly)
-		liste_assingment.append(assingment)
-		liste_row.append(global_row)
-		liste_col.append(global_col)
-		#except IndexError:
-		#	print(indice)
-
-	return liste_assingment, liste_row, liste_col
 
 ####################################################################
 ####################################################################
@@ -461,12 +439,11 @@ def plot_linking_two_images(movie_per_frame, indice, row_ind, col_ind):
 	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
 	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
 
-
 	dx      = np.squeeze( xyt2[col_ind,0] -xyt1[row_ind,0] )
 	dy      = np.squeeze( xyt2[col_ind,1] -xyt1[row_ind,1] )
 	x_start = np.squeeze(xyt1[row_ind,0])
 	y_start = np.squeeze(xyt1[row_ind,1])
-	print(x_start, y_start, dx, dy)
+	#print(x_start, y_start, dx, dy)
 
 	try:
 		for idx in range( len(dx) ):
