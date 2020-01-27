@@ -114,9 +114,7 @@ def correct_cost_function(C,length_high):
 	n_col_reduced    = np.size(col_reduced)
 
 	nn               = np.maximum(n_row_reduced,n_col_reduced)
-	#print((n_row_reduced,n_col_reduced,nn))
-	#print(row_reduced)
-	#print(col_reduced)
+
 	if (n_row_reduced>1)&(n_col_reduced > 1):  
 		CC               = np.squeeze(C[row_reduced,:])
 		CC               = np.squeeze(CC[:,col_reduced])
@@ -145,6 +143,7 @@ def correct_cost_function(C,length_high):
 		inf_loc          = np.isinf(C_reduced_corrected)
 		C_reduced_corrected[inf_loc] = d_max*1e10
 		anomaly          = 0
+
 	elif (n_row_reduced==0)&(n_col_reduced==0):
 
 		C_reduced_corrected = np.zeros(1)
@@ -158,34 +157,65 @@ def correct_cost_function(C,length_high):
 		anomaly             = 2
 
 	elif (n_row_reduced==1):
+		print("here row")
+		#print()
+		CC               = np.squeeze(C[row_reduced,:])
+		CC               = np.squeeze(CC[col_reduced])
+		#square the matrix
+		nn               = np.maximum(n_row_reduced,n_col_reduced)
+		C_reduced        = np.zeros((nn,nn))
+		if nn == 1:
+			C_reduced[0,0] = CC
+		else:
+			C_reduced[0:n_row_reduced,0:n_col_reduced] = CC[:,:]		
+		d_max            = np.amax(C_reduced , where=~np.isinf(C_reduced) , initial=-1)
+
+		# adjust the isze of the matrix to ensure reasonnable assugments
+		edge = []
+		## corrected matric cost function 
+		if nn==1:
+			C_reduced_corrected = d_max
+		else:
+			C_reduced_corrected  = C_reduced
 		
+		##elements usefull for final assigment 
+		row_reduced      = np.squeeze(np.array(row_reduced))
+		col_reduced      = np.squeeze(np.array(col_reduced))
+		if nn>1:
+			inf_loc          = np.isinf(C_reduced_corrected)
+			C_reduced_corrected[inf_loc] = d_max*1e10
+		anomaly          = 1
+
+	elif (n_col_reduced==1):
+		print("here col")
+
 		CC               = np.squeeze(C[row_reduced,:])
 		CC               = np.squeeze(CC[:,col_reduced])
 		#square the matrix
 		nn               = np.maximum(n_row_reduced,n_col_reduced)
-		C_reduced        = np.zeros((nn,nn))
-		C_reduced[0:n_row_reduced,0:n_col_reduced] = CC[:,:]
+		C_reduced        = np.zeros((n_row_reduced,n_col_reduced))
+		#C_reduced        = np.full((nn, nn), np.inf)
+		C_reduced[0:n_row_reduced,0] = CC[:]
 		d_max            = np.amax(C_reduced , where=~np.isinf(C_reduced) , initial=-1)
 
 		# adjust the isze of the matrix to ensure reasonnable assugments
-		edge             = np.zeros((nn,nn)) 
-		edge[:,:]        = C_reduced[:,:]
-		non_inf          = ~np.isinf(C_reduced)
-		edge[non_inf]    = 0
-		n_add            = correct_deficiencies(edge)
-		nn               = nn + n_add
+		edge = []
 		## corrected matric cost function 
+		if nn==1:
+			C_reduced_corrected = d_max
+		else:
+			C_reduced_corrected  = C_reduced
 
-		C_reduced_corrected  = np.ones((nn,nn))*d_max
-		C_reduced_corrected[0:n_row_reduced,0:n_col_reduced] =  CC[:,:]
 		##elements usefull for final assigment 
 
 		row_reduced      = np.squeeze(np.array(row_reduced))
 		col_reduced      = np.squeeze(np.array(col_reduced))
 
-		inf_loc          = np.isinf(C_reduced_corrected)
-		C_reduced_corrected[inf_loc] = d_max*1e10
-		anomaly          = 0
+		if nn>1:
+			inf_loc          = np.isinf(C_reduced_corrected)
+			C_reduced_corrected[inf_loc] = d_max*1e10
+		anomaly          = 1
+
 
 
 	return C_reduced_corrected, C_reduced, edge, d_max, row_reduced, col_reduced,M,N, n_row_reduced, n_col_reduced, anomaly
@@ -193,17 +223,14 @@ def correct_cost_function(C,length_high):
 ####################################################################
 ####################################################################
 ####################################################################
-def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_reduced,M,N,n_col_reduced, anomaly):
-
-	if anomaly == 0:
+def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_reduced,M,N,n_col_reduced, n_row_reduced,anomaly):
+	## most cases
+	if (anomaly == 0):
 
 		row_ind, col_ind = linear_sum_assignment(C_reduced_corrected)
 		global_row       = []
 		global_col       = []
-
-		#print("M and N : %d, %d" % (M,N))
 		assingment       = np.zeros((M,N))
-		#print("shape of the assigment %d, %d" % assingment.shape)
 
 		for i in range(len(row_reduced)):
 			if col_ind[i] < n_col_reduced:
@@ -216,6 +243,59 @@ def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_r
 		global_row = np.array(global_row)
 		global_col = np.array(global_col)
 
+	# cases where only one column or one row survived
+	elif (anomaly ==1):
+
+		if (n_col_reduced==1)&(n_row_reduced==1):
+
+			row_ind     = 0
+			col_ind     = 0
+			global_col  = col_reduced
+			global_row  = row_reduced
+			assingment  = np.zeros((M,N))
+			assingment[global_row,global_col] = 1
+
+		elif (n_col_reduced==1):
+			row_ind, col_ind = linear_sum_assignment(C_reduced_corrected)
+
+			#row_ind     = 0
+			#col_ind     = 0
+			global_col  = col_reduced
+			global_row  = row_reduced[row_ind]
+			assingment  = np.zeros((M,N))
+			assingment[global_row,global_col] = 1
+
+		elif(n_row_reduced==1):
+			row_ind, col_ind = linear_sum_assignment(C_reduced_corrected)
+
+			#row_ind     = 0
+			#col_ind     = 0
+			global_col  = col_reduced[col_ind]
+			global_row  = row_reduced
+			assingment  = np.zeros((M,N))
+			assingment[global_row,global_col] = 1
+
+		else:
+		
+			row_ind, col_ind = linear_sum_assignment(C_reduced_corrected)
+			global_row       = []
+			global_col       = []
+			assingment       = np.zeros((M,N))
+
+			for i in range(len(row_reduced)):
+				if col_ind[i] < n_col_reduced:
+					coll    = col_reduced[col_ind[i]]
+					index   = row_reduced[i]
+					
+					global_row.append(index)
+					global_col.append(coll)
+					assingment[index,coll]  = 1 
+			global_row = np.array(global_row)
+			global_col = np.array(global_col)
+
+
+
+	# no link can be made evrything is impossible : zero assigment
 	elif anomaly == 2:
 		assingment       = np.zeros((M,N))
 		global_row       = np.array([])
@@ -240,20 +320,21 @@ def get_all_assigment_stack(path_xyt):
 	liste_row         = []
 	liste_col         = []
 
-	for indice in range(n_unique):
-		if (indice%100)==0:
+	for indice in range(n_unique-1):
+		#if (indice>18000):
+		#	print((indice,n_unique))
+		if (indice%1000)==0:
 			print((indice,n_unique))
-		
-		try:
-			C        = get_cost_function(indice, movie_per_frame)
 
-			C_eff, _, _, _, row_eff, col_eff,M,N, _, n_col_eff = correct_cost_function(C,length_high)
-			assingment, global_row, global_col = get_assigment_matrix_from_reduced_cost(C_eff,row_eff,col_eff,M,N,n_col_eff)
-			liste_assingment.append(assingment)
-			liste_row.append(global_row)
-			liste_col.append(global_col)
-		except IndexError:
-			print(indice)
+		#try:
+		C        = get_cost_function(indice, movie_per_frame)
+		C_eff, _, _, _, row_eff, col_eff,M,N, n_row_eff, n_col_eff,anomaly = correct_cost_function(C,length_high)
+		assingment, global_row, global_col = get_assigment_matrix_from_reduced_cost(C_eff,row_eff,col_eff,M,N,n_col_eff,n_row_eff,anomaly)
+		liste_assingment.append(assingment)
+		liste_row.append(global_row)
+		liste_col.append(global_col)
+		#except IndexError:
+		#	print(indice)
 
 	return liste_assingment, liste_row, liste_col
 
@@ -379,6 +460,7 @@ def plot_linking_two_images(movie_per_frame, indice, row_ind, col_ind):
 
 	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
 	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
+	
 
 	dx      = np.squeeze( xyt2[col_ind,0] -xyt1[row_ind,0] )
 	dy      = np.squeeze( xyt2[col_ind,1] -xyt1[row_ind,1] )
