@@ -15,7 +15,10 @@ from file_processing_loc.py import *
 ####################################################################
 ####################################################################
 ####################################################################
-def traj_from_assigment()
+def traj_from_assigment(liste_assingment,Min_length_traj=2, number_init):
+
+
+	return 1
 
 ####################################################################
 ####################################################################
@@ -59,6 +62,15 @@ def get_all_assigment_stack(path_xyt):
 ####################################################################
 ####################################################################
 ####################################################################
+if __name__ == "__main__":
+
+	warnings.filterwarnings('ignore')
+
+    # parse the input arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--server-name', type=str, help="server name", required=True)
+    args = parser.parse_args()
+
 
 
 
