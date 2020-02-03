@@ -24,16 +24,17 @@ setup = {'name': ('meanfield.fd', 'meanfield friction,drift'),
         'provides': ('fd', 'friction,drift'),
         'arguments': OrderedDict((
             #('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
-            ('friction_prior',   dict(type=float, help='prior on the friction')),
+            ('friction_prior',  dict(type=float, help='prior on the friction')),
             ('drift_prior',         dict(type=float, help='prior on the amplitude of the drift')),
-            ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
-            ('friction_time_prior',  dict(type=float, help='prior on the temporal variations of the fluctuation friction')),
-            ('drift_time_prior',        dict(type=float, help='prior on the temporal variations of drift amplitude')),
-            ('diffusivity_time_prior',   ('--time-d', dict(type=float, help='prior on the temporal variations of the diffusivity'))),
+            ('friction_time_prior', dict(type=float, help='prior on the temporal variations of the friction')),
+            ('drift_time_prior',    dict(type=float, help='prior on the temporal variations of drift amplitude')),
             ('verbose',         ()))),
         'default_rgrad':    'delta0'}
 #setup_with_grad_arguments(setup)
 
+
+def dot(a, b):
+    return np.nansum(a * b)
 
 def _regularize_D_or_psi(aD, bD, a_psi, b_psi):
     _exc = ValueError('either specify aD and bD, or a_psi and b_psi')
@@ -82,6 +83,7 @@ class Meanfield(object):
         self.index = index
         self.reverse_index = reverse_index
 
+        self.unit_spatial_background = self.unit_temporal_background = None
         self.spatial_prior, self.time_prior = {}, {}
         self.add_feature('D')
         self.add_feature('psi')
@@ -163,17 +165,23 @@ class Meanfield(object):
         ax[np.isnan(ax)] = 0
         b = np.array(b) # copy
         b[b==0] = np.inf
-        cost = np.sum(ax * ax / (2 * b)) + self.neg_prior(v, a, x)
+        cost = np.sum(ax * ax / (2 * b)) + self.neg_log_prior(v, a, x)
         return cost
 
-    def neg_prior(self, v, a, x):
+    def neg_log_prior(self, v, a, x=None):
+        if x is None:
+            x = a
         cost = 0.
         if self.spatial_prior.get(v, None) is not None:
-            cost += np.dot(self.spatial_prior[v],
-                    x * (self.spatial_neighbour_count * x - 2 * self.spatial_penalties(a)) + self.spatial_penalties(a * a))
+            if self.unit_spatial_background is None:
+                self.unit_spatial_background = self.spatial_penalties(np.ones_like(a))
+            cost += dot(self.spatial_prior[v],
+                    x * (self.unit_spatial_background * x - 2 * self.spatial_penalties(a)) + self.spatial_penalties(a * a))
         if self.time_prior.get(v, None) is not None:
-            cost += np.dot(self.time_prior[v],
-                    x * (self.time_neighbour_count * x - 2 * self.temporal_penalties(a)) + self.temporal_penalties(a * a))
+            if self.unit_temporal_background is None:
+                self.unit_temporal_background = self.temporal_penalties(np.ones_like(a))
+            cost += dot(self.time_prior[v],
+                    x * (self.unit_temporal_background * x - 2 * self.temporal_penalties(a)) + self.temporal_penalties(a * a))
         return cost
 
     def set_B_constants(self, spatial_constants, time_constants):
@@ -467,5 +475,5 @@ def infer_meanfield_friction_drift(cells, friction_spatial_prior=None, drift_spa
     return FD
 
 
-__all__ = ['setup', 'infer_meanfield_friction_drift', 'Meanfield', 'MeanfieldDrift', 'FrictionDrift']
+__all__ = ['setup', 'infer_meanfield_friction_drift', 'Meanfield', 'MeanfieldDrift', 'FrictionDrift', 'dot']
 

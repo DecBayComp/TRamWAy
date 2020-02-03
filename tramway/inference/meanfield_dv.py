@@ -14,7 +14,7 @@
 
 from .base import *
 from .gradient import get_grad_kwargs, setup_with_grad_arguments
-from .meanfield_friction_drift import Meanfield
+from .meanfield_friction_drift import Meanfield, dot
 from math import *
 import numpy as np
 import pandas as pd
@@ -35,6 +35,11 @@ setup = {'name': ('meanfield.dv', 'meanfield diffusivity,potential'),
         'default_rgrad':    'delta0'}
 setup_with_grad_arguments(setup)
 
+
+def _nan(x):
+    """modifies in-place and returns `x` itself."""
+    x[np.isnan(x)] = 0.
+    return x
 
 class MeanfieldPotential(Meanfield):
     def __init__(self, cells, dt=None,
@@ -65,7 +70,7 @@ class MeanfieldPotential(Meanfield):
         dtype = self.dtype
         index, reverse_index = self.index, self.reverse_index
 
-        grad_kwargs['na'] = 0.#np.nan
+        grad_kwargs['na'] = np.nan
         def local_grad(i, x, s):
             grad_kwargs['side'] = s
             return cells.grad(i, x, reverse_index, **grad_kwargs)
@@ -79,7 +84,7 @@ class MeanfieldPotential(Meanfield):
                 _x[k] = 0
                 _dx.append(local_grad(index[k], _x, s))
                 _x[k] = x[k]
-            return _dx
+            return np.vstack(_dx)
 
         self.grad, self.diff_grad = grad, diff_grad
 
@@ -92,11 +97,12 @@ class MeanfieldPotential(Meanfield):
             # spatial gradients
             _one[k] = 1
             for s in sides:
-                _B = -local_grad(i, _one, s)
-                _valid = ~np.isnan(_B)
-                if np.any(np.isnan(_B)):
-                    _B[np.isnan(_B)] = 0.
+                _unit_grad = local_grad(i, _one, s)
+                _undefined = np.isnan(_unit_grad)
+                _unit_grad[_undefined] = 0.
+                _B = -_unit_grad
                 _B2 = np.dot(_B, _B)
+                _B[_undefined] = np.nan
                 _B_over_B2 = _B if _B2 == 0 else _B / _B2
                 B[s].append(_B)
                 B2[s].append(_B2)
@@ -209,13 +215,20 @@ class DiffusivityPotential(MeanfieldPotential):
     def __init__(self, cells, dt=None,
             diffusivity_spatial_prior=None, diffusivity_time_prior=None,
             potential_spatial_prior=None, potential_time_prior=None,
-            _inherit=False):
+            _inherit=False, **kwargs):
+        for friction_arg in ('friction_prior', 'friction_spatial_prior', 'friction_time_prior'):
+            try:
+                kwargs.pop(friction_arg)
+            except KeyError:
+                pass
+            else:
+                warn('ignoring {} argument'.format(friction_arg), RuntimeWarning)
         MeanfieldPotential.__init__(self, cells, dt,
                 diffusivity_spatial_prior=diffusivity_spatial_prior,
                 diffusivity_time_prior=diffusivity_time_prior,
                 potential_spatial_prior=potential_spatial_prior,
                 potential_time_prior=potential_time_prior,
-                _inherit=_inherit)
+                _inherit=_inherit, **kwargs)
         dt = self.dt
         index = self.index
         #while True:
@@ -263,13 +276,11 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
         potential_spatial_prior = potential_prior
     if diffusivity_time_prior is None:
         diffusivity_time_prior = diffusion_time_prior
-    regularize_diffusivity = diffusivity_spatial_prior or diffusivity_time_prior
-    regularize_potential = potential_spatial_prior or potential_time_prior
-    reg = regularize_diffusivity or regularize_potential
 
     mf = DiffusivityPotential(cells, dt,
             diffusivity_spatial_prior, diffusivity_time_prior,
-            potential_spatial_prior, potential_time_prior)
+            potential_spatial_prior, potential_time_prior,
+            **kwargs)
 
     n = mf.n
     dt = mf.dt
@@ -330,87 +341,104 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
     #V = np.zeros_like(D)
     V = V_initial
 
-    neg_L_global_constant = np.dot(n, np.log(4 * pi * dt))
-    L_local_factor_for_D = approx_aD_constant_factor * sum_dr2
-    L_local_factor_for_V = bD_constant_factor[:,np.newaxis] * mean_dr
-    L_local_factor_for_D_times_V = approx_aD_constant_factor * n
-
-    def adjust_V(_V, s, i):
-        # adjust V at each bin considering the other bins constant
-        grad_V_constant = mf.diff_grad(_V, s)
-
-        j = 0
-        _neg_L = np.inf
-        while True:
-            _neg_L_prev = _neg_L
-
-            grad_V = grad_V_constant - _V[:,np.newaxis] * B[s]
-            grad_V2 = np.sum(grad_V * grad_V, axis=1)
-
+    fixed_neighbours = False
+    slow_neighbours = True
+    first_step = True
 
     resolution = None
     try:
         aVs, bVs, aDs, bDs = [], [], [], []
+        grad_aVs, grad_aV2s = [], []
         for s in mf.gradient_sides:
 
-            # adjust D and V jointly at each bin considering the other bins constant
-            gradV_plus_VB = mf.diff_grad(V, s)
-
+            # 1. adjust D and V jointly with no regularization
             aD, aV = D, V
-            aD2 = aD * aD
 
             i = 0
-            neg_L = np.inf
+            neg_L = neg_2L = np.inf
             while True:
+                # depends on the implementation
                 neg_L_prev = neg_L
+                neg_2L_prev = neg_2L
 
                 # new aV
-                dr_over_aD = mean_dr / aD[:,np.newaxis]
-                aV = np.sum(  Bstar[s] * (gradV_plus_VB + dr_over_aD)  ,axis=1)
-                grad_aV = gradV_plus_VB - aV[:,np.newaxis] * B[s]
-                grad_aV2 = np.sum(grad_aV * grad_aV, axis=1)
+                if i==0 or not fixed_neighbours:
+                    gradV_plus_VB = _nan(mf.diff_grad(aV, s))
+                aV = np.sum(  Bstar[s] * (gradV_plus_VB + mean_dr / aD[:,np.newaxis])  ,axis=1)
+                if slow_neighbours:
+                    grad_aV = gradV_plus_VB - aV[:,np.newaxis] * B[s]
+                else:
+                    grad_aV = mf.grad(aV, s)
+                grad_aV2 = np.nansum(grad_aV * grad_aV, axis=1)
 
                 # new aD
                 if approximate_aD_formula:
-                    chi2_over_n = mean_dr2 + 2 * aD * np.sum(mean_dr * grad_aV, axis=1) + aD2 * grad_aV2
+                    aD2 = aD * aD
+                    chi2_over_n = mean_dr2 + 2 * aD * np.sum(mean_dr * _nan(grad_aV), axis=1) + aD2 * grad_aV2
                     approx_aD = approx_aD_constant_factor * chi2_over_n
                 if exact_aD_formula:
                     sqrt_discr = np.sqrt( 1. + exact_aD_constant_factor_2 * grad_aV2 )
                     exact_aD = exact_aD_constant_factor_1 / (1. + sqrt_discr)
                 aD = approx_aD if aD_formula.startswith('approx') else exact_aD
 
-                if verbose:
-                    if aD_formula.endswith('+'):
-                        print('[{}|{}] max aD difference: {}'.format(i, s, np.max(np.abs(exact_aD-approx_aD))))
-                    print('[{}|{}] max values for: ||gradV|| {} V {} D {}'.format(i, s, np.sqrt(np.nanmax(grad_aV2)), np.nanmax(np.abs(aV)), np.nanmax(aD)))
-
                 # new bV and bD
                 bV = aD * bV_constant_factor[s]
-                inv_aD = 1./ aD
+                inv_aD = f_( 1./ aD )
                 inv_aD2 = inv_aD * inv_aD
                 bD = n * inv_aD2 + bD_constant_factor * grad_aV2 * inv_aD
 
-                # -logP
-                B2_over_bV = B2[s] / bV
-                B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in mf.regions ])
-                log_bV = np.log(bV)
-                log_bV_star = np.array([ np.sum(log_bV[_region]) for _region in mf.regions ])
-                inv_aD_aD_bD = inv_aD2 / bD
-                neg_L = \
-                        np.dot(n, f_( np.log(aD) - inv_aD_aD_bD /2 )) + \
-                        np.dot(f_( (1+ inv_aD_aD_bD) * inv_aD ), L_local_factor_for_D) + \
-                        np.sum(L_local_factor_for_V * f_( grad_aV )) + \
-                        np.dot(f_( L_local_factor_for_D_times_V * aD ),f_( grad_aV2 + B2_over_bV_star )) + \
-                        .5 * np.sum(f_( np.log(bD) + log_bV_star ))
-
                 if verbose:
-                    print('[{}|{}] approx -logP: {}'.format(i, s, neg_L))
-                # stopping criterion
-                if neg_L_prev - neg_L < tol:
+                    if aD_formula.endswith('+'):
+                        print('[{}|{}] max aD difference: {}'.format(i, s, np.max(np.abs(exact_aD-approx_aD))))
+                    print('[{}|{}] max values for: ||gradV|| {:.2f} aV:bV {:.2f}:{:.2f} aD:bD {:.2f}:{:.2f}'.format(i, s, np.sqrt(np.nanmax(grad_aV2)), np.nanmax(np.abs(aV)), np.nanmax(bV), np.nanmax(aD), np.nanmax(bD)))
+                if not first_step:
                     break
-                break
 
-            # regularize
+                if False: # -L(q)
+                    inv_aD2_bD = inv_aD2 / bD
+                    inv_aD3_bD = inv_aD2_bD * inv_aD
+
+                    B2_over_bV = B2[s] / bV
+                    B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in mf.regions ])
+                    log_bV = f_( np.log(bV) )
+                    log_bV_star = np.sum([ np.sum(log_bV[_region]) for _region in mf.regions ])
+                    neg_2L = dot(n, \
+                                f_( 2 * np.log(aD) ) - inv_aD2_bD + \
+                                1./ (2 * dt) * ( \
+                                    (inv_aD + inv_aD3_bD) * mean_dr2 + \
+                                    2 * np.sum(grad_aV * mean_dr, axis=1) + \
+                                    aD * (grad_aV2 + B2_over_bV_star) \
+                                    )) + \
+                            np.sum(f_( np.log(bD) )) + log_bV_star
+
+                    if verbose:
+                        print('[{}|{}] approx -L(q): {}'.format(i, s, neg_2L))
+                    # stopping criterion
+                    if neg_2L_prev - neg_2L < tol:
+                        break
+                else: # -logP
+                    neg_L = dot(n, \
+                                f_(np.log( aD * dt )) + \
+                                1./(4* dt) * ( \
+                                    f_( mean_dr2 / aD ) + \
+                                    2* np.sum(mean_dr * grad_aV, axis=1) + \
+                                    grad_aV2 * aD \
+                                ))
+
+                    if verbose:
+                        print('[{}|{}] approx -logP: {}'.format(i, s, neg_L))
+                    # stopping criterion
+                    if np.abs(neg_L_prev - neg_L) == 0:
+                        # important note: the effective potential values are scaled to their proper range;
+                        #                 this happens from a corner to the opposite corner and generates a propagating frontier
+                        #                 between two plateaus;
+                        #                 when this diagonal frontier includes many bins, the cost function begins to increase;
+                        #                 this should not stop the algorithm to update more effective potential parameters;
+                        #                 only full convergence is a reliable stopping criterion here
+                        break
+                i += 1
+
+            # 2. regularize
             if mf.regularize_diffusion or mf.regularize_potential:
                 if mf.regularize_diffusion:
                     AD, BD = mf.regularize_D(aD, bD)
@@ -421,7 +449,6 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
                     # aD or AD?
                     dr_over_D = mean_dr / AD[:,np.newaxis]
-                    L_local_factor_for_DV = f_( L_local_factor_for_D_times_V * AD )
 
                     new_epoch = True
                     i = 0
@@ -429,8 +456,8 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                     while True:
                         neg_L_prev = neg_L
 
-                        if new_epoch:
-                            gradV_plus_VB = mf.diff_grad(AV, s)
+                        if i==0 or not fixed_neighbours:
+                            gradV_plus_VB = _nan(mf.diff_grad(AV, s))
                             aV = np.sum(  Bstar[s] * (gradV_plus_VB + dr_over_D)  ,axis=1)
                             AV = BV = None
 
@@ -438,36 +465,51 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
                         #neg_L = mf.regularized_cost('V', AV, aV, bV) # meanfield cost
 
-                        grad_aV = gradV_plus_VB - AV[:,np.newaxis] * B[s]
-                        #grad_aV = mf.grad(AV, s)
-                        grad_aV2 = np.sum(grad_aV * grad_aV, axis=1)
-                        if i==0: # BV actually does not vary
-                            B2_over_bV = B2[s] / BV
-                            B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in mf.regions ])
-                        # let us ignore constants
-                        neg_L = \
-                                np.sum(L_local_factor_for_V * f_( grad_aV )) + \
-                                np.dot(L_local_factor_for_DV ,f_( grad_aV2 + B2_over_bV_star )) + \
-                                mf.neg_prior('V', aV, AV)
+                        grad_aV = gradV_plus_VB - AV[:,np.newaxis] * B[s] # constant neighbours
+                        #grad_aV = mf.diff_grad(AV, s) - aV[:,np.newaxis] * B[s] # neighbours only vary
+                        #grad_aV = mf.grad(AV, s) # all vary
+                        grad_aV2 = np.nansum(grad_aV * grad_aV, axis=1)
+
+                        # include only the terms that depend on aV and bV (or AV and BV)
+                        if False:
+                            if i==0: # BV actually does not vary
+                                B2_over_bV = _nan( B2[s] / BV )
+                                B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in mf.regions ])
+                                log_bV = f_( np.log(BV) )
+                                log_bV_star = np.sum([ np.sum(log_bV[_region]) for _region in mf.regions ]) / 2
+                            neg_L = dot(n / (4 * dt), \
+                                        2 * np.sum(mean_dr * grad_aV, axis=1) + \
+                                        (1./AD + 1./(AD**3 * BD)) * (grad_aV2 + B2_over_bV_star)) + \
+                                    log_bV_star + \
+                                    mf.neg_log_prior('V', aV, AV)
+
+                            if verbose:
+                                print('[{}] approx -L(q): {}'.format(i, neg_L))
+                        else:
+                            neg_L = dot(n / (2* dt), \
+                                        np.sum(mean_dr * grad_aV, axis=1) + grad_aV2 * AD / 2 ) + \
+                                    mf.neg_log_prior('V', AV)
+                            if verbose:
+                                print('[{}] approx -logP: {}'.format(i, neg_L))
 
                         # stopping criterion
-                        if verbose:
-                            print('[{}] approx -logP: {}'.format(i, neg_L))
                         if np.isnan(neg_L) or np.isinf(neg_L):
                             break
-                        elif neg_L_prev - neg_L < tol:
+                        elif np.abs(neg_L_prev - neg_L) < tol:
                             if new_epoch:
                                 if neg_L_prev - neg_L < -tol:
                                     # one step back
                                     AV, BV = aV, bV
-                                print('convergence')
+                                if verbose:
+                                    print('convergence')
                                 break
                             else:
-                                print('new epoch')
+                                if verbose:
+                                    print('new epoch')
                                 new_epoch = True
                                 aV, bV = AV, BV
-                        else:
-                            new_epoch = False
+                        #else:
+                        #    new_epoch = False
 
                         i += 1
                 else:
@@ -481,13 +523,28 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
             aDs.append(aD)
             bDs.append(bD)
 
+            grad_aVs.append(grad_aV)
+            grad_aV2s.append(grad_aV2)
+
         # merge
         aV = merge_a(aVs)
         bV = merge_b(bVs)
         aD = merge_a(aDs, '>')
         bD = merge_b(bDs)
 
-        D, V = aD, aV
+        neg_L, _ctr = 0., 0
+        for _D,_V,_gradV,_gradV2 in zip(aDs, aVs, grad_aVs, grad_aV2s):
+            neg_L += np.dot(n, \
+                        f_(np.log( 4*pi* _D * dt )) + \
+                        1./(4* dt) * ( \
+                            mean_dr2 / _D + \
+                            2* np.sum(mean_dr * _gradV, axis=1) + \
+                            _gradV2 * _D \
+                        ))
+            if mf.regularize_diffusion or mf.regularize_potential:
+                neg_L += mf.neg_log_prior('V', _V)
+            _ctr += 1
+        neg_L /= _ctr
 
     except KeyboardInterrupt:
         resolution = 'INTERRUPTED'
@@ -495,11 +552,15 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
             print('interrupted')
             print('D={}'.format(aD))
             print('V={}'.format(aV))
-            print('L={}'.format(-neg_L - neg_L_global_constant))
+            try:
+                print('L={}'.format(-neg_L))
+            except:
+                print('L={}'.format(-neg_2L))
         pass
 
-    neg_L += neg_L_global_constant
-    V /= dt
+
+    D = aD
+    V = aV / dt
 
     if np.any(V<0):
         V -= np.nanmin(V)
