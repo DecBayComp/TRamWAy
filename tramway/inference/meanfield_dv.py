@@ -182,6 +182,8 @@ class MeanfieldPotential(Meanfield):
 
 
 def merge_a(_as, sign=None, eps=None):
+    if not _as[1:]:
+        return _as[0]
     _as = np.stack(_as, axis=-1)
     _undefined = np.isnan(_as)
     _as[_undefined] = 0.
@@ -197,6 +199,8 @@ def merge_a(_as, sign=None, eps=None):
     _a[_undefined] = np.nan
     return _a
 def merge_b(_bs, eps=None):
+    if not _bs[1:]:
+        return _bs[0]
     _bs = np.stack(_bs, axis=-1)
     _undefined = np.isnan(_bs)# | np.isinf(_bs)
     #_bs[_undefined] = 0.
@@ -260,7 +264,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
         diffusivity_time_prior=None, potential_time_prior=None,
         diffusivity_prior=None, potential_prior=None,
         diffusion_prior=None, diffusion_spatial_prior=None, diffusion_time_prior=None,
-        dt=None, tol=1e-6, eps=1e-3, verbose=False, aD_formula='exact', **kwargs):
+        dt=None, tol=1e-6, max_iter=1e4, eps=1e-3, verbose=False, aD_formula='exact', **kwargs):
     """
     """
     #localization_error = cells.get_localization_error(kwargs, 0.03, True)
@@ -343,26 +347,30 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
     fixed_neighbours = False
     slow_neighbours = True
-    first_step = True
 
     resolution = None
-    try:
-        aVs, bVs, aDs, bDs = [], [], [], []
-        grad_aVs, grad_aV2s = [], []
-        for s in mf.gradient_sides:
+    aVs, bVs, aDs, bDs = [], [], [], []
+    grad_aVs, grad_aV2s = [], []
+    for s in mf.gradient_sides:
 
-            # 1. adjust D and V jointly with no regularization
-            aD, aV = D, V
+        # 1. adjust D and V jointly with no regularization
+        aD, aV = D, V
 
-            i = 0
-            neg_L = neg_2L = np.inf
+        if verbose:
+            if mf.gradient_sides[1:]:
+                print(' **          gradient side: ''{}''          ** '.format(s))
+            print(' ** preliminary fit (no regularization): ** ')
+
+        i = 0
+        neg_L = neg_2L = np.inf
+        try:
             while True:
                 # depends on the implementation
                 neg_L_prev = neg_L
                 neg_2L_prev = neg_2L
 
                 # new aV
-                if i==0 or not fixed_neighbours:
+                if not fixed_neighbours or i==0:
                     gradV_plus_VB = _nan(mf.diff_grad(aV, s))
                 aV = np.sum(  Bstar[s] * (gradV_plus_VB + mean_dr / aD[:,np.newaxis])  ,axis=1)
                 if slow_neighbours:
@@ -389,10 +397,8 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
 
                 if verbose:
                     if aD_formula.endswith('+'):
-                        print('[{}|{}] max aD difference: {}'.format(i, s, np.max(np.abs(exact_aD-approx_aD))))
-                    print('[{}|{}] max values for: ||gradV|| {:.2f} aV:bV {:.2f}:{:.2f} aD:bD {:.2f}:{:.2f}'.format(i, s, np.sqrt(np.nanmax(grad_aV2)), np.nanmax(np.abs(aV)), np.nanmax(bV), np.nanmax(aD), np.nanmax(bD)))
-                if not first_step:
-                    break
+                        print('[{}] max aD difference: {}'.format(i, np.max(np.abs(exact_aD-approx_aD))))
+                    print('[{}] max values for: ||gradV|| {:.2f} aV:bV {:.2f}:{:.2f} aD:bD {:.2f}:{:.2f}'.format(i, np.sqrt(np.nanmax(grad_aV2)), np.nanmax(np.abs(aV)), np.nanmax(bV), np.nanmax(aD), np.nanmax(bD)))
 
                 if False: # -L(q)
                     inv_aD2_bD = inv_aD2 / bD
@@ -412,7 +418,7 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                             np.sum(f_( np.log(bD) )) + log_bV_star
 
                     if verbose:
-                        print('[{}|{}] approx -L(q): {}'.format(i, s, neg_2L))
+                        print('[{}] approx -L(q): {}'.format(i, neg_2L))
                     # stopping criterion
                     if neg_2L_prev - neg_2L < tol:
                         break
@@ -426,137 +432,200 @@ def infer_meanfield_DV(cells, diffusivity_spatial_prior=None, potential_spatial_
                                 ))
 
                     if verbose:
-                        print('[{}|{}] approx -logP: {}'.format(i, s, neg_L))
+                        print('[{}] approx -logP: {}'.format(i, neg_L))
                     # stopping criterion
                     if np.abs(neg_L_prev - neg_L) == 0:
                         # important note: the effective potential values are scaled to their proper range;
                         #                 this happens from a corner to the opposite corner and generates a propagating frontier
-                        #                 between two plateaus;
+                        #                 between two plateau;
                         #                 when this diagonal frontier includes many bins, the cost function begins to increase;
                         #                 this should not stop the algorithm to update more effective potential parameters;
                         #                 only full convergence is a reliable stopping criterion here
                         break
                 i += 1
 
-            # 2. regularize
-            if mf.regularize_diffusion or mf.regularize_potential:
-                if mf.regularize_diffusion:
-                    AD, BD = mf.regularize_D(aD, bD)
-                else:
-                    AD, BD = aD, bD
-                if mf.regularize_potential:
-                    AV, BV = aV, bV
-
-                    # aD or AD?
-                    dr_over_D = mean_dr / AD[:,np.newaxis]
-
-                    new_epoch = True
-                    i = 0
-                    neg_L = np.inf
-                    while True:
-                        neg_L_prev = neg_L
-
-                        if i==0 or not fixed_neighbours:
-                            gradV_plus_VB = _nan(mf.diff_grad(AV, s))
-                            aV = np.sum(  Bstar[s] * (gradV_plus_VB + dr_over_D)  ,axis=1)
-                            AV = BV = None
-
-                        AV, BV = mf.regularize_V(aV, bV, AV, BV)
-
-                        #neg_L = mf.regularized_cost('V', AV, aV, bV) # meanfield cost
-
-                        grad_aV = gradV_plus_VB - AV[:,np.newaxis] * B[s] # constant neighbours
-                        #grad_aV = mf.diff_grad(AV, s) - aV[:,np.newaxis] * B[s] # neighbours only vary
-                        #grad_aV = mf.grad(AV, s) # all vary
-                        grad_aV2 = np.nansum(grad_aV * grad_aV, axis=1)
-
-                        # include only the terms that depend on aV and bV (or AV and BV)
-                        if False:
-                            if i==0: # BV actually does not vary
-                                B2_over_bV = _nan( B2[s] / BV )
-                                B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in mf.regions ])
-                                log_bV = f_( np.log(BV) )
-                                log_bV_star = np.sum([ np.sum(log_bV[_region]) for _region in mf.regions ]) / 2
-                            neg_L = dot(n / (4 * dt), \
-                                        2 * np.sum(mean_dr * grad_aV, axis=1) + \
-                                        (1./AD + 1./(AD**3 * BD)) * (grad_aV2 + B2_over_bV_star)) + \
-                                    log_bV_star + \
-                                    mf.neg_log_prior('V', aV, AV)
-
-                            if verbose:
-                                print('[{}] approx -L(q): {}'.format(i, neg_L))
-                        else:
-                            neg_L = dot(n / (2* dt), \
-                                        np.sum(mean_dr * grad_aV, axis=1) + grad_aV2 * AD / 2 ) + \
-                                    mf.neg_log_prior('V', AV)
-                            if verbose:
-                                print('[{}] approx -logP: {}'.format(i, neg_L))
-
-                        # stopping criterion
-                        if np.isnan(neg_L) or np.isinf(neg_L):
-                            break
-                        elif np.abs(neg_L_prev - neg_L) < tol:
-                            if new_epoch:
-                                if neg_L_prev - neg_L < -tol:
-                                    # one step back
-                                    AV, BV = aV, bV
-                                if verbose:
-                                    print('convergence')
-                                break
-                            else:
-                                if verbose:
-                                    print('new epoch')
-                                new_epoch = True
-                                aV, bV = AV, BV
-                        #else:
-                        #    new_epoch = False
-
-                        i += 1
-                else:
-                    AV, BV = aV, bV
+        except KeyboardInterrupt:
+            # an interruption at any step makes the global resolution be tagged as interrupted
+            resolution = 'INTERRUPTED'
+            if verbose:
+                print('interrupted')
+                print('D={}'.format(aD))
+                print('V={}'.format(aV))
+                try:
+                    print('L={}'.format(-neg_L))
+                except:
+                    print('L={}'.format(-.5*neg_2L))
+            pass
 
 
-                aD, bD, aV, bV = AD, BD, AV, BV
+        # 2. regularize
+        AD, BD, AV, BV = aD, bD, aV, bV
 
-            aVs.append(aV)
-            bVs.append(bV)
-            aDs.append(aD)
-            bDs.append(bD)
+        if mf.regularize_diffusion:
+            if slow_neighbours:
+                gradV = mf.grad(aV, s)
+                gradV2 = np.nansum(gradV * gradV, axis=1)
+            else:
+                gradV2 = grad_aV2
 
-            grad_aVs.append(grad_aV)
-            grad_aV2s.append(grad_aV2)
+            if verbose:
+                print(' ** regularizing diffusivity: ** ')
 
-        # merge
-        aV = merge_a(aVs)
-        bV = merge_b(bVs)
-        aD = merge_a(aDs, '>')
-        bD = merge_b(bDs)
-
-        neg_L, _ctr = 0., 0
-        for _D,_V,_gradV,_gradV2 in zip(aDs, aVs, grad_aVs, grad_aV2s):
-            neg_L += np.dot(n, \
-                        f_(np.log( 4*pi* _D * dt )) + \
-                        1./(4* dt) * ( \
-                            mean_dr2 / _D + \
-                            2* np.sum(mean_dr * _gradV, axis=1) + \
-                            _gradV2 * _D \
-                        ))
-            if mf.regularize_diffusion or mf.regularize_potential:
-                neg_L += mf.neg_log_prior('V', _V)
-            _ctr += 1
-        neg_L /= _ctr
-
-    except KeyboardInterrupt:
-        resolution = 'INTERRUPTED'
-        if verbose:
-            print('interrupted')
-            print('D={}'.format(aD))
-            print('V={}'.format(aV))
+            i = 0
+            neg_L = np.inf
             try:
-                print('L={}'.format(-neg_L))
-            except:
-                print('L={}'.format(-neg_2L))
-        pass
+                while True:
+                    neg_L_prev = neg_L
+
+                    AD, BD = mf.regularize_D(AD, BD)
+                    # include only the terms that depend on aD and bD (or AD and BD)
+                    neg_L = dot(n, \
+                                f_(np.log( AD * dt )) + \
+                                ( mean_dr2 / AD + gradV2 * AD ) / (4*dt) \
+                                ) + \
+                            mf.neg_log_prior('D', AD)
+                    if verbose:
+                        print('[{}] approx -logP: {}'.format(i, neg_L))
+
+                    # stopping criteria
+                    if np.isnan(neg_L) or np.isinf(neg_L):
+                        break
+                    elif neg_L_prev - neg_L < -tol:
+                        if verbose:
+                            print('divergence')
+                        break
+                    elif neg_L_prev - neg_L < tol:
+                        if verbose:
+                            print('convergence')
+                        break
+                    elif max_iter and i == max_iter:
+                        if verbose:
+                            print('maximum iteration reached')
+                        break
+                    i += 1
+
+            except KeyboardInterrupt:
+                resolution = 'INTERRUPTED'
+                if verbose:
+                    print('interrupted')
+                    print('D={}'.format(AD))
+                    print('L={}'.format(-neg_L))
+                pass
+
+        if mf.regularize_potential:
+            # aD or AD?
+            _D = aD # do NOT overwrite `D`
+
+            dr_over_D = mean_dr / _D[:,np.newaxis]
+
+            if verbose:
+                print(' ** regularizing effective potential: ** ')
+
+            # multiple epochs when fixed_neighbours is True;
+            # otherwise new_epoch is equivalent to i==0
+            new_epoch = True
+            i = 0
+            neg_L = np.inf
+            try:
+                while True:
+                    neg_L_prev = neg_L
+
+                    if new_epoch or not fixed_neighbours:
+                        gradV_plus_VB = _nan(mf.diff_grad(AV, s))
+                        aV = np.sum(  Bstar[s] * (gradV_plus_VB + dr_over_D)  ,axis=1)
+                        AV = BV = None
+
+                    AV, BV = mf.regularize_V(aV, bV, AV, BV)
+
+                    grad_aV = gradV_plus_VB - AV[:,np.newaxis] * B[s] # constant neighbours
+                    #grad_aV = mf.diff_grad(AV, s) - aV[:,np.newaxis] * B[s] # neighbours only vary
+                    #grad_aV = mf.grad(AV, s) # all vary
+                    grad_aV2 = np.nansum(grad_aV * grad_aV, axis=1)
+
+                    # include only the terms that depend on aV and bV (or AV and BV)
+                    if False:
+                        if i==0: # BV actually does not vary
+                            B2_over_bV = _nan( B2[s] / BV )
+                            B2_over_bV_star = np.array([ np.sum(B2_over_bV[_region]) for _region in mf.regions ])
+                            log_bV = f_( np.log(BV) )
+                            log_bV_star = np.sum([ np.sum(log_bV[_region]) for _region in mf.regions ]) / 2
+                        neg_L = dot(n / (4 * dt), \
+                                    2 * np.sum(mean_dr * grad_aV, axis=1) + \
+                                    (1./aD + 1./(aD**3 * bD)) * (grad_aV2 + B2_over_bV_star)) + \
+                                log_bV_star + \
+                                mf.neg_log_prior('V', AV)
+
+                        if verbose:
+                            print('[{}] approx -L(q): {}'.format(i, neg_L))
+                    else:
+                        neg_L = dot(n / (2* dt), \
+                                    np.sum(mean_dr * grad_aV, axis=1) + grad_aV2 * _D / 2 ) + \
+                                mf.neg_log_prior('V', AV)
+                        if verbose:
+                            print('[{}] approx -logP: {}'.format(i, neg_L))
+
+                    # stopping criteria
+                    if np.isnan(neg_L) or np.isinf(neg_L):
+                        break
+                    elif neg_L_prev - neg_L < -tol:
+                        if verbose:
+                            print('divergence')
+                        if fixed_neighbours and new_epoch:
+                            # one step back
+                            AV, BV = aV, bV
+                        break
+                    elif neg_L_prev - neg_L < tol:
+                        if fixed_neighbours and not new_epoch:
+                            if verbose:
+                                print('new epoch')
+                            new_epoch = True
+                            aV, bV = AV, BV
+                        else:
+                            if verbose:
+                                print('convergence')
+                            break
+                    else:
+                        new_epoch = False
+
+                    i += 1
+
+            except KeyboardInterrupt:
+                resolution = 'INTERRUPTED'
+                if verbose:
+                    print('interrupted')
+                    print('V={}'.format(AV))
+                    print('L={}'.format(-neg_L))
+                pass
+
+        aD, bD, aV, bV = AD, BD, AV, BV
+
+        aVs.append(aV)
+        bVs.append(bV)
+        aDs.append(aD)
+        bDs.append(bD)
+
+        grad_aVs.append(grad_aV)
+        grad_aV2s.append(grad_aV2)
+
+    # merge
+    aV = merge_a(aVs)
+    bV = merge_b(bVs)
+    aD = merge_a(aDs, '>')
+    bD = merge_b(bDs)
+
+    neg_L, _ctr = 0., 0
+    for _D,_V,_gradV,_gradV2 in zip(aDs, aVs, grad_aVs, grad_aV2s):
+        neg_L += dot(n, \
+                    f_(np.log( 4*pi* _D * dt )) + \
+                    1./(4* dt) * ( \
+                        mean_dr2 / _D + \
+                        2* np.sum(mean_dr * _gradV, axis=1) + \
+                        _gradV2 * _D \
+                    ))
+        if mf.regularize_diffusion or mf.regularize_potential:
+            neg_L += mf.neg_log_prior('V', _V)
+        _ctr += 1
+    neg_L /= _ctr
 
 
     D = aD
