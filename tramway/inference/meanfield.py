@@ -16,7 +16,7 @@ from .gradient import get_grad_kwargs
 from warnings import warn
 import numpy as np
 
-_debug = True
+_debug = False
 def _debug_print(fname, *args):
     print('debug: in {}:\t'.format(fname), *args)
 
