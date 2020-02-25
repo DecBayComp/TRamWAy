@@ -1,7 +1,21 @@
+# -*- coding: utf-8 -*-
+
+# Copyright © 2020, Institut Pasteur
+#   Contributor: Jean-Baptiste Masson
+
+# This file is part of the TRamWAy software available at
+# "https://github.com/DecBayComp/TRamWAy" and is distributed under
+# the terms of the CeCILL license as circulated at the following URL
+# "http://www.cecill.info/licenses.en.html".
+
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+
+
 # Import Libraries and model
 ## files management
-import sys
-sys.path.append("..")
+#import sys
+#sys.path.append("..")
 import argparse
 from   os.path import abspath
 import gc
@@ -12,24 +26,35 @@ import numpy as np
 import pandas as pd
 
 ## image
-from skimage import io
+try:
+    from skimage import io
+except ImportError:
+    raise ImportError('please install scikit-image>=0.14.2')
 from os.path import split
 from tifffile import imsave
 from skimage.feature import peak_local_max
 from skimage import data, img_as_float
 
 ## keras stuff
-from keras import backend as K
-from keras.preprocessing.image import ImageDataGenerator
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, Callback
-from keras.models import Model
-from keras.layers import Input, Activation, UpSampling2D, Convolution2D,Convolution2DTranspose, MaxPooling2D, BatchNormalization, concatenate
-from keras import optimizers, losses
-from keras.utils import multi_gpu_model
-from keras.layers.core import Dropout, Lambda
-from keras.backend import clear_session
+try: # recent Keras
+	from tensorflow.keras.preprocessing.image import ImageDataGenerator
+	from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, Callback
+	from tensorflow.keras.models import Model
+	from tensorflow.keras.layers import Input, Activation, UpSampling2D, Convolution2D, Convolution2DTranspose, MaxPooling2D, BatchNormalization, Dropout, Lambda, concatenate
+	from tensorflow.keras import optimizers, losses
+	from tensorflow.keras.utils import multi_gpu_model
+	from tensorflow.keras.backend import clear_session
+except ImportError:
+	from keras.preprocessing.image import ImageDataGenerator
+	from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, Callback
+	from keras.models import Model
+	from keras.layers import Input, Activation, UpSampling2D, Convolution2D, Convolution2DTranspose, MaxPooling2D, BatchNormalization, concatenate
+	from keras import optimizers, losses
+	from keras.utils import multi_gpu_model
+	from keras.layers.core import Dropout, Lambda
+	from keras.backend import clear_session
 ## local stuff
-from Inference_program.utility_function_inference import *
+from .utility_function_inference import *
 
 #########################################################################################
 #########################################################################################
@@ -143,8 +168,8 @@ def get_position_from_predicted_one_image(high_res_prediction, liste, marge, k):
 	liste_output.append(point_high_res)
 	del proba, proba_x, proba_y, sum_proba, liste_loc, point_high_res
 	#print(K)
-	if K==1:
-		point_high_res[:,0] = nb_out
+	#if K==1:
+	#	point_high_res[:,0] = nb_out
 
 	position         = pd.DataFrame(np.concatenate(liste_output))
 	position.dropna(how='all')
@@ -498,7 +523,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--stack',    help="path to tiff stack")
 	parser.add_argument('--weights',  help="name of the weights file")
-	parser.add_argument('--nb_GPU',   help="boolean 0= 1 GPU , 1 = multiple GPU")
+	parser.add_argument('--nb_GPU',   type=int, help="boolean 0= 1 GPU , 1 = multiple GPU")
 	parser.add_argument('--mean_std', help="path to the mean_std.txt file")
 	args   = parser.parse_args()
 	##
@@ -508,7 +533,7 @@ if __name__ == '__main__':
 	name_split              = os.path.splitext(path_split[1])
 	path_weights            = abspath(args.weights)
 	mean_std_file           = abspath(args.mean_std)
-	bool_GPU                = args.nb_GPU
+	bool_GPU                = bool(args.nb_GPU)
 	stack                   = abspath(args.stack)
 
     ## at the moment it is in separate files it could be stored depending on the use 

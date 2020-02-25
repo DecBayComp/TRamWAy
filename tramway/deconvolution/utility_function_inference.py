@@ -1,16 +1,33 @@
-import sys
+# -*- coding: utf-8 -*-
+
+# Copyright © 2020, Institut Pasteur
+#   Contributor: Jean-Baptiste Masson
+
+# This file is part of the TRamWAy software available at
+# "https://github.com/DecBayComp/TRamWAy" and is distributed under
+# the terms of the CeCILL license as circulated at the following URL
+# "http://www.cecill.info/licenses.en.html".
+
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+
+
 import numpy as np
-import sys
-sys.path.append("..")
+#import sys
+#sys.path.append("..")
 import os
 #import pandas as pd
 from   skimage import io
 from   sklearn.model_selection import train_test_split
 
-from   keras import backend as K
-from   keras.preprocessing.image import ImageDataGenerator
-from   keras.callbacks import ModelCheckpoint
-from   keras.callbacks import ReduceLROnPlateau
+try: # recent Keras
+	from   tensorflow.keras.preprocessing.image import ImageDataGenerator
+	from   tensorflow.keras.callbacks import ModelCheckpoint
+	from   tensorflow.keras.callbacks import ReduceLROnPlateau
+except ImportError:
+	from   keras.preprocessing.image import ImageDataGenerator
+	from   keras.callbacks import ModelCheckpoint
+	from   keras.callbacks import ReduceLROnPlateau
 import matplotlib.pyplot as plt
 from   skimage.external import tifffile as T
 from   PIL import Image

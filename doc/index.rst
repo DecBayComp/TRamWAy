@@ -17,6 +17,7 @@ The full code is distributed under :ref:`CeCILL license <license>` and is availa
 Features
 --------
 
+* :ref:`deconvolution <deconvolution>` of stacks of images
 * spatial :ref:`tessellation <tessellation>` and temporal segmentation
 * :ref:`inference <inference>` of diffusivity, drift, force and potential energy
 * analyses of the estimated force, such as curl calculation and :ref:`Bayes factor <inference_bayes_factor>` calculation to distinguish interactions and spurious forces
