@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -35,6 +35,7 @@ class Tessellate(Helper):
         self.plugins = plugins
         self.tessellation_kwargs = {}
         self.partition_kwargs = {}
+        self.time_window_kwargs = {}
 
     def prepare_data(self, input_data, labels=None, types=None, metadata=True, \
             verbose=None, scaling=False, time_scale=None, **kwargs):
@@ -228,7 +229,7 @@ class Tessellate(Helper):
                 elif time_dimension is None:
                     self.time_window_kwargs['time_dimension'] = True
 
-        ref_distance = params['ref_distance']
+        ref_distance = params.get('ref_distance', None)
         _filter_f = self.partition_kwargs.get('filter', None)
         try:
             max_size = kwargs['rel_max_size']
@@ -320,7 +321,10 @@ class Tessellate(Helper):
         else:
             data = self.xyt_data[self.colnames]
         tessellate_kwargs = self.tessellation_kwargs
-        tess.tessellate(data, verbose=verbose, **tessellate_kwargs)
+        tessellate_hidden_kwargs = {}
+        if verbose is not None:
+            tessellate_hidden_kwargs['verbose'] = verbose
+        tess.tessellate(data, **tessellate_kwargs, **tessellate_hidden_kwargs)
 
         # partition the dataset into the cells of the tessellation
         try:
@@ -610,7 +614,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
 
 
 
-fig_formats = ['png', 'pdf', 'ps', 'eps', 'svg']
+fig_formats = ['png', 'pdf', 'ps', 'eps', 'svg', 'html']
 
 def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
     scaling=False, time_scale=None, \

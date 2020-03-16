@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018-2019, Institut Pasteur
+# Copyright © 2018-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -35,10 +35,12 @@ class Helper(object):
         self.input_file = None
         self.analyses = None
         #self.plugins = None
-        self.module = None
-        self.setup = None
-        self.verbose = False
+        self.module = self.name = None
+        self.setup = {}
+        self.verbose = None # undefined
+        self.input_label = self.output_label = None
         self._label_is_output = None
+        self.comment = None
         self.metadata = {}
 
     def add_metadata(self, analysis, pkg_version=[]):

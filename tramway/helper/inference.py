@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018-2019, Institut Pasteur
+# Copyright © 2018-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -250,7 +250,12 @@ class Infer(Helper):
         if rgrad:
             kwargs['rgrad'] = rgrad
 
-        x = cells.run(getattr(self.module, self.setup['infer']), **kwargs)
+        try:
+            _fun = getattr(self.module, self.setup['infer'])
+        except KeyError:
+            _fun = self._infer
+
+        x = cells.run(_fun, **kwargs)
 
         ret = {}
         if isinstance(x, tuple):
@@ -748,7 +753,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
     alpha=None, point_style=None, feature=None, variable=None, segment=None, \
     label=None, input_label=None, mode=None, title=True, inferencemap=False, \
-    **kwargs):
+    use_bokeh=None, **kwargs):
     """
     Plot scalar/vector 2D maps.
 
@@ -934,11 +939,6 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     # determine whether the figures should be printed to file or not
     print_figs = output_file or (input_file and fig_format)
 
-    # figure size
-    new_fig = bool(figsize) or (print_figs and figsize is not False)
-    if figsize in (None, True):
-        figsize = (12., 9.)
-
     # output filenames
     if print_figs:
         if output_file:
@@ -952,16 +952,35 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         else:
             figext = fig_format
             filename, _ = os.path.splitext(input_file)
+        if use_bokeh is None and figext == 'html':
+            use_bokeh = True
+
+    # figure size
+    new_fig = bool(figsize) or (print_figs and figsize is not False)
+    if figsize in (None, True):
+        if use_bokeh:
+            figsize = None
+        else:
+            figsize = (12., 9.)
 
     # import graphics libraries with adequate backend
     if print_figs:
-        import matplotlib
-        try:
-            matplotlib.use('Agg') # head-less rendering (no X server required)
-        except:
-            pass
-    import matplotlib.pyplot as mplt
-    import tramway.plot      as tplt
+        if not use_bokeh:
+            import matplotlib
+            try:
+                matplotlib.use('Agg') # head-less rendering (no X server required)
+            except:
+                pass
+    if use_bokeh:
+        import bokeh.plotting     as mplt
+        import tramway.plot.bokeh as tplt
+        if figsize:
+            fig_kwargs = dict(plot_width=figsize[0], plot_height=figsize[1])
+        else:
+            fig_kwargs = {}
+    else:
+        import matplotlib.pyplot as mplt
+        import tramway.plot      as tplt
 
     # identify and plot the possibly various maps
     figs = []
@@ -1013,10 +1032,18 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             else:
                 col_kwargs[kw] = arg
 
-        if new_fig or figs:
-            fig = mplt.figure(figsize=figsize, dpi=dpi)
+        if use_bokeh:
+            if print_figs:
+                mplt.output_file(output_file)
+            fig = mplt.figure(**fig_kwargs)
+            col_kwargs['figure'] = fig
+            if point_style is not None:
+                point_style['figure'] = fig
         else:
-            fig = mplt.gcf()
+            if new_fig or figs:
+                fig = mplt.figure(figsize=figsize, dpi=dpi)
+            else:
+                fig = mplt.gcf()
         figs.append(fig)
 
         _map = maps[col]
@@ -1058,7 +1085,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 point_style['color'] = None
             tplt.plot_points(points, **point_style)
 
-        if title:
+        if title and not use_bokeh:
             if isinstance(title, str):
                 _title = title
             #elif mode:
@@ -1072,7 +1099,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 _title = '{}'.format(col)
             mplt.title(_title)
 
-        if print_figs:
+        if print_figs and not use_bokeh:
             if maps.shape[1] == 1:
                 figfile = '{}.{}'.format(filename, figext)
             elif short_name:
@@ -1105,10 +1132,18 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         if inferencemap:
             var_kwargs['inferencemap'] = inferencemap
 
-        if new_fig or figs:
-            fig = mplt.figure(figsize=figsize, dpi=dpi)
+        if use_bokeh:
+            if print_figs:
+                mplt.output_file(output_file)
+            fig = mplt.figure(**fig_kwargs)
+            var_kwargs['figure'] = fig
+            if point_style is not None:
+                point_style['figure'] = fig
         else:
-            fig = mplt.gcf()
+            if new_fig or figs:
+                fig = mplt.figure(figsize=figsize, dpi=dpi)
+            else:
+                fig = mplt.gcf()
         figs.append(fig)
 
         _vector_map = maps[cols]
@@ -1160,7 +1195,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                     _title = main
             mplt.title(_title)
 
-        if print_figs:
+        if print_figs and not use_bokeh:
             if maps.shape[1] == 1:
                 figfile = '{}.{}'.format(filename, figext)
             else:
@@ -1173,14 +1208,23 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 print('writing file: {}'.format(figfile))
             fig.savefig(figfile, dpi=dpi)
 
-    if show or not print_figs: # 'or' will be replaced by 'and'
+    if show and not print_figs:
         if show == 'draw':
-            mplt.draw()
+            if use_bokeh:
+                warn('draw not implemented with bokeh', RuntimeWarning)
+            else:
+                mplt.draw()
         elif show is not False:
-            mplt.show()
-    elif print_figs:
+            if use_bokeh:
+                for fig in figs:
+                    mplt.show(fig)
+            else:
+                mplt.show()
+    elif print_figs and not use_bokeh:
         for fig in figs:
             mplt.close(fig)
+    else:
+        return figs
 
 
 def _clip(m, q):
