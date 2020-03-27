@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -722,6 +722,11 @@ class Tessellation(Lazy):
     def neighbours(self, i):
         """
         Indices of neighbour cells.
+
+        Reminder: neighbours with `False` or negative adjacency labels
+                  are also returned.
+                  Consider `simplified_adjacency` instead to ignore
+                  these neighbours.
 
         Arguments:
             i (int): cell index.
@@ -1480,7 +1485,9 @@ class Voronoi(Delaunay):
         _d2 = np.dot(_x, -2. * _y.T) + _x2 + _y2.T
         _example_inner = np.argmin(_d2[-1])
         _d2 = _d2[:-1]
-        assert np.all(np.min(_d2[_hull_vertex], axis=1) < _eps)
+        if not np.all(np.min(_d2[_hull_vertex], axis=1) < _eps):
+            import warnings
+            warnings.warn('Assertion failed: assert np.all(np.min(_d2[_hull_vertex], axis=1) < _eps)', RuntimeWarning)
         _nearest = np.argmin(_d2, axis=0)
         _matched = _d2[_nearest, np.arange(_y.shape[0])] < _eps
         if _matched[_example_inner] and _hull_vertex[_nearest[_example_inner]]:
@@ -1563,6 +1570,7 @@ class Voronoi(Delaunay):
         _v_adjacency = _v_adjacency.tolil()
 
         # connect
+        _reported = False
         _ks = np.array(_larger_circle)
         for _k, _r in enumerate(voronoi.ridge_vertices):
             _i, _j = _r
@@ -1580,9 +1588,13 @@ class Voronoi(Delaunay):
                     _v_adjacency[_j,_i] = True
                     # look for the corresponding ridge
                     __i, __j = _ks[voronoi.ridge_points[_k]]
-                    #if __j not in self.neighbours(__i):
-                    #    print(_hull_vertices, _x_inner, _y_inner, _x_matching_inner, _y_matching_inner)
-                    assert __j in self.neighbours(__i)
+                    if __j not in self.neighbours(__i) and not _reported:
+                        # this may happen when multiple cells are deleted before pack_indices is called
+                        pass
+                        #print('in delete_cell({}): connecting cells that are not neighbours:'.format(i))
+                        #print(_hull_vertices, _x_inner, _y_inner, _x_matching_inner, _y_matching_inner)
+                        #_reported = True
+                    #assert __j in self.neighbours(__i)
 
         self._vertex_adjacency = _v_adjacency
 

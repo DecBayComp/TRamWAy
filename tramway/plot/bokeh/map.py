@@ -15,11 +15,13 @@
 import bokeh.plotting as plt
 from bokeh.models.ranges import Range1d
 from tramway.core import *
+from tramway.tessellation.base import Partition, format_cell_index
 import tramway.plot.map as mplt
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import itertools
+from warnings import warn
 
 
 _long_colour_names = {
@@ -73,6 +75,9 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
     if isinstance(cells, np.ndarray):
         points = cells
         label = None
+    elif isinstance(cells, pd.DataFrame):
+        points = cells[['x','y']].values
+        label = None
     elif isinstance(cells, Partition):
         points = cells.descriptors(cells.points, asarray=True)
         label = cells.cell_index
@@ -80,7 +85,7 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
         ncells = cells.location_count.size
         # if label is not a single index vector, convert it following
         # tessellation.base.Delaunay.cell_index with `preferred`='force index'.
-        merge = nearest_cell(points, cells.tessellation.cell_centers)
+        merge = mplt.nearest_cell(points, cells.tessellation.cell_centers)
         label = format_cell_index(cells.cell_index, format='array', \
             select=merge, shape=(npts, ncells))
 
@@ -146,6 +151,91 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
     #    traceback.print_exc()
 
     return handles
+
+def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwargs):
+    """
+    Plot trajectories.
+
+    If no colour is explicitly defined, colouring is based on the trajectory index.
+
+    Arguments:
+
+        trajs (pandas.DataFrame):
+            full partition
+
+        loc_style (str):
+            location marker style
+
+        loc_size (float):
+            location marker size (in screen units)
+
+        color (str or numpy.ndarray):
+            trajectory colours
+
+        figure (bokeh.plotting.figure.Figure):
+            figure handle
+
+    returns:
+
+        list: handles of the glyphs
+
+    """
+    loc_kwargs = {}
+    line_kwargs = {}
+    for attr in dict(kwargs):
+        if attr.startswith('loc_'):
+            loc_kwargs[attr[4:]] = kwargs.pop(attr)
+        if attr.startswith('line_'):
+            line_kwargs[attr[5:]] = kwargs.pop(attr)
+
+    loc_kwargs.update(kwargs)
+    line_kwargs.update(kwargs)
+
+    lines_x, lines_y = [], []
+    for _, df in trajs.groupby([trajs['n']]):
+        lines_x.append(df['x'].values)
+        lines_y.append(df['y'].values)
+
+    if figure is None:
+        assert False
+        try:
+            figure = plt.curplot() # does not work
+        except:
+            figure = plt.figure()
+
+    handles = []
+
+    if color is None:
+        ntrajs = len(lines_x)
+        if color in [None, 'light']:
+            if color == 'light' and 'alpha' not in kwargs:
+                kwargs['alpha'] = .2
+            if 2 < ntrajs:
+                color = __colors__
+                color = ['gray'] + \
+                    list(itertools.islice(itertools.cycle(color), ntrajs))
+            elif ntrajs == 2:
+                color = ['gray', 'k']
+            else:   color = 'k'
+        elif isinstance(color, str) and ntrajs==1:
+            color = [color]
+        for i, line in enumerate(zip(lines_x, lines_y)):
+            line_x, line_y = line
+            clr_i = long_colour_name(color[i])
+            h = figure.line(line_x, line_y, color=clr_i, **line_kwargs)
+            handles.append(h)
+            h = figure.scatter(line_x, line_y, color=clr_i, marker=loc_style, **loc_kwargs)
+            handles.append(h)
+    else:
+        color = long_colour_name(color)
+        h = figure.multi_line(lines_x, lines_y, color=color, **line_kwargs)
+        handles.append(h)
+        h = figure.scatter(list(itertools.chain(*lines_x)), list(itertools.chain(*lines_y)),
+                color=color, marker=loc_style, **loc_kwargs)
+        handles.append(h)
+
+    return handles
+
 
 
 def scalar_map_2d(cells, values, clim=None, figure=None, xlim=None, ylim=None, **kwargs):
@@ -246,4 +336,5 @@ def scalar_map_2d(cells, values, clim=None, figure=None, xlim=None, ylim=None, *
     #plt.show(figure)
 
 
-__all__ = ['plot_points', 'scalar_map_2d']
+__all__ = ['plot_points', 'plot_trajectories', 'scalar_map_2d']
+

@@ -255,7 +255,15 @@ class Infer(Helper):
         except KeyError:
             _fun = self._infer
 
-        x = cells.run(_fun, **kwargs)
+        if self.input_is_partition:
+
+            if cells is None:
+                cells = self.cells
+            x = _fun(cells, **kwargs)
+
+        else:
+
+            x = cells.run(_fun, **kwargs)
 
         ret = {}
         if isinstance(x, tuple):
@@ -289,6 +297,8 @@ class Infer(Helper):
             maps.defattr(attr, ret[attr])
 
         if snr_extensions:
+            if self.input_is_partition:
+                raise TypeError
             maps = inference.snr.add_snr_extensions(cells, maps, get_grad_kwargs(**kwargs))
 
         if self.analyses is not None:
@@ -308,6 +318,11 @@ class Infer(Helper):
             module = Plugin(func)
             plugins[name] = (setup, module)
         Helper.plugin(self, name, plugins, verbose)
+
+    @property
+    def input_is_partition(self):
+        input_type = self.setup.get('input_type', None)
+        return input_type and input_type.lower().endswith('partition')
 
 
 def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=False, \
@@ -427,19 +442,23 @@ def infer1(cells, mode='degraded.d', output_file=None, partition={}, verbose=Fal
         #warn('inference mode: please use degraded.{} instead'.format(mode), PendingDeprecationWarning)
     helper.plugin(mode)
 
-    if constructor is not None:
-        warn('the `constructor` argument is deprecated; please use `new_group` instead',
-                DeprecationWarning)
-    _map = helper.distribute(new_cell=new_cell, \
-            new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
-            include_empty_cells=include_empty_cells, \
-            merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
-            dilation=dilation, grad=grad, rgrad=rgrad)
-    _map = helper.overload_cells(_map)
+    if helper.input_is_partition:
+        _map = None
+    else:
 
-    if store_distributed:
-        helper.insert_mappable_cells(_map, anchor=cells, \
-            label=None if isinstance(store_distributed, bool) else store_distributed)
+        if constructor is not None:
+            warn('the `constructor` argument is deprecated; please use `new_group` instead',
+                    DeprecationWarning)
+        _map = helper.distribute(new_cell=new_cell, \
+                new_group=constructor if new_group is None else new_group, cell_sampling=cell_sampling, \
+                include_empty_cells=include_empty_cells, \
+                merge_threshold_count=merge_threshold_count, max_cell_count=max_cell_count, \
+                dilation=dilation, grad=grad, rgrad=rgrad)
+        _map = helper.overload_cells(_map)
+
+        if store_distributed:
+            helper.insert_mappable_cells(_map, anchor=cells, \
+                label=None if isinstance(store_distributed, bool) else store_distributed)
 
     if diffusivity_prior is None and priorD is not None:
         diffusivity_prior = priorD

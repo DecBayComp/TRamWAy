@@ -36,6 +36,7 @@ class Tessellate(Helper):
         self.tessellation_kwargs = {}
         self.partition_kwargs = {}
         self.time_window_kwargs = {}
+        self.reassignment_kwargs = {}
 
     def prepare_data(self, input_data, labels=None, types=None, metadata=True, \
             verbose=None, scaling=False, time_scale=None, **kwargs):
@@ -198,7 +199,7 @@ class Tessellate(Helper):
             rel_max_size=None, rel_max_volume=None, \
             time_window_duration=None, time_window_shift=None, \
             enable_time_regularization=False, time_window_options=None, \
-            min_n=None, time_knn=None, **kwargs):
+            min_n=None, time_knn=None, kwargs={}):
         for ignored in ['max_level']:
             try:
                 if self.tessellation_kwargs[ignored] is None:
@@ -291,6 +292,13 @@ class Tessellate(Helper):
         if min_n is not None:
             self.partition_kwargs['min_location_count'] = min_n
 
+        _options = kwargs.pop('reassignment_options', {})
+        if _options:
+            self.reassignment_kwargs.update(_options)
+        for arg in dict(kwargs):
+            if arg.startswith('reassignment_'):
+                self.reassignment_kwargs[arg[13:]] = kwargs.pop(arg)
+
     def tessellate(self, comment=None, verbose=None):
         if comment is None:
             comment = self.comment
@@ -327,15 +335,24 @@ class Tessellate(Helper):
         tess.tessellate(data, **tessellate_kwargs, **tessellate_hidden_kwargs)
 
         # partition the dataset into the cells of the tessellation
-        try:
-            cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
-        except MemoryError:
-            if verbose:
-                print(traceback.format_exc())
-            warn('memory error: cannot assign points to cells', RuntimeWarning)
-            cell_index = None
+        while True:
 
-        self.cells = cells = Partition(self.xyt_data, tess, cell_index)
+            try:
+                cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
+            except MemoryError:
+                if verbose:
+                    print(traceback.format_exc())
+                warn('memory error: cannot assign points to cells', RuntimeWarning)
+                cell_index = None
+
+            self.cells = cells = Partition(self.xyt_data, tess, cell_index)
+
+            ncells = tess.number_of_cells
+            if self.reassignment_kwargs:
+                tess = self.reassign()
+
+            if tess.number_of_cells == ncells:
+                break
 
         # store some parameters together with the partition
         method = self.name
@@ -346,12 +363,19 @@ class Tessellate(Helper):
             cells.param['tessellation'] = self.tessellation_kwargs
         if self.partition_kwargs:
             cells.param['partition'] = self.partition_kwargs
+        if self.reassignment_kwargs:
+            cells.param['reassignment'] = self.reassignment_kwargs
 
         # insert the resulting analysis in the analysis tree
         if self.analyses is not None:
             self.insert_analysis(cells, comment=comment)
 
         return cells
+
+    def reassign(self):
+        """called by :met:`tessellate`. Should not be called directly."""
+        reassignment_count_threshold = self.reassignment_kwargs['count_threshold']
+        return delete_low_count_cells(self.cells, reassignment_count_threshold)
 
 
 def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
@@ -365,7 +389,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
         overwrite=None, return_analyses=False, \
         load_options=None, tessellation_options=None, partition_options=None, save_options=None, \
-        force=None, \
+        force=None, reassignment_options=None, \
         **kwargs):
     """
     Tessellation from points series and partitioning.
@@ -595,7 +619,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         rel_max_size=rel_max_size, rel_max_volume=rel_max_volume, \
         time_window_duration=time_window_duration, time_window_shift=time_window_shift, \
         time_window_options=time_window_options, enable_time_regularization=enable_time_regularization, \
-        **kwargs)
+        kwargs=kwargs)
 
     cells = helper.tessellate(comment=comment)
     cells.param.update(kwargs)
@@ -1093,18 +1117,20 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
         partition_kwargs['filter'] = _filter_fghi
         if 'filter_descriptors_only' not in partition_kwargs:
             partition_kwargs['filter_descriptors_only'] = True
+
+    if not (knn is None and radius is None):
+        if knn is not None:
+            partition_kwargs['knn'] = knn
+        if radius is not None:
+            if 'radius' in partition_kwargs:
+                warn('overwriting `radius`', RuntimeWarning)
+            partition_kwargs['radius'] = radius
+        if 'min_location_count' not in partition_kwargs:
+            partition_kwargs['min_location_count'] = min_location_count
+        if 'metric' not in partition_kwargs:
+            partition_kwargs['metric'] = 'euclidean'
+
     try:
-        if not (knn is None and radius is None):
-            if knn is not None:
-                partition_kwargs['knn'] = knn
-            if radius is not None:
-                if 'radius' in partition_kwargs:
-                    warn('overwriting `radius`', RuntimeWarning)
-                partition_kwargs['radius'] = radius
-            if 'min_location_count' not in partition_kwargs:
-                partition_kwargs['min_location_count'] = min_location_count
-            if 'metric' not in partition_kwargs:
-                partition_kwargs['metric'] = 'euclidean'
         cell_index = tess.cell_index(xyt_data, **partition_kwargs)
     except MemoryError:
         if verbose:
@@ -1131,6 +1157,8 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
         stats.param['tessellation'] = tessellation_kwargs
     if partition_kwargs:
         stats.param['partition'] = partition_kwargs
+    if reassignment_kwargs:
+        stats.param['reassignment'] = reassignment_kwargs
     stats.param.update(kwargs)
 
     # insert the resulting analysis in the analysis tree
@@ -1675,6 +1703,16 @@ def find_partition(path, method=None, full_list=False):
     *from version 0.3:* deprecated.
     """
     return find_mesh(path, method, full_list)
+
+
+def delete_low_count_cells(partition, count_threshold):
+    tessellation = partition.tessellation
+    deleted_cells, = np.nonzero(partition.location_count<count_threshold)
+    for cell in deleted_cells:
+        #print('deleting cell {}...'.format(cell))
+        tessellation.delete_cell(cell, pack_indices=False)
+    tessellation.pack_indices()
+    return tessellation
 
 
 tessellate = tessellate1
