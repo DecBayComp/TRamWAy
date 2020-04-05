@@ -154,7 +154,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         linewidth (int): cell border line width
 
         delaunay (bool or dict): overlay the Delaunay graph; if ``dict``, options are passed
-            to :func:`~tramway.core.plot.mesh.plot_delaunay`
+            to :func:`~tramway.plot.mesh.plot_delaunay`
 
         colorbar (bool or str or dict): add a colour bar; if ``dict``, options are passed to
             :func:`~matplotlib.pyplot.colorbar`;
@@ -310,6 +310,8 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
     obj = None
     if delaunay or isinstance(delaunay, dict):
+        if not isinstance(delaunay, dict):
+            delaunay = {}
         try:
             import tramway.plot.mesh as mesh
             obj = mesh.plot_delaunay(cells, centroid_style=None,

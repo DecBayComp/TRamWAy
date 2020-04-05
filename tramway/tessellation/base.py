@@ -1257,6 +1257,8 @@ class Voronoi(Delaunay):
 
         This private method may be called anytime by :attr:`vertices`, :attr:`vertex_adjacency`
         or :attr:`cell_vertices`.
+
+        Returns the Voronoi object from `scipy.spatial` or similar.
         """
         if self._cell_centers is None:
             raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
@@ -1366,14 +1368,173 @@ class Voronoi(Delaunay):
     def cell_volume(self, area):
         self.__setlazy__('cell_volume', area)
 
-    def delete_cell(self, i, adjacency_label=True, metric='euclidean', pack_indices=True):
+    def delete_cell(self, cell_indices, adjacency_label=True, pack_indices=True,
+            _delaunay_adjacency=False):
+        """ Delete a cell.
+
+        Both the Delaunay and Voronoi graphs are modified.
+
+        As of version 0.4.*, all not-Delaunay-compatible adjacency links are
+        discarded anyway.
+
+        Arguments:
+
+            cell_indices (numpy.ndarray): indices of the cells to delete.
+
+            adjacency_label (scalar): label for the newly-adjacent cells
+                if adjacency labels are defined;
+                for integer labels, ``True`` is translated as ``label_max+1``,
+                and ``False`` as ``label_min-1``;
+                passing ``None`` prevents any extra adjacency link.
+
+            pack_indices (bool): cell indices are shifted down.
+
+        Returns:
+
+            numpy.ndarray: index mapping (useful if pack_indices is True).
+
+        See also: :meth:`pack_indices`.
+        """
+        # if delete_cell is called multiple times in a row with pack_indices=False,
+        # the already deleted cells are still included in neighbours, but the associated
+        # coordinates are infinite.
+        not_a_coordinate = np.inf
+
+        # in addition, the adjacency matrix may not include the full Delaunay structure,
+        # or else may include non-contiguous adjacency; per default, fallback onto the Delaunay graph
+        if _delaunay_adjacency:
+            original_adjacency = self.cell_adjacency.tocsr()
+            original_adjacency = sparse.csr_matrix((
+                    np.ones(original_adjacency.data.shape, dtype=int),
+                    original_adjacency.indices,
+                    original_adjacency.indptr,
+                    ), original_adjacency.shape)
+            def get_neighbours(_i):
+                _js = self.neighbours(_i)
+                return _js[~np.isinf(self._cell_centers[_js,0])]
+        else:
+            _ok = ~np.isinf(self._cell_centers[:,0])
+            original_delaunay = spatial.Delaunay(self._cell_centers[_ok])
+            _d_indptr, _d_indices = original_delaunay.vertex_neighbor_vertices
+            original_adjacency = sparse.csr_matrix(
+                    (np.ones_like(_d_indices), _d_indices, _d_indptr),
+                    self.cell_adjacency.shape)
+            # TODO: check for not-Delaunay edges in cell_adjacency
+            _ok, = np.nonzero(_ok)
+            _d_indices = _ok[_d_indices]
+            def get_neighbours(_i):
+                return _d_indices[_d_indptr[_i]:_d_indptr[_i+1]]
+
+        _ok = ~np.isinf(self._cell_centers[:,0])
+        _ok[cell_indices] = False
+        pruned_delaunay = spatial.Delaunay(self._cell_centers[_ok])
+        pruned_to_original, = np.nonzero(_ok)
+        not_an_index = pruned_to_original.size
+        original_to_pruned = np.full(self.number_of_cells, not_an_index, dtype=pruned_to_original.dtype)
+        original_to_pruned[_ok] = np.arange(pruned_to_original.size)
+
+        d_indptr, d_indices = pruned_delaunay.vertex_neighbor_vertices
+        extended_indptr = np.zeros(self.number_of_cells+1, d_indptr.dtype)
+        extended_indptr[pruned_to_original+1] = np.diff(d_indptr)
+        extended_indptr = np.cumsum(extended_indptr)
+        pruned_adjacency = sparse.csr_matrix((
+                np.full(d_indices.size, 2, dtype=int),
+                pruned_to_original[d_indices],
+                extended_indptr,
+                ), original_adjacency.shape)
+
+        ## cell_adjacency and adjacency_label
+
+        diff_adjacency = original_adjacency + pruned_adjacency
+        diff_adjacency = sparse.tril(diff_adjacency, format='coo')
+
+        if adjacency_label is None:
+            valid_edges = diff_adjacency.data==3
+        else:
+            valid_edges = 1<diff_adjacency.data
+            existing_edges = 2<diff_adjacency.data[valid_edges]
+        nedges = np.sum(valid_edges)
+        valid_rows, valid_cols = diff_adjacency.row[valid_edges], diff_adjacency.col[valid_edges]
+
+        def _make_symmetric(data, coords):
+            row, col = coords
+            symmetric_data = np.r_[data, data]
+            symmetric_row  = np.r_[row,  col]
+            symmetric_col  = np.r_[col,  row]
+            return symmetric_data, (symmetric_row, symmetric_col)
+
+        adjacency = sparse.tril(self.cell_adjacency, format='csr')
+
+        if adjacency_label is not None:
+            labels = self.adjacency_label
+            if labels is None:
+                labels = adjacency.data
+            if labels.dtype not in (bool, np.bool_):
+                if adjacency_label is True:
+                    adjacency_label = labels.max() + 1
+                elif adjacency_label is False:
+                    adjacency_label = labels.min() - 1
+
+        if self.adjacency_label is None: # adjacency labels are in the adjacency matrix data
+            if adjacency_label is None:
+                new_labels = adjacency[valid_rows, valid_cols].ravel()
+            else:
+                new_labels = np.zeros(nedges, dtype=labels.dtype)
+                new_labels[~existing_edges] = adjacency_label
+                new_labels[existing_edges] = adjacency[
+                        valid_rows[existing_edges], valid_cols[existing_edges]
+                        ].flat
+            new_adjacency = sparse.csr_matrix((
+                    new_labels, (valid_rows, valid_cols),
+                    ), adjacency.shape)
+        else: # adjacency data are indices in `labels`
+            new_adjacency = sparse.csr_matrix(_make_symmetric(
+                    np.arange(nedges), (valid_rows, valid_cols),
+                    ), adjacency.shape)
+            if adjacency_label is None:
+                labels = self.adjacency_label
+                new_labels = labels[adjacency[valid_rows, valid_cols].flat]
+            else:
+                new_labels = np.zeros(nedges, dtype=labels.dtype)
+                new_labels[~existing_edges] = adjacency_label
+                new_labels[existing_edges] = labels[adjacency[
+                        valid_rows[existing_edges], valid_cols[existing_edges]
+                        ].flat]
+            self.adjacency_label = new_labels
+        self.cell_adjacency = new_adjacency
+
+        ## cell centers
+        self._cell_centers[cell_indices] = not_a_coordinate
+
+        ## cell vertices; let _preprocess recompute
+        self.cell_vertices = None
+        self.vertices = None
+        self.vertex_adjacency = None
+        self.cell_volume = None
+
+        ## pack
+        if pack_indices:
+            self._cell_centers = self._cell_centers[_ok]
+            assert np.all(np.diff(self._cell_adjacency.indptr)[~_ok]==0)
+            pruned_ncells = np.sum(_ok)
+            self._cell_adjacency = sparse.csr_matrix((
+                    self._cell_adjacency.data,
+                    original_to_pruned[self._cell_adjacency.indices],
+                    self._cell_adjacency.indptr[np.r_[True,_ok]],
+                    ), (pruned_ncells, pruned_ncells))
+
+        return pruned_to_original
+
+
+    def _delete_cell(self, cell_indices, adjacency_label=True, metric='euclidean', pack_indices=True,
+            use_actual_delaunay=True):
         """ Delete a cell.
 
         Both the Delaunay and Voronoi graphs are modified.
 
         Arguments:
 
-            i (int): cell index.
+            cell_indices (numpy.ndarray): indices of the cells to delete.
 
             adjacency_label (scalar): label for newly adjacent cells
                 if adjacency labels are defined;
@@ -1392,218 +1553,236 @@ class Voronoi(Delaunay):
         _eps = 1e-5
         dim = self._cell_centers.shape[1]
 
-        _neighbour_cells = self.neighbours(i)
-        #_larger_circle = list(set(itertools.chain(*[ self.neighbours(j) for j in _neighbour_cells ])) - {i})
-        _larger_circle = set(itertools.chain(*[ self.neighbours(j) for j in _neighbour_cells ])) - {i}
-        _larger_circle = list(set(itertools.chain(*[ self.neighbours(j) for j in _larger_circle ])) - {i})
-        voronoi = spatial.Voronoi(self._cell_centers[_larger_circle])
+        # if delete_cell is called multiple times in a row with pack_indices=False,
+        # the already deleted cells are still included in neighbours, but the associated
+        # coordinates are infinite.
+        not_a_coordinate = np.inf
+        # in addition, the adjacency matrix may not include the full Delaunay structure,
+        # or else may include non-spatial adjacency; per default, fallback onto the Delaunay graph
+        if use_actual_delaunay:
+            _delaunay = spatial.Delaunay(self._cell_centers)
+            _d_indptr, _d_indices = _delaunay.vertex_neighbor_vertices
+        def get_neighbours(_i):
+            if use_actual_delaunay:
+                _js = _d_indices[_d_indptr[_i]:_d_indptr[_i+1]]
+            else:
+                _js = self.neighbours(_i)
+            return _js[~np.isinf(self._cell_centers[_js,0])]
 
-        ## cell_adjacency and adjacency_label
-        _c_adjacency = self.cell_adjacency.tocsr()
-        _c_label = self.adjacency_label
-        _new_ridges = []
-        if _c_label is None:
-            # disconnect
-            _c_adjacency[i,_neighbour_cells] = False
-            _c_adjacency[_neighbour_cells,i] = False
-            # connect
-            if _connect:
-                _edges = np.array(_larger_circle)[voronoi.ridge_points]
-                _i_new, _j_new = [], []
-                for _i, _j in _edges:
-                    # explicit zeros are existing edges
-                    if __i in _neighbour_cells and  __j in _neighbour_cells and \
-                            __j not in _c_adjacency.indices[_c_adjacency.indptr[__i]:_c_adjacency.indptr[__i+1]]:
-                        _i_new.append(_i)
-                        _j_new.append(_j)
-                if _i_new:
-                    _c_adjacency = _c_adjacency.tolil() # this also eliminates explicit zeros
-                    _new_ridges.append((_i_new,_j_new))
-                    _c_adjacency[_i_new,_j_new] = True
-                    _c_adjacency[_j_new,_i_new] = True
-                    _c_adjacency = _c_adjacency.tocsr()
+        for i in cell_indices:
+            _neighbour_cells = get_neighbours(i)
+            #_larger_circle = list(set(itertools.chain(*[ get_neighbours(j) for j in _neighbour_cells ])) - {i})
+            _larger_circle = set(itertools.chain(*[ get_neighbours(j) for j in _neighbour_cells ])) - {i}
+            _larger_circle = list(set(itertools.chain(*[ get_neighbours(j) for j in _larger_circle ])) - {i})
+            voronoi = spatial.Voronoi(self._cell_centers[_larger_circle])
+
+            ## cell_adjacency and adjacency_label
+            _c_adjacency = self.cell_adjacency.tocsr()
+            _c_label = self.adjacency_label
+            _new_ridges = []
+            if _c_label is None:
+                # disconnect
+                _c_adjacency[i,_neighbour_cells] = False
+                _c_adjacency[_neighbour_cells,i] = False
+                # connect
+                if _connect:
+                    _edges = np.array(_larger_circle)[voronoi.ridge_points]
+                    _i_new, _j_new = [], []
+                    for _i, _j in _edges:
+                        # explicit zeros are existing edges
+                        if __i in _neighbour_cells and  __j in _neighbour_cells and \
+                                __j not in _c_adjacency.indices[_c_adjacency.indptr[__i]:_c_adjacency.indptr[__i+1]]:
+                            _i_new.append(_i)
+                            _j_new.append(_j)
+                    if _i_new:
+                        _c_adjacency = _c_adjacency.tolil() # this also eliminates explicit zeros
+                        _new_ridges.append((_i_new,_j_new))
+                        _c_adjacency[_i_new,_j_new] = True
+                        _c_adjacency[_j_new,_i_new] = True
+                        _c_adjacency = _c_adjacency.tocsr()
+                    else:
+                        _c_adjacency.eliminate_zeros()
                 else:
                     _c_adjacency.eliminate_zeros()
             else:
-                _c_adjacency.eliminate_zeros()
-        else:
-            if self._cell_label is not None:
-                self._cell_label[i] = 0
-            _coo = _c_adjacency.tocoo()
-            # disconnect
-            _i, _j, _k = _coo.row, _coo.col, _coo.data
-            _keep = ~np.logical_or(_i==i, _j==i)
-            _i, _j, _k = _i[_keep], _j[_keep], _k[_keep]
-            # connect
-            if _connect:
-                _edges = np.array(_larger_circle)[voronoi.ridge_points]
-                _i_new, _j_new = [], []
-                for __i, __j in _edges:
-                    # explicit zeros are existing (and valid) edges
-                    if __i in _neighbour_cells and  __j in _neighbour_cells and \
-                            __j not in _c_adjacency.indices[_c_adjacency.indptr[__i]:_c_adjacency.indptr[__i+1]]:
-                        _new_ridges.append((__i,__j))
-                        _i_new.append(__i)
-                        _j_new.append(__j)
-                if _i_new:
-                    _ne = _c_label.size
-                    self.adjacency_label = np.r_[_c_label, np.full(len(_i_new), adjacency_label, dtype=_c_label.dtype)]
-                    _k_new = np.arange(_ne, _ne + len(_i_new))
-                    _i = np.r_[_i, _i_new, _j_new]
-                    _j = np.r_[_j, _j_new, _i_new]
-                    _k = np.r_[_k, _k_new, _k_new]
-            _c_adjacency = sparse.csr_matrix((_k,(_i,_j)), shape=_c_adjacency.shape)
-        self._cell_adjacency = _c_adjacency
+                if self._cell_label is not None:
+                    self._cell_label[i] = 0
+                _coo = _c_adjacency.tocoo()
+                # disconnect
+                _i, _j, _k = _coo.row, _coo.col, _coo.data
+                _keep = ~np.logical_or(_i==i, _j==i)
+                _i, _j, _k = _i[_keep], _j[_keep], _k[_keep]
+                # connect
+                if _connect:
+                    _edges = np.array(_larger_circle)[voronoi.ridge_points]
+                    _i_new, _j_new = [], []
+                    for __i, __j in _edges:
+                        # explicit zeros are existing (and valid) edges
+                        if __i in _neighbour_cells and  __j in _neighbour_cells and \
+                                __j not in _c_adjacency.indices[_c_adjacency.indptr[__i]:_c_adjacency.indptr[__i+1]]:
+                            _new_ridges.append((__i,__j))
+                            _i_new.append(__i)
+                            _j_new.append(__j)
+                    if _i_new:
+                        _ne = _c_label.size
+                        self.adjacency_label = np.r_[_c_label, np.full(len(_i_new), adjacency_label, dtype=_c_label.dtype)]
+                        _k_new = np.arange(_ne, _ne + len(_i_new))
+                        _i = np.r_[_i, _i_new, _j_new]
+                        _j = np.r_[_j, _j_new, _i_new]
+                        _k = np.r_[_k, _k_new, _k_new]
+                _c_adjacency = sparse.csr_matrix((_k,(_i,_j)), shape=_c_adjacency.shape)
+            self._cell_adjacency = _c_adjacency
 
-        if self._vertices is None:
-            assert self._cell_vertices is None
-            assert self._vertex_adjacency is None
-            if pack_indices:
-                self.pack_indices(i, None)
-            return
+            if self._vertices is None:
+                assert self._cell_vertices is None
+                assert self._vertex_adjacency is None
+                if pack_indices:
+                    self.pack_indices(i, None)
+                return
 
-        ## match vertices
-        _v_adjacency = self._vertex_adjacency.tocsr()
-        # known vertices
-        _x_inner = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
-        _xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in _x_inner ]))
-        #_xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
-        #_x_inner = set(self._cell_vertices[i])
-        # vertices to be kept for sure
-        _hull_vertices = _xi - _x_inner
-        _hull_vertex = np.array([ _v in _hull_vertices for _v in _xi ])
-        _xi = np.array(list(_xi))
-        _x_inner = set(self._cell_vertices[i])
+            ## match vertices
+            _v_adjacency = self._vertex_adjacency.tocsr()
+            # known vertices
+            _x_inner = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
+            _xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in _x_inner ]))
+            #_xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
+            #_x_inner = set(self._cell_vertices[i])
+            # vertices to be kept for sure
+            _hull_vertices = _xi - _x_inner
+            _hull_vertex = np.array([ _v in _hull_vertices for _v in _xi ])
+            _xi = np.array(list(_xi))
+            _x_inner = set(self._cell_vertices[i])
 
-        _yi = np.arange(voronoi.vertices.shape[0])
+            _yi = np.arange(voronoi.vertices.shape[0])
 
-        #assert _x.shape[0] < _y.shape[0]
-        _x = np.vstack((self._vertices[_xi], self._cell_centers[i])) # known vertices + discarded cell center
-        _y = voronoi.vertices[_yi] # new vertices
-        _x2 = np.sum(_x * _x, axis=1, keepdims=True)
-        _y2 = np.sum(_y * _y, axis=1, keepdims=True)
-        _d2 = np.dot(_x, -2. * _y.T) + _x2 + _y2.T
-        _example_inner = np.argmin(_d2[-1])
-        _d2 = _d2[:-1]
-        if not np.all(np.min(_d2[_hull_vertex], axis=1) < _eps):
-            import warnings
-            warnings.warn('Assertion failed: assert np.all(np.min(_d2[_hull_vertex], axis=1) < _eps)', RuntimeWarning)
-        _nearest = np.argmin(_d2, axis=0)
-        _matched = _d2[_nearest, np.arange(_y.shape[0])] < _eps
-        if _matched[_example_inner] and _hull_vertex[_nearest[_example_inner]]:
-            _inner = set()
-        else:
-            # a inner vertex lies within the vertex hull;
-            # there exists a path that links all the inner vertices
-            _less_inner = set()
-            _inner = set([_example_inner])
-            while True:
-                _more_inner = set()
-                for _w in _inner:
-                    for _u, _v in voronoi.ridge_vertices:
-                        if _u == _w:
-                            _neighbour = _v
-                        elif _v == _w:
-                            _neighbour = _u
-                        else:
-                            _neighbour = -1
-                        if 0 <= _neighbour:
-                            if _matched[_neighbour]:
-                                if not _hull_vertex[_nearest[_neighbour]]:
-                                    _more_inner.add(_neighbour)
+            #assert _x.shape[0] < _y.shape[0]
+            _x = np.vstack((self._vertices[_xi], self._cell_centers[i])) # known vertices + discarded cell center
+            _y = voronoi.vertices[_yi] # new vertices
+            _x2 = np.sum(_x * _x, axis=1, keepdims=True)
+            _y2 = np.sum(_y * _y, axis=1, keepdims=True)
+            _d2 = np.dot(_x, -2. * _y.T) + _x2 + _y2.T
+            _example_inner = np.argmin(_d2[-1])
+            _d2 = _d2[:-1]
+            if not np.all(np.min(_d2[_hull_vertex], axis=1) < _eps):
+                import warnings
+                warnings.warn('Assertion failed: assert np.all(np.min(_d2[_hull_vertex], axis=1) < _eps)', RuntimeWarning)
+            _nearest = np.argmin(_d2, axis=0)
+            _matched = _d2[_nearest, np.arange(_y.shape[0])] < _eps
+            if _matched[_example_inner] and _hull_vertex[_nearest[_example_inner]]:
+                _inner = set()
+            else:
+                # a inner vertex lies within the vertex hull;
+                # there exists a path that links all the inner vertices
+                _less_inner = set()
+                _inner = set([_example_inner])
+                while True:
+                    _more_inner = set()
+                    for _w in _inner:
+                        for _u, _v in voronoi.ridge_vertices:
+                            if _u == _w:
+                                _neighbour = _v
+                            elif _v == _w:
+                                _neighbour = _u
                             else:
-                                _more_inner.add(_neighbour)
-                _less_inner |= _inner
-                _more_inner -= _less_inner
-                if _more_inner:
-                    _inner = _more_inner
-                else:
-                    _inner = _less_inner
-                    break
-        _y_inner = _inner
+                                _neighbour = -1
+                            if 0 <= _neighbour:
+                                if _matched[_neighbour]:
+                                    if not _hull_vertex[_nearest[_neighbour]]:
+                                        _more_inner.add(_neighbour)
+                                else:
+                                    _more_inner.add(_neighbour)
+                    _less_inner |= _inner
+                    _more_inner -= _less_inner
+                    if _more_inner:
+                        _inner = _more_inner
+                    else:
+                        _inner = _less_inner
+                        break
+            _y_inner = _inner
 
-        _y_matching_inner = { _v for _v in _y_inner if _matched[_v] }
-        _x_matching_inner = { _xi[_nearest[_yi[_v]]] for _v in _y_matching_inner }
-        #assert _x_matching_inner < _x_inner # no longer true since _larger_circle is larger
-        _discard = _x_inner - _x_matching_inner
-        _vertex_new = _y_inner - _y_matching_inner
+            _y_matching_inner = { _v for _v in _y_inner if _matched[_v] }
+            _x_matching_inner = { _xi[_nearest[_yi[_v]]] for _v in _y_matching_inner }
+            #assert _x_matching_inner < _x_inner # no longer true since _larger_circle is larger
+            _discard = _x_inner - _x_matching_inner
+            _vertex_new = _y_inner - _y_matching_inner
 
-        _nearest = _xi[_nearest]
-        _vertex_new = _yi[list(_vertex_new)]
+            _nearest = _xi[_nearest]
+            _vertex_new = _yi[list(_vertex_new)]
 
-        ## vertices
-        _nv = self._vertices.shape[0]
-        self._vertices = np.vstack((self._vertices, voronoi.vertices[_vertex_new]))
-        _new_nv = self._vertices.shape[0]
-        _new_vertices = np.full(_yi.size, -1)
-        _new_vertices[_vertex_new] = np.arange(_nv, _new_nv)
-        _discarded_vertices = list(_discard)
+            ## vertices
+            _nv = self._vertices.shape[0]
+            self._vertices = np.vstack((self._vertices, voronoi.vertices[_vertex_new]))
+            _new_nv = self._vertices.shape[0]
+            _new_vertices = np.full(_yi.size, -1)
+            _new_vertices[_vertex_new] = np.arange(_nv, _new_nv)
+            _discarded_vertices = list(_discard)
 
-        ## cell_vertices
-        self._cell_vertices[i] = []
+            ## cell_vertices
+            self._cell_vertices[i] = []
 
-        _v_mask = np.ones(_nv, dtype=bool)
-        _v_mask[_discarded_vertices] = False
-        for _j in _neighbour_cells:
-            _i = _larger_circle.index(_j)
-            _vs = self._cell_vertices[_j]
-            _keep = _v_mask[_vs]
-            _kept = _vs[_keep]
-            _region = np.array(voronoi.regions[voronoi.point_region[_i]])
-            _new = _new_vertices[_region[0 <= _region]]
-            _new = _new[0 <= _new]
-            self._cell_vertices[_j] = _vs = np.r_[_kept, _new]
+            _v_mask = np.ones(_nv, dtype=bool)
+            _v_mask[_discarded_vertices] = False
+            for _j in _neighbour_cells:
+                _i = _larger_circle.index(_j)
+                _vs = self._cell_vertices[_j]
+                _keep = _v_mask[_vs]
+                _kept = _vs[_keep]
+                _region = np.array(voronoi.regions[voronoi.point_region[_i]])
+                _new = _new_vertices[_region[0 <= _region]]
+                _new = _new[0 <= _new]
+                self._cell_vertices[_j] = _vs = np.r_[_kept, _new]
 
-        ## vertex_adjacency
+            ## vertex_adjacency
 
-        # disconnect
-        _v_adjacency = self._vertex_adjacency.tocsr()
-        for _v in _discarded_vertices:
-            _neighbour_vertices = _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]]
-            _v_adjacency[_v,_neighbour_vertices] = 0
-            _v_adjacency[_neighbour_vertices,_v] = 0
-        _v_adjacency.eliminate_zeros()
+            # disconnect
+            _v_adjacency = self._vertex_adjacency.tocsr()
+            for _v in _discarded_vertices:
+                _neighbour_vertices = _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]]
+                _v_adjacency[_v,_neighbour_vertices] = 0
+                _v_adjacency[_neighbour_vertices,_v] = 0
+            _v_adjacency.eliminate_zeros()
 
-        # extend
-        _indptr = np.r_[_v_adjacency.indptr, np.full(_new_nv-_nv, _v_adjacency.indptr[-1])]
-        _v_adjacency = sparse.csr_matrix((_v_adjacency.data,_v_adjacency.indices,_indptr), shape=(_new_nv,_new_nv))
-        _v_adjacency = _v_adjacency.tolil()
+            # extend
+            _indptr = np.r_[_v_adjacency.indptr, np.full(_new_nv-_nv, _v_adjacency.indptr[-1])]
+            _v_adjacency = sparse.csr_matrix((_v_adjacency.data,_v_adjacency.indices,_indptr), shape=(_new_nv,_new_nv))
+            _v_adjacency = _v_adjacency.tolil()
 
-        # connect
-        _reported = False
-        _ks = np.array(_larger_circle)
-        for _k, _r in enumerate(voronoi.ridge_vertices):
-            _i, _j = _r
-            if _i in _yi and _j in _yi:
-                if _matched[_i]:
-                    _i = _nearest[_i]
-                else:
-                    _i = _new_vertices[_i]
-                if _matched[_j]:
-                    _j = _nearest[_j]
-                else:
-                    _j = _new_vertices[_j]
-                if 0 <= _i and 0 <= _j:
-                    _v_adjacency[_i,_j] = True
-                    _v_adjacency[_j,_i] = True
-                    # look for the corresponding ridge
-                    __i, __j = _ks[voronoi.ridge_points[_k]]
-                    if __j not in self.neighbours(__i) and not _reported:
-                        # this may happen when multiple cells are deleted before pack_indices is called
-                        pass
-                        #print('in delete_cell({}): connecting cells that are not neighbours:'.format(i))
-                        #print(_hull_vertices, _x_inner, _y_inner, _x_matching_inner, _y_matching_inner)
-                        #_reported = True
-                    #assert __j in self.neighbours(__i)
+            # connect
+            _reported = False
+            _ks = np.array(_larger_circle)
+            for _k, _r in enumerate(voronoi.ridge_vertices):
+                _i, _j = _r
+                if _i in _yi and _j in _yi:
+                    if _matched[_i]:
+                        _i = _nearest[_i]
+                    else:
+                        _i = _new_vertices[_i]
+                    if _matched[_j]:
+                        _j = _nearest[_j]
+                    else:
+                        _j = _new_vertices[_j]
+                    if 0 <= _i and 0 <= _j:
+                        _v_adjacency[_i,_j] = True
+                        _v_adjacency[_j,_i] = True
+                        # look for the corresponding ridge
+                        __i, __j = _ks[voronoi.ridge_points[_k]]
+                        if __j not in get_neighbours(__i) and not _reported:
+                            # this may happen when multiple cells are deleted before pack_indices is called
+                            pass
+                            #print('in delete_cell({}): connecting cells that are not neighbours:'.format(i))
+                            #print(_hull_vertices, _x_inner, _y_inner, _x_matching_inner, _y_matching_inner)
+                            #_reported = True
+                        #assert __j in get_neighbours(__i)
 
-        self._vertex_adjacency = _v_adjacency
+            self._vertex_adjacency = _v_adjacency
 
-        ## cell_centers
-        self._cell_centers[i] = np.inf
-        self._vertices[_discarded_vertices] = np.inf
+            ## cell_centers
+            self._cell_centers[i] = not_a_coordinate
+            self._vertices[_discarded_vertices] = not_a_coordinate
 
-        if pack_indices:
-            self.pack_indices(i, _discarded_vertices)
+            if pack_indices:
+                # TODO: make a single call for all `cell_indices`
+                self.pack_indices(i, _discarded_vertices)
 
 
     def pack_indices(self, _delete_cell=True, _delete_vertex=True):

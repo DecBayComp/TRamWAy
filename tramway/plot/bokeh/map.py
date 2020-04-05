@@ -16,12 +16,15 @@ import bokeh.plotting as plt
 from bokeh.models.ranges import Range1d
 from tramway.core import *
 from tramway.tessellation.base import Partition, format_cell_index
+from tramway.plot.mesh import _graph_theme
 import tramway.plot.map as mplt
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import itertools
 from warnings import warn
+import scipy.sparse as sparse
+from collections import defaultdict
 
 
 _long_colour_names = {
@@ -238,7 +241,7 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
 
 
 
-def scalar_map_2d(cells, values, clim=None, figure=None, xlim=None, ylim=None, **kwargs):
+def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=None, ylim=None, **kwargs):
     """
     Plot an interactive 2D scalar map as a colourful image.
 
@@ -252,6 +255,9 @@ def scalar_map_2d(cells, values, clim=None, figure=None, xlim=None, ylim=None, *
         clim (2-element sequence): passed to :func:`~matplotlib.cm.ScalarMappable.set_clim`
 
         figure (bokeh.plotting.figure.Figure): figure handle
+
+        delaunay (bool or dict): overlay the Delaunay graph; if ``dict``, options are passed
+            to :func:`~tramway.plot.bokeh.plot_delaunay`
 
         xlim (2-element sequence): lower and upper x-axis bounds
 
@@ -324,6 +330,11 @@ def scalar_map_2d(cells, values, clim=None, figure=None, xlim=None, ylim=None, *
     patch_kwargs = dict(fill_color=colors, line_width=0)
     figure.patches(*zip(*polygons), **patch_kwargs)
 
+    if delaunay or isinstance(delaunay, dict):
+        if not isinstance(delaunay, dict):
+            delaunay = {}
+        plot_delaunay(cells, figure=figure, **delaunay)
+
     if not xlim or not ylim:
         xy_min, _, xy_max, _ = mplt._bounding_box(cells, xy)
         if not xlim:
@@ -336,5 +347,98 @@ def scalar_map_2d(cells, values, clim=None, figure=None, xlim=None, ylim=None, *
     #plt.show(figure)
 
 
-__all__ = ['plot_points', 'plot_trajectories', 'scalar_map_2d']
+def plot_delaunay(cells, labels=None, color=None, style='-',
+        figure=None, linewidth=1, **kwargs):
+    """
+    Delaunay plot.
+
+    Arguments:
+
+        cells (Partition):
+            full partition
+
+        labels (numpy.ndarray):
+            numerical labels for cell adjacency relationship
+
+        color (str):
+            single-character colours in a string, e.g. 'rrrbgy'
+
+        style (str):
+            line style
+
+        figure (bokeh.plotting.figure.Figure):
+            figure handle
+
+        linewidth (int):
+            line width
+
+    Returns:
+
+        tuple: list of handles of the plotted edges,
+            handle of the plotted centroids
+    """
+    if figure is None:
+        raise NotImplementedError
+    try:
+        tessellation = cells.tessellation
+    except AttributeError:
+        tessellation = cells
+
+    vertices = tessellation.cell_centers
+
+    labels, color = _graph_theme(tessellation, labels, color, True)
+
+    # if asymmetric, can be either triu or tril
+    A = sparse.triu(tessellation.cell_adjacency, format='coo')
+    I, J, K = A.row, A.col, A.data
+    if not I.size:
+        A = sparse.tril(tessellation.cell_adjacency, format='coo')
+        I, J, K = A.row, A.col, A.data
+
+    by_color = defaultdict(list)
+    edge_handles = []
+
+    # plot delaunay
+    for i, j, k in zip(I, J, K):
+        x, y = zip(vertices[i], vertices[j])
+        if labels is None:
+            c = 0
+        else:
+            label = tessellation.adjacency_label[k]
+            try:
+                c = labels.index(label)
+            except ValueError:
+                continue
+        by_color[c].append((x, y))
+
+    for c in by_color:
+        xy = by_color[c]
+        X = np.zeros((len(xy) * 3,))
+        Y = np.empty((len(xy) * 3,))
+        Y[:] = np.nan
+        i = 0
+        for x, y in xy:
+            I = slice(i*3, i*3+2)
+            X[I], Y[I] = x, y
+            i += 1
+        h = figure.line(X, Y, line_dash=_line_style_to_dash_pattern(style),
+            line_color=long_colour_name(color[c if color[1:] else 0]),
+            line_width=linewidth)
+        edge_handles.append(h)
+
+    return edge_handles
+
+
+def _line_style_to_dash_pattern(style):
+    return {
+        '-':    [],
+        '-.':   'dashdot',
+        ':':    'dotted',
+        '.-':   'dotdash',
+        '--':   'dashed',
+        }.get(style, style)
+
+
+
+__all__ = ['plot_points', 'plot_trajectories', 'plot_delaunay', 'scalar_map_2d']
 

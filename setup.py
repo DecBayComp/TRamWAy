@@ -56,6 +56,7 @@ setup(
         'tramway.feature.single_traj',
         'tramway.plot',
         'tramway.plot.animation',
+        'tramway.plot.bokeh',
         'tramway.plot.tk',
         'tramway.helper',
         'tramway.helper.simulation',

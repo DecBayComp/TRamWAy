@@ -94,6 +94,7 @@ class GasMesh(Voronoi):
     def tessellate(self, points, pass_count=(), residual_factor=.7, error_count_tol=5e-3, \
         min_growth=1e-4, collapse_tol=.01, stopping_criterion=0, verbose=False, \
         plot=False, alpha_risk=1e-15, grab=None, max_frames=None, max_batches=None, axes=None, \
+        complete_delaunay=False, \
         **kwargs):
         """Grow the tessellation.
 
@@ -119,6 +120,7 @@ class GasMesh(Voronoi):
             lifetime (int): (see :class:`~tramway.tessellation.gwr.gas.Gas`)
             alpha_risk (float): location distributions of potential neighbor cells
                 are compared with a t-test
+            complete_delaunay (bool): complete the Delaunay graph
 
         Returns:
             See :meth:`~tramway.tessellation.Tessellation.tessellate`.
@@ -157,11 +159,14 @@ class GasMesh(Voronoi):
         self._cell_centers = V['weight']
         self._cell_adjacency.data = np.ones_like(self._cell_adjacency.data, dtype=int)
         self.alpha_risk = alpha_risk
-        self._postprocess(points, verbose)
+        self._postprocess(points, complete_delaunay, verbose, _update_cell_adjacency=True)
 
-    def _postprocess(self, points=None, verbose=False):
+    def _postprocess(self, points=None, complete_delaunay=False, verbose=False, _update_cell_adjacency=False):
         # build the Voronoi graph
         voronoi = Voronoi._postprocess(self)
+        if not _update_cell_adjacency:
+            return voronoi # stop here
+
         # clean and extend the adjacency matrix with the Delaunay graph
         adjacency = self._cell_adjacency # shorter name
         # fix for issue on reload
@@ -178,6 +183,7 @@ class GasMesh(Voronoi):
             warn('some Voronoi ridges appear twice', RuntimeWarning)
         delaunay.data[:] = 2
         A = sparse.tril(adjacency + delaunay, format='coo')
+        assert delaunay.data.size/2 <= A.data.size
         self._adjacency_label = A.data # labels are: 1=gas only, 2=voronoi only, 3=both
         # edge indices for _adjacency_label
         adjacency = sparse.csr_matrix( \
@@ -185,8 +191,14 @@ class GasMesh(Voronoi):
             (np.concatenate((A.row, A.col)), np.concatenate((A.col, A.row)))), \
             shape=adjacency.shape)
         self.cell_adjacency = adjacency
-        # reintroduce edges missing in the gas
-        if points is not None:
+
+        ## reintroduce Delaunay edges that do not appear in the gas
+        # (turn some label-2 edges into label-4)
+
+        if complete_delaunay:
+            adjacency.data[adjacency.data==2] = 4
+
+        elif points is not None:
             #t = time.time()
             points = np.asarray(points)
             try:
@@ -221,6 +233,7 @@ class GasMesh(Voronoi):
             #ref = -ref # with alternative to cdist, index from the end
             ref -= 1 # with cdist, index
             A = sparse.tril(self._cell_adjacency, format='coo') # in future scipy version, check that tril does not remove explicit zeros
+            assert np.any(A.data == 0)
             # compute the median distance between adjacent cell centers
             pts_i = np.stack([ self._cell_centers[i] for i in A.row ])
             pts_j = np.stack([ self._cell_centers[j] for j in A.col ])
@@ -272,6 +285,10 @@ class GasMesh(Voronoi):
                         #
                     elif verbose and 1 < verbose:
                         print('skipping edge {:d} between cell {:d} (card = {:d}) and cell {:d} (card = {:d})'.format(k, i, xi.shape[0], j, xj.shape[0]))
+            sparsity = np.float(np.sum(self._adjacency_label==2)) / np.float(np.sum(0<self._adjacency_label))
+            if .5 < sparsity:
+                warn('the Delaunay-like graph is very sparse compared to the actual Delaunay graph; pass `complete_delaunay=True` to get the Delaunay graph instead', RuntimeWarning)
+
         new_labels = np.array([0,-1,-2,1,2])
         # before: 0=[none], 1=not congruent (gas only), 2=not congruent (voronoi only),
         #     3=congruent, 4=congruent after post-processing (initially voronoi only)
@@ -279,8 +296,11 @@ class GasMesh(Voronoi):
         #     1=congruent, 2=congruent after post-processing (initially voronoi only)
         self._adjacency_label = new_labels[self._adjacency_label]
 
+        return voronoi
+
     def freeze(self):
         self.gas = None
+
 
 
 setup = {

@@ -298,6 +298,8 @@ class Tessellate(Helper):
         for arg in dict(kwargs):
             if arg.startswith('reassignment_'):
                 self.reassignment_kwargs[arg[13:]] = kwargs.pop(arg)
+            if arg.startswith('reassign_'):
+                self.reassignment_kwargs[arg[9:]] = kwargs.pop(arg)
 
     def tessellate(self, comment=None, verbose=None):
         if comment is None:
@@ -335,24 +337,30 @@ class Tessellate(Helper):
         tess.tessellate(data, **tessellate_kwargs, **tessellate_hidden_kwargs)
 
         # partition the dataset into the cells of the tessellation
-        while True:
+        try:
+            cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
+        except MemoryError:
+            if verbose:
+                print(traceback.format_exc())
+            warn('memory error: cannot assign points to cells', RuntimeWarning)
+            cell_index = None
 
-            try:
-                cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
-            except MemoryError:
-                if verbose:
-                    print(traceback.format_exc())
-                warn('memory error: cannot assign points to cells', RuntimeWarning)
-                cell_index = None
+        self.cells = cells = Partition(self.xyt_data, tess, cell_index)
 
-            self.cells = cells = Partition(self.xyt_data, tess, cell_index)
-
-            ncells = tess.number_of_cells
-            if self.reassignment_kwargs:
-                tess = self.reassign()
-
-            if tess.number_of_cells == ncells:
-                break
+        if self.reassignment_kwargs:
+            update_centroids = self.reassignment_kwargs.get('update_centroids', False)
+            if update_centroids:
+                max_iter = np.inf if update_centroids is True else update_centroids
+            else:
+                max_iter = 0
+            i = 0
+            while i < max_iter:
+                ncells = cells.number_of_cells
+                cells = self.reassign()
+                if cells.number_of_cells == ncells:
+                    break
+                assert self.cells.cell_index.max() < cells.number_of_cells
+                i += 1
 
         # store some parameters together with the partition
         method = self.name
@@ -374,8 +382,42 @@ class Tessellate(Helper):
 
     def reassign(self):
         """called by :met:`tessellate`. Should not be called directly."""
+        update_centroids = self.reassignment_kwargs.get('update_centroids', False)
+        if update_centroids:
+            prev_cell_indices = self.cells.cell_index
+            if not isinstance(prev_cell_indices, np.ndarray):
+                raise RuntimeError('cell overlap is not supported in combination with point reassignment')
+
         reassignment_count_threshold = self.reassignment_kwargs['count_threshold']
-        return delete_low_count_cells(self.cells, reassignment_count_threshold)
+        tess, mapping = delete_low_count_cells(self.cells, reassignment_count_threshold)
+        cell_indices = tess.cell_index(self.xyt_data, **self.partition_kwargs)
+
+        if update_centroids:
+            if self.cells._cell_index is None:
+                warn('updating the centroids after reassigning points may fail because of memory error', RuntimeWarning)
+            points = self.xyt_data[['x','y']].values # TODO: use `descriptors` instead
+
+            while True:
+                cell_centers = np.array(tess.cell_centers) # copy
+                any_new = False
+                for i in range(tess.number_of_cells):
+                    prev_cell_i = prev_cell_indices==mapping[i]
+                    cell_i = cell_indices==i
+                    if not np.all(cell_i==prev_cell_i):
+                        any_new = True
+                        center = np.nanmean(points[cell_i], axis=0)
+                        cell_centers[i] = center
+                if any_new:
+                    tess.cell_centers = cell_centers
+                    # keep on iterating
+                    prev_cell_indices = cell_indices
+                    cell_indices = tess.cell_index(self.xyt_data, **self.partition_kwargs)
+                    mapping = np.arange(tess.number_of_cells)
+                    continue
+                break
+
+        self.cells = cells = Partition(self.xyt_data, tess, cell_indices)
+        return cells
 
 
 def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
@@ -403,6 +445,9 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
     *rel_max_size* and *rel_max_volume* are notable exceptions in that they currently apply to
     the partitioning step whereas they should conceptually apply to the tessellation step instead.
     This may change in a future version.
+
+    Reassignment options can be provided using the `reassignment_options` dictionnary or keyworded
+    arguments which names begin with '*reassign_*' or '*reassignment_*'.
 
     Arguments:
         xyt_data (str or pandas.DataFrame):
@@ -556,6 +601,14 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
             Pass explicit keyword arguments to the
             :meth:`~tramway.tessellation.base.Tessellation.cell_index` method and ignore
             the extra input arguments.
+
+        reassignment_options (dict):
+            allowed keys are:
+            *count_threshold* (int): minimum number of points for a cell not to be deleted;
+            *update_centroids* (bool or int): if evaluates to ``True``, cell centers are
+            updated as the centers of mass for the assigned points, and then the new cells
+            are checked again for *count_threshold* and so on; the number of iterations is
+            not limited by default, and can be set passing an integer value instead of ``True``.
 
         save_options (dict):
             Pass extra keyword arguments to :func:`~tramway.core.xyt.save_rwa` if called.
@@ -1708,11 +1761,8 @@ def find_partition(path, method=None, full_list=False):
 def delete_low_count_cells(partition, count_threshold):
     tessellation = partition.tessellation
     deleted_cells, = np.nonzero(partition.location_count<count_threshold)
-    for cell in deleted_cells:
-        #print('deleting cell {}...'.format(cell))
-        tessellation.delete_cell(cell, pack_indices=False)
-    tessellation.pack_indices()
-    return tessellation
+    index_mapping = tessellation.delete_cell(deleted_cells)
+    return tessellation, index_mapping
 
 
 tessellate = tessellate1
