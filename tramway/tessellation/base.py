@@ -1368,9 +1368,9 @@ class Voronoi(Delaunay):
     def cell_volume(self, area):
         self.__setlazy__('cell_volume', area)
 
-    def delete_cell(self, cell_indices, adjacency_label=True, pack_indices=True,
-            _delaunay_adjacency=False):
-        """ Delete a cell.
+    def delete_cells(self, cell_indices, adjacency_label=True, pack_indices=True,
+            _delaunay_adjacency=False, exclude_neighbours=False):
+        """ Delete cells.
 
         Both the Delaunay and Voronoi graphs are modified.
 
@@ -1424,6 +1424,20 @@ class Voronoi(Delaunay):
             _d_indices = _ok[_d_indices]
             def get_neighbours(_i):
                 return _d_indices[_d_indptr[_i]:_d_indptr[_i+1]]
+
+        if exclude_neighbours:
+            _cell_indices = list(cell_indices)
+            _ok = np.ones(cell_indices.shape, dtype=bool)
+            for _cell in range(cell_indices.size):
+                if _ok[_cell]:
+                    for _neighbour in get_neighbours(cell_indices[_cell]):
+                        try:
+                            _neighbour = _cell_indices.index(_neighbour)
+                        except ValueError:
+                            pass
+                        else:
+                            _ok[_neighbour] = False
+            cell_indices = cell_indices[_ok]
 
         _ok = ~np.isinf(self._cell_centers[:,0])
         _ok[cell_indices] = False
@@ -2077,6 +2091,7 @@ def cell_index_by_radius(tessellation, points, radius, format=None, select=None,
     else:
         associations = (D <= r2).nonzero()
     return format_cell_index(associations, format=format, select=select, shape=shape)
+
 
 
 __all__ = ['Partition', 'CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \

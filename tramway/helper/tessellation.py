@@ -38,6 +38,18 @@ class Tessellate(Helper):
         self.time_window_kwargs = {}
         self.reassignment_kwargs = {}
 
+    @property
+    def _partition_kwargs(self):
+        if self.reassignment_kwargs:
+           return { kw: arg for kw, arg in self.partition_kwargs.items() \
+                        if kw not in ('knn', 'radius') }
+        else:
+           return self.partition_kwargs
+
+    @_partition_kwargs.setter
+    def _partition_kwargs(self, kwargs):
+        self.partition_kwargs = kwargs
+
     def prepare_data(self, input_data, labels=None, types=None, metadata=True, \
             verbose=None, scaling=False, time_scale=None, **kwargs):
 
@@ -338,7 +350,7 @@ class Tessellate(Helper):
 
         # partition the dataset into the cells of the tessellation
         try:
-            cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
+            cell_index = tess.cell_index(self.xyt_data, **self._partition_kwargs)
         except MemoryError:
             if verbose:
                 print(traceback.format_exc())
@@ -361,6 +373,10 @@ class Tessellate(Helper):
                     break
                 assert self.cells.cell_index.max() < cells.number_of_cells
                 i += 1
+            # post-reassignment step to introduce overlap if requested
+            if self._partition_kwargs is not self.partition_kwargs:
+                cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
+                self.cells = cells = Partition(self.xyt_data, tess, cell_index)
 
         # store some parameters together with the partition
         method = self.name
@@ -389,7 +405,8 @@ class Tessellate(Helper):
                 raise RuntimeError('cell overlap is not supported in combination with point reassignment')
 
         reassignment_count_threshold = self.reassignment_kwargs['count_threshold']
-        tess, mapping = delete_low_count_cells(self.cells, reassignment_count_threshold)
+        reassignment_priority = self.reassignment_kwargs['priority_by']
+        tess, mapping = delete_low_count_cells(self.cells, reassignment_count_threshold, reassignment_priority)
         cell_indices = tess.cell_index(self.xyt_data, **self.partition_kwargs)
 
         if update_centroids:
@@ -403,7 +420,7 @@ class Tessellate(Helper):
                 for i in range(tess.number_of_cells):
                     prev_cell_i = prev_cell_indices==mapping[i]
                     cell_i = cell_indices==i
-                    if not np.all(cell_i==prev_cell_i):
+                    if np.any(cell_i) and not np.all(cell_i==prev_cell_i):
                         any_new = True
                         center = np.nanmean(points[cell_i], axis=0)
                         cell_centers[i] = center
@@ -1758,10 +1775,34 @@ def find_partition(path, method=None, full_list=False):
     return find_mesh(path, method, full_list)
 
 
-def delete_low_count_cells(partition, count_threshold):
+def delete_low_count_cells(partition, count_threshold, priority_by=None, **partition_kwargs):
+    _partition_kwargs = dict(partition.param.get('partition',{}))
+    _partition_kwargs.update(partition_kwargs)
+    partition_kwargs = _partition_kwargs
     tessellation = partition.tessellation
-    deleted_cells, = np.nonzero(partition.location_count<count_threshold)
-    index_mapping = tessellation.delete_cell(deleted_cells)
+    index_mapping = None
+    while True:
+        deleted_cells, = np.nonzero(partition.location_count<count_threshold)
+        if priority_by:
+            if deleted_cells.size == 0:
+                break
+            if priority_by == 'count':
+                priority = -partition.location_count[deleted_cells]
+            elif priority_by == 'volume':
+                priority = tessellation.volume[deleted_cells]
+            ordering = np.argsort(priority)
+            deleted_cells = deleted_cells[ordering]
+            _index_mapping = tessellation.delete_cells(deleted_cells, exclude_neighbours=True)
+            if index_mapping is None:
+                index_mapping = _index_mapping
+            else:
+                index_mapping = index_mapping[_index_mapping]
+            partition.tessellation = None # reset state for cell_index to be updated
+            partition.tessellation = tessellation
+            partition.cell_index = tessellation.cell_index(partition.points, **partition_kwargs)
+        else:
+            index_mapping = tessellation.delete_cells(deleted_cells)
+            break
     return tessellation, index_mapping
 
 
