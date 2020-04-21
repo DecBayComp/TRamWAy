@@ -2041,7 +2041,7 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
                 if SAFE * err <= abs(a[u,u] - a[u-1,u-1]):
                     break
             if total_grad_j is None:
-                logger.warning('sparse_grad failed at column {}'.format(j))
+                module_logger.warning('sparse_grad failed at column {}'.format(j))
                 total_grad_j = 0.
             else:
                 any_ok = True

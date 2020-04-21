@@ -22,7 +22,7 @@ import scipy.spatial as spatial
 from tramway.core import *
 import itertools
 import copy
-from collections import Counter, namedtuple
+from collections import Counter, namedtuple, defaultdict
 import sys
 
 
@@ -478,6 +478,29 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
     D = np.sqrt(np.concatenate(D))
     n = cells.points.shape[0]
     return sparse.csr_matrix((D, (I, J)), shape=(n, n))
+
+
+def get_delaunay_adjacency(_points):
+    """Returns the `indptr` and `indices` vectors that encode adjacency
+    in the Delaunay graph."""
+    _delaunay = spatial.Delaunay(_points)
+    #_d_indptr, _d_indices = _delaunay.vertex_neighbor_vertices
+    _adjacency = defaultdict(set)
+    for _simplex in _delaunay.simplices:
+        _is = set(_simplex)
+        for _i in _is:
+            _adjacency[_i] = _adjacency[_i].union(_is)
+    _indptr, _indices = [0], []
+    for _i in range(len(_points)):
+        _is = _adjacency[_i] - {_i}
+        if _is:
+            _indptr.append(len(_is))
+            _indices.append(list(_is))
+        else:
+            _indptr.append(0)
+    _indptr = np.cumsum(_indptr)
+    _indices = np.concatenate(_indices)
+    return _indptr, _indices
 
 
 
@@ -1414,8 +1437,7 @@ class Voronoi(Delaunay):
                 return _js[~np.isinf(self._cell_centers[_js,0])]
         else:
             _ok = ~np.isinf(self._cell_centers[:,0])
-            original_delaunay = spatial.Delaunay(self._cell_centers[_ok])
-            _d_indptr, _d_indices = original_delaunay.vertex_neighbor_vertices
+            _d_indptr, _d_indices = get_delaunay_adjacency(self._cell_centers[_ok])
             original_adjacency = sparse.csr_matrix(
                     (np.ones_like(_d_indices), _d_indices, _d_indptr),
                     self.cell_adjacency.shape)
@@ -1441,13 +1463,12 @@ class Voronoi(Delaunay):
 
         _ok = ~np.isinf(self._cell_centers[:,0])
         _ok[cell_indices] = False
-        pruned_delaunay = spatial.Delaunay(self._cell_centers[_ok])
         pruned_to_original, = np.nonzero(_ok)
         not_an_index = pruned_to_original.size
         original_to_pruned = np.full(self.number_of_cells, not_an_index, dtype=pruned_to_original.dtype)
         original_to_pruned[_ok] = np.arange(pruned_to_original.size)
 
-        d_indptr, d_indices = pruned_delaunay.vertex_neighbor_vertices
+        d_indptr, d_indices = get_delaunay_adjacency(self._cell_centers[_ok])
         extended_indptr = np.zeros(self.number_of_cells+1, d_indptr.dtype)
         extended_indptr[pruned_to_original+1] = np.diff(d_indptr)
         extended_indptr = np.cumsum(extended_indptr)
@@ -1537,7 +1558,7 @@ class Voronoi(Delaunay):
                     self._cell_adjacency.indptr[np.r_[True,_ok]],
                     ), (pruned_ncells, pruned_ncells))
 
-        return pruned_to_original
+        return pruned_to_original, adjacency_label
 
 
     def _delete_cell(self, cell_indices, adjacency_label=True, metric='euclidean', pack_indices=True,

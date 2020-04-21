@@ -448,7 +448,7 @@ def tessellate1(xyt_data, method='gwr', output_file=None, verbose=False, \
         label=None, output_label=None, comment=None, input_label=None, inplace=False, \
         overwrite=None, return_analyses=False, \
         load_options=None, tessellation_options=None, partition_options=None, save_options=None, \
-        force=None, reassignment_options=None, \
+        force=None, \
         **kwargs):
     """
     Tessellation from points series and partitioning.
@@ -1780,7 +1780,7 @@ def delete_low_count_cells(partition, count_threshold, priority_by=None, **parti
     _partition_kwargs.update(partition_kwargs)
     partition_kwargs = _partition_kwargs
     tessellation = partition.tessellation
-    index_mapping = None
+    index_mapping, label = None, True
     while True:
         deleted_cells, = np.nonzero(partition.location_count<count_threshold)
         if priority_by:
@@ -1792,9 +1792,10 @@ def delete_low_count_cells(partition, count_threshold, priority_by=None, **parti
                 priority = tessellation.volume[deleted_cells]
             ordering = np.argsort(priority)
             deleted_cells = deleted_cells[ordering]
-            _index_mapping = tessellation.delete_cells(deleted_cells, exclude_neighbours=True)
+            _index_mapping, _label = tessellation.delete_cells(deleted_cells, exclude_neighbours=True, adjacency_label=label)
             if index_mapping is None:
                 index_mapping = _index_mapping
+                label = _label
             else:
                 index_mapping = index_mapping[_index_mapping]
             partition.tessellation = None # reset state for cell_index to be updated

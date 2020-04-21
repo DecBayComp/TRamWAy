@@ -231,7 +231,16 @@ class Gas(Graph):
             # find nearest and second nearest nodes
             dist2, index_to_node = self.square_distance('weight', eta, eta2=eta_square[k])
             i = np.argsort(dist2)
-            dist_min = sqrt(dist2[i[0]])
+            dist2_min = dist2[i[0]]
+            try:
+                dist_min = sqrt(dist2_min)
+            except ValueError:
+                if -1e-12 < dist2_min:
+                    dist_min = 0
+                    import warnings
+                    warnings.warn('Rounding error: negative distance', RuntimeWarning)
+                else:
+                    raise ValueError('Negative distance')
             nearest, second_nearest = index_to_node(i[:2])
             errors.append(dist_min)
             # test activity and habituation against thresholds

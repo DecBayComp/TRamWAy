@@ -143,7 +143,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
 
 
 def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
-        linewidth=1):
+        linewidth=1, fallback_color='gray', verbose=True):
     """
     Voronoi plot.
 
@@ -170,6 +170,12 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
         linewidth (int):
             line width
 
+        fallback_color (str):
+            colour for missing edges
+
+        verbose (bool):
+            print message about missing edges
+
     Returns:
 
         tuple: list of handles of the plotted edges,
@@ -190,6 +196,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
     except:
         special_edges = {}
     c = 0 # if cells.tessellation.adjacency_label is None
+    fallback_clr = 'k'
     edge_handles, centroid_handle = [], None
     # plot voronoi
     #plt.plot(vertices[:,0], vertices[:,1], 'b+')
@@ -211,15 +218,27 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
                 # js.index(b) will fail if a and b are not adjacent
                 edge_ix = adjacency.data[adjacency.indptr[a]+js.index(b)]
             except (ValueError, IndexError):
-                print("vertices {} and {} do not match with a ridge".format(u, v))
-                print(traceback.format_exc())
-                continue
-        if cells.tessellation.adjacency_label is not None:
+                if verbose:
+                    print("vertices {} and {} do not match with a ridge".format(u, v))
+                    print(traceback.format_exc())
+                #continue
+                c = -1
+            else:
+                if cells.tessellation.adjacency_label is not None:
+                    try:
+                        c = labels.index(cells.tessellation.adjacency_label[edge_ix])
+                    except ValueError:
+                        continue
+        if 0 <= c:
             try:
-                c = labels.index(cells.tessellation.adjacency_label[edge_ix])
-            except ValueError:
-                continue
-        h = plt.plot(x, y, style, color=color[c], linewidth=linewidth)
+                _clr = color[c]
+            except IndexError:
+                import warnings
+                warnings.warn("too few colours: '{}'; index {:d} out of range".format(color, c), RuntimeWarning)
+                _clr = fallback_color
+        else:
+            _clr = fallback_color
+        h = plt.plot(x, y, style, color=_clr, linewidth=linewidth)
         assert not h[1:]
         edge_handles.append(h[0])
 
@@ -258,7 +277,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 
 
 def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
-        axes=None, linewidth=1, individual=False):
+        axes=None, linewidth=1, individual=False, fallback_color='gray'):
     """
     Delaunay plot.
 
@@ -292,6 +311,9 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 
         individual (bool):
             plot each edge independently; this generates a lot of handles and takes time
+
+        fallback_color (str):
+            colour for unexpected labels
 
     Returns:
 
@@ -349,6 +371,8 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
             by_color[c].append((x, y))
 
     if not individual:
+        if not color[1:]:
+            _clr = color[0]
         for c in by_color:
             xy = by_color[c]
             X = np.zeros((len(xy) * 3,))
@@ -359,9 +383,14 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
                 I = slice(i*3, i*3+2)
                 X[I], Y[I] = x, y
                 i += 1
-            h = axes.plot(X, Y, style,
-                color=color[c if color[1:] else 0],
-                linewidth=linewidth)
+            if color[1:]:
+                try:
+                    _clr = color[c]
+                except IndexError:
+                    import warnings
+                    warnings.warn('too few specified colours; at least {:d} needed'.format(c), RuntimeWarning)
+                    _clr = fallback_color
+            h = axes.plot(X, Y, style, color=_clr, linewidth=linewidth)
             assert not h[1:]
             edge_handles.append(h[0])
 
@@ -396,8 +425,8 @@ def _graph_theme(tess, labels, color, negative):
         else:
             nnp = len([ l for l in labels if l <= 0 ]) # number of non-positive labels
     if not color:
-        neg_color = 'cymw'
-        pos_color = 'rgbk'
+        neg_color = 'cym'
+        pos_color = 'rgb'
         labels.sort()
         color = neg_color[:nnp] + pos_color
     return (labels, color)

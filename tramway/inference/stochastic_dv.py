@@ -414,7 +414,7 @@ def infer_stochastic_DV(cells,
             except:
                 V_initial = -np.log(n / np.max(n))
             else:
-                density = n / np.array([ np.inf if v is None else v for v in volume ])
+                density = n / np.array([ np.inf if (v is None or np.isnan(v)) else v for v in volume ])
                 density[density == 0] = np.min(density[0 < density])
                 V_initial = np.log(np.max(density)) - np.log(density)
     else:

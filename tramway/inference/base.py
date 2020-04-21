@@ -2090,7 +2090,13 @@ class Maps(Lazy):
 
     def __getitem__(self, feature_name):
         try:
-            return self.maps[dict(self._features)[feature_name]]
+            if isinstance(feature_name, str):
+                return self.maps[dict(self._features)[feature_name]]
+            else:
+                import itertools
+                return self.maps[list(itertools.chain(*[
+                            dict(self._features)[ftr] for ftr in feature_name
+                        ]))]
         except (TypeError, KeyError):
             raise KeyError("no such mapped feature: '{}'".format(feature_name))
 
