@@ -484,7 +484,7 @@ def get_delaunay_adjacency(_points):
     """Returns the `indptr` and `indices` vectors that encode adjacency
     in the Delaunay graph."""
     _delaunay = spatial.Delaunay(_points)
-    #_d_indptr, _d_indices = _delaunay.vertex_neighbor_vertices
+    return _delaunay.vertex_neighbor_vertices
     _adjacency = defaultdict(set)
     for _simplex in _delaunay.simplices:
         _is = set(_simplex)
@@ -495,7 +495,7 @@ def get_delaunay_adjacency(_points):
         _is = _adjacency[_i] - {_i}
         if _is:
             _indptr.append(len(_is))
-            _indices.append(list(_is))
+            _indices.append(sorted(list(_is)))
         else:
             _indptr.append(0)
     _indptr = np.cumsum(_indptr)
@@ -1470,7 +1470,7 @@ class Voronoi(Delaunay):
 
         d_indptr, d_indices = get_delaunay_adjacency(self._cell_centers[_ok])
         extended_indptr = np.zeros(self.number_of_cells+1, d_indptr.dtype)
-        extended_indptr[pruned_to_original+1] = np.diff(d_indptr)
+        extended_indptr[1+pruned_to_original] = np.diff(d_indptr)
         extended_indptr = np.cumsum(extended_indptr)
         pruned_adjacency = sparse.csr_matrix((
                 np.full(d_indices.size, 2, dtype=int),
@@ -1558,7 +1558,7 @@ class Voronoi(Delaunay):
                     self._cell_adjacency.indptr[np.r_[True,_ok]],
                     ), (pruned_ncells, pruned_ncells))
 
-        return pruned_to_original, adjacency_label
+        return original_to_pruned, adjacency_label
 
 
     def _delete_cell(self, cell_indices, adjacency_label=True, metric='euclidean', pack_indices=True,

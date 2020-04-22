@@ -360,19 +360,12 @@ class Tessellate(Helper):
         self.cells = cells = Partition(self.xyt_data, tess, cell_index)
 
         if self.reassignment_kwargs:
-            update_centroids = self.reassignment_kwargs.get('update_centroids', False)
-            if update_centroids:
-                max_iter = np.inf if update_centroids is True else update_centroids
-            else:
-                max_iter = 0
-            i = 0
-            while i < max_iter:
+            while True:
                 ncells = cells.number_of_cells
                 cells = self.reassign()
                 if cells.number_of_cells == ncells:
                     break
                 assert self.cells.cell_index.max() < cells.number_of_cells
-                i += 1
             # post-reassignment step to introduce overlap if requested
             if self._partition_kwargs is not self.partition_kwargs:
                 cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
@@ -398,42 +391,36 @@ class Tessellate(Helper):
 
     def reassign(self):
         """called by :met:`tessellate`. Should not be called directly."""
+        cells = self.cells
+
+        partition_kwargs = dict(cells.param.get('partition',{}))
+        partition_kwargs.update(self.partition_kwargs)
+
         update_centroids = self.reassignment_kwargs.get('update_centroids', False)
-        if update_centroids:
-            prev_cell_indices = self.cells.cell_index
-            if not isinstance(prev_cell_indices, np.ndarray):
-                raise RuntimeError('cell overlap is not supported in combination with point reassignment')
 
         reassignment_count_threshold = self.reassignment_kwargs['count_threshold']
         reassignment_priority = self.reassignment_kwargs['priority_by']
-        tess, mapping = delete_low_count_cells(self.cells, reassignment_count_threshold, reassignment_priority)
-        cell_indices = tess.cell_index(self.xyt_data, **self.partition_kwargs)
 
-        if update_centroids:
-            if self.cells._cell_index is None:
-                warn('updating the centroids after reassigning points may fail because of memory error', RuntimeWarning)
-            points = self.xyt_data[['x','y']].values # TODO: use `descriptors` instead
+        label = True
+        while True:
+            if update_centroids:
+                if cells._cell_index is None:
+                    warn('updating the centroids after reassigning points may fail because of memory error', RuntimeWarning)
+                prev_cell_indices = cells.cell_index
+                if not isinstance(prev_cell_indices, np.ndarray):
+                    raise RuntimeError('cell overlap is not supported in combination with point reassignment')
 
-            while True:
-                cell_centers = np.array(tess.cell_centers) # copy
-                any_new = False
-                for i in range(tess.number_of_cells):
-                    prev_cell_i = prev_cell_indices==mapping[i]
-                    cell_i = cell_indices==i
-                    if np.any(cell_i) and not np.all(cell_i==prev_cell_i):
-                        any_new = True
-                        center = np.nanmean(points[cell_i], axis=0)
-                        cell_centers[i] = center
-                if any_new:
-                    tess.cell_centers = cell_centers
-                    # keep on iterating
-                    prev_cell_indices = cell_indices
-                    cell_indices = tess.cell_index(self.xyt_data, **self.partition_kwargs)
-                    mapping = np.arange(tess.number_of_cells)
-                    continue
+            cells, deleted_cells, label = delete_low_count_cells(cells,
+                    reassignment_count_threshold, reassignment_priority, label, partition_kwargs)
+
+            #if cell_indices.size == prev_cell_indices.size and np.all(cell_indices == prev_cell_indices):
+            if deleted_cells.size == 0:
                 break
 
-        self.cells = cells = Partition(self.xyt_data, tess, cell_indices)
+            if update_centroids:
+                cells = update_cell_centers(cells, update_centroids, partition_kwargs)
+
+        self.cells = cells
         return cells
 
 
@@ -1775,36 +1762,56 @@ def find_partition(path, method=None, full_list=False):
     return find_mesh(path, method, full_list)
 
 
-def delete_low_count_cells(partition, count_threshold, priority_by=None, **partition_kwargs):
-    _partition_kwargs = dict(partition.param.get('partition',{}))
-    _partition_kwargs.update(partition_kwargs)
-    partition_kwargs = _partition_kwargs
+def delete_low_count_cells(partition, count_threshold, priority_by=None, label=True, partition_kwargs={}):
     tessellation = partition.tessellation
-    index_mapping, label = None, True
-    while True:
-        deleted_cells, = np.nonzero(partition.location_count<count_threshold)
-        if priority_by:
-            if deleted_cells.size == 0:
-                break
-            if priority_by == 'count':
-                priority = -partition.location_count[deleted_cells]
-            elif priority_by == 'volume':
-                priority = tessellation.volume[deleted_cells]
-            ordering = np.argsort(priority)
-            deleted_cells = deleted_cells[ordering]
-            _index_mapping, _label = tessellation.delete_cells(deleted_cells, exclude_neighbours=True, adjacency_label=label)
-            if index_mapping is None:
-                index_mapping = _index_mapping
-                label = _label
-            else:
-                index_mapping = index_mapping[_index_mapping]
-            partition.tessellation = None # reset state for cell_index to be updated
-            partition.tessellation = tessellation
-            partition.cell_index = tessellation.cell_index(partition.points, **partition_kwargs)
+    deleted_cells, = np.nonzero(partition.location_count<count_threshold)
+    if deleted_cells.size == 0:
+        return partition, deleted_cells, label
+    if priority_by:
+        if priority_by == 'count':
+            priority = -partition.location_count[deleted_cells]
+        elif priority_by == 'volume':
+            priority = tessellation.volume[deleted_cells]
+        ordering = np.argsort(priority)
+        deleted_cells = deleted_cells[ordering]
+        index_mapping, label = tessellation.delete_cells(deleted_cells, exclude_neighbours=True, adjacency_label=label)
+    else:
+        index_mapping, label = tessellation.delete_cells(deleted_cells)
+
+    points = partition.points
+    cell_indices = tessellation.cell_index(points, **partition_kwargs)
+    new_partition = Partition(points, tessellation, cell_indices)
+    return new_partition, deleted_cells, label
+
+
+def update_cell_centers(cells, max_iter, partition_kwargs):
+    points = cells.points[['x','y']].values # TODO: use `descriptors` instead
+    tess = cells.tessellation
+    cell_indices = cells.cell_index
+
+    if max_iter is True:
+        max_iter = np.inf
+
+    k = 0
+    while k < max_iter:
+        prev_cell_indices = cell_indices
+        cell_centers = np.array(tess.cell_centers) # copy
+        any_new = False
+        for i in range(tess.number_of_cells):
+            prev_cell_i = prev_cell_indices==i
+            cell_i = cell_indices==i
+            if np.any(cell_i) and not np.all(cell_i==prev_cell_i):
+                any_new = True
+                center = np.mean(points[cell_i], axis=0)
+                assert not np.any(np.isnan(center))
+                cell_centers[i] = center
+        if any_new:
+            tess.cell_centers = cell_centers
+            cell_indices = tess.cell_index(cells.points, **partition_kwargs)
+            k += 1
         else:
-            index_mapping = tessellation.delete_cells(deleted_cells)
             break
-    return tessellation, index_mapping
+    return Partition(cells.points, tess, cell_indices)
 
 
 tessellate = tessellate1
