@@ -130,6 +130,145 @@ def cell_to_polygon(c, X, voronoi=None, bounding_box=None, region_point=None, re
         return vertices
 
 
+def box_voronoi_2d(tessellation, xlim, ylim):
+    not_a_vertex = -1
+    points = tessellation.cell_centers
+    vertices0 = tessellation.vertices
+    cell_vertices0 = tessellation.cell_vertices
+    Av0 = tessellation.vertex_adjacency.tocoo()
+    xy0 = tessellation.cell_centers
+    c0_inner = (xlim[0]<xy0[:,0]) & (ylim[0]<xy0[:,1]) & \
+               (xy0[:,0]<xlim[1]) & (xy0[:,1]<ylim[1])
+    c_inner_set = set(np.nonzero(c0_inner)[0])
+    x, y = points[c0_inner,[0]], points[c0_inner,[1]]
+    xy1 = np.r_[ xy0,
+          np.c_[ 2*xlim[0]-x, y ],
+          np.c_[ x, 2*ylim[0]-y ],
+          np.c_[ 2*xlim[1]-x, y ],
+          np.c_[ x, 2*ylim[1]-y ] ]
+    c1_inner = np.r_[ c0_inner, np.zeros(4*len(x), dtype=c0_inner.dtype) ]
+    voronoi1 = scipy.spatial.Voronoi(xy1)
+    ridge_vertices1 = np.array(voronoi1.ridge_vertices)
+    #
+    r1_border = np.array([ c1_inner[r[0]] != c1_inner[r[1]] for r in voronoi1.ridge_points ])
+    v1_border_set = set(ridge_vertices1[r1_border].flatten())
+    assert -1 not in v1_border_set
+    #
+    v1_inner_set = set()
+    for c in c_inner_set:
+        vs = set(voronoi1.regions[voronoi1.point_region[c]])
+        v1_inner_set |= set(vs)
+    try:
+        v1_inner_set.remove(-1)
+    except KeyError:
+        pass
+    v1_inner_set -= v1_border_set
+    #
+    corners = np.array([ [ xlim[0], ylim[0] ],
+                         [ xlim[0], ylim[1] ],
+                         [ xlim[1], ylim[1] ],
+                         [ xlim[1], ylim[0] ] ])
+    # TODO: check corners are not in vertices0
+    v1_inner = np.array(list(v1_inner_set | v1_border_set))
+    v1_inner_map = np.full(len(voronoi1.vertices), not_a_vertex, dtype=int)
+    v1_inner_map[v1_inner] = np.arange(len(v1_inner))
+    V1 = voronoi1.vertices[v1_inner]
+    V12 = .5 * np.sum(V1 * V1, axis=1, keepdims=True)
+    D2 = np.dot(V1, corners.T) - V12 - .5* np.sum(corners*corners, axis=1, keepdims=True).T
+    v1_corners = np.argmax(D2, axis=0)
+    assert np.all(np.isclose(D2[v1_corners,np.arange(len(corners))], 0, atol=1e-6))
+    v1_corners = v1_inner[v1_corners]
+    v1_corners_set = set(v1_corners)
+    #
+    v1_cntr = v1_cntr0 = len(vertices0)
+    vertices1 = []
+    cell_vertices1 = list(cell_vertices0)
+    v01_new_edges, v11_new_edges = set(), set()
+    v1_map = np.full(len(voronoi1.vertices), not_a_vertex, dtype=int)
+    v0_keep = np.ones(len(vertices0), dtype=bool)
+    #
+    vertices1.append(corners)
+    v1_map[v1_corners] = np.arange(v1_cntr, v1_cntr+len(corners))
+    v1_cntr += len(corners)
+    #
+    for c in c_inner_set:
+        v0 = cell_vertices0[c]
+        V0 = vertices0[v0]
+        v1 = np.array(voronoi1.regions[voronoi1.point_region[c]])
+        v1 = v1[0<=v1]
+        V1 = voronoi1.vertices[v1]
+        V02 = .5 * np.sum(V0 * V0, axis=1, keepdims=True)
+        #V12_ = .5 * np.sum(V1 * V1, axis=1, keepdims=True)
+        assert np.all(0<=v1_inner_map[v1])
+        V12_ = V12[v1_inner_map[v1]]
+        D2 = np.dot(V0, V1.T) - V02 - V12_.T
+        v0c_match = np.argmax(D2, axis=0)
+        v0c_keep = np.isclose(D2[v0c_match, np.arange(len(V1))], 0, atol=1e-6)
+        assert np.any(v0c_keep)
+        v0_match = v0[v0c_match[v0c_keep]]
+        v1_match = v1[v0c_keep]
+        v1_replace = v1[~v0c_keep]
+        v0_kept = np.unique(v0_match)
+        v0_keep[[v for v in v0 if v not in v0_kept]] = False
+        assert len(v0_kept) == np.sum(v0c_keep) # not sure about that
+        v1_mapped = v1_map[v1_replace]
+        v1_reused = v1_mapped[v1_mapped!=not_a_vertex]
+        #
+        V1_new = V1[~v0c_keep][v1_mapped==not_a_vertex]
+        vertices1.append(V1_new)
+        v1_new = np.arange(v1_cntr, v1_cntr+len(V1_new))
+        v1_cntr += len(V1_new)
+        #
+        v1_map[v1_replace[v1_mapped==not_a_vertex]] = v1_new
+        cell_vertices1[c] = np.r_[np.array(list(v0_kept)), v1_reused, v1_new]
+        #
+        v1_set = set(v1)
+        for _v0, _v1 in zip(v0_match, v1_match):
+            _v1_neighbours = \
+                    set(ridge_vertices1[ridge_vertices1[:,0]==_v1,1]) | \
+                    set(ridge_vertices1[ridge_vertices1[:,1]==_v1,0])
+            for _v1_neighbour in _v1_neighbours & v1_border_set:
+                v01_new_edges.add((_v0, _v1_neighbour))
+                #
+                if _v1_neighbour in v1_corners_set:
+                    continue
+                _v1_neighbour_neighbours = \
+                    set(ridge_vertices1[ridge_vertices1[:,0]==_v1_neighbour,1]) | \
+                    set(ridge_vertices1[ridge_vertices1[:,1]==_v1_neighbour,0])
+                _corner = _v1_neighbour_neighbours & v1_corners_set
+                if _corner:
+                    _v1_neighbour_neighbour = _corner.pop()
+                    assert not _corner
+                    v11_new_edges.add((_v1_neighbour, _v1_neighbour_neighbour))
+    v0_map = np.full(len(vertices0), not_a_vertex, dtype=int)
+    n0 = np.sum(v0_keep)
+    v0_map[v0_keep] = np.arange(n0)
+    v1_map[v1_map!=not_a_vertex] += n0 - v1_cntr0
+    vertices1.insert(0, vertices0[v0_keep])
+    vertices1 = np.vstack(vertices1)
+    for c in c_inner_set:
+        _vs = cell_vertices1[c]
+        _v1 = v1_cntr0 <= _vs
+        _vs[_v1] += n0 - v1_cntr0
+        if not np.all(_v1):
+            _vs[~_v1] = v0_map[_vs[~_v1]]
+    v01_new0, v01_new1 = zip(*v01_new_edges)
+    v01_new0, v01_new1 = v0_map[np.array(v01_new0)], v1_map[np.array(v01_new1)]
+    if v11_new_edges:
+        v11_new0, v11_new1 = zip(*v11_new_edges)
+        v11_new0, v11_new1 = v1_map[np.array(v11_new0)], v1_map[np.array(v11_new1)]
+    else:
+        v11_new0, v11_new1 = [], []
+    Av1_rows, Av1_cols = v0_map[Av0.row], v0_map[Av0.col]
+    _ok = (0<=Av1_rows) & (0<=Av1_cols)
+    Av1_rows, Av1_cols = Av1_rows[_ok], Av1_cols[_ok]
+    Av1 = sparse.csr_matrix((np.ones(len(Av1_rows)+2*len(v01_new_edges)+2*len(v11_new_edges), dtype=bool),
+            (np.r_[Av1_rows, v01_new0, v01_new1, v11_new0, v11_new1],
+             np.r_[Av1_cols, v01_new1, v01_new0, v11_new1, v11_new0])),
+            shape=(len(vertices1), len(vertices1)))
+    return vertices1, cell_vertices1, Av1
+
+
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
         delaunay=False, colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
         xlim=None, ylim=None, **kwargs):
@@ -212,9 +351,16 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
     elif isinstance(cells, Partition) and isinstance(cells.tessellation, Voronoi):
 
-        Av = cells.tessellation.vertex_adjacency.tocsr()
         xy = cells.tessellation.cell_centers
+        # copy/paste from below
+        if not xlim or not ylim:
+            xy_min, _, xy_max, _ = _bounding_box(cells, xy)
+            if not xlim:
+                xlim = (xy_min[0], xy_max[0])
+            if not ylim:
+                ylim = (xy_min[1], xy_max[1])
         ix = np.arange(xy.shape[0])
+        vertices, cell_vertices, Av = box_voronoi_2d(cells.tessellation, xlim, ylim)
         try:
             ok = 0 < cells.location_count
         except (KeyboardInterrupt, SystemExit):
@@ -229,14 +375,14 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         ok[np.logical_not(map_defined)] = False
         ok[ok] = np.logical_not(np.isnan(values.loc[ix[ok]].values))
         for i in ix[ok]:
-            vs = cells.tessellation.cell_vertices[i].tolist()
+            vs = cell_vertices[i].tolist()
             # order the vertices so that they draw a polygon
             v0 = v = vs[0]
             vs = set(vs)
-            vertices = []
+            _vertices = []
             #vvs = [] # debug
             while True:
-                vertices.append(cells.tessellation.vertices[v])
+                _vertices.append(vertices[v])
                 #vvs.append(v)
                 vs.remove(v)
                 if not vs:
@@ -245,16 +391,16 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                 if not ws:
                     ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
                     if ws:
-                        vertices = vertices[::-1]
+                        _vertices = _vertices[::-1]
                     else:
                         #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
                         warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
                         break
                 v = ws.pop()
             #
-            if vertices:
-                vertices = np.vstack(vertices)
-                polygons.append(Polygon(vertices, True))
+            if _vertices:
+                _vertices = np.vstack(_vertices)
+                polygons.append(Polygon(_vertices, True))
     else:
         _type = repr(type(cells))
         if _type.endswith("'>"):
