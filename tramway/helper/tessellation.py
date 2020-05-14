@@ -399,7 +399,7 @@ class Tessellate(Helper):
         update_centroids = self.reassignment_kwargs.get('update_centroids', False)
 
         reassignment_count_threshold = self.reassignment_kwargs['count_threshold']
-        reassignment_priority = self.reassignment_kwargs['priority_by']
+        reassignment_priority = self.reassignment_kwargs.get('priority_by', 'count')
 
         label = True
         while True:

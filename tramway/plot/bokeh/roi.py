@@ -1,11 +1,15 @@
 
-from bokeh.models import ColumnDataSource, Slider, CustomJS
+from bokeh.models import ColumnDataSource, Slider, CustomJS, BoxZoomTool, Toggle
 from bokeh.models.glyphs import Patch, Patches
+from bokeh.models.ranges import Range1d
 from bokeh.layouts import row, column
 from bokeh.plotting import figure, show
+from tramway.tessellation.base import Partition
 from .map import *
 import numpy as np
 import itertools
+import warnings
+import polytope as pt
 
 
 class RoiController(object):
@@ -199,38 +203,66 @@ def match_aspect(xlim, ylim):
 
 
 class RoiCollection(object):
-    def __init__(self, tessellation=None, connected_components=None, bounding_boxes=None):
-        self.tessellation = tessellation
+    def __init__(self, global_tessellation=None, connected_components=None,
+            roi_tessellations=None, roi_meta_tessellation=None,
+            bounding_boxes=None):
+        self.global_tessellation = global_tessellation
+        self.roi_tessellations = roi_tessellations
+        self.roi_meta_tessellation = roi_meta_tessellation
         self.connected_components = connected_components
         self._bounding_boxes = bounding_boxes
     def bounding_box(self, margin=None):
         if self._bounding_boxes is None:
-            tessellation = self.tessellation
-            if not margin:
-                _margin = 0
             bb = []
-            for component in self.connected_components:
-                ## center
-                #centers = tessellation.cell_centers[component]
-                #center = np.mean(centers, axis=0)
-                # bounding box
-                vertex_indices = set()
-                for cell in component:
-                    vertex_indices |= set(tessellation.cell_vertices[cell])
-                try:
-                    vertex_indices.remove(-1)
-                except KeyError:
-                    pass
-                vertices = tessellation.vertices[list(vertex_indices)]
-                lower_bound, upper_bound = np.min(vertices, axis=0), np.max(vertices, axis=0)
-                if margin:
-                    _margin = margin * (upper_bound - lower_bound)
-                bounding_box = np.r_[lower_bound - _margin, upper_bound + _margin]
-                #
-                #bb.append((center, bounding_box))
-                bb.append(bounding_box)
+            if self.roi_meta_tessellation is not None:
+                meta_mesh = self.roi_meta_tessellation
+                for vertex_indices in meta_mesh.cell_vertices:
+                    lower_bound = meta_mesh.vertices[vertex_indices[0]]
+                    upper_bound = meta_mesh.vertices[vertex_indices[2]]
+                    bounding_box = np.r_[lower_bound, upper_bound]
+                    bb.append(bounding_box)
+            elif self.roi_tessellations is not None:
+                for roi in self.roi_tessellations:
+                    lower_bound = roi.bounding_box[['x','y']]['min']
+                    upper_bound = roi.bounding_box[['x','y']]['max']
+                    bounding_box = np.r_[lower_bound, upper_bound]
+                    bb.append(bounding_box)
+            else:
+                tessellation = self.global_tessellation
+                for component in self.connected_components:
+                    ## center
+                    #centers = tessellation.cell_centers[component]
+                    #center = np.mean(centers, axis=0)
+                    # bounding box
+                    vertex_indices = set()
+                    for cell in component:
+                        vertex_indices |= set(tessellation.cell_vertices[cell])
+                    try:
+                        vertex_indices.remove(-1)
+                    except KeyError:
+                        pass
+                    vertices = tessellation.vertices[list(vertex_indices)]
+                    lower_bound, upper_bound = np.min(vertices, axis=0), np.max(vertices, axis=0)
+                    bounding_box = np.r_[lower_bound, upper_bound]
+                    #
+                    #bb.append((center, bounding_box))
+                    bb.append(bounding_box)
+            # sanity check
+            polygons = [ pt.box2poly([[b[0],b[2]],[b[1],b[3]]]) for b in bb ]
+            if not all([ all([ pt.is_empty(p.intersect(q)) for q in polygons[i+1:] ]) for i, p in enumerate(polygons) ]):
+                warnings.warn('some rois overlap', RuntimeWarning)
+            #
             self._bounding_boxes = bb
-        return self._bounding_boxes
+        if margin:
+            bb = []
+            for bounding_box in self._bounding_boxes:
+                lower_bound = bounding_box[[0,1]]
+                upper_bound = bounding_box[[2,3]]
+                bounding_box = np.r_[lower_bound - margin, upper_bound + margin]
+                bb.append(bounding_box)
+        else:
+            bb = self._bounding_boxes
+        return bb
     def __len__(self):
         if self._bounding_boxes is None:
             return len(self.connected_components)
@@ -239,30 +271,73 @@ class RoiCollection(object):
 
 
 class RoiBrowser(object):
-    def __init__(self, cells, values, **kwargs):
-        self.cells  = cells
-        self.values = values
-        self.roi_model = RoiCollection(cells.tessellation, **kwargs)
+    def __init__(self, global_map_cells=None, global_map_values=None, # these two args first for bw comp
+            roi_tessellations=None, roi_map_values=None, roi_meta_tessellation=None,
+            **kwargs):
+        self.global_map_cells  = global_map_cells
+        self.global_map_values = global_map_values
+        self.points = None if roi_meta_tessellation is None else roi_meta_tessellation.points
+        tessellation = lambda a: None if a is None else a.tessellation
+        self.roi_model = RoiCollection(
+                global_tessellation=tessellation(global_map_cells),
+                roi_tessellations=roi_tessellations,
+                roi_meta_tessellation=tessellation(roi_meta_tessellation),
+                **kwargs)
+        self.roi_map_values = roi_map_values
         self.first_active_roi = 0
 
         # options for view elements
-        self.full_fov_figure_kwargs = dict(toolbar_location='above', toolbar_sticky=False, match_aspect=True)
-        self.zooming_in_figure_kwargs = dict(toolbar_location=None, active_drag=None, match_aspect=True)
+        self.full_fov_figure_kwargs = dict(toolbar_location='above', toolbar_sticky=False, match_aspect=True, tools='pan, wheel_zoom, reset')
+        self.zooming_in_figure_kwargs = dict(toolbar_location=None, active_drag=None, match_aspect=True, tools='pan, wheel_zoom, reset')
         self.scalar_map_2d_kwargs = {}
         self.points_kwargs = dict(color='r', alpha=.1)
         self.trajectories_kwargs = dict(color='r', line_width=.5, line_alpha=.5, loc_alpha=.1, loc_size=6)
         self.slider_kwargs = dict(title='roi')
 
         self.roi_controller = RoiController(self.roi_model, fill_color=None)
-        x, y = cells.points['x'].values, cells.points['y'].values
+        x, y = self.points['x'].values, self.points['y'].values
         self.roi_controller.xlim = [x.min(), x.max()]
         self.roi_controller.ylim = [y.min(), y.max()]
+
+    @property
+    def values(self): # for bw compatibility during code transition
+        warnings.warn('deprecated attribute: values', RuntimeWarning)
+        return self.global_map_cells
+
+    @property
+    def points(self):
+        if self._points is None:
+            if self.global_map_cells is not None:
+                self._points = self.global_map_cells.points
+        return self._points
+
+    @points.setter
+    def points(self, pts):
+        self._points = pts
+
+    @property
+    def cells(self):
+        warnings.warn('deprecated attribute: cells', RuntimeWarning)
+        return self.global_map_cells
+
+    @property
+    def roi_tessellations(self):
+        return self.roi_model.roi_tessellations
 
     def full_fov(self):
         ctrl = self.roi_controller
         full_fov_fig = figure(**self.full_fov_figure_kwargs)
-        scalar_map_2d(self.cells, self.values, figure=full_fov_fig, **self.scalar_map_2d_kwargs)
-        plot_points(self.cells.points, figure=full_fov_fig, **self.points_kwargs)
+        full_fov_fig.add_tools(BoxZoomTool(match_aspect=True))
+        if self.global_map_values is not None:
+            scalar_map_2d(self.global_map_cells, self.global_map_values,
+                    figure=full_fov_fig, **self.scalar_map_2d_kwargs)
+        elif False:
+            _min, _max = zip(*[ (values.min(), values.max()) for values in self.roi_map_values ])
+            clim = (min(_min), max(_max))
+            for cells,values in zip(self.roi_tessellations,self.roi_map_values):
+                scalar_map_2d(cells, values, figure=full_fov_fig, clim=clim,
+                        **self.scalar_map_2d_kwargs)
+        plot_points(self.points, figure=full_fov_fig, **self.points_kwargs)
         full_fov_fig.patches(**ctrl.patches_kwargs)
         full_fov_fig.line(**ctrl.line_kwargs)
         ctrl.unset_active('all')
@@ -277,8 +352,18 @@ class RoiBrowser(object):
         ylim = roi_bb[[1,3]].tolist()
         xlim, ylim = match_aspect(xlim, ylim)
         zooming_in_fig = figure(**self.zooming_in_figure_kwargs)
-        scalar_map_2d(self.cells, self.values, figure=zooming_in_fig, xlim=xlim, ylim=ylim, **self.scalar_map_2d_kwargs)
-        plot_trajectories(self.cells.points, figure=zooming_in_fig, **self.trajectories_kwargs)
+        zooming_in_fig.add_tools(BoxZoomTool(match_aspect=True))
+        if self.global_map_values is not None:
+            scalar_map_2d(self.global_map_cells, self.global_map_values, figure=zooming_in_fig,
+                    **self.scalar_map_2d_kwargs)
+            zooming_in_fig.x_range = Range1d(*xlim)
+            zooming_in_fig.y_range = Range1d(*ylim)
+        else:
+            for cells,values in zip(self.roi_tessellations,self.roi_map_values):
+                scalar_map_2d(cells, values, figure=zooming_in_fig,
+                        **self.scalar_map_2d_kwargs)
+        traj_handles = plot_trajectories(self.points, figure=zooming_in_fig, **self.trajectories_kwargs)
+        self.trajectory_handles = traj_handles[0::2]
         self.roi_view_zooming_in = zooming_in_fig
         return zooming_in_fig
 
@@ -290,12 +375,28 @@ class RoiBrowser(object):
         self.roi_view_slider = slider
         return slider
 
+    def visibility_button(self):
+        self.trajectory_visibility_button = Toggle(label='Hide lines', button_type='success')
+        assert not self.trajectory_handles[1:]
+        def set_visibility(multiline):
+            return CustomJS(args=dict(multiline=multiline), code="""
+                    multiline.visible=!multiline.visible;
+                    if (multiline.visible) {
+                        this.label='Hide lines';
+                    } else {
+                        this.label='Show lines';
+                    }
+                    """)
+        self.trajectory_visibility_button.js_on_click(set_visibility(self.trajectory_handles[0]))
+        return self.trajectory_visibility_button
+
     def make_default_view(self):
         full_fov_map = self.full_fov()
         zooming_in_map = self.zooming_in()
+        visibility_button = self.visibility_button()
         if 1 < len(self.roi_model):
             slider = self.slider()
-            self.roi_view = row(zooming_in_map, column(slider, full_fov_map, sizing_mode='scale_width'))
+            self.roi_view = row(zooming_in_map, column(slider, full_fov_map, visibility_button, sizing_mode='scale_width'))
         else:
             self.roi_view = row(zooming_in_map, column(full_fov_map, sizing_mode='scale_width'))
 

@@ -276,9 +276,15 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=No
 
     polygons = []
 
-    Av = cells.tessellation.vertex_adjacency.tocsr()
     xy = cells.tessellation.cell_centers
+    if not xlim or not ylim:
+        xy_min, _, xy_max, _ = mplt._bounding_box(cells, xy)
+        if not xlim:
+            xlim = (xy_min[0], xy_max[0])
+        if not ylim:
+            ylim = (xy_min[1], xy_max[1])
     ix = np.arange(xy.shape[0])
+    vertices, cell_vertices, Av = mplt.box_voronoi_2d(cells.tessellation, xlim, ylim)
     try:
         ok = 0 < cells.location_count
     except (KeyboardInterrupt, SystemExit):
@@ -293,14 +299,14 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=No
     ok[np.logical_not(map_defined)] = False
     ok[ok] = np.logical_not(np.isnan(values.loc[ix[ok]].values))
     for i in ix[ok]:
-        vs = cells.tessellation.cell_vertices[i].tolist()
+        vs = cell_vertices[i].tolist()
         # order the vertices so that they draw a polygon
         v0 = v = vs[0]
         vs = set(vs)
-        vertices = []
+        _vertices = []
         #vvs = [] # debug
         while True:
-            vertices.append(cells.tessellation.vertices[v])
+            _vertices.append(vertices[v])
             #vvs.append(v)
             vs.remove(v)
             if not vs:
@@ -309,16 +315,16 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=No
             if not ws:
                 ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
                 if ws:
-                    vertices = vertices[::-1]
+                    _vertices = _vertices[::-1]
                 else:
                     #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
                     warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
                     break
             v = ws.pop()
         #
-        if vertices:
-            vertices = np.vstack(vertices)
-            polygons.append((vertices[:,0], vertices[:,1]))
+        if _vertices:
+            _vertices = np.vstack(_vertices)
+            polygons.append((_vertices[:,0], _vertices[:,1]))
 
     scalar_map = values.loc[ix[ok]].values
     clim = {} if clim is None else dict(vmin=clim[0], vmax=clim[1])
@@ -335,12 +341,6 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=No
             delaunay = {}
         plot_delaunay(cells, figure=figure, **delaunay)
 
-    if not xlim or not ylim:
-        xy_min, _, xy_max, _ = mplt._bounding_box(cells, xy)
-        if not xlim:
-            xlim = (xy_min[0], xy_max[0])
-        if not ylim:
-            ylim = (xy_min[1], xy_max[1])
     figure.x_range = Range1d(*xlim)
     figure.y_range = Range1d(*ylim)
 
