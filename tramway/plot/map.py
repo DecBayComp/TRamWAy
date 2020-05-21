@@ -208,7 +208,7 @@ def box_voronoi_2d(tessellation, xlim, ylim):
         v0c_match = np.argmax(D2, axis=0)
         v0c_keep = np.isclose(D2[v0c_match, np.arange(len(V1))], 0, atol=1e-6)
         if not np.any(v0c_keep):
-            warn('the cells totally mismatch', RuntimeWarning)
+            warn('the Voronoi diagrams totally mismatch at the border', RuntimeWarning)
             continue
             print(D2[v0c_match, np.arange(len(V1))])
             import matplotlib.pyplot as plt

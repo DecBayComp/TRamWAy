@@ -247,10 +247,10 @@ class RoiCollection(object):
                     #
                     #bb.append((center, bounding_box))
                     bb.append(bounding_box)
-            # sanity check
-            polygons = [ pt.box2poly([[b[0],b[2]],[b[1],b[3]]]) for b in bb ]
-            if not all([ all([ pt.is_empty(p.intersect(q)) for q in polygons[i+1:] ]) for i, p in enumerate(polygons) ]):
-                warnings.warn('some rois overlap', RuntimeWarning)
+            ## sanity check
+            #polygons = [ pt.box2poly([[b[0],b[2]],[b[1],b[3]]]) for b in bb ]
+            #if not all([ all([ pt.is_empty(p.intersect(q)) for q in polygons[i+1:] ]) for i, p in enumerate(polygons) ]):
+            #    warnings.warn('some rois overlap', RuntimeWarning)
             #
             self._bounding_boxes = bb
         if margin:
@@ -364,6 +364,7 @@ class RoiBrowser(object):
                         **self.scalar_map_2d_kwargs)
         traj_handles = plot_trajectories(self.points, figure=zooming_in_fig, **self.trajectories_kwargs)
         self.trajectory_handles = traj_handles[0::2]
+        self.location_handles = traj_handles[1::2]
         self.roi_view_zooming_in = zooming_in_fig
         return zooming_in_fig
 
@@ -375,7 +376,7 @@ class RoiBrowser(object):
         self.roi_view_slider = slider
         return slider
 
-    def visibility_button(self):
+    def visibility_button1(self):
         self.trajectory_visibility_button = Toggle(label='Hide lines', button_type='success')
         assert not self.trajectory_handles[1:]
         def set_visibility(multiline):
@@ -390,13 +391,29 @@ class RoiBrowser(object):
         self.trajectory_visibility_button.js_on_click(set_visibility(self.trajectory_handles[0]))
         return self.trajectory_visibility_button
 
+    def visibility_button2(self):
+        self.location_visibility_button = Toggle(label='Hide points', button_type='success')
+        assert not self.location_handles[1:]
+        def set_visibility(multiline):
+            return CustomJS(args=dict(multiline=multiline), code="""
+                    multiline.visible=!multiline.visible;
+                    if (multiline.visible) {
+                        this.label='Hide points';
+                    } else {
+                        this.label='Show points';
+                    }
+                    """)
+        self.location_visibility_button.js_on_click(set_visibility(self.location_handles[0]))
+        return self.location_visibility_button
+
     def make_default_view(self):
         full_fov_map = self.full_fov()
         zooming_in_map = self.zooming_in()
-        visibility_button = self.visibility_button()
+        visibility_button1 = self.visibility_button1()
+        visibility_button2 = self.visibility_button2()
         if 1 < len(self.roi_model):
             slider = self.slider()
-            self.roi_view = row(zooming_in_map, column(slider, full_fov_map, visibility_button, sizing_mode='scale_width'))
+            self.roi_view = row(zooming_in_map, column(slider, full_fov_map, row(visibility_button1, visibility_button2), sizing_mode='scale_width'))
         else:
             self.roi_view = row(zooming_in_map, column(full_fov_map, sizing_mode='scale_width'))
 
