@@ -19,6 +19,9 @@ import copy
 from tramway.core.hdf5.store import save_rwa
 from tramway.core.xyt import crop
 from tramway.helper import *
+import re
+import itertools
+from collections import defaultdict, OrderedDict
 
 import warnings
 __log__ = lambda msg: warnings.warn(msg, RuntimeWarning) # could call the logging module instead
@@ -82,46 +85,116 @@ class AutosaveCapable(object):
         self._modified = b
 
 
-class RoiToolbox(AutosaveCapable):
-    def __init__(self, roi, rwa_file=None, autosave=True, verbose=True):
-        AutosaveCapable.__init__(self, rwa_file, autosave)
-        # group overlapping rois
-        current_index = 0
-        not_an_index = -1
-        assignment = np.full(len(roi), not_an_index, dtype=int)
-        groups = dict()
-        for i in range(len(roi)):
-            if isinstance(roi[i], pt.Region):
-                region_i = roi[i]
-                xi0 = yi0 = xi1 = yi1 = None
+class SupportRegions(object):
+    def __init__(self, region_label=None, verbose=True):
+        self.unit_region = []
+        self._unit_polytope = {}
+        self.group = {}
+        self.index = OrderedDict()
+        self.gen_label = region_label
+        self.verbose = verbose
+    def unit_bounding_box(self, i, exact_only=False, atleast_2d=False):
+        r = self.unit_region[i]
+        if isinstance(r, tuple):
+            if atleast_2d:
+                _min,_max = r
+                if not _min.shape[1:]:
+                    assert not _max.shape[1:]
+                    r = _min[np.newaxis,:], _max[np.newaxis,:]
+        elif isinstance(r, list):
+            if atleast_2d:
+                _min,_max = r
+                if _min.shape[1:]:
+                    assert _max.shape[1:]
+                    r = tuple(r)
+                else:
+                    assert not _max.shape[1:]
+                    r = _min[np.newaxis,:], _max[np.newaxis,:]
             else:
+                r = tuple(r)
+            self.unit_region[i] = r
+        else:#isinstance(r, (pt.Polytope, pt.Region)):
+            if exact_only:
+                r = None, None
+            elif atleast_2d:
+                r = r.bounding_box
+            else:
+                _min,_max = r.bounding_box
+                r = np.ravel(_min), np.ravel(_max)
+        return r
+    def unit_polytope(self, i):
+        try:
+            return self._unit_polytope[i]
+        except KeyError:
+            r = self.unit_region[i]
+            if isinstance(r, pt.Region):
+                pass
+            else:
+                if isinstance(r, (tuple, list)):
+                    r = pt.box2poly(list(zip(*r)))
+                    self._unit_polytope[i] = r
+                r = pt.Region([r])
+            return r
+    @property
+    def unit_bounding_boxes(self):
+        return [ self.unit_bounding_box(i) for i in range(len(self.unit_region)) ]
+    @property
+    def unit_polytopes(self):
+        return [ self.unit_polytope(i) for i in range(len(self.unit_region)) ]
+    def adjacent(self, i, j):
+        _min_i,_max_i = self.unit_bounding_box(i, True)
+        _min_j,_max_j = self.unit_bounding_box(j, True)
+        if _min_i is None or _min_j is None:
+            _ri,_rj = self.unit_polytope(i), self.unit_polytope(j)
+            return pt.is_adjacent(_ri,_rj)
+        else:
+            return np.all(_min_i<=_max_j) and np.all(_min_j<=_max_i)
+    def add_series(self, unit_regions, series_label=None):
+        i0 = len(self.unit_region)
+        self.unit_region += list(unit_regions)
+        # first group overlapping unit regions in the series
+        current_index = max(self.group.keys()) if self.group else 0
+        not_an_index = -1
+        n = len(unit_regions)
+        assignment = np.full(n, not_an_index, dtype=int)
+        groups = dict()
+        for i in range(n):
+            region_i = unit_regions[i]
+            if isinstance(region_i, pt.Polytope):
+                region_i = pt.Region([region_i])
+                _min_i = _max_i = None
+            elif isinstance(region_i, pt.Region):
+                _min_i = _max_i = None
+            else:#if isinstance(region_i, (tuple, list)):
+                _min_i, _max_i = region_i
                 region_i = None
-                xi0, yi0, xi1, yi1 = roi[i]
             if assignment[i] == not_an_index:
                 group_index = current_index
-                group = set([i])
+                group = set([i0+i])
             else:
                 group_index = assignment[i]
                 group = groups[group_index]
             group_with = set()
-            for j in range(i+1,len(roi)):
-                if j in group:
+            for j in range(i+1,n):
+                if i0+j in group:
                     continue
-                if isinstance(roi[j], pt.Region):
-                    region_j = roi[j]
+                region_j = unit_regions[j]
+                if isinstance(region_j, (pt.Polytope, pt.Region)):
                     if region_i is None:
-                        region_i = pt.box2poly([[xi0,xi1],[yi0,yi1]])
-                    i_and_j_intersect = pt.is_adjacent(region_i, region_j)
-                else:
-                    xj0, yj0, xj1, yj1 = roi[j]
-                    if xi0 is None:
-                        region_j = pt.box2poly([[xj0,xj1],[yj0,yj1]])
-                        i_and_j_intersect = pt.is_adjacent(region_i, region_j)
+                        region_i = pt.box2poly(list(zip(_min_i,_max_i)))
+                        self._unit_polytope[i0+i] = region_i
+                    i_and_j_are_adjacent = pt.is_adjacent(region_i, region_j)
+                else:#if isinstance(region_j, (tuple, list)):
+                    _min_j,_max_j = region_j
+                    if _min_i is None:
+                        region_j = pt.box2poly(list(zip(_min_j,_max_j)))
+                        self._unit_polytope[i0+j] = region_j
+                        i_and_j_are_adjacent = pt.is_adjacent(region_i, region_j)
                     else:
-                        i_and_j_intersect = xi0<xj1 and xj0<xi1 and yi0<yj1 and yj0<yi1
-                if i_and_j_intersect:
+                        i_and_j_are_adjacent = np.all(_min_i<=_max_j) and np.all(_min_j<=_max_i)
+                if i_and_j_are_adjacent:
                     if assignment[j]==not_an_index:
-                        group.add(j)
+                        group.add(i0+j)
                     else:
                         other_group_index = assignment[j]
                         group_with.add(other_group_index)
@@ -131,146 +204,220 @@ class RoiToolbox(AutosaveCapable):
             else:
                 current_index += 1
             groups[group_index] = group
-            assignment[list(group)] = group_index
-        self.bounding_box = roi
-        self.roi_group = groups
+            group = np.array(list(group)) - i0 # indices in `assignment`
+            assignment[group] = group_index
         #
-        self.verbose = verbose
+        # merge the new and existing groups together
+        for g in list(groups.keys()):
+            adjacent = set()
+            for h in self.group:
+                g_and_h_are_adjacent = False
+                for i in groups[g]:
+                    for j in self.group[h]:
+                        if self.adjacent(i,j):
+                            g_and_h_are_adjacent = True
+                            break
+                    if g_and_h_are_adjacent:
+                        adjacent.add(h)
+                        break
+            if adjacent:
+                h = min(adjacent)
+                for i in adjacent - {h}:
+                    self.group[h] |= self.group.pop(i)
+                self.group[h] |= groups.pop(g)
+                assignment[assignment==g] = h
+        if groups:
+            self.group.update(groups)
+        #
+        if series_label is None:
+            series_label = ''
+        self.index[series_label] = assignment
+        #
+        self.reverse_index = np.c_[
+                np.repeat(np.arange(len(self.index)), [ len(self.index[s]) for s in self.index ]),
+                np.concatenate([ np.arange(len(self.index[s])) for s in self.index ]) ]
+    def unit_to_region(self, u, series=None):
+        if series is None:
+            series = ''
+        return self.index[series][u]
+    def region_to_units(self, r):
+        series_num = self.reverse_index[list(self.group[r])]
+        units = defaultdict(list)
+        for series, num in series_num:
+            label = self.series_labels[series]
+            units[label].append(num)
+        return units
     @property
-    def label_prefix(self):
-        return 'roi'
+    def series_labels(self):
+        return list(self.index.keys())
+    def region_label(self, r):
+        return self.gen_label(self.region_to_units(r))
     @property
-    def label_sep(self):
-        return '-'
-    @property
-    def label_format(self):
-        return '{:0>3d}'
-    @property
-    def label_suffix(self):
-        return ''
-    def get_group_index(self, i):
-        broke = False
-        for j in self.roi_group:
-            if i in self.roi_group[j]:
-                broke = True
-                break
-        if not broke:
-            raise RuntimeError('cannot find roi index {}'.format(i))
-        return j
-    def get_group(self, i):
-        return self.roi_group[self.get_group_index(i)]
-    def gen_group_label(self, i):
-        label = ''.join((
-                self.label_prefix,
-                self.label_sep.join([ self.label_format.format(j) for j in i ]),
-                self.label_suffix))
-        return label
-    def gen_label(self, i):
-        return self.gen_group_label(self.get_group(i))
-    @property
-    def roi_labels(self):
-        return [ self.gen_group_label(self.roi_group[i]) for i in self.roi_group ]
-    def get_subtree(self, i, analysis_tree):
-        label = self.gen_label(i)
-        if label in analysis_tree:
-            return analysis_tree[label]
-    def crop(self, i, df):
+    def region_labels(self):
+        return [ self.region_label(r) for r in self.group ]
+    def __len__(self):
+        return len(self.group)
+    def __contains__(self, r):
+        return r in self.group
+    def __iter__(self):
+        return iter(self.group)
+    def __getitem__(self, r):
+        return self.group[r]
+    #def __setitem__(self, r, roi_set):
+    #    self.group[r] = roi_set
+    #def __delitem__(self, r):
+    #    del self.group[r]
+    def __range__(self, n, desc=None):
+        if self.verbose:
+            if __has_package__('tqdm'):
+                return tqdm(range(n), desc=desc)
+        return range(n)
+    def iter_regions(self, desc=None):
+        rs = list(self.group.keys())[::-1]
+        done = 0
+        for _ in self.__range__(len(self.unit_region), desc):
+            if done == 0:
+                r = rs.pop()
+                unit_roi = self.region_to_units(r)
+                done = sum([ len(roi) for roi in unit_roi.values() ])
+                yield r
+            else:
+                done -= 1
+    def crop(self, r, df):
         loc_indices = set()
-        df_i = None
-        for r in self.get_group(i):
-            if isinstance(self.bounding_box[r], pt.Region):
+        df_r = None
+        for u in self.group[r]:
+            if isinstance(self.unit_region[u], (pt.Polytope, pt.Region)):
                 raise NotImplementedError
             else:
-                x0,y0,x1,y1 = self.bounding_box[r]
-                df_r = crop(df, [x0,y0,x1-x0,y1-y0])
-            if df_i is None:
-                df_i = df_r
+                _min,_max = self.unit_region[u]
+                df_u = crop(df, np.r_[_min,_max-_min])
+            if df_r is None:
+                df_r = df_u
             else:
-                df_i = pd.merge(df_i, df_r, how='outer')
-        return df_i
-    def tessellate(self, i, analysis_tree, *args, **kwargs):
-        label = self.gen_label(i)
+                df_r = pd.merge(df_r, df_u, how='outer')
+        return df_r
+    def tessellate(self, r, analysis_tree, *args, **kwargs):
+        if isinstance(r, str):
+            if r == 'all':
+                description = 'Tessellating the regions of interest'
+            else:
+                description = r
+            any_new = False
+            for r in self.iter_regions(description):
+                if self.tessellate(r, analysis_tree, *args, **kwargs):
+                    any_new = True
+            return any_new
+        #
+        label = self.region_label(r)
         if label in analysis_tree:
             return False
         else:
-            trajectories = self.crop(i, analysis_tree.data)
+            if self.verbose:
+                print(label)
+            trajectories = self.crop(r, analysis_tree.data)
             partition = tessellate(trajectories, *args, **kwargs)
             analysis_tree[label] = partition
             return True
-    def infer(self, i, analysis_tree, *args, **kwargs):
-        label = self.gen_label(i)
+    def infer(self, r, analysis_tree, *args, **kwargs):
+        if isinstance(r, str):
+            if r == 'all':
+                description = 'Inferring dynamics parameters'
+            else:
+                description = r
+            any_new = False
+            for r in self.iter_regions(description):
+                if self.infer(r, analysis_tree, *args, **kwargs):
+                    any_new = True
+            return any_new
+        #
+        label = self.region_label(r)
         if label in analysis_tree:
             try:
                 if kwargs['output_label'] in analysis_tree[label]:
                     return False
             except KeyError:
                 pass
+            if self.verbose:
+                print('{} -- {}'.format(label, kwargs['output_label']))
             kwargs['input_label'] = label
             infer(analysis_tree, *args, **kwargs)
             return True
         return False
-    def __range__(self, n, desc=None):
-        if self.verbose:
-            if __has_package__('tqdm'):
-                return tqdm(range(n), desc=desc)
-        return range(n)
-    def iter_roi(self, desc=None):
-        return self.__range__(len(self.bounding_box), desc)
+
+
+class RoiSeries(object):
+    def __init__(self, roi, label=None, regions=None):
+        self.label = label
+        self.regions = regions
+        self.regions.add_series(roi, label)
     @property
-    def tessellate_desc(self):
-        return 'Tessellating the regions of interest'
-    def tessellate_all(self, analysis_tree, *args, **kwargs):
-        with self.autosaving(analysis_tree) as a:
-            for i in self.iter_roi(self.tessellate_desc):
-                if self.tessellate(i, analysis_tree, *args, **kwargs):
-                    a.modified = True
-            return a.modified
+    def bounding_box(self):
+        # TODO: this series only?
+        return self.regions.unit_bounding_boxes
     @property
-    def infer_desc(self):
-        return 'Inferring dynamics parameters'
-    def infer_all(self, analysis_tree, *args, **kwargs):
-        with self.autosaving(analysis_tree) as a:
-            for i in self.iter_roi(self.infer_desc):
-                if self.infer(i, analysis_tree, *args, **kwargs):
-                    a.modified = True
-            return a.modified
+    def subseries(self):
+        # TODO: this series only?
+        return self.regions.group
+    def __len__(self):
+        # TODO: this series only?
+        return len(self.regions.unit_region)
+    def get_subseries_index(self, r):
+        return self.regions.unit_to_region(r, self.label)
+    def get_subseries(self, r=None, s=None):
+        if s is None:
+            s = self.regions.unit_to_region(r, self.label)
+        # TODO: this series only?
+        return self.subseries[s]
+    def subseries_label(self, r=None, s=None):
+        if s is None:
+            s = self.regions.unit_to_region(r, self.label)
+        return self.regions.region_label(s)
+    def roi_label(self, r):
+        return self.regions.unit_region_label(r, self.label)
+    def get_subtree(self, i, analysis_tree):
+        label = self.subseries_label(i)
+        if label in analysis_tree:
+            return analysis_tree[label]
+    def overlaps(self, i):
+        return 1 < len(self.get_subseries(i))
     def get_map(self, i, analysis_tree, map_label, full=False):
-        label = self.gen_label(i)
+        label = self.subseries_label(i)
         try:
             subtree = analysis_tree[label]
             maps = subtree[map_label].data
         except KeyError:
             return None
-        if not full and 1 < len(self.get_group(i)):
-            cx, cy = subtree.data.tessellation.cell_centers.T
-            rx0, ry0, rx1, ry1 = self.bounding_box[i]
-            inside, = np.nonzero((cx<rx1) & (cy<ry1) & (rx0<cx) & (ry0<cy))
+        if not full and self.overlaps(i):
+            coords = subtree.data.tessellation.cell_centers
+            _min,_max = self.bounding_box[i]
+            inside, = np.nonzero(np.all((_min[np.newaxis,:]<coords) & (coords<_max[np.newaxis,:]),axis=1))
             maps = maps.sub(inside)
         return maps
     def get_cells(self, i, analysis_tree):
-        label = self.gen_label(i)
+        label = self.subseries_label(i)
         cells = analysis_tree[label].data
         tessellation = cells.tessellation
-        if len(self.get_group(i)) == 1:
-            inner_cell = np.ones(tessellation.number_of_cells, dtype=bool)
+        if self.overlaps(i):
+            coords = tessellation.cell_centers
+            _min,_max = self.bounding_box[i]
+            inner_cell = np.all((_min[np.newaxis,:]<coords) & (coords<_max[np.newaxis,:]),axis=1)
         else:
-            cx, cy = tessellation.cell_centers.T
-            rx0, ry0, rx1, ry1 = self.bounding_box[i]
-            inner_cell = (cx<rx1) & (cy<ry1) & (rx0<cx) & (ry0<cy)
+            inner_cell = np.ones(tessellation.number_of_cells, dtype=bool)
         return cells, inner_cell
     def get_tessellation(self, i, analysis_tree):
         cells, inner_cell = self.get_cells(i, analysis_tree)
         return cells.tessellation, inner_cell
     def cell_plot(self, i, analysis_tree, **kwargs):
-        label = self.gen_label(i)
-        title = kwargs.pop('title', self.gen_group_label([i]))
+        label = self.subseries_label(i)
+        title = kwargs.pop('title', self.roi_label(i))
         if 'delaunay' not in kwargs:
             # anticipate future changes in `helper.tessellation.cell_plot`
             voronoi = kwargs.pop('voronoi', dict(centroid_style=None))
             kwargs['voronoi'] = voronoi
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
-        plot_bb = 1<len(self.get_group(i))
+        plot_bb = self.overlaps(i)
         if plot_bb:
             kwargs['show'] = False
         #
@@ -278,7 +425,7 @@ class RoiToolbox(AutosaveCapable):
         #
         import matplotlib.pyplot as plt
         ax = plt.gca()
-        x0, y0, x1, y1 = self.bounding_box[i]
+        (x0, y0), (x1, y1) = self.bounding_box[i]
         xl, yl = ax.get_xlim(), ax.get_ylim()
         xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
         if not plot_bb:
@@ -309,17 +456,16 @@ class RoiToolbox(AutosaveCapable):
             ax.set_xlim(xl)
             ax.set_ylim(yl)
     def map_plot(self, i, analysis_tree, map_label, **kwargs):
-        xmin, ymin, xmax, ymax = self.bounding_box[i]
-        label = self.gen_label(i)
-        title = kwargs.pop('title', self.gen_group_label([i]))
+        label = self.subseries_label(i)
+        title = kwargs.pop('title', self.roi_label(i))
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
         kwargs['show'] = False
-        plot_bb = 1<len(self.get_group(i))
+        plot_bb = self.overlaps(i)
         #
         map_plot(analysis_tree, label=(label,map_label), title=title, **kwargs)
         #
-        x0, y0, x1, y1 = self.bounding_box[i]
+        (x0, y0), (x1, y1) = self.bounding_box[i]
         xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
         import matplotlib.pyplot as plt
         ax = plt.gca()
@@ -348,6 +494,63 @@ class RoiToolbox(AutosaveCapable):
             ax.set_xlim(xl)
             ax.set_ylim(yl)
 
+class RoiMultiSeries(AutosaveCapable):
+    def __init__(self, rwa_file=None, autosave=True, verbose=True):
+        AutosaveCapable.__init__(self, rwa_file, autosave)
+        self.regions = SupportRegions(region_label=self.roi_label, verbose=verbose)
+        self.regions.unit_region_label = self.single_roi_label
+        self.series = {}
+    def __len__(self):
+        return len(self.series)
+    def __contains__(self, label):
+        return label in self.series
+    def __iter__(self):
+        return iter(self.series)
+    def __setitem__(self, label, roi):
+        self.series[label] = roi if isinstance(roi, RoiSeries) else RoiSeries(roi, label, self.regions)
+    def __getitem__(self, label):
+        return self.series[label]
+    def __delitem__(self, label):
+        del self.series[label]
+    @property
+    def numeric_format(self):
+        return '{:0>3d}'
+    def roi_label(self, series_num):
+        label = []
+        for series_label in series_num:
+            num = series_num[series_label]
+            num_label = '-'.join([ self.numeric_format.format(i) for i in num ])
+            if series_label:
+                label.append( '{} roi {}'.format(series_label, num_label) )
+            else:
+                label.append( 'roi'+num_label )
+        return ' - '.join(label)
+    def single_roi_label(self, i, series_label=None):
+        num_label = self.numeric_format.format(i) if isinstance(i, int) else i
+        if series_label:
+            return '{} roi {}'.format(series_label, num_label)
+        else:
+            return 'roi'+num_label
+    @property
+    def roi_labels(self):
+        return self.regions.region_labels
+    @property
+    def tessellate_desc(self):
+        return 'Tessellating the regions of interest'
+    def tessellate(self, analysis_tree, *args, **kwargs):
+        with self.autosaving(analysis_tree) as a:
+            if self.regions.tessellate(self.tessellate_desc, analysis_tree, *args, **kwargs):
+                a.modified = True
+            return a.modified
+    @property
+    def infer_desc(self):
+        return 'Inferring dynamics parameters'
+    def infer(self, analysis_tree, *args, **kwargs):
+        with self.autosaving(analysis_tree) as a:
+            if self.regions.infer(self.infer_desc, analysis_tree, *args, **kwargs):
+                a.modified = True
+            return a.modified
+
 
 #from .base import Helper, Analyses
 #from tramway.helper.tessellation import Tessellate, Partition, Voronoi
@@ -355,29 +558,56 @@ import scipy.sparse as sparse
 import itertools
 
 class RoiHelper(Helper):
-    def __init__(self, input_data, roi=None, meta_label='all roi',
+    def __init__(self, input_data, roi=None,
+            meta_label='all %Sroi', meta_label_sep=' ',
             rwa_file=None, autosave=True, verbose=True):
         Helper.__init__(self)
         input_data = Tessellate.prepare_data(self, input_data)
 
         if rwa_file is None and isinstance(input_data, Analyses):
             rwa_file = self.input_file
+            if isinstance(rwa_file, list):
+                assert not rwa_file[1:]
+                rwa_file = rwa_file[0]
 
-        self.meta_label = meta_label
+        self.meta_label_pattern = meta_label
+        self.meta_label_sep = meta_label_sep
+
+        self.series = RoiMultiSeries(rwa_file, autosave, verbose)
+
         if roi is None:
-            if meta_label in self.analyses:
-                roi = self.get_bounding_boxes()
-            else:
-                self._toolbox_args = (rwa_file, autosave, verbose)
+            for series_label, meta_label in self.get_meta_labels().items():
+                self.series[series_label] = self.get_bounding_boxes(meta_label=meta_label)
+        elif isinstance(roi, dict):
+            for label in roi:
+                self.set_bounding_boxes(roi[label], label=label)
         else:
-            self.set_bounding_boxes(roi)
+            self.set_bounding_boxes(None, roi)
+            self.series[''] = roi
 
-        if roi is None:
-            self.toolbox = None
+    def get_meta_labels(self):
+        pattern = self.meta_label_pattern.replace('%s', '(?P<series>.*)')
+        pattern = pattern.replace('%S', '((?P<series>.+){})?'.format(self.meta_label_sep))
+        labels = {}
+        for label in self.analyses.labels:
+            match = re.fullmatch(pattern, label)
+            if match is not None:
+                series = match.group('series')
+                if series is None:
+                    series = ''
+                labels[series] = label
+        return labels
+
+    def to_meta_label(self, series_label):
+        if series_label:
+            meta_label = self.meta_label_pattern.replace('%S', series_label+self.meta_label_sep)
         else:
-            self.toolbox = RoiToolbox(roi, rwa_file, autosave, verbose)
+            series_label = ''
+            meta_label = self.meta_label_pattern.replace('%S', '')
+        meta_label = meta_label.replace('%s', series_label)
+        return meta_label
 
-    def set_bounding_boxes(self, roi, roi_size=None):
+    def set_bounding_boxes(self, roi, roi_size=None, label=None):
 
         trajectories = self.analyses.data
 
@@ -422,47 +652,54 @@ class RoiHelper(Helper):
         #roi_partitions = Partition(trajectories,
         #            NestedTessellations(parent=roi_partition, factory=HexagonalMesh, ref_distance=.01))
 
-        self.analyses[self.meta_label] = roi_partition
+        meta_label = self.to_meta_label(label)
+        self.analyses[meta_label] = roi_partition
 
-        if hasattr(self, '_toolbox_args'):
-            self.toolbox = RoiToolbox(roi, *self._toolbox_args)
-            del self._toolbox_args
+        if label is None:
+            label = ''
+        self.series[label] = roi
 
-    def get_bounding_boxes(self):
-        roi_mesh = self.global_partition.tessellation
+    def get_bounding_boxes(self, label=None, meta_label=None):
+        if meta_label is None:
+            if label is None:
+                label = ''
+            return self.series[label].bounding_box
+
+        roi_mesh = self.get_global_partition(meta_label=meta_label).tessellation
         roi = []
         for vertex_indices in roi_mesh.cell_vertices:
             bottom_left = roi_mesh.vertices[vertex_indices[0]]
             top_right = roi_mesh.vertices[vertex_indices[2]]
-            roi.append(np.r_[bottom_left, top_right])
+            roi.append((bottom_left, top_right))
         return roi
 
-    @property
-    def global_partition(self):
-        return self.analyses[self.meta_label].data
+    def get_global_partition(self, label=None, meta_label=None):
+        if meta_label is None:
+            meta_label = self.to_meta_label(label)
+        return self.analyses[meta_label].data
 
     @property
     def roi_labels(self):
-        return self.toolbox.roi_labels
+        return self.series.roi_labels
 
     def tessellate(self, *args, **kwargs):
-        return self.toolbox.tessellate_all(self.analyses, *args, **kwargs)
+        return self.series.tessellate(self.analyses, *args, **kwargs)
 
     def infer(self, *args, **kwargs):
-        return self.toolbox.infer_all(self.analyses, *args, **kwargs)
+        return self.series.infer(self.analyses, *args, **kwargs)
 
-    def cell_plot(self, i, **kwargs):
-        return self.toolbox.cell_plot(i, self.analyses, **kwargs)
+    def cell_plot(self, i, label='', **kwargs):
+        return self.series[label].cell_plot(i, self.analyses, **kwargs)
 
-    def map_plot(self, i, map_label, **kwargs):
-        return self.toolbox.map_plot(i, self.analyses, map_label, **kwargs)
+    def map_plot(self, i, map_label, label='', **kwargs):
+        return self.series[label].map_plot(i, self.analyses, map_label, **kwargs)
 
-    def get_tessellation(self, i):
-        return self.toolbox.get_tessellation(i, self.analyses)
+    def get_tessellation(self, i, label=''):
+        return self.series[label].get_tessellation(i, self.analyses)
 
-    def get_map(self, i, map_label, full=False):
-        return self.toolbox.get_map(i, self.analyses, map_label, full)
+    def get_map(self, i, map_label, full=False, label=''):
+        return self.series[label].get_map(i, self.analyses, map_label, full)
 
 
-__all__ = [ 'AutosaveCapable', 'RoiToolbox', 'RoiHelper' ]
+__all__ = [ 'AutosaveCapable', 'SupportRegions', 'RoiSeries', 'RoiMultiSeries', 'RoiHelper' ]
 
