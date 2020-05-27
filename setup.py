@@ -6,7 +6,7 @@ from os import path
 
 # requirements moved to requirements.txt
 install_requires = []#'six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
-extras_require = {'animate': ['opencv-python', 'tqdm']}
+extras_require = {'animate': ['opencv-python', 'tqdm'], 'roi': ['polytope', 'cvxopt', 'bokeh', 'tqdm', 'scikit-learn']}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']
 
@@ -19,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.4.7',
+    version = '0.4.7-roi',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -28,8 +28,6 @@ setup(
     license = 'CeCILL v2.1',
     classifiers = [
         'Intended Audience :: Science/Research',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',

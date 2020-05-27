@@ -281,8 +281,7 @@ class SupportRegions(object):
                 unit_roi = self.region_to_units(r)
                 done = sum([ len(roi) for roi in unit_roi.values() ])
                 yield r
-            else:
-                done -= 1
+            done -= 1
     def crop(self, r, df):
         loc_indices = set()
         df_r = None
@@ -611,10 +610,10 @@ class RoiHelper(Helper):
 
         trajectories = self.analyses.data
 
-        roi_centers = np.array([ [ (bb[0]+bb[2])/2, (bb[1]+bb[3])/2 ] for bb in roi ])
+        roi_centers = np.stack([ (_min+_max)/2 for _min,_max in roi ], axis=0)
         roi_adjacency = sparse.coo_matrix(([],([],[])), shape=(len(roi),len(roi)), dtype=bool)
-        roi_vertices = np.array(list(itertools.chain(*[
-            [ [bb[0], bb[1]], [bb[0], bb[3]], [bb[2], bb[3]],  [bb[2], bb[1]] ] for bb in roi ])))
+        roi_vertices = np.stack(list(itertools.chain(*[
+            [ _min, [_min[0],_max[1]], _max,  [_max[0],_min[1]] ] for _min,_max in roi ])), axis=0)
         roi_cell_vertices = list(np.reshape(np.arange(len(roi_vertices)), (len(roi),-1)))
         roi_vertex_adjacency_row = np.concatenate([ 4*i + np.array([0, 0, 1, 2]) for i in range(len(roi)) ])
         roi_vertex_adjacency_col = np.concatenate([ 4*i + np.array([1, 3, 2, 3]) for i in range(len(roi)) ])
@@ -627,7 +626,7 @@ class RoiHelper(Helper):
             # assume same shape
             roi_size = roi_vertices[0][2,0] - roi_vertices[0][1,0]
 
-        roi_polytopes = [ pt.box2poly([[bb[0],bb[2]],[bb[1],bb[3]]]) for bb in roi ]
+        roi_polytopes = [ pt.box2poly([[_min[0],_max[0]],[_min[1],_max[1]]]) for _min,_max in roi ]
         roi_index = []
         for i, x in enumerate(trajectories[['x','y']].values):
             for j, p in enumerate(roi_polytopes):
