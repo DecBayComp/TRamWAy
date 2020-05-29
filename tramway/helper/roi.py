@@ -199,7 +199,7 @@ class SupportRegions(object):
                     else:
                         other_group_index = assignment[j]
                         group_with.add(other_group_index)
-                        group += groups.pop(other_group_index)
+                        group |= groups.pop(other_group_index)
             if group_with:
                 group_index = min(group_with)
             else:
