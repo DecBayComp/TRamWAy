@@ -153,7 +153,7 @@ class SupportRegions(object):
         i0 = len(self.unit_region)
         self.unit_region += list(unit_regions)
         # first group overlapping unit regions in the series
-        current_index = max(self.group.keys()) if self.group else 0
+        current_index = max(self.group.keys())+1 if self.group else 0
         not_an_index = -1
         n = len(unit_regions)
         assignment = np.full(n, not_an_index, dtype=int)
@@ -174,6 +174,7 @@ class SupportRegions(object):
             else:
                 group_index = assignment[i]
                 group = groups[group_index]
+                assert i0+i in group
             group_with = set()
             for j in range(i+1,n):
                 if i0+j in group:
@@ -343,6 +344,8 @@ class SupportRegions(object):
             infer(analysis_tree, *args, **kwargs)
             return True
         return False
+    def reset_roi(self, r, analysis_tree, *args, **kwargs):
+        del analysis_tree[self.region_label(r)]
 
 
 class RoiSeries(object):
@@ -417,12 +420,12 @@ class RoiSeries(object):
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
         plot_bb = self.overlaps(i)
-        if plot_bb:
+        if True:#plot_bb:
             kwargs['show'] = False
         #
+        import matplotlib.pyplot as plt
         cell_plot(analysis_tree, label=label, title=title, **kwargs)
         #
-        import matplotlib.pyplot as plt
         ax = plt.gca()
         (x0, y0), (x1, y1) = self.bounding_box[i]
         xl, yl = ax.get_xlim(), ax.get_ylim()
@@ -492,6 +495,8 @@ class RoiSeries(object):
                     'k-', linewidth=1)
             ax.set_xlim(xl)
             ax.set_ylim(yl)
+    def reset_roi(self, i, analysis_tree):
+        self.regions.reset_roi(self.get_subseries_index(i), analysis_tree)
 
 class RoiMultiSeries(AutosaveCapable):
     def __init__(self, rwa_file=None, autosave=True, verbose=True):
@@ -573,15 +578,16 @@ class RoiHelper(Helper):
         self.meta_label_sep = meta_label_sep
 
         self.series = RoiMultiSeries(rwa_file, autosave, verbose)
+        self.series._analysis_tree = self.analyses
 
         if roi is None:
             for series_label, meta_label in self.get_meta_labels().items():
                 self.series[series_label] = self.get_bounding_boxes(meta_label=meta_label)
         elif isinstance(roi, dict):
             for label in roi:
-                self.set_bounding_boxes(roi[label], label=label)
+                self.set_bounding_boxes(roi[label], series_label=label)
         else:
-            self.set_bounding_boxes(None, roi)
+            self.set_bounding_boxes(roi)
             self.series[''] = roi
 
     def get_meta_labels(self):
@@ -606,7 +612,7 @@ class RoiHelper(Helper):
         meta_label = meta_label.replace('%s', series_label)
         return meta_label
 
-    def set_bounding_boxes(self, roi, roi_size=None, label=None):
+    def set_bounding_boxes(self, roi, roi_size=None, series_label=None):
 
         trajectories = self.analyses.data
 
@@ -626,13 +632,21 @@ class RoiHelper(Helper):
             # assume same shape
             roi_size = roi_vertices[0][2,0] - roi_vertices[0][1,0]
 
-        roi_polytopes = [ pt.box2poly([[_min[0],_max[0]],[_min[1],_max[1]]]) for _min,_max in roi ]
+        #roi_polytopes = [ pt.box2poly([[_min[0],_max[0]],[_min[1],_max[1]]]) for _min,_max in roi ]
         roi_index = []
-        for i, x in enumerate(trajectories[['x','y']].values):
-            for j, p in enumerate(roi_polytopes):
-                if x in p:
-                    roi_index.append((i,j))
-        roi_index = tuple([ np.array(a) for a in zip(*roi_index) ])
+        #for i, x in enumerate(trajectories[['x','y']].values):
+        #    for j, p in enumerate(roi_polytopes):
+        #        if x in p:
+        #            roi_index.append((i,j))
+        #roi_index = tuple([ np.array(a) for a in zip(*roi_index) ])
+        pt = trajectories[['x','y']].values
+        I = []
+        for j, (_min,_max) in enumerate(roi):
+            i, = np.nonzero(np.all((_min[np.newaxis,:] <= pt) & (pt <= _max[np.newaxis,:]), axis=1))
+            I.append(i)
+        J = np.repeat(np.arange(len(I)), [ len(i) for i in I])
+        I = np.concatenate(I)
+        roi_index = I,J
 
         roi_mesh = Voronoi() # not really a Voronoi diagram...
         roi_mesh._preprocess(trajectories[['x','y']])
@@ -651,18 +665,18 @@ class RoiHelper(Helper):
         #roi_partitions = Partition(trajectories,
         #            NestedTessellations(parent=roi_partition, factory=HexagonalMesh, ref_distance=.01))
 
-        meta_label = self.to_meta_label(label)
+        meta_label = self.to_meta_label(series_label)
         self.analyses[meta_label] = roi_partition
 
-        if label is None:
-            label = ''
-        self.series[label] = roi
+        if series_label is None:
+            series_label = ''
+        self.series[series_label] = roi
 
-    def get_bounding_boxes(self, label=None, meta_label=None):
+    def get_bounding_boxes(self, series_label=None, meta_label=None):
         if meta_label is None:
-            if label is None:
-                label = ''
-            return self.series[label].bounding_box
+            if series_label is None:
+                series_label = ''
+            return self.series[series_label].bounding_box
 
         roi_mesh = self.get_global_partition(meta_label=meta_label).tessellation
         roi = []
@@ -672,9 +686,9 @@ class RoiHelper(Helper):
             roi.append((bottom_left, top_right))
         return roi
 
-    def get_global_partition(self, label=None, meta_label=None):
+    def get_global_partition(self, series_label=None, meta_label=None):
         if meta_label is None:
-            meta_label = self.to_meta_label(label)
+            meta_label = self.to_meta_label(series_label)
         return self.analyses[meta_label].data
 
     @property
@@ -687,17 +701,23 @@ class RoiHelper(Helper):
     def infer(self, *args, **kwargs):
         return self.series.infer(self.analyses, *args, **kwargs)
 
-    def cell_plot(self, i, label='', **kwargs):
-        return self.series[label].cell_plot(i, self.analyses, **kwargs)
+    def cell_plot(self, i, series_label='', **kwargs):
+        return self.series[series_label].cell_plot(i, self.analyses, **kwargs)
 
-    def map_plot(self, i, map_label, label='', **kwargs):
-        return self.series[label].map_plot(i, self.analyses, map_label, **kwargs)
+    def map_plot(self, i, map_label, series_label='', **kwargs):
+        return self.series[series_label].map_plot(i, self.analyses, map_label, **kwargs)
 
-    def get_tessellation(self, i, label=''):
-        return self.series[label].get_tessellation(i, self.analyses)
+    def get_tessellation(self, i, series_label=''):
+        return self.series[series_label].get_tessellation(i, self.analyses)
 
-    def get_map(self, i, map_label, full=False, label=''):
-        return self.series[label].get_map(i, self.analyses, map_label, full)
+    def get_map(self, i, map_label, full=False, series_label=''):
+        return self.series[series_label].get_map(i, self.analyses, map_label, full)
+
+    def reset_roi(self, i, series_label=''):
+        self.series[series_label].reset_roi(i)
+
+    def save_analyses(self):
+        return self.series.save()
 
 
 __all__ = [ 'AutosaveCapable', 'SupportRegions', 'RoiSeries', 'RoiMultiSeries', 'RoiHelper' ]

@@ -196,7 +196,7 @@ class GasMesh(Voronoi):
         # (turn some label-2 edges into label-4)
 
         if complete_delaunay:
-            adjacency.data[adjacency.data==2] = 4
+            self._adjacency_label[self._adjacency_label==2] = 4
 
         elif points is not None:
             #t = time.time()
