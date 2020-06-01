@@ -268,6 +268,16 @@ class SupportRegions(object):
     #    self.group[r] = roi_set
     #def __delitem__(self, r):
     #    del self.group[r]
+    def series_range(self, series_label):
+        m = 0
+        for label in self.index:
+            k = len(self.index[label])
+            if series_label == label:
+                n = m + k
+                break
+            else:
+                m += k
+        return m, n
     def __range__(self, n, desc=None):
         if self.verbose:
             if __has_package__('tqdm'):
@@ -355,12 +365,8 @@ class RoiSeries(object):
         self.regions.add_series(roi, label)
     @property
     def bounding_box(self):
-        # TODO: this series only?
-        return self.regions.unit_bounding_boxes
-    @property
-    def subseries(self):
-        # TODO: this series only?
-        return self.regions.group
+        m,n = self.regions.series_range(self.label)
+        return self.regions.unit_bounding_boxes[m:n]
     def __len__(self):
         # TODO: this series only?
         return len(self.regions.unit_region)
