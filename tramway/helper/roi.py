@@ -149,10 +149,10 @@ class SupportRegions(object):
             return pt.is_adjacent(_ri,_rj)
         else:
             return np.all(_min_i<=_max_j) and np.all(_min_j<=_max_i)
-    def add_series(self, unit_regions, series_label=None):
+    def add_collection(self, unit_regions, label=None):
         i0 = len(self.unit_region)
         self.unit_region += list(unit_regions)
-        # first group overlapping unit regions in the series
+        # first group overlapping unit regions in the collection
         current_index = max(self.group.keys())+1 if self.group else 0
         not_an_index = -1
         n = len(unit_regions)
@@ -230,26 +230,26 @@ class SupportRegions(object):
         if groups:
             self.group.update(groups)
         #
-        if series_label is None:
-            series_label = ''
-        self.index[series_label] = assignment
+        if label is None:
+            label = ''
+        self.index[label] = assignment
         #
         self.reverse_index = np.c_[
                 np.repeat(np.arange(len(self.index)), [ len(self.index[s]) for s in self.index ]),
                 np.concatenate([ np.arange(len(self.index[s])) for s in self.index ]) ]
-    def unit_to_region(self, u, series=None):
-        if series is None:
-            series = ''
-        return self.index[series][u]
+    def unit_to_region(self, u, collection=None):
+        if collection is None:
+            collection = ''
+        return self.index[collection][u]
     def region_to_units(self, r):
-        series_num = self.reverse_index[list(self.group[r])]
+        col_num = self.reverse_index[list(self.group[r])]
         units = defaultdict(list)
-        for series, num in series_num:
-            label = self.series_labels[series]
-            units[label].append(num)
+        for col_ix, ix_in_col in col_num:
+            label = self.collection_labels[col_ix]
+            units[label].append(ix_in_col)
         return units
     @property
-    def series_labels(self):
+    def collection_labels(self):
         return list(self.index.keys())
     def region_label(self, r):
         return self.gen_label(self.region_to_units(r))
@@ -268,11 +268,11 @@ class SupportRegions(object):
     #    self.group[r] = roi_set
     #def __delitem__(self, r):
     #    del self.group[r]
-    def series_range(self, series_label):
+    def collection_range(self, collection_label):
         m = 0
         for label in self.index:
             k = len(self.index[label])
-            if series_label == label:
+            if collection_label == label:
                 n = m + k
                 break
             else:
@@ -358,39 +358,39 @@ class SupportRegions(object):
         del analysis_tree[self.region_label(r)]
 
 
-class RoiSeries(object):
+class RoiCollection(object):
     def __init__(self, roi, label=None, regions=None):
         self.label = label
         self.regions = regions
-        self.regions.add_series(roi, label)
+        self.regions.add_collection(roi, label)
     @property
     def bounding_box(self):
-        m,n = self.regions.series_range(self.label)
+        m,n = self.regions.collection_range(self.label)
         return self.regions.unit_bounding_boxes[m:n]
     def __len__(self):
-        # TODO: this series only?
+        raise NotImplementedError
+        # TODO: this collection only?
         return len(self.regions.unit_region)
-    def get_subseries_index(self, r):
+    def subset_index(self, r):
         return self.regions.unit_to_region(r, self.label)
-    def get_subseries(self, r=None, s=None):
+    def subset_label(self, r=None, s=None):
         if s is None:
-            s = self.regions.unit_to_region(r, self.label)
-        # TODO: this series only?
-        return self.subseries[s]
-    def subseries_label(self, r=None, s=None):
-        if s is None:
-            s = self.regions.unit_to_region(r, self.label)
+            s = self.subset_index(r)
         return self.regions.region_label(s)
+    def get_subset(self, r=None, s=None):
+        if s is None:
+            s = self.subset_index(r)
+        return self.regions.group[s]
     def roi_label(self, r):
         return self.regions.unit_region_label(r, self.label)
     def get_subtree(self, i, analysis_tree):
-        label = self.subseries_label(i)
+        label = self.subset_label(i)
         if label in analysis_tree:
             return analysis_tree[label]
     def overlaps(self, i):
-        return 1 < len(self.get_subseries(i))
+        return 1 < len(self.get_subset(i))
     def get_map(self, i, analysis_tree, map_label, full=False):
-        label = self.subseries_label(i)
+        label = self.subset_label(i)
         try:
             subtree = analysis_tree[label]
             maps = subtree[map_label].data
@@ -403,7 +403,7 @@ class RoiSeries(object):
             maps = maps.sub(inside)
         return maps
     def get_cells(self, i, analysis_tree):
-        label = self.subseries_label(i)
+        label = self.subset_label(i)
         cells = analysis_tree[label].data
         tessellation = cells.tessellation
         if self.overlaps(i):
@@ -417,7 +417,7 @@ class RoiSeries(object):
         cells, inner_cell = self.get_cells(i, analysis_tree)
         return cells.tessellation, inner_cell
     def cell_plot(self, i, analysis_tree, **kwargs):
-        label = self.subseries_label(i)
+        label = self.subset_label(i)
         title = kwargs.pop('title', self.roi_label(i))
         if 'delaunay' not in kwargs:
             # anticipate future changes in `helper.tessellation.cell_plot`
@@ -464,7 +464,7 @@ class RoiSeries(object):
             ax.set_xlim(xl)
             ax.set_ylim(yl)
     def map_plot(self, i, analysis_tree, map_label, **kwargs):
-        label = self.subseries_label(i)
+        label = self.subset_label(i)
         title = kwargs.pop('title', self.roi_label(i))
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
@@ -502,43 +502,43 @@ class RoiSeries(object):
             ax.set_xlim(xl)
             ax.set_ylim(yl)
     def reset_roi(self, i, analysis_tree):
-        self.regions.reset_roi(self.get_subseries_index(i), analysis_tree)
+        self.regions.reset_roi(self.get_subset_index(i), analysis_tree)
 
-class RoiMultiSeries(AutosaveCapable):
+class RoiCollections(AutosaveCapable):
     def __init__(self, rwa_file=None, autosave=True, verbose=True):
         AutosaveCapable.__init__(self, rwa_file, autosave)
         self.regions = SupportRegions(region_label=self.roi_label, verbose=verbose)
         self.regions.unit_region_label = self.single_roi_label
-        self.series = {}
+        self.collections = {}
     def __len__(self):
-        return len(self.series)
+        return len(self.collections)
     def __contains__(self, label):
-        return label in self.series
+        return label in self.collections
     def __iter__(self):
-        return iter(self.series)
+        return iter(self.collections)
     def __setitem__(self, label, roi):
-        self.series[label] = roi if isinstance(roi, RoiSeries) else RoiSeries(roi, label, self.regions)
+        self.collections[label] = roi if isinstance(roi, RoiCollection) else RoiCollection(roi, label, self.regions)
     def __getitem__(self, label):
-        return self.series[label]
+        return self.collections[label]
     def __delitem__(self, label):
-        del self.series[label]
+        del self.collections[label]
     @property
     def numeric_format(self):
         return '{:0>3d}'
-    def roi_label(self, series_num):
+    def roi_label(self, col_num):
         label = []
-        for series_label in series_num:
-            num = series_num[series_label]
+        for col in col_num:
+            num = col_num[col]
             num_label = '-'.join([ self.numeric_format.format(i) for i in num ])
-            if series_label:
-                label.append( '{} roi {}'.format(series_label, num_label) )
+            if col:
+                label.append( '{} roi {}'.format(col, num_label) )
             else:
                 label.append( 'roi'+num_label )
         return ' - '.join(label)
-    def single_roi_label(self, i, series_label=None):
+    def single_roi_label(self, i, collection_label=None):
         num_label = self.numeric_format.format(i) if isinstance(i, int) else i
-        if series_label:
-            return '{} roi {}'.format(series_label, num_label)
+        if collection_label:
+            return '{} roi {}'.format(collection_label, num_label)
         else:
             return 'roi'+num_label
     @property
@@ -583,42 +583,42 @@ class RoiHelper(Helper):
         self.meta_label_pattern = meta_label
         self.meta_label_sep = meta_label_sep
 
-        self.series = RoiMultiSeries(rwa_file, autosave, verbose)
-        self.series._analysis_tree = self.analyses
+        self.collections = RoiCollections(rwa_file, autosave, verbose)
+        self.collections._analysis_tree = self.analyses
 
         if roi is None:
-            for series_label, meta_label in self.get_meta_labels().items():
-                self.series[series_label] = self.get_bounding_boxes(meta_label=meta_label)
+            for col_label, meta_label in self.get_meta_labels().items():
+                self.collections[col_label] = self.get_bounding_boxes(meta_label=meta_label)
         elif isinstance(roi, dict):
             for label in roi:
-                self.set_bounding_boxes(roi[label], series_label=label)
+                self.set_bounding_boxes(roi[label], collection_label=label)
         else:
             self.set_bounding_boxes(roi)
-            self.series[''] = roi
+            self.collections[''] = roi
 
     def get_meta_labels(self):
-        pattern = self.meta_label_pattern.replace('%s', '(?P<series>.*)')
-        pattern = pattern.replace('%S', '((?P<series>.+){})?'.format(self.meta_label_sep))
+        pattern = self.meta_label_pattern.replace('%s', '(?P<collection>.*)')
+        pattern = pattern.replace('%S', '((?P<collection>.+){})?'.format(self.meta_label_sep))
         labels = {}
         for label in self.analyses.labels:
             match = re.fullmatch(pattern, label)
             if match is not None:
-                series = match.group('series')
-                if series is None:
-                    series = ''
-                labels[series] = label
+                collection = match.group('collection')
+                if collection is None:
+                    collection = ''
+                labels[collection] = label
         return labels
 
-    def to_meta_label(self, series_label):
-        if series_label:
-            meta_label = self.meta_label_pattern.replace('%S', series_label+self.meta_label_sep)
+    def to_meta_label(self, collection_label):
+        if collection_label:
+            meta_label = self.meta_label_pattern.replace('%S', collection_label+self.meta_label_sep)
         else:
-            series_label = ''
+            collection_label = ''
             meta_label = self.meta_label_pattern.replace('%S', '')
-        meta_label = meta_label.replace('%s', series_label)
+        meta_label = meta_label.replace('%s', collection_label)
         return meta_label
 
-    def set_bounding_boxes(self, roi, roi_size=None, series_label=None):
+    def set_bounding_boxes(self, roi, roi_size=None, collection_label=None):
 
         trajectories = self.analyses.data
 
@@ -671,18 +671,18 @@ class RoiHelper(Helper):
         #roi_partitions = Partition(trajectories,
         #            NestedTessellations(parent=roi_partition, factory=HexagonalMesh, ref_distance=.01))
 
-        meta_label = self.to_meta_label(series_label)
+        meta_label = self.to_meta_label(collection_label)
         self.analyses[meta_label] = roi_partition
 
-        if series_label is None:
-            series_label = ''
-        self.series[series_label] = roi
+        if collection_label is None:
+            collection_label = ''
+        self.collections[collection_label] = roi
 
-    def get_bounding_boxes(self, series_label=None, meta_label=None):
+    def get_bounding_boxes(self, collection_label=None, meta_label=None):
         if meta_label is None:
-            if series_label is None:
-                series_label = ''
-            return self.series[series_label].bounding_box
+            if collection_label is None:
+                collection_label = ''
+            return self.collections[collection_label].bounding_box
 
         roi_mesh = self.get_global_partition(meta_label=meta_label).tessellation
         roi = []
@@ -692,39 +692,39 @@ class RoiHelper(Helper):
             roi.append((bottom_left, top_right))
         return roi
 
-    def get_global_partition(self, series_label=None, meta_label=None):
+    def get_global_partition(self, collection_label=None, meta_label=None):
         if meta_label is None:
-            meta_label = self.to_meta_label(series_label)
+            meta_label = self.to_meta_label(collection_label)
         return self.analyses[meta_label].data
 
     @property
     def roi_labels(self):
-        return self.series.roi_labels
+        return self.collections.roi_labels
 
     def tessellate(self, *args, **kwargs):
-        return self.series.tessellate(self.analyses, *args, **kwargs)
+        return self.collections.tessellate(self.analyses, *args, **kwargs)
 
     def infer(self, *args, **kwargs):
-        return self.series.infer(self.analyses, *args, **kwargs)
+        return self.collections.infer(self.analyses, *args, **kwargs)
 
-    def cell_plot(self, i, series_label='', **kwargs):
-        return self.series[series_label].cell_plot(i, self.analyses, **kwargs)
+    def cell_plot(self, i, collection_label='', **kwargs):
+        return self.collections[collection_label].cell_plot(i, self.analyses, **kwargs)
 
-    def map_plot(self, i, map_label, series_label='', **kwargs):
-        return self.series[series_label].map_plot(i, self.analyses, map_label, **kwargs)
+    def map_plot(self, i, map_label, collection_label='', **kwargs):
+        return self.collections[collection_label].map_plot(i, self.analyses, map_label, **kwargs)
 
-    def get_tessellation(self, i, series_label=''):
-        return self.series[series_label].get_tessellation(i, self.analyses)
+    def get_tessellation(self, i, collection_label=''):
+        return self.collections[collection_label].get_tessellation(i, self.analyses)
 
-    def get_map(self, i, map_label, full=False, series_label=''):
-        return self.series[series_label].get_map(i, self.analyses, map_label, full)
+    def get_map(self, i, map_label, full=False, collection_label=''):
+        return self.collections[collection_label].get_map(i, self.analyses, map_label, full)
 
-    def reset_roi(self, i, series_label=''):
-        self.series[series_label].reset_roi(i)
+    def reset_roi(self, i, collection_label=''):
+        self.collections[collection_label].reset_roi(i)
 
     def save_analyses(self):
-        return self.series.save()
+        return self.collections.save()
 
 
-__all__ = [ 'AutosaveCapable', 'SupportRegions', 'RoiSeries', 'RoiMultiSeries', 'RoiHelper' ]
+__all__ = [ 'AutosaveCapable', 'SupportRegions', 'RoiCollection', 'RoiCollections', 'RoiHelper' ]
 
