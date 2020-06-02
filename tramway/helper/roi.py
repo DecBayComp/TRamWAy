@@ -242,11 +242,11 @@ class SupportRegions(object):
             collection = ''
         return self.index[collection][u]
     def region_to_units(self, r):
-        col_num = self.reverse_index[list(self.group[r])]
+        coll_num = self.reverse_index[list(self.group[r])]
         units = defaultdict(list)
-        for col_ix, ix_in_col in col_num:
-            label = self.collection_labels[col_ix]
-            units[label].append(ix_in_col)
+        for coll_ix, ix_in_coll in coll_num:
+            label = self.collection_labels[coll_ix]
+            units[label].append(ix_in_coll)
         return units
     @property
     def collection_labels(self):
@@ -525,13 +525,13 @@ class RoiCollections(AutosaveCapable):
     @property
     def numeric_format(self):
         return '{:0>3d}'
-    def roi_label(self, col_num):
+    def roi_label(self, coll_num):
         label = []
-        for col in col_num:
-            num = col_num[col]
+        for coll in coll_num:
+            num = sorted(coll_num[coll])
             num_label = '-'.join([ self.numeric_format.format(i) for i in num ])
-            if col:
-                label.append( '{} roi {}'.format(col, num_label) )
+            if coll:
+                label.append( ' '.join((coll, num_label)) )
             else:
                 label.append( 'roi'+num_label )
         return ' - '.join(label)
@@ -587,8 +587,8 @@ class RoiHelper(Helper):
         self.collections._analysis_tree = self.analyses
 
         if roi is None:
-            for col_label, meta_label in self.get_meta_labels().items():
-                self.collections[col_label] = self.get_bounding_boxes(meta_label=meta_label)
+            for coll_label, meta_label in self.get_meta_labels().items():
+                self.collections[coll_label] = self.get_bounding_boxes(meta_label=meta_label)
         elif isinstance(roi, dict):
             for label in roi:
                 self.set_bounding_boxes(roi[label], collection_label=label)
