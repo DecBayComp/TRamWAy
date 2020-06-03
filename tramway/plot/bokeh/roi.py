@@ -356,8 +356,6 @@ class RoiBrowser(object):
         if self.global_map_values is not None:
             scalar_map_2d(self.global_map_cells, self.global_map_values, figure=zooming_in_fig,
                     **self.scalar_map_2d_kwargs)
-            zooming_in_fig.x_range = Range1d(*xlim)
-            zooming_in_fig.y_range = Range1d(*ylim)
         else:
             for cells,values in zip(self.roi_tessellations,self.roi_map_values):
                 scalar_map_2d(cells, values, figure=zooming_in_fig,
@@ -365,14 +363,16 @@ class RoiBrowser(object):
         traj_handles = plot_trajectories(self.points, figure=zooming_in_fig, **self.trajectories_kwargs)
         self.trajectory_handles = traj_handles[0::2]
         self.location_handles = traj_handles[1::2]
+        zooming_in_fig.x_range = Range1d(*xlim)
+        zooming_in_fig.y_range = Range1d(*ylim)
         self.roi_view_zooming_in = zooming_in_fig
         return zooming_in_fig
 
     def slider(self):
         ctrl = self.roi_controller
         zooming_in_fig = self.roi_view_zooming_in
-        slider = Slider(start=1, end=len(self.roi_model), step=1, value=self.first_active_roi, **self.slider_kwargs)
-        slider.js_on_change('value', ctrl.js_callback(zooming_in_fig))
+        slider = Slider(start=1, end=len(self.roi_model), step=1, value=self.first_active_roi+1, **self.slider_kwargs)
+        slider.js_on_change('value_throttled', ctrl.js_callback(zooming_in_fig))
         self.roi_view_slider = slider
         return slider
 

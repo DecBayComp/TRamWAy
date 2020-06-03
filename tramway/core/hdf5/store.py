@@ -12,6 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
+from tramway.core import rc
 from rwa import HDF5Store, lazytype, lazyvalue
 from ..lazy import Lazy
 from ..analyses import Analyses, coerce_labels, format_analyses, append_leaf
@@ -182,7 +183,7 @@ def save_rwa(path, analyses, verbose=False, force=None, compress=True, append=Fa
             extra_analyses = analyses
             analyses = load_rwa(path)
             append_leaf(analyses, extra_analyses, overwrite=force)
-        elif not force:
+        elif not force and rc.__user_interaction__:
             answer = input("overwrite file '{}': [N/y] ".format(path))
             if not (answer and answer[0].lower() == 'y'):
                 return

@@ -12,6 +12,8 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
+from . import rc
+from .rc import *
 from .lazy import ro_property_assert, Lazy # hide PermissionError
 from .namedcolumns import *
 from .chain import *

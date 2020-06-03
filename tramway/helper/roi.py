@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import polytope as pt
 import copy
+from tramway.core import rc
 from tramway.core.hdf5.store import save_rwa
 from tramway.core.xyt import crop
 from tramway.helper import *
@@ -23,26 +24,13 @@ import re
 import itertools
 from collections import defaultdict, OrderedDict
 
-import warnings
-__log__ = lambda msg: warnings.warn(msg, RuntimeWarning) # could call the logging module instead
-
-__available_packages__ = set()
-__reported_missing_packages__ = set()
-def __has_package__(pkg, report_if_missing=True):
-    if pkg in __available_packages__:
-        return True
-    elif report_if_missing:
-        if pkg not in __reported_missing_packages__:
-            __reported_missing_packages__.add(pkg)
-            __log__("package '{}' is missing".format(pkg))
-    return False
 
 try:
     from tqdm import tqdm
 except ImportError:
     pass
 else:
-    __available_packages__.add('tqdm')
+    rc.__available_packages__.add('tqdm')
 
 
 class AutosaveCapable(object):
@@ -308,7 +296,7 @@ class SupportRegions(object):
         return m, n
     def __range__(self, n, desc=None):
         if self.verbose:
-            if __has_package__('tqdm'):
+            if rc.__user_interaction__ and rc.__has_package__('tqdm'):
                 return tqdm(range(n), desc=desc)
         return range(n)
     def iter_regions(self, desc=None):
