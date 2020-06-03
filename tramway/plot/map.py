@@ -187,68 +187,71 @@ def box_voronoi_2d(tessellation, xlim, ylim):
     cell_vertices1 = list(cell_vertices0)
     v01_new_edges, v11_new_edges = set(), set()
     v1_map = np.full(len(voronoi1.vertices), not_a_vertex, dtype=int)
-    v0_keep = np.ones(len(vertices0), dtype=bool)
+    v0_keep = np.zeros(len(vertices0), dtype=bool)
     #
     v1_border = list(v1_border_set)
     vertices1.append(voronoi1.vertices[v1_border])
     v1_map[v1_border] = np.arange(v1_cntr, v1_cntr+len(v1_border))
     v1_cntr += len(v1_border)
     #
-    for c in c_inner_set:
+    for c in cell_vertices0:
         v0 = cell_vertices0[c]
-        V0 = vertices0[v0]
-        v1 = np.array(voronoi1.regions[voronoi1.point_region[c]])
-        v1 = v1[0<=v1]
-        V1 = voronoi1.vertices[v1]
-        V02 = .5 * np.sum(V0 * V0, axis=1, keepdims=True)
-        #V12_ = .5 * np.sum(V1 * V1, axis=1, keepdims=True)
-        assert np.all(0<=v1_inner_map[v1])
-        V12_ = V12[v1_inner_map[v1]]
-        D2 = np.dot(V0, V1.T) - V02 - V12_.T
-        v0c_match = np.argmax(D2, axis=0)
-        v0c_keep = np.isclose(D2[v0c_match, np.arange(len(V1))], 0, atol=1e-6)
-        if not np.any(v0c_keep):
-            warn('the Voronoi diagrams totally mismatch at the border', RuntimeWarning)
-            continue
-            print(D2[v0c_match, np.arange(len(V1))])
-            import matplotlib.pyplot as plt
-            plt.scatter(V0[:,0], V0[:,1], 200, c='g', marker='+')
-            plt.scatter(V1[:,0], V1[:,1], 200, c='r', marker='x')
-            #plt.scatter(corners[:,0], corners[:,1], c='b', marker='o')
-            plt.show()
-        v0_match = v0[v0c_match[v0c_keep]]
-        v1_match = v1[v0c_keep]
-        v1_replace = v1[~v0c_keep]
-        v0_kept = np.unique(v0_match)
-        v0_keep[[v for v in v0 if v not in v0_kept]] = False
-        #assert len(v0_kept) == np.sum(v0c_keep) # not sure about that
-        v1_mapped = v1_map[v1_replace]
-        v1_reused = v1_mapped[v1_mapped!=not_a_vertex]
-        #
-        V1_new = V1[~v0c_keep][v1_mapped==not_a_vertex]
-        vertices1.append(V1_new)
-        v1_new = np.arange(v1_cntr, v1_cntr+len(V1_new))
-        v1_cntr += len(V1_new)
-        #
-        v1_map[v1_replace[v1_mapped==not_a_vertex]] = v1_new
-        cell_vertices1[c] = np.r_[np.array(list(v0_kept)), v1_reused, v1_new]
-        #
-        v1_set = set(v1)
-        for _v0, _v1 in zip(v0_match, v1_match):
-            _v1_neighbours = \
-                    set(ridge_vertices1[ridge_vertices1[:,0]==_v1,1]) | \
-                    set(ridge_vertices1[ridge_vertices1[:,1]==_v1,0])
-            for _v1_neighbour in _v1_neighbours & v1_border_set:
-                v01_new_edges.add((_v0, _v1_neighbour))
-                #
-                if _v1_neighbour in v1_corners_set:
-                    continue
-                _v1_neighbour_neighbours = \
-                    set(ridge_vertices1[ridge_vertices1[:,0]==_v1_neighbour,1]) | \
-                    set(ridge_vertices1[ridge_vertices1[:,1]==_v1_neighbour,0])
-                _corner = _v1_neighbour_neighbours & v1_corners_set
-                while _corner:
-                    v11_new_edges.add((_v1_neighbour, _corner.pop()))
+        if c in c_inner_set:
+            V0 = vertices0[v0]
+            v1 = np.array(voronoi1.regions[voronoi1.point_region[c]])
+            v1 = v1[0<=v1]
+            V1 = voronoi1.vertices[v1]
+            V02 = .5 * np.sum(V0 * V0, axis=1, keepdims=True)
+            #V12_ = .5 * np.sum(V1 * V1, axis=1, keepdims=True)
+            assert np.all(0<=v1_inner_map[v1])
+            V12_ = V12[v1_inner_map[v1]]
+            D2 = np.dot(V0, V1.T) - V02 - V12_.T
+            v0c_match = np.argmax(D2, axis=0)
+            v0c_keep = np.isclose(D2[v0c_match, np.arange(len(V1))], 0, atol=1e-6)
+            if not np.any(v0c_keep):
+                warn('the Voronoi diagrams totally mismatch at the border', RuntimeWarning)
+                continue
+                print(D2[v0c_match, np.arange(len(V1))])
+                import matplotlib.pyplot as plt
+                plt.scatter(V0[:,0], V0[:,1], 200, c='g', marker='+')
+                plt.scatter(V1[:,0], V1[:,1], 200, c='r', marker='x')
+                #plt.scatter(corners[:,0], corners[:,1], c='b', marker='o')
+                plt.show()
+            v0_match = v0[v0c_match[v0c_keep]]
+            v1_match = v1[v0c_keep]
+            v1_replace = v1[~v0c_keep]
+            v0_kept = np.unique(v0_match)
+            v0_keep[v0_kept] = True
+            #assert len(v0_kept) == np.sum(v0c_keep) # not sure about that
+            v1_mapped = v1_map[v1_replace]
+            v1_reused = v1_mapped[v1_mapped!=not_a_vertex]
+            #
+            V1_new = V1[~v0c_keep][v1_mapped==not_a_vertex]
+            vertices1.append(V1_new)
+            v1_new = np.arange(v1_cntr, v1_cntr+len(V1_new))
+            v1_cntr += len(V1_new)
+            #
+            v1_map[v1_replace[v1_mapped==not_a_vertex]] = v1_new
+            cell_vertices1[c] = np.r_[np.array(list(v0_kept)), v1_reused, v1_new]
+            #
+            v1_set = set(v1)
+            for _v0, _v1 in zip(v0_match, v1_match):
+                _v1_neighbours = \
+                        set(ridge_vertices1[ridge_vertices1[:,0]==_v1,1]) | \
+                        set(ridge_vertices1[ridge_vertices1[:,1]==_v1,0])
+                for _v1_neighbour in _v1_neighbours & v1_border_set:
+                    v01_new_edges.add((_v0, _v1_neighbour))
+                    #
+                    if _v1_neighbour in v1_corners_set:
+                        continue
+                    _v1_neighbour_neighbours = \
+                        set(ridge_vertices1[ridge_vertices1[:,0]==_v1_neighbour,1]) | \
+                        set(ridge_vertices1[ridge_vertices1[:,1]==_v1_neighbour,0])
+                    _corner = _v1_neighbour_neighbours & v1_corners_set
+                    while _corner:
+                        v11_new_edges.add((_v1_neighbour, _corner.pop()))
+        else:
+            v0_keep[v0] = True
     v0_map = np.full(len(vertices0), not_a_vertex, dtype=int)
     n0 = np.sum(v0_keep)
     v0_map[v0_keep] = np.arange(n0)
@@ -257,12 +260,16 @@ def box_voronoi_2d(tessellation, xlim, ylim):
     vertices1.insert(0, vertices0[v0_keep])
     vertices1 = np.vstack(vertices1)
     for c, _vs in enumerate(cell_vertices1):
+        # some elements in cell_vertices1 are scalars; convert them into arrays
         if not isinstance(_vs, np.ndarray):
             _vs = cell_vertices1[c] = np.array([_vs])
+        # for all cell at the border,
         if c in c_inner_set:
+            # ...map the additional vertex indices so they match the compact vertices1
             _v1 = v1_cntr0 <= _vs
             _vs[_v1] += n0 - v1_cntr0
             if not np.all(_v1):
+                # ...and similarly map the pre-existing vertices that are not discarded
                 _vs[~_v1] = v0_map[_vs[~_v1]]
                 assert not np.any(_vs == not_a_vertex)
     v01_new0, v01_new1 = zip(*v01_new_edges)
@@ -379,8 +386,8 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         ix = np.arange(xy.shape[0])
         try:
             vertices, cell_vertices, Av = box_voronoi_2d(cells.tessellation, xlim, ylim)
-        except AssertionError as e:
-            warn('could not fix the borders: {}'.format(e.msg), RuntimeWarning)
+        except AssertionError:
+            warn('could not fix the borders', RuntimeWarning)
             vertices, cell_vertices, Av = cells.tessellation.vertices, cells.tessellation.cell_vertices, cells.tessellation.vertex_adjacency.tocsr()
         try:
             ok = 0 < cells.location_count

@@ -52,9 +52,18 @@ class AutosaveCapable(object):
         self.save_options = dict(force=True)
         self._analysis_tree = None
         self._modified = None
+        self.extra_artefacts = {}
     def save(self):
         if self.rwa_file:
             save_rwa(self.rwa_file, self._analysis_tree, **self.save_options)
+            if self.extra_artefacts:
+                from rwa import HDF5Store
+                f = HDF5Store(self.rwa_file, 'a')
+                try:
+                    for label, artefact in self.extra_artefacts.items():
+                        f.poke(label, artefact)
+                finally:
+                    f.close()
             return True
     def autosaving(self, analysis_tree):
         if self.autosave:
@@ -83,6 +92,25 @@ class AutosaveCapable(object):
         if b is not True:
             raise ValueError("property 'modified' can only be set to True")
         self._modified = b
+    def set_extra_artefact(self, label, artefact):
+        self.extra_artefacts[label] = artefact
+    def get_extra_artefact(self, label):
+        try:
+            artefact = self.extra_artefacts[label]
+        except KeyError:
+            artefact = None
+            if self.rwa_file:
+                from rwa import HDF5Store, lazyvalue
+                f = HDF5Store(self.rwa_file, 'r')
+                try:
+                    artefact = lazyvalue(f.peek(label))
+                except KeyError:
+                    pass
+                else:
+                    self.extra_artefacts[label] = artefact
+                finally:
+                    f.close()
+        return artefact
 
 
 class SupportRegions(object):
@@ -724,6 +752,12 @@ class RoiHelper(Helper):
 
     def save_analyses(self):
         return self.collections.save()
+
+    def set_base_grid(self, label, grid):
+        self.collections.set_extra_artefact('tramway.roi.RoiHelper.basegrid:'+label, grid)
+
+    def get_base_grid(self, label):
+        return self.collections.get_extra_artefact('tramway.roi.RoiHelper.basegrid:'+label)
 
 
 __all__ = [ 'AutosaveCapable', 'SupportRegions', 'RoiCollection', 'RoiCollections', 'RoiHelper' ]
