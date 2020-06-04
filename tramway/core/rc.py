@@ -3,6 +3,31 @@
 
 Runtime configuration.
 
+To globally disable *tqdm* console animations, or yes-no questions, for example at file overwrite:
+
+.. code:python
+
+    from tramway.core import rc
+    rc.__user_interaction__ = False
+
+For optional dependencies, for example:
+
+.. code:python
+
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        pass
+    else:
+    rc.__available_packages__.add('tqdm')
+
+and then:
+
+.. code:python
+
+    if rc.__has_package__('tqdm'):
+        ...
+
 """
 
 import warnings

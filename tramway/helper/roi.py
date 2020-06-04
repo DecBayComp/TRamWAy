@@ -16,8 +16,6 @@ import numpy as np
 import pandas as pd
 import polytope as pt
 import copy
-from tramway.core import rc
-from tramway.core.hdf5.store import save_rwa
 from tramway.core.xyt import crop
 from tramway.helper import *
 import re
@@ -31,74 +29,6 @@ except ImportError:
     pass
 else:
     rc.__available_packages__.add('tqdm')
-
-
-class AutosaveCapable(object):
-    def __init__(self, rwa_file=None, autosave=True):
-        self.autosave = autosave
-        self.rwa_file = rwa_file
-        self.save_options = dict(force=True)
-        self._analysis_tree = None
-        self._modified = None
-        self.extra_artefacts = {}
-    def save(self):
-        if self.rwa_file:
-            save_rwa(self.rwa_file, self._analysis_tree, **self.save_options)
-            if self.extra_artefacts:
-                from rwa import HDF5Store
-                f = HDF5Store(self.rwa_file, 'a')
-                try:
-                    for label, artefact in self.extra_artefacts.items():
-                        f.poke(label, artefact)
-                finally:
-                    f.close()
-            return True
-    def autosaving(self, analysis_tree):
-        if self.autosave:
-            self._analysis_tree = analysis_tree
-        return self
-    def __enter__(self):
-        self._modified = False
-        return self
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        if exc_type is None and self._modified:
-            if self.autosave:
-                self.save()
-                # unload
-                self._analysis_tree = None
-        # reset
-        self._modified = None
-    @property
-    def modified(self):
-        if self._modified is None:
-            raise RuntimeError("property 'modified' called from outside the context")
-        return self._modified
-    @modified.setter
-    def modified(self, b):
-        if self._modified is None:
-            raise RuntimeError("property 'modified' called from outside the context")
-        if b is not True:
-            raise ValueError("property 'modified' can only be set to True")
-        self._modified = b
-    def set_extra_artefact(self, label, artefact):
-        self.extra_artefacts[label] = artefact
-    def get_extra_artefact(self, label):
-        try:
-            artefact = self.extra_artefacts[label]
-        except KeyError:
-            artefact = None
-            if self.rwa_file:
-                from rwa import HDF5Store, lazyvalue
-                f = HDF5Store(self.rwa_file, 'r')
-                try:
-                    artefact = lazyvalue(f.peek(label))
-                except KeyError:
-                    pass
-                else:
-                    self.extra_artefacts[label] = artefact
-                finally:
-                    f.close()
-        return artefact
 
 
 class SupportRegions(object):
@@ -539,6 +469,12 @@ class RoiCollections(AutosaveCapable):
     def __delitem__(self, label):
         del self.collections[label]
     @property
+    def verbose(self):
+        return self.regions.verbose
+    @verbose.setter
+    def verbose(self, v):
+        self.regions.verbose = v
+    @property
     def numeric_format(self):
         return '{:0>3d}'
     def roi_label(self, coll_num):
@@ -600,7 +536,6 @@ class RoiHelper(Helper):
         self.meta_label_sep = meta_label_sep
 
         self.collections = RoiCollections(rwa_file, autosave, verbose)
-        self.collections._analysis_tree = self.analyses
 
         if roi is None:
             for coll_label, meta_label in self.get_meta_labels().items():
@@ -611,6 +546,8 @@ class RoiHelper(Helper):
         else:
             self.set_bounding_boxes(roi)
             self.collections[''] = roi
+
+        self._extra_artefacts = {}
 
     def get_meta_labels(self):
         pattern = self.meta_label_pattern.replace('%s', '(?P<collection>.*)')
@@ -738,15 +675,38 @@ class RoiHelper(Helper):
     def reset_roi(self, i, collection_label=''):
         self.collections[collection_label].reset_roi(i)
 
-    def save_analyses(self):
-        return self.collections.save()
+    def save_analyses(self, output_file=None, verbose=None, force=None, **kwargs):
+        if output_file is None:
+            output_file = self.collections.rwa_file
+        if verbose is None:
+            verbose = self.collections.verbose
+        Helper.save_analyses(self, output_file, verbose, force, **kwargs)
 
     def set_base_grid(self, label, grid):
-        self.collections.set_extra_artefact('tramway.roi.RoiHelper.basegrid:'+label, grid)
+        self.analyses['tramway.roi.RoiHelper.basegrid:'+label] = grid
 
-    def get_base_grid(self, label):
-        return self.collections.get_extra_artefact('tramway.roi.RoiHelper.basegrid:'+label)
+    def get_base_grid(self, label, from_root=False):
+        label = 'tramway.roi.RoiHelper.basegrid:'+label
+        if from_root:
+            try:
+                artefact = self._extra_artefacts[label]
+            except KeyError:
+                artefact = None
+                if self.collections.rwa_file:
+                    from rwa import HDF5Store, lazyvalue
+                    f = HDF5Store(self.collections.rwa_file, 'r')
+                    try:
+                        artefact = lazyvalue(f.peek(label))
+                    except KeyError:
+                        pass
+                    else:
+                        self._extra_artefacts[label] = artefact
+                    finally:
+                        f.close()
+        else:
+            artefact = self.analyses[label].data
+        return artefact
 
 
-__all__ = [ 'AutosaveCapable', 'SupportRegions', 'RoiCollection', 'RoiCollections', 'RoiHelper' ]
+__all__ = [ 'SupportRegions', 'RoiCollection', 'RoiCollections', 'RoiHelper' ]
 

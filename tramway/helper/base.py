@@ -27,20 +27,9 @@ class IgnoredInputWarning(UserWarning):
     pass
 
 
-class Helper(object):
-
+class HelperBase(object):
     def __init__(self):
-        """
-        """
-        self.input_file = None
-        self.analyses = None
-        #self.plugins = None
-        self.module = self.name = None
-        self.setup = {}
-        self.verbose = None # undefined
-        self.input_label = self.output_label = None
-        self._label_is_output = None
-        self.comment = None
+        self.analyses = {}
         self.metadata = {}
 
     def add_metadata(self, analysis, pkg_version=[]):
@@ -57,6 +46,28 @@ class Helper(object):
             analysis.metadata['tramway'] = pkg_resources.get_distribution('tramway').version
         if 'datetime' not in analysis.metadata:
             analysis.metadata['datetime'] = time.strftime('%Y-%m-%d %H:%M:%S UTC%z')
+
+
+class Helper(object):
+
+    def __init__(self):
+        """
+        """
+        HelperBase.__init__(self)
+        self.input_file = None
+        self.analyses = None
+        #self.plugins = None
+        self.module = self.name = None
+        self.setup = {}
+        self.verbose = None # undefined
+        self.input_label = self.output_label = None
+        self._label_is_output = None
+        self.comment = None
+
+    def add_metadata(self, analysis, pkg_version=[]):
+        if self.metadata is None:
+            return
+        HelperBase.add_metadata(self, analysis, pkg_version)
         if 'plugin' not in analysis.metadata:
             plugin = None
             try:
@@ -335,4 +346,56 @@ class Helper(object):
                 input_files = [self.input_file]
             force = not input_files[1:] and input_files[0] == output_file
         save_rwa(output_file, self.analyses, verbose, force, **kwargs)
+
+
+
+class AutosaveCapable(object):
+    def __init__(self, rwa_file=None, autosave=True):
+        self.autosave = autosave
+        self.rwa_file = rwa_file
+        self.save_options = dict(force=True)
+        self._modified = None
+        self._analysis_tree = None
+        self._extra_artefacts = {} # deprecated
+    def save(self):
+        if self._analysis_tree is None:
+            raise RuntimeError("method 'save' called from outside the context")
+        if self.rwa_file:
+            save_rwa(self.rwa_file, self._analysis_tree, **self.save_options)
+            if self._extra_artefacts: # deprecated
+                #from rwa import HDF5Store
+                f = HDF5Store(self.rwa_file, 'a')
+                try:
+                    for label, artefact in self._extra_artefacts.items():
+                        f.poke(label, artefact)
+                finally:
+                    f.close()
+            return True
+    def autosaving(self, analysis_tree):
+        if self.autosave:
+            self._analysis_tree = analysis_tree
+        return self
+    def __enter__(self):
+        self._modified = False
+        return self
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if exc_type is None and self._modified:
+            if self.autosave:
+                self.save()
+                # unload
+                self._analysis_tree = None
+        # reset
+        self._modified = None
+    @property
+    def modified(self):
+        if self._modified is None:
+            raise RuntimeError("property 'modified' called from outside the context")
+        return self._modified
+    @modified.setter
+    def modified(self, b):
+        if self._modified is None:
+            raise RuntimeError("property 'modified' called from outside the context")
+        if b is not True:
+            raise ValueError("property 'modified' can only be set to True")
+        self._modified = b
 
