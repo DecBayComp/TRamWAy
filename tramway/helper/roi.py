@@ -289,16 +289,25 @@ class SupportRegions(object):
         #
         label = self.region_label(r)
         if label in analysis_tree:
+            run_interrupted_again = not kwargs.pop('preserve_interrupted_inferences', False)
             try:
-                if kwargs['output_label'] in analysis_tree[label]:
-                    return False
-            except KeyError:
+                maps = analysis_tree[label][kwargs['output_label']].data
+            except KeyError: # either 'output_label' in kwargs or kwargs['output_label'] in analysis_tree
                 pass
+            else:
+                try:
+                    if run_interrupted_again and maps.resolution.upper() != 'INTERRUPTED':
+                        return False
+                except AttributeError: # either resolution in maps or upper in maps.resolution
+                    return False
             if self.verbose:
                 print('{} -- {}'.format(label, kwargs['output_label']))
             kwargs['input_label'] = label
             infer(analysis_tree, *args, **kwargs)
             return True
+        else:
+            import warnings
+            warnings.warn("no partition available for region '{}'".format(label))
         return False
     def reset_roi(self, r, analysis_tree, *args, **kwargs):
         del analysis_tree[self.region_label(r)]

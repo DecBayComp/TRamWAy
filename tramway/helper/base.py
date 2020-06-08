@@ -357,6 +357,15 @@ class AutosaveCapable(object):
         self._modified = None
         self._analysis_tree = None
         self._extra_artefacts = {} # deprecated
+    @property
+    def save_on_completion(self):
+        return self.autosave and (isinstance(self.autosave, bool) or self.autosave.endswith('completion'))
+    @property
+    def save_on_every_step(self):
+        return self.autosave and isinstance(self.autosave, str) and self.autosave.endswith('every step')
+    @property
+    def force_save(self):
+        return self.autosave and isinstance(self.autosave, str) and self.autosave.startswith('force')
     def save(self):
         if self._analysis_tree is None:
             raise RuntimeError("method 'save' called from outside the context")
@@ -379,11 +388,16 @@ class AutosaveCapable(object):
         self._modified = False
         return self
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        if exc_type is None and self._modified:
-            if self.autosave:
-                self.save()
-                # unload
-                self._analysis_tree = None
+        if self._modified:
+            if exc_type is None:
+                if self.save_on_completion:
+                    self.save()
+                    # unload
+                    self._analysis_tree = None
+            else:
+                if self.force_save:
+                    self.save()
+                    self._analysis_tree = None # useless as an exception will be raised anyway
         # reset
         self._modified = None
     @property
