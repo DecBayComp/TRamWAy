@@ -231,16 +231,23 @@ class Tessellate(Helper):
         self.time_window_kwargs = {}
         if time_window_duration:
             self.time_window_kwargs['duration'] = time_window_duration
-            if time_window_shift:
-                self.time_window_kwargs['shift'] = time_window_shift
-            if time_window_options:
-                self.time_window_kwargs.update(time_window_options)
-            if enable_time_regularization:
-                time_dimension = self.time_window_kwargs.get('time_dimension', None)
-                if time_dimension is False:
-                    warn('`enable_time_regularization={}` and `time_dimension={}` are not compatible'.format(enable_time_regularization, time_dimension), RuntimeWarning)
-                elif time_dimension is None:
-                    self.time_window_kwargs['time_dimension'] = True
+        if time_window_shift:
+            self.time_window_kwargs['shift'] = time_window_shift
+        if time_window_options:
+            enable_time_regularization = time_window_options.pop(
+                        'regularisable',
+                        time_window_options.pop(
+                            'regularizable',
+                            enable_time_regularization))
+            self.time_window_kwargs.update(time_window_options)
+        if enable_time_regularization:
+            time_dimension = self.time_window_kwargs.get('time_dimension', None)
+            if time_dimension is False:
+                warn('`enable_time_regularization={}` and `time_dimension={}` are not compatible'.format(enable_time_regularization, time_dimension), RuntimeWarning)
+            elif time_dimension is None:
+                self.time_window_kwargs['time_dimension'] = True
+        if self.time_window_kwargs:
+            self.time_window_kwargs['duration'] # required; fails with KeyError if missing
 
         ref_distance = params.get('ref_distance', None)
         _filter_f = self.partition_kwargs.get('filter', None)
@@ -330,7 +337,9 @@ class Tessellate(Helper):
             tess = NestedTessellations(self.scaler, self.input_partition, factory=self.constructor,
                 **self.tessellation_kwargs)
         else:
-            if self.time_window_kwargs:
+            if self.time_window_kwargs and not self.reassignment_kwargs:
+                # note: bin reassignment applies only to the spatial component;
+                #       time windowing is carried out after reassigning bins
                 import tramway.tessellation.window as window
                 tess = window.SlidingWindow(**self.time_window_kwargs)
                 tess.spatial_mesh = self.constructor(self.scaler, **self.tessellation_kwargs)
@@ -366,8 +375,15 @@ class Tessellate(Helper):
                 if cells.number_of_cells == ncells:
                     break
                 assert self.cells.cell_index.max() < cells.number_of_cells
-            # post-reassignment step to introduce overlap if requested
-            if self._partition_kwargs is not self.partition_kwargs:
+            # post-reassignment step to introduce overlap and time windowing if requested
+            if self._partition_kwargs is not self.partition_kwargs or self.time_window_kwargs:
+                if self.time_window_kwargs:
+                    import tramway.tessellation.window as window
+                    tess = window.SlidingWindow(**self.time_window_kwargs)
+                    # DIRTY HACK: call TimeLattice.tessellate without data nor spatial mesh
+                    #             to let the objet self-configure
+                    tess.tessellate(None)
+                    tess.spatial_mesh = cells.tessellation
                 cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
                 self.cells = cells = Partition(self.xyt_data, tess, cell_index)
 

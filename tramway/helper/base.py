@@ -351,12 +351,16 @@ class Helper(object):
 
 class AutosaveCapable(object):
     def __init__(self, rwa_file=None, autosave=True):
-        self.autosave = autosave
+        self._autosave = autosave
+        self._autosave_overwrite = None
         self.rwa_file = rwa_file
         self.save_options = dict(force=True)
         self._modified = None
         self._analysis_tree = None
         self._extra_artefacts = {} # deprecated
+    @property
+    def autosave(self):
+        return self._autosave if self._autosave_overwrite is None else self._autosave_overwrite
     @property
     def save_on_completion(self):
         return self.autosave and (isinstance(self.autosave, bool) or self.autosave.endswith('completion'))
@@ -380,14 +384,17 @@ class AutosaveCapable(object):
                 finally:
                     f.close()
             return True
-    def autosaving(self, analysis_tree):
+    def autosaving(self, analysis_tree, on=None):
         if self.autosave:
+            if on is not None:
+                self._autosave_overwrite = on
             self._analysis_tree = analysis_tree
         return self
     def __enter__(self):
         self._modified = False
         return self
     def __exit__(self, exc_type, exc_value, exc_traceback):
+        self._autosave_overwrite = None
         if self._modified:
             if exc_type is None:
                 if self.save_on_completion:
