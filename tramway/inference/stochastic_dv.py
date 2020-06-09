@@ -299,6 +299,8 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
 
     D_time_prior = dv.diffusivity_time_prior(i)
     if D_time_prior:
+        if not D_prior:
+            D = x[:int(x.size/2)]
         dDdt = cells.temporal_variation(i, D, reverse_index)
         if dDdt is None:
             dv.undefined_time_derivative(i, 'D')
