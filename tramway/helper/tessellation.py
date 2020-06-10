@@ -234,6 +234,7 @@ class Tessellate(Helper):
         if time_window_shift:
             self.time_window_kwargs['shift'] = time_window_shift
         if time_window_options:
+            time_window_options = dict(time_window_options) # copy to prevent side effects
             enable_time_regularization = time_window_options.pop(
                         'regularisable',
                         time_window_options.pop(
