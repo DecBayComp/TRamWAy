@@ -33,12 +33,14 @@ else:
 
 class SupportRegions(object):
     def __init__(self, region_label=None, verbose=True):
+        self.__reset__()
+        self.gen_label = region_label
+        self.verbose = verbose
+    def __reset__(self):
         self.unit_region = []
         self._unit_polytope = {}
         self.group = {}
         self.index = OrderedDict()
-        self.gen_label = region_label
-        self.verbose = verbose
     def unit_bounding_box(self, i, exact_only=False, atleast_2d=False):
         r = self.unit_region[i]
         if isinstance(r, tuple):
@@ -96,6 +98,12 @@ class SupportRegions(object):
         else:
             return np.all(_min_i<=_max_j) and np.all(_min_j<=_max_i)
     def add_collection(self, unit_regions, label=None):
+        # check if already existing
+        if label in self.index:
+            if 1<len(self.index):
+                raise RuntimeError('cannot overwrite a collection if other collections have already been defined')
+            self.__reset__()
+        #
         i0 = len(self.unit_region)
         self.unit_region += list(unit_regions)
         # first group overlapping unit regions in the collection
@@ -522,6 +530,10 @@ class RoiCollections(AutosaveCapable):
                 a.modified = True
             return a.modified
 
+    def reset(self):
+        self.regions.__reset__()
+        self.collections = {}
+
 
 #from .base import Helper, Analyses
 #from tramway.helper.tessellation import Tessellate, Partition, Voronoi
@@ -715,6 +727,9 @@ class RoiHelper(Helper):
         else:
             artefact = self.analyses[label].data
         return artefact
+
+    def reset(self):
+        self.collections.reset()
 
 
 __all__ = [ 'SupportRegions', 'RoiCollection', 'RoiCollections', 'RoiHelper' ]

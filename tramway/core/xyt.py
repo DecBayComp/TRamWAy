@@ -52,6 +52,39 @@ def translocations(df, sort=False):
     return jump#np.sqrt(np.sum(jump * jump, axis=1))
 
 
+def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=False):
+    if not isinstance(trajectories, pd.DataFrame):
+        raise TypeError('trajectories is not a DataFrame')
+
+    if asarray or not asslice:
+        other_cols = [ col != trajnum_colname for col in trajectories.columns ]
+    if asarray:
+        dat = trajectories[other_cols].values
+    if asslice:
+        if asarray:
+            from_slice = lambda a,b: (a,b), dat[a:b]
+        else:
+            from_slice = lambda a,b: (a,b)
+    else:
+        if asarray:
+            from_slice = lambda a,b: dat[a:b]
+        else:
+            from_slice = lambda a,b: trajectories.iloc[a:b]
+
+    curr_traj_num = trajectories[trajnum_colname].iat[0] - 1
+    for i, num in enumerate(trajectories[trajnum_colname]):
+        if num == curr_traj_num:
+            stop += 1
+        elif num < curr_traj_num:
+            raise IndexError('trajectories are not ascendingly sorted')
+        else:
+            if 0<i:
+                yield from_slice(start, stop)
+            start = i
+            stop = start + 1
+            curr_traj_num = num
+
+
 def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
         reset_origin=False, header=None, **kwargs):
     """
@@ -283,9 +316,50 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
     return points
 
 
+def discard_static_trajectories(trajectories, localization_error, trajnum_colname='n', full_trajectory=False, verbose=False):
+    """
+    Arguments:
+
+        trajectories (DataFrame): trajectory data with columns 'n' (trajectory number),
+            spatial coordinates 'x' and 'y' (and optionaly 'z'), and time 't'.
+
+        localization_error (float): localization error in space units squared.
+
+        trajnum_colname (str): column name for the trajectory number.
+
+        full_trajectory (bool): if True, the trajectories with static translocations
+            are entirely discarded; if False, only the static translocations are
+            discarded, and the corresponding trajectories are discarded only if they
+            end up being single points.
+
+    Returns:
+
+        DataFrame: filtered trajectory data with a new row index.
+
+    """
+    trajs = []
+    for start,stop in iter_trajectories(trajectories, trajnum_colname, asslice=True):
+        traj = trajectories.iloc[start:stop]
+        r = traj[[ col for col in trajectories.columns if col in 'xyz' ]].values
+        dr = np.diff(r, axis=0)
+        js = np.sum(dr * dr, axis=1)
+        static = np.r_[False, js < localization_error]
+        if verbose and np.any(static):
+            print('trajectory {:.0f} exhibits static translocations'.format(traj[trajnum_colname].iat[0]))
+        if full_trajectory and np.any(static):
+            # discard the entire trajectory
+            continue
+        traj = traj.iloc[~static]
+        if 1<len(traj):
+            trajs.append(traj)
+    return pd.DataFrame(np.vstack([ traj.values for traj in trajs ]), columns=trajectories.columns)
+
+
 __all__ = [
     'translocations',
+    'iter_trajectories',
     'load_xyt',
     'crop',
+    'discard_static_trajectories',
     ]
 
