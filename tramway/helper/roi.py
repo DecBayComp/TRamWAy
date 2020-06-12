@@ -32,9 +32,10 @@ else:
 
 
 class SupportRegions(object):
-    def __init__(self, region_label=None, verbose=True):
+    def __init__(self, region_label=None, update_metadata=None, verbose=True):
         self.__reset__()
         self.gen_label = region_label
+        self.update_metadata = update_metadata
         self.verbose = verbose
     def __reset__(self):
         self.unit_region = []
@@ -282,6 +283,8 @@ class SupportRegions(object):
             trajectories = self.crop(r, analysis_tree.data)
             partition = tessellate(trajectories, *args, **kwargs)
             analysis_tree[label] = partition
+            if self.update_metadata is not None:
+                self.update_metadata(analysis_tree[label])
             return True
     def infer(self, r, analysis_tree, *args, **kwargs):
         if isinstance(r, str):
@@ -297,21 +300,24 @@ class SupportRegions(object):
         #
         label = self.region_label(r)
         if label in analysis_tree:
-            run_interrupted_again = not kwargs.pop('preserve_interrupted_inferences', False)
+            skip_interrupted = kwargs.pop('preserve_interrupted_inferences', False)
             try:
                 maps = analysis_tree[label][kwargs['output_label']].data
             except KeyError: # either 'output_label' in kwargs or kwargs['output_label'] in analysis_tree
                 pass
             else:
                 try:
-                    if run_interrupted_again and maps.resolution.upper() != 'INTERRUPTED':
+                    if skip_interrupted or maps.resolution.upper() != 'INTERRUPTED':
                         return False
                 except AttributeError: # either resolution in maps or upper in maps.resolution
                     return False
-            if self.verbose:
-                print('{} -- {}'.format(label, kwargs['output_label']))
             kwargs['input_label'] = label
+            output_label = analysis_tree[label].autoindex(kwargs.get('output_label', None))
+            if self.verbose:
+                print('{} -- {}'.format(label, output_label))
             infer(analysis_tree, *args, **kwargs)
+            if self.update_metadata is not None:
+                self.update_metadata(analysis_tree[label][output_label])
             return True
         else:
             import warnings
@@ -468,9 +474,12 @@ class RoiCollection(object):
         self.regions.reset_roi(self.get_subset_index(i), analysis_tree)
 
 class RoiCollections(AutosaveCapable):
-    def __init__(self, rwa_file=None, autosave=True, verbose=True):
+    def __init__(self, rwa_file=None, autosave=True, metadata=None, verbose=True):
         AutosaveCapable.__init__(self, rwa_file, autosave)
-        self.regions = SupportRegions(region_label=self.roi_label, verbose=verbose)
+        self.regions = SupportRegions(
+                region_label=self.roi_label,
+                update_metadata=metadata,
+                verbose=verbose)
         self.regions.unit_region_label = self.single_roi_label
         self.collections = {}
     def __len__(self):
@@ -556,7 +565,7 @@ class RoiHelper(Helper):
         self.meta_label_pattern = meta_label
         self.meta_label_sep = meta_label_sep
 
-        self.collections = RoiCollections(rwa_file, autosave, verbose)
+        self.collections = RoiCollections(rwa_file, autosave, self.add_metadata, verbose)
 
         if roi is None:
             for coll_label, meta_label in self.get_meta_labels().items():
@@ -647,6 +656,7 @@ class RoiHelper(Helper):
 
         meta_label = self.to_meta_label(collection_label)
         self.analyses[meta_label] = roi_partition
+        self.add_metadata(self.analyses[meta_label])
 
         if collection_label is None:
             collection_label = ''
@@ -704,7 +714,9 @@ class RoiHelper(Helper):
         Helper.save_analyses(self, output_file, verbose, force, **kwargs)
 
     def set_base_grid(self, label, grid):
-        self.analyses['tramway.roi.RoiHelper.basegrid:'+label] = grid
+        label = 'tramway.roi.RoiHelper.basegrid:'+label
+        self.analyses[label] = grid
+        self.add_metadata(self.analyses[label])
 
     def get_base_grid(self, label, from_root=False):
         label = 'tramway.roi.RoiHelper.basegrid:'+label
