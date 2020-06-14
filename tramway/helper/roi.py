@@ -123,14 +123,15 @@ class SupportRegions(object):
             else:#if isinstance(region_i, (tuple, list)):
                 _min_i, _max_i = region_i
                 region_i = None
+            group_with = set()
             if assignment[i] == not_an_index:
                 group_index = current_index
                 group = set([i0+i])
             else:
                 group_index = assignment[i]
+                group_with.add(group_index)
                 group = groups[group_index]
                 assert i0+i in group
-            group_with = set()
             for j in range(i+1,n):
                 if i0+j in group:
                     continue
