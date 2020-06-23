@@ -944,7 +944,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             segment = segment.pop()
             print('plotting segment {}'.format(segment))
         _mesh = cells.tessellation.spatial_mesh
-        _cells, cells = cells, Partition(tessellation=_mesh, location_count=np.ones(_mesh.cell_centers.shape[0]))
+        _cells, cells = cells, Partition(tessellation=_mesh, points=cells.points, location_count=np.ones(_mesh.cell_centers.shape[0]))
     elif segment is not None:
         warn('cannot find time segments', RuntimeWarning)
 

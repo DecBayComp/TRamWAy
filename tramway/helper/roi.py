@@ -367,15 +367,28 @@ class RoiCollection(object):
         except KeyError:
             return None
         if not full and self.overlaps(i):
-            coords = subtree.data.tessellation.cell_centers
+            tessellation = subtree.data.tessellation
+            try:
+                segments = len(tessellation.time_lattice)
+            except AttributeError:
+                segments = None
+            else:
+                tessellation = tessellation.spatial_mesh
+            coords = tessellation.cell_centers
             _min,_max = self.bounding_box[i]
-            inside, = np.nonzero(np.all((_min[np.newaxis,:]<coords) & (coords<_max[np.newaxis,:]),axis=1))
-            maps = maps.sub(inside)
+            inside = np.all((_min[np.newaxis,:]<coords) & (coords<_max[np.newaxis,:]),axis=1)
+            if segments:
+                inside = np.tile(inside, segments)
+            maps.maps = maps.maps[inside[maps.maps.index]]
         return maps
     def get_cells(self, i, analysis_tree):
         label = self.subset_label(i)
         cells = analysis_tree[label].data
         tessellation = cells.tessellation
+        try:
+            tessellation = tessellation.spatial_mesh
+        except AttributeError:
+            pass
         if self.overlaps(i):
             coords = tessellation.cell_centers
             _min,_max = self.bounding_box[i]
