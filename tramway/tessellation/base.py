@@ -1087,7 +1087,8 @@ class Delaunay(Tessellation):
                         if D is None:
                             raise memory_error
                         # small and missing cells
-                        if D.shape[0] <= min_nn:
+                        if D.shape[0] < min_nn:
+                            # beware of the special case such that all the min_nn points are in a single bin
                             assert np.all(small[nonempty])
                             # the total number of points is lower than
                             # the desired minimum number of points per
