@@ -41,8 +41,11 @@ class Tessellate(Helper):
     @property
     def _partition_kwargs(self):
         if self.reassignment_kwargs:
+           # reassigning is based on true partitions (Voronoi),
+           # therefore over- and under-sampling arguments should be silenced
+           over_sampling_args = ('knn', 'radius', 'time_knn')
            return { kw: arg for kw, arg in self.partition_kwargs.items() \
-                        if kw not in ('knn', 'radius') }
+                        if kw not in over_sampling_args }
         else:
            return self.partition_kwargs
 
@@ -425,10 +428,13 @@ class Tessellate(Helper):
                     warn('updating the centroids after reassigning points may fail because of memory error', RuntimeWarning)
                 prev_cell_indices = cells.cell_index
                 if not isinstance(prev_cell_indices, np.ndarray):
-                    raise RuntimeError('cell overlap is not supported in combination with point reassignment')
+                    def noway(*args, **kwargs):
+                        raise RuntimeError('cell overlap is not supported in combination with point reassignment')
+                    prev_cell_indices = format_cell_index(prev_cell_indices,
+                            format='array', select=noway, shape=(len(cells.points),))
 
             cells, deleted_cells, label = delete_low_count_cells(cells,
-                    reassignment_count_threshold, reassignment_priority, label, partition_kwargs)
+                    reassignment_count_threshold, reassignment_priority, label, self._partition_kwargs)
 
             #if cell_indices.size == prev_cell_indices.size and np.all(cell_indices == prev_cell_indices):
             if deleted_cells.size == 0:

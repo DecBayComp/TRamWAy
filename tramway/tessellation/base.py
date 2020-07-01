@@ -337,6 +337,8 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
                 K = K.tocoo()
                 copy = False # already done
         else:
+            if shape is None:
+                raise ValueError('converting from pair to sparse array: `shape` is not defined')
             K = sparse.coo_matrix((np.ones_like(K[0], dtype=bool), K), shape=shape)
             copy = False # already done
         if format == 'csr':
@@ -350,6 +352,8 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
         K = (K.row, K.col) # drop the values; keep only the indices
         copy = False # already done
     if format == 'array' and isinstance(K, tuple):
+        if shape is None:
+            raise ValueError('converting from pair to single array: `shape` is not defined')
         points, cells = K
         K = np.full(shape[0], -1, dtype=int)
         P, I, N = np.unique(points, return_index=True, return_counts=True)
@@ -1084,7 +1088,7 @@ class Delaunay(Tessellation):
                             raise memory_error
                         # small and missing cells
                         if D.shape[0] <= min_nn:
-                            assert np.all(small)
+                            assert np.all(small[nonempty])
                             # the total number of points is lower than
                             # the desired minimum number of points per
                             # cell
