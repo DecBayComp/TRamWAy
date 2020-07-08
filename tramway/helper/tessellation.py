@@ -379,6 +379,9 @@ class Tessellate(Helper):
                 if cells.number_of_cells == ncells:
                     break
                 assert self.cells.cell_index.max() < cells.number_of_cells
+	    if cells.number_of_cells < 10:
+                print(cells.tessellation.cell_centers)
+                warn('coarse tessellation: less than 10 cells', RuntimeWarning)
             # post-reassignment step to introduce overlap and time windowing if requested
             if self._partition_kwargs is not self.partition_kwargs or self.time_window_kwargs:
                 if self.time_window_kwargs:
@@ -389,6 +392,10 @@ class Tessellate(Helper):
                     tess.tessellate(None)
                     tess.spatial_mesh = cells.tessellation
                 cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
+                if isinstance(cell_index, tuple) and len(cell_index[0]) == 0:
+                    print(self.partition_kwargs)
+                    print(cell_index)
+                    raise ValueError('not any point assigned')
                 self.cells = cells = Partition(self.xyt_data, tess, cell_index)
 
         # store some parameters together with the partition

@@ -1502,6 +1502,8 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
     elif isinstance(index, tuple):
 
         _point, _cell = index
+        if _point.size == 0:
+            raise ValueError('no data points found')
         _unique = np.unique(_point)
         loc_count = max(initial.size, _unique[-1]+1) # should be enough
         transloc_count = np.sum(initial)
@@ -1666,6 +1668,11 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         new_group = new
     if not isinstance(cells, tessellation.CellStats):
         raise TypeError('`cells` is not a `CellStats`')
+    if cells.points.size == 0:
+        raise ValueError('no data points found')
+    if isinstance(cells.cell_index, tuple):
+        if len(cells.cell_index[0]) == 0:
+            raise ValueError('not any point assigned')
 
     # format (trans-)locations
     coord_cols, trajectory_col, get_var, get_point = identify_columns(cells.points)
