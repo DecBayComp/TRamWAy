@@ -63,7 +63,7 @@ class SlidingWindow(TimeLattice):
             dt /= 10.
         else:
             dt = 1e-7 # precision down to a microsecond (quantum < microsecond)
-        nsegments = np.round((t1 - t0 - duration) / shift) + 1.
+        nsegments = min(1., np.round((t1 - t0 - duration) / shift) + 1.)
         t1 = t0 + (nsegments - 1.) * shift + duration
         t0s = np.arange(t0, t1 - duration + dt, shift)
         t1s = t0s + duration

@@ -379,22 +379,21 @@ class Tessellate(Helper):
                 if cells.number_of_cells == ncells:
                     break
                 assert self.cells.cell_index.max() < cells.number_of_cells
-	    if cells.number_of_cells < 10:
-                print(cells.tessellation.cell_centers)
-                warn('coarse tessellation: less than 10 cells', RuntimeWarning)
+            if cells.number_of_cells < 10:
+                warn('coarse tessellation: {} cells only'.format(cells.number_of_cells), RuntimeWarning)
             # post-reassignment step to introduce overlap and time windowing if requested
             if self._partition_kwargs is not self.partition_kwargs or self.time_window_kwargs:
                 if self.time_window_kwargs:
                     import tramway.tessellation.window as window
                     tess = window.SlidingWindow(**self.time_window_kwargs)
-                    # DIRTY HACK: call TimeLattice.tessellate without data nor spatial mesh
-                    #             to let the objet self-configure
-                    tess.tessellate(None)
+                    tess.tessellate(self.xyt_data)
                     tess.spatial_mesh = cells.tessellation
                 cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
                 if isinstance(cell_index, tuple) and len(cell_index[0]) == 0:
-                    print(self.partition_kwargs)
-                    print(cell_index)
+                    print('time_window_kwargs', self.time_window_kwargs)
+                    print('partition_kwargs', self.partition_kwargs)
+                    print('cell_index', cell_index)
+                    print('data.shape', self.xyt_data.shape, 'number_of_cells', tess.number_of_cells)
                     raise ValueError('not any point assigned')
                 self.cells = cells = Partition(self.xyt_data, tess, cell_index)
 
