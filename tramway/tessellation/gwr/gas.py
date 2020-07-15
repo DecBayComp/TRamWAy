@@ -2,6 +2,8 @@
 
 # Copyright © 2017-2018, Institut Pasteur
 #   Contributor: François Laurent
+# Copyright © 2020, Institut Pasteur
+#   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
 # "https://github.com/DecBayComp/TRamWAy" and is distributed under
@@ -116,7 +118,10 @@ class Gas(Graph):
         self.habituation_tau = (3.33, 14.33) # supposed to be time, but actually is to be
         # thought as a number of iterations; needs to be appropriately set
         self.edge_lifetime = 100 # may depend on the number of neighbors per node and
-        # therefore on the dimensionality of the data
+        # therefore on the dimensionality of the data;
+        # also depends on the number of nodes, as lifetime reset may follow a Poisson distribution;
+        # therefore, a floating point value below 1 will be interpreted as a fraction of the
+        # number of nodes
         self.batch_size = 1000 # should be an order of magnitude or two below the total
         # sample size
         self.collapse_below = None
@@ -201,6 +206,10 @@ class Gas(Graph):
         return age
 
     def habituate(self, node):
+        if self.edge_lifetime < 1:
+            max_age = min(10, self.edge_lifetime * float(self.size))
+        else:
+            max_edge = self.edge_lifetime
         self.increment_habituation(node)
         for edge, neighbor in list(self.iter_edges_from(node)):
             age = self.increment_age(edge)
@@ -208,7 +217,7 @@ class Gas(Graph):
             # corresponding edge, because `neighbor` may no exist afterwards; otherwise, to
             # increment after, it is necessary to check for existence of the node; should be
             # faster this way, due to low deletion rate
-            if self.edge_lifetime < age:
+            if max_edge < age:
                 self.disconnect(node, neighbor, edge)
                 if self.stands_alone(neighbor):
                     self.del_node(neighbor)

@@ -316,14 +316,14 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
     return points
 
 
-def discard_static_trajectories(trajectories, localization_error, trajnum_colname='n', full_trajectory=False, verbose=False):
+def discard_static_trajectories(trajectories, min_msd, trajnum_colname='n', full_trajectory=False, verbose=False):
     """
     Arguments:
 
         trajectories (DataFrame): trajectory data with columns 'n' (trajectory number),
             spatial coordinates 'x' and 'y' (and optionaly 'z'), and time 't'.
 
-        localization_error (float): localization error in space units squared.
+        min_msd (float): minimum mean-square-displacement (usually set to the localization error).
 
         trajnum_colname (str): column name for the trajectory number.
 
@@ -342,8 +342,8 @@ def discard_static_trajectories(trajectories, localization_error, trajnum_colnam
         traj = trajectories.iloc[start:stop]
         r = traj[[ col for col in trajectories.columns if col in 'xyz' ]].values
         dr = np.diff(r, axis=0)
-        js = np.sum(dr * dr, axis=1)
-        static = np.r_[False, js < localization_error]
+        js = np.mean(dr * dr, axis=1)
+        static = np.r_[False, js < min_msd]
         if verbose and np.any(static):
             print('trajectory {:.0f} exhibits static translocations'.format(traj[trajnum_colname].iat[0]))
         if full_trajectory and np.any(static):

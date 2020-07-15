@@ -341,7 +341,7 @@ class Tessellate(Helper):
             tess = NestedTessellations(self.scaler, self.input_partition, factory=self.constructor,
                 **self.tessellation_kwargs)
         else:
-            if self.time_window_kwargs and not self.reassignment_kwargs:
+            if self.time_window_kwargs:# and not self.reassignment_kwargs:
                 # note: bin reassignment applies only to the spatial component;
                 #       time windowing is carried out after reassigning bins
                 import tramway.tessellation.window as window
@@ -378,16 +378,14 @@ class Tessellate(Helper):
                 cells = self.reassign()
                 if cells.number_of_cells == ncells:
                     break
-                assert self.cells.cell_index.max() < cells.number_of_cells
+                #assert self.cells.cell_index.max() < cells.number_of_cells
             if cells.number_of_cells < 10:
                 warn('coarse tessellation: {} cells only'.format(cells.number_of_cells), RuntimeWarning)
             # post-reassignment step to introduce overlap and time windowing if requested
-            if self._partition_kwargs is not self.partition_kwargs or self.time_window_kwargs:
-                if self.time_window_kwargs:
-                    import tramway.tessellation.window as window
-                    tess = window.SlidingWindow(**self.time_window_kwargs)
-                    tess.tessellate(self.xyt_data)
-                    tess.spatial_mesh = cells.tessellation
+            if self.time_window_kwargs:
+                cells = self.cells
+                tess = cells.tessellation
+            if self._partition_kwargs is not self.partition_kwargs:
                 cell_index = tess.cell_index(self.xyt_data, **self.partition_kwargs)
                 if isinstance(cell_index, tuple) and len(cell_index[0]) == 0:
                     print('time_window_kwargs', self.time_window_kwargs)
@@ -395,7 +393,8 @@ class Tessellate(Helper):
                     print('cell_index', cell_index)
                     print('data.shape', self.xyt_data.shape, 'number_of_cells', tess.number_of_cells)
                     raise ValueError('not any point assigned')
-                self.cells = cells = Partition(self.xyt_data, tess, cell_index)
+                #self.cells = cells = Partition(self.xyt_data, tess, cell_index)
+                self.cells.cell_index = cell_index
 
         # store some parameters together with the partition
         method = self.name
@@ -419,8 +418,20 @@ class Tessellate(Helper):
         """called by :met:`tessellate`. Should not be called directly."""
         cells = self.cells
 
-        partition_kwargs = dict(cells.param.get('partition',{}))
-        partition_kwargs.update(self.partition_kwargs)
+        #partition_kwargs = dict(cells.param.get('partition',{}))
+        #partition_kwargs.update(self.partition_kwargs)
+        partition_kwargs = self._partition_kwargs
+
+        if self.time_window_kwargs:
+            import copy
+            tess = cells.tessellation.spatial_mesh
+            point_index,cell_index = cells.cell_index
+            cell_index = cell_index % tess.number_of_cells
+            def noway(*args, **kwargs):
+                raise RuntimeError('cell overlap is not supported in combination with point reassignment')
+            cell_index = format_cell_index((point_index,cell_index),
+                    format='array', select=noway, shape=(len(cells.points),))
+            cells = Partition(cells.points, tess, cell_index)
 
         update_centroids = self.reassignment_kwargs.get('update_centroids', False)
 
@@ -434,22 +445,32 @@ class Tessellate(Helper):
                     warn('updating the centroids after reassigning points may fail because of memory error', RuntimeWarning)
                 prev_cell_indices = cells.cell_index
                 if not isinstance(prev_cell_indices, np.ndarray):
-                    def noway(*args, **kwargs):
-                        raise RuntimeError('cell overlap is not supported in combination with point reassignment')
-                    prev_cell_indices = format_cell_index(prev_cell_indices,
-                            format='array', select=noway, shape=(len(cells.points),))
+                    raise RuntimeError('cell overlap is not supported in combination with point reassignment')
 
             cells, deleted_cells, label = delete_low_count_cells(cells,
                     reassignment_count_threshold, reassignment_priority, label, self._partition_kwargs)
 
-            #if cell_indices.size == prev_cell_indices.size and np.all(cell_indices == prev_cell_indices):
             if deleted_cells.size == 0:
                 break
 
+            dim = cells.tessellation.cell_centers.shape[1]
+            min_ncells = dim + 2
+            if cells.number_of_cells < min_ncells:
+                raise RuntimeError('too few remaining cells ({}<{})'.format(cells.number_of_cells, min_ncells))
+
             if update_centroids:
                 cells = update_cell_centers(cells, update_centroids, partition_kwargs)
+            if self.time_window_kwargs:
+                self.cells.tessellation.spatial_mesh = tess = cells.tessellation
+                self.cells.cell_index = point_index,cell_index = \
+                        self.cells.tessellation.cell_index(cells.points, **partition_kwargs)
+                cell_index = cell_index % tess.number_of_cells
+                cells.cell_index = cell_index = \
+                        format_cell_index((point_index,cell_index),
+                                format='array', select=noway, shape=(len(cells.points),))
 
-        self.cells = cells
+        if not self.time_window_kwargs:
+            self.cells = cells
         return cells
 
 
@@ -1794,6 +1815,7 @@ def find_partition(path, method=None, full_list=False):
 def delete_low_count_cells(partition, count_threshold, priority_by=None, label=True, partition_kwargs={}):
     tessellation = partition.tessellation
     deleted_cells, = np.nonzero(partition.location_count<count_threshold)
+    #print('ncells', partition.number_of_cells, 'npts_min', np.min(partition.location_count), 'npts_max', np.max(partition.location_count), 'ncells_deleted', deleted_cells.size)
     if deleted_cells.size == 0:
         return partition, deleted_cells, label
     if priority_by:
