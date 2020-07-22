@@ -13,6 +13,7 @@
 
 import rwa.lazy as rwa
 from . import base
+from . import abc
 
 
 class InstancesView(base.InstancesView):
@@ -26,7 +27,7 @@ class InstancesView(base.InstancesView):
     def __getitem__(self, label):
         instance = base.InstancesView.__getitem__(self, label)
         if rwa.islazy(instance):
-            if issubclass(instance.type, base.Analyses):
+            if issubclass(instance.type, abc.Analyses):
                 instance = instance.shallow()
                 self.__setitem__(label, instance)
             elif self.peek:
@@ -39,7 +40,7 @@ class InstancesView(base.InstancesView):
         if instance is None:
             instance = default
         elif rwa.islazy(instance):
-            if issubclass(instance.type, base.Analyses):
+            if issubclass(instance.type, abc.Analyses):
                 instance = instance.shallow()
                 self.__setitem__(label, instance)
             elif self.peek:
@@ -123,7 +124,7 @@ class Analyses(base.Analyses):
                 else:
                     obj.store.close()
                     ok = True
-            elif isinstance(obj, Analyses):
+            elif isinstance(obj, abc.Analyses):
                 obj = obj._instances
                 if isinstance(obj, dict): # implicit: not rwa.islazy(obj)
                     for k in obj:

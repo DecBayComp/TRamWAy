@@ -13,6 +13,7 @@
 
 from ..core import *
 from ..core.hdf5 import *
+from ..core.analyses import abc
 import os.path
 import six
 import pandas as pd
@@ -102,14 +103,14 @@ class Helper(object):
                 self.analyses.metadata.update(self.metadata)
                 self.add_metadata(self.analyses)
                 self.metadata = {}
-        elif isinstance(data, Analyses):
+        elif isinstance(data, abc.Analyses):
             self.analyses = data
         elif isinstance(data, six.string_types):
             if not os.path.isfile(data):
                 raise OSError('file not found: {}'.format(data))
             self.input_file = [data]
             self.analyses = data = load_rwa(data, lazy=True, verbose=verbose)
-        if isinstance(data, Analyses):
+        if isinstance(data, abc.Analyses):
             if not (labels is None and types is None):
                 data = find_artefacts(data, types, labels)
                 if self.input_label is None:
@@ -275,7 +276,7 @@ class Helper(object):
         if comment is None:
             comment = self.comment
         labels = None
-        if isinstance(analysis_or_artefact, Analyses):
+        if isinstance(analysis_or_artefact, abc.Analyses):
             artefact = analysis_or_artefact.data
             analysis = analysis_or_artefact
         else:
@@ -350,6 +351,9 @@ class Helper(object):
 
 
 class AutosaveCapable(object):
+    """
+    deprecated
+    """
     def __init__(self, rwa_file=None, autosave=True):
         self._autosave = autosave
         self._autosave_overwrite = None

@@ -18,6 +18,7 @@ import pandas as pd
 import scipy.sparse as sparse
 from ..core import *
 from ..core.hdf5 import *
+from ..core.analyses import abc
 from ..tessellation import *
 from .base import *
 from warnings import warn
@@ -95,7 +96,7 @@ class Tessellate(Helper):
                 raise TypeError('nesting tessellations does not apply to {}'.format(msg))
             if self.input_label is None:
                 self.input_label = self.find(data)
-        elif isinstance(data, Analyses):
+        elif isinstance(data, abc.Analyses):
             self.xyt_data = data.data
         else:
             self.xyt_data = data
@@ -988,7 +989,7 @@ def tessellate0(xyt_data, method='gwr', output_file=None, verbose=False, \
             if input_label is not None:
                 raise no_nesting_error
     else:
-        if isinstance(xyt_data, Analyses):
+        if isinstance(xyt_data, abc.Analyses):
             analyses = xyt_data
             xyt_data = analyses.data
         else:
@@ -1409,7 +1410,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             labels = ()
         elif not isinstance(labels, (tuple, list)):
             labels = (labels, )
-        if isinstance(cells, Analyses):
+        if isinstance(cells, abc.Analyses):
             analyses, cells = cells, None
         else:
             input_file, cells = cells, None

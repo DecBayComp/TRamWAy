@@ -16,7 +16,7 @@ from tramway.core import rc
 from rwa import HDF5Store, lazytype, lazyvalue
 from ..lazy import Lazy
 from ..analyses import Analyses, coerce_labels, format_analyses, append_leaf
-import tramway.core.analyses.base as ba
+import tramway.core.analyses.abc as abc
 import os.path
 import traceback
 import errno
@@ -174,7 +174,7 @@ def save_rwa(path, analyses, verbose=False, force=None, compress=True, append=Fa
             a subtree
 
     """
-    if not isinstance(analyses, ba.Analyses):
+    if not isinstance(analyses, abc.Analyses):
         raise TypeError('`analyses` is not an `Analyses` instance')
     if force is None:
         force = False if overwrite is None else overwrite

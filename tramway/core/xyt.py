@@ -316,7 +316,7 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
     return points
 
 
-def discard_static_trajectories(trajectories, min_msd, trajnum_colname='n', full_trajectory=False, verbose=False):
+def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n', full_trajectory=False, verbose=False, localization_error=None):
     """
     Arguments:
 
@@ -332,11 +332,15 @@ def discard_static_trajectories(trajectories, min_msd, trajnum_colname='n', full
             discarded, and the corresponding trajectories are discarded only if they
             end up being single points.
 
+        localization_error (float): alias for `min_msd`; for backward compatibility.
+
     Returns:
 
         DataFrame: filtered trajectory data with a new row index.
 
     """
+    if min_msd is None:
+        min_msd = localization_error
     trajs = []
     for start,stop in iter_trajectories(trajectories, trajnum_colname, asslice=True):
         traj = trajectories.iloc[start:stop]

@@ -12,6 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
+from . import abc
 import itertools
 import copy
 import warnings
@@ -42,7 +43,7 @@ class InstancesView(AnalysesView):
     def __getitem__(self, label):
         return self.__analyses__._instances[label]
     def __setitem__(self, label, analysis):
-        if not isinstance(analysis, Analyses):
+        if not isinstance(analysis, abc.Analyses):
             analysis = type(self.__analyses__)(analysis)
         self.__analyses__._instances[label] = analysis
     def __delitem__(self, label):
@@ -259,7 +260,7 @@ class Analyses(object):
 
         """
         label = self.autoindex(label)
-        if not (raw or isinstance(analysis, Analyses)):
+        if not (raw or isinstance(analysis, abc.Analyses)):
             analysis = type(self)(analysis)
         self.instances[label] = analysis
         if comment:
@@ -287,6 +288,8 @@ class Analyses(object):
     def __delitem__(self, label):
         self.instances.__delitem__(label)
 
+abc.Analyses.register(Analyses)
+
 
 def map_analyses(fun, analyses, label=False, comment=False, metadata=False, depth=False,
         allow_tuples=False):
@@ -313,7 +316,7 @@ def map_analyses(fun, analyses, label=False, comment=False, metadata=False, dept
             for label in analyses.instances:
                 child = analyses.instances[label]
                 comment = analyses.comments[label]
-                if isinstance(child, Analyses):
+                if isinstance(child, abc.Analyses):
                     tree.append(_map(child, label, comment, depth))
                 else:
                     if with_label:
@@ -563,7 +566,7 @@ def coerce_labels_and_metadata(analyses):
             assert isinstance(coerced, (int, str))
         comment = analyses.comments[label]
         analysis = analyses.instances.pop(label)
-        if isinstance(analysis, Analyses):
+        if isinstance(analysis, abc.Analyses):
             analysis = coerce_labels_and_metadata(analysis)
         analyses.instances[coerced] = analysis
         if comment:

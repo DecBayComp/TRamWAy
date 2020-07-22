@@ -17,6 +17,7 @@ import pandas as pd
 import polytope as pt
 import copy
 from tramway.core.xyt import crop
+import tramway.core.analyses.auto as autosaving
 from tramway.helper import *
 import re
 import itertools
@@ -576,10 +577,15 @@ class RoiHelper(Helper):
                 assert not rwa_file[1:]
                 rwa_file = rwa_file[0]
 
+        analyses = self.analyses
+        self.analyses = autosaving.Analyses(rwa_file, autosave)
+        self.analyses.analyses = analyses
+
         self.meta_label_pattern = meta_label
         self.meta_label_sep = meta_label_sep
 
-        self.collections = RoiCollections(rwa_file, autosave, self.add_metadata, verbose)
+        #self.collections = RoiCollections(rwa_file, autosave, self.add_metadata, verbose)
+        self.collections = RoiCollections(autosave=False, metadata=self.add_metadata)
 
         if roi is None:
             for coll_label, meta_label in self.get_meta_labels().items():
@@ -700,10 +706,12 @@ class RoiHelper(Helper):
         return self.collections.roi_labels
 
     def tessellate(self, *args, **kwargs):
-        return self.collections.tessellate(self.analyses, *args, **kwargs)
+        with self.analyses.autosaving(kwargs.pop('autosave',None)):
+            return self.collections.tessellate(self.analyses, *args, **kwargs)
 
     def infer(self, *args, **kwargs):
-        return self.collections.infer(self.analyses, *args, **kwargs)
+        with self.analyses.autosaving(kwargs.pop('autosave',None)):
+            return self.collections.infer(self.analyses, *args, **kwargs)
 
     def cell_plot(self, i, collection_label='', **kwargs):
         return self.collections[collection_label].cell_plot(i, self.analyses, **kwargs)
@@ -721,6 +729,11 @@ class RoiHelper(Helper):
         self.collections[collection_label].reset_roi(i)
 
     def save_analyses(self, output_file=None, verbose=None, force=None, **kwargs):
+        if output_file is not None:
+            raise NotImplemented
+        self.analyses.save(out_of_context=True)
+        return
+        # deprecated
         if output_file is None:
             output_file = self.collections.rwa_file
         if verbose is None:

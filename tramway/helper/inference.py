@@ -14,6 +14,7 @@
 
 from tramway.core import *
 from tramway.core.hdf5 import *
+import tramway.core.analyses.abc as abc
 from tramway.inference import *
 from .base import *
 import tramway.inference as inference # inference.plugins
@@ -600,7 +601,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
                 raise ValueError('no cells found')
         if verbose:
             print('loading file: {}'.format(input_file))
-    elif isinstance(cells, Analyses):
+    elif isinstance(cells, abc.Analyses):
         all_analyses, cells = cells, None
     elif not isinstance(cells, Partition):
         raise TypeError('wrong type for argument `cells`')
@@ -853,7 +854,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     elif isinstance(maps, (pd.DataFrame, Maps, pd.Series)):
         if cells is None:
             raise ValueError('`cells` is not defined')
-    elif isinstance(maps, Analyses):
+    elif isinstance(maps, abc.Analyses):
         analyses = maps
         if label is None:
             label = input_label
