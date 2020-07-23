@@ -251,6 +251,7 @@ class SupportRegions(object):
                 yield r
             done -= 1
     def crop(self, r, df):
+        n_space_cols = len([ col for col in 'xyz' if col in df.columns ])
         loc_indices = set()
         df_r = None
         for u in self.group[r]:
@@ -258,7 +259,11 @@ class SupportRegions(object):
                 raise NotImplementedError
             else:
                 _min,_max = self.unit_region[u]
-                df_u = crop(df, np.r_[_min,_max-_min])
+                if n_space_cols < _min.size:
+                    df_u = df[(_min[-1]<=df['t']) & (df['t'] < _max[-1])]
+                    df_u = crop(df_u, np.r_[_min[:-1],_max[:-1]-_min[:-1]])
+                else:
+                    df_u = crop(df, np.r_[_min,_max-_min])
             if df_r is None:
                 df_r = df_u
             else:
@@ -625,10 +630,16 @@ class RoiHelper(Helper):
 
         trajectories = self.analyses.data
 
-        roi_centers = np.stack([ (_min+_max)/2 for _min,_max in roi ], axis=0)
+        space_cols = [ col for col in 'xyz' if col in trajectories.columns ]
+        def _space(_xyt):
+            _xy = _xyt[:-1] if len(space_cols) < _xyt.size else _xyt
+            return _xy
+
+        roi_centers = np.stack([ _space((_min+_max)/2) for _min,_max in roi ], axis=0)
         roi_adjacency = sparse.coo_matrix(([],([],[])), shape=(len(roi),len(roi)), dtype=bool)
+        # 2D only
         roi_vertices = np.stack(list(itertools.chain(*[
-            [ _min, [_min[0],_max[1]], _max,  [_max[0],_min[1]] ] for _min,_max in roi ])), axis=0)
+            [ [_min[0],_min[1]], [_min[0],_max[1]], [_max[0],_max[1]],  [_max[0],_min[1]] ] for _min,_max in roi ])), axis=0)
         roi_cell_vertices = list(np.reshape(np.arange(len(roi_vertices)), (len(roi),-1)))
         roi_vertex_adjacency_row = np.concatenate([ 4*i + np.array([0, 0, 1, 2]) for i in range(len(roi)) ])
         roi_vertex_adjacency_col = np.concatenate([ 4*i + np.array([1, 3, 2, 3]) for i in range(len(roi)) ])
@@ -648,9 +659,17 @@ class RoiHelper(Helper):
         #        if x in p:
         #            roi_index.append((i,j))
         #roi_index = tuple([ np.array(a) for a in zip(*roi_index) ])
-        pt = trajectories[['x','y']].values
+        xy = xyt = None
         I = []
         for j, (_min,_max) in enumerate(roi):
+            if len(space_cols) < _min.size:
+                if xyt is None:
+                    xyt = trajectories[space_cols+['t']].values
+                pt = xyt
+            else:
+                if xy is None:
+                    xy = trajectories[space_cols].values
+                pt = xy
             i, = np.nonzero(np.all((_min[np.newaxis,:] <= pt) & (pt <= _max[np.newaxis,:]), axis=1))
             I.append(i)
         J = np.repeat(np.arange(len(I)), [ len(i) for i in I])
@@ -658,13 +677,15 @@ class RoiHelper(Helper):
         roi_index = I,J
 
         roi_mesh = Voronoi() # not really a Voronoi diagram...
-        roi_mesh._preprocess(trajectories[['x','y']])
+        roi_mesh._preprocess(trajectories[space_cols])
         roi_mesh.cell_centers = roi_centers
         roi_mesh.cell_adjacency = roi_adjacency
         roi_mesh.vertices = roi_vertices
         roi_mesh.cell_vertices = roi_cell_vertices
         roi_mesh.vertex_adjacency = roi_vertex_adjacency
         roi_mesh.cell_volume = np.full(len(roi), roi_size * roi_size)
+
+        # TODO: wrap the spatial mesh into a TimeLattice object to store the time segment
 
         roi_partition = Partition(trajectories, roi_mesh)
         roi_partition.cell_index = roi_index

@@ -417,7 +417,10 @@ def infer_stochastic_DV(cells,
                 V_initial = -np.log(n / np.max(n))
             else:
                 density = n / np.array([ np.inf if (v is None or np.isnan(v)) else v for v in volume ])
-                density[density == 0] = np.min(density[0 < density])
+                try:
+                    density[density == 0] = np.min(density[0 < density])
+                except ValueError:
+                    raise ValueError('no data in bounded domains; null density everywhere')
                 V_initial = np.log(np.max(density)) - np.log(density)
     else:
         #warn('`x0` is deprecated; please use `D0` and `V0` instead', DeprecationWarning)
