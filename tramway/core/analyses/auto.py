@@ -233,7 +233,7 @@ class AutosaveCapable(object):
         policy = self.autosave_policy
         return policy and policy.endswith('termination')
     def __enter__(self):
-        self.reset_modification_flag()
+        self.reset_modification_flag(True)
         return self
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if self.modified(True):
@@ -247,6 +247,7 @@ class AutosaveCapable(object):
         self._active_autosave_policy = policy
         return self
     def save(self):
+        """ should call `self.reset_modification_flag(True)` """
         raise NotImplemented('abstract method')
 
 
@@ -279,6 +280,7 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
         if self.rwa_file:
             from tramway.core.hdf5.store import save_rwa
             save_rwa(self.rwa_file, self.analyses.stateless(), **self.save_options)
+            self.analyses.reset_modification_flag(True)
         else:
             import warnings
             warnings.warn('no output file defined', RuntimeWarning)

@@ -381,8 +381,9 @@ class RoiCollection(object):
             else:
                 tessellation = tessellation.spatial_mesh
             coords = tessellation.cell_centers
+            dim = coords.shape[1]
             _min,_max = self.bounding_box[i]
-            inside = np.all((_min[np.newaxis,:]<coords) & (coords<_max[np.newaxis,:]),axis=1)
+            inside = np.all((_min[np.newaxis,:dim]<coords) & (coords<_max[np.newaxis,:dim]),axis=1)
             if segments:
                 inside = np.tile(inside, segments)
             maps.maps = maps.maps[inside[maps.maps.index]]
@@ -397,8 +398,9 @@ class RoiCollection(object):
             pass
         if self.overlaps(i):
             coords = tessellation.cell_centers
+            dim = coords.shape[1]
             _min,_max = self.bounding_box[i]
-            inner_cell = np.all((_min[np.newaxis,:]<coords) & (coords<_max[np.newaxis,:]),axis=1)
+            inner_cell = np.all((_min[np.newaxis,:dim]<coords) & (coords<_max[np.newaxis,:dim]),axis=1)
         else:
             inner_cell = np.ones(tessellation.number_of_cells, dtype=bool)
         return cells, inner_cell
@@ -422,7 +424,8 @@ class RoiCollection(object):
         cell_plot(analysis_tree, label=label, title=title, **kwargs)
         #
         ax = plt.gca()
-        (x0, y0), (x1, y1) = self.bounding_box[i]
+        _min,_max = self.bounding_box[i]
+        x0, y0, x1, y1 = _min[0], _min[1], _max[0], _max[1]
         xl, yl = ax.get_xlim(), ax.get_ylim()
         xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
         if not plot_bb:
@@ -462,7 +465,8 @@ class RoiCollection(object):
         #
         map_plot(analysis_tree, label=(label,map_label), title=title, **kwargs)
         #
-        (x0, y0), (x1, y1) = self.bounding_box[i]
+        _min,_max = self.bounding_box[i]
+        x0, y0, x1, y1 = _min[0], _min[1], _max[0], _max[1]
         xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
         import matplotlib.pyplot as plt
         ax = plt.gca()
@@ -546,18 +550,12 @@ class RoiCollections(AutosaveCapable):
     def tessellate_desc(self):
         return 'Tessellating the regions of interest'
     def tessellate(self, analysis_tree, *args, **kwargs):
-        with self.autosaving(analysis_tree) as a:
-            if self.regions.tessellate(self.tessellate_desc, analysis_tree, *args, **kwargs):
-                a.modified = True
-            return a.modified
+        self.regions.tessellate(self.tessellate_desc, analysis_tree, *args, **kwargs)
     @property
     def infer_desc(self):
         return 'Inferring dynamics parameters'
     def infer(self, analysis_tree, *args, **kwargs):
-        with self.autosaving(analysis_tree) as a:
-            if self.regions.infer(self.infer_desc, analysis_tree, *args, **kwargs):
-                a.modified = True
-            return a.modified
+        self.regions.infer(self.infer_desc, analysis_tree, *args, **kwargs)
 
     def reset(self):
         self.regions.__reset__()
