@@ -224,7 +224,10 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
         for dff in df:
             dff[reset_origin] -= origin
     if concat:
-        df = pd.concat(df)
+        if df[1:]:
+            df = pd.concat(df)
+        else:
+            df = df[0]
     if return_paths:
         return (df, paths)
     else:

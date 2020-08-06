@@ -207,9 +207,9 @@ class Gas(Graph):
 
     def habituate(self, node):
         if self.edge_lifetime < 1:
-            max_age = min(10, self.edge_lifetime * float(self.size))
+            max_age = max(20, self.edge_lifetime * float(self.size))
         else:
-            max_edge = self.edge_lifetime
+            max_age = self.edge_lifetime
         self.increment_habituation(node)
         for edge, neighbor in list(self.iter_edges_from(node)):
             age = self.increment_age(edge)
@@ -217,7 +217,7 @@ class Gas(Graph):
             # corresponding edge, because `neighbor` may no exist afterwards; otherwise, to
             # increment after, it is necessary to check for existence of the node; should be
             # faster this way, due to low deletion rate
-            if max_edge < age:
+            if max_age < age:
                 self.disconnect(node, neighbor, edge)
                 if self.stands_alone(neighbor):
                     self.del_node(neighbor)

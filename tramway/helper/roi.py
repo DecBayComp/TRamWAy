@@ -648,7 +648,7 @@ class RoiHelper(Helper):
 
         if roi_size is None:
             # assume same shape
-            roi_size = roi_vertices[0][2,0] - roi_vertices[0][1,0]
+            roi_size = roi_vertices[2,0] - roi_vertices[1,0]
 
         #roi_polytopes = [ pt.box2poly([[_min[0],_max[0]],[_min[1],_max[1]]]) for _min,_max in roi ]
         roi_index = []
