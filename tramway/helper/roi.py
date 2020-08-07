@@ -33,11 +33,162 @@ else:
 
 
 class SupportRegions(object):
+    __slots__ = ('gen_label','update_metadata','verbose')
     def __init__(self, region_label=None, update_metadata=None, verbose=True):
         self.__reset__()
         self.gen_label = region_label
         self.update_metadata = update_metadata
         self.verbose = verbose
+    def __reset__(self):
+        raise NotImplementedError('abstract method')
+    def tessellate(self, r, analysis_tree, *args, **kwargs):
+        if isinstance(r, str):
+            if r == 'all':
+                description = 'Tessellating the regions of interest'
+            else:
+                description = r
+            any_new = False
+            for r in self.iter_regions(description):
+                if self.tessellate(r, analysis_tree, *args, **kwargs):
+                    any_new = True
+            return any_new
+        #
+        label = self.region_label(r)
+        if label in analysis_tree:
+            return False
+        else:
+            if self.verbose:
+                print(label)
+            trajectories = self.crop(r, analysis_tree.data)
+            partition = tessellate(trajectories, *args, **kwargs)
+            analysis_tree[label] = partition
+            if self.update_metadata is not None:
+                self.update_metadata(analysis_tree[label])
+            return True
+    def infer(self, r, analysis_tree, *args, **kwargs):
+        if isinstance(r, str):
+            if r == 'all':
+                description = 'Inferring dynamics parameters'
+            else:
+                description = r
+            any_new = False
+            for r in self.iter_regions(description):
+                if self.infer(r, analysis_tree, *args, **kwargs):
+                    any_new = True
+            return any_new
+        #
+        label = self.region_label(r)
+        if label in analysis_tree:
+            skip_interrupted = kwargs.pop('preserve_interrupted_inferences', False)
+            try:
+                maps = analysis_tree[label][kwargs['output_label']].data
+            except KeyError: # either 'output_label' in kwargs or kwargs['output_label'] in analysis_tree
+                pass
+            else:
+                try:
+                    if skip_interrupted or maps.resolution.upper() != 'INTERRUPTED':
+                        return False
+                except AttributeError: # either resolution in maps or upper in maps.resolution
+                    return False
+            kwargs['input_label'] = label
+            output_label = analysis_tree[label].autoindex(kwargs.get('output_label', None))
+            if self.verbose:
+                print('{} -- {}'.format(label, output_label))
+            infer(analysis_tree, *args, **kwargs)
+            if self.update_metadata is not None:
+                self.update_metadata(analysis_tree[label][output_label])
+            return True
+        else:
+            import warnings
+            warnings.warn("no partition available for region '{}'".format(label))
+        return False
+    def reset_roi(self, r, analysis_tree, *args, **kwargs):
+        del analysis_tree[self.region_label(r)]
+    def __range__(self, n, desc=None):
+        iterable = not isinstance(n, int)
+        if iterable:
+            iterator = n
+            n = len(iterator)
+        if self.verbose and rc.__user_interaction__ and rc.__has_package__('tqdm'):
+            iternum = tqdm(range(n), desc=desc)
+        else:
+            iternum = range(n)
+        if iterable:
+            return zip(iternum, iterator)
+        else:
+            return iternum
+
+class UnitRegions(SupportRegions):
+    def __reset__(self):
+        self.unit_region = OrderedDict()
+    def add_collection(self, unit_regions, label=None):
+        if label is None:
+            label = ''
+        self.unit_region[label] = unit_regions
+    def __len__(self):
+        return sum([0]+[ len(self.unit_region[r]) for r in self.unit_region ])
+    def region_label(self, r):
+        if not isinstance(r, int):
+            assert not r[1:]
+            r = r[0]
+        for collection in self.unit_region:
+            n = len(self.unit_region[collection])
+            if n < r:
+                r -= n
+            else:
+                break
+        return self.gen_label(r, collection if collection else None)
+    @property
+    def region_labels(self):
+        labels = []
+        for collection in self.unit_region:
+            n = len(self.unit_region[collection])
+            if not collection:
+                collection = None
+            for r in range(n):
+                labels.append(self.gen_label(r, collection))
+        return labels
+    def unit_to_region(self, u, collection=None):
+        if collection is None:
+            collection = ''
+        r = 0
+        for label in self.unit_region:
+            if label == collection:
+                return r+u
+            else:
+                r += len(self.unit_region[label])
+        raise KeyError("no such roi collection: '{}'".format(collection))
+    #def collection_range(self, collection_label):
+    #    m = 0
+    #    for label in self.unit_region:
+    #        k = len(self.unit_region[label])
+    #        if collection_label == label:
+    #            n = m + k
+    #            break
+    #        else:
+    #            m += k
+    #    return m, n
+    def iter_regions(self, desc=None):
+        return self.__range__(len(self), desc)
+    def crop(self, r, df):
+        n_space_cols = len([ col for col in 'xyz' if col in df.columns ])
+        for regions in self.unit_region.values():
+            if len(regions) < r:
+                r -= len(regions)
+            else:
+                if isinstance(regions[r], (pt.Polytope, pt.Region)):
+                    raise NotImplementedError
+                else:
+                    _min,_max = regions[r]
+                    if n_space_cols < _min.size:
+                        assert _min.size == n_space_cols + 1
+                        df = df[(_min[-1] <= df['t']) & (df['t'] <= _max[-1])]
+                        df = crop(df, np.r_[_min[:-1], _max[:-1]-_min[:-1]])
+                    else:
+                        df = crop(df, np.r_[_min,_max-_min])
+                return df
+
+class GroupedRegions(SupportRegions):
     def __reset__(self):
         self.unit_region = []
         self._unit_polytope = {}
@@ -235,11 +386,6 @@ class SupportRegions(object):
             else:
                 m += k
         return m, n
-    def __range__(self, n, desc=None):
-        if self.verbose:
-            if rc.__user_interaction__ and rc.__has_package__('tqdm'):
-                return tqdm(range(n), desc=desc)
-        return range(n)
     def iter_regions(self, desc=None):
         rs = list(self.group.keys())[::-1]
         done = 0
@@ -260,8 +406,9 @@ class SupportRegions(object):
             else:
                 _min,_max = self.unit_region[u]
                 if n_space_cols < _min.size:
-                    df_u = df[(_min[-1]<=df['t']) & (df['t'] < _max[-1])]
-                    df_u = crop(df_u, np.r_[_min[:-1],_max[:-1]-_min[:-1]])
+                    assert _min.size == n_space_cols + 1
+                    df_u = df[(_min[-1] <= df['t']) & (df['t'] <= _max[-1])]
+                    df_u = crop(df_u, np.r_[_min[:-1], _max[:-1]-_min[:-1]])
                 else:
                     df_u = crop(df, np.r_[_min,_max-_min])
             if df_r is None:
@@ -269,69 +416,6 @@ class SupportRegions(object):
             else:
                 df_r = pd.merge(df_r, df_u, how='outer')
         return df_r
-    def tessellate(self, r, analysis_tree, *args, **kwargs):
-        if isinstance(r, str):
-            if r == 'all':
-                description = 'Tessellating the regions of interest'
-            else:
-                description = r
-            any_new = False
-            for r in self.iter_regions(description):
-                if self.tessellate(r, analysis_tree, *args, **kwargs):
-                    any_new = True
-            return any_new
-        #
-        label = self.region_label(r)
-        if label in analysis_tree:
-            return False
-        else:
-            if self.verbose:
-                print(label)
-            trajectories = self.crop(r, analysis_tree.data)
-            partition = tessellate(trajectories, *args, **kwargs)
-            analysis_tree[label] = partition
-            if self.update_metadata is not None:
-                self.update_metadata(analysis_tree[label])
-            return True
-    def infer(self, r, analysis_tree, *args, **kwargs):
-        if isinstance(r, str):
-            if r == 'all':
-                description = 'Inferring dynamics parameters'
-            else:
-                description = r
-            any_new = False
-            for r in self.iter_regions(description):
-                if self.infer(r, analysis_tree, *args, **kwargs):
-                    any_new = True
-            return any_new
-        #
-        label = self.region_label(r)
-        if label in analysis_tree:
-            skip_interrupted = kwargs.pop('preserve_interrupted_inferences', False)
-            try:
-                maps = analysis_tree[label][kwargs['output_label']].data
-            except KeyError: # either 'output_label' in kwargs or kwargs['output_label'] in analysis_tree
-                pass
-            else:
-                try:
-                    if skip_interrupted or maps.resolution.upper() != 'INTERRUPTED':
-                        return False
-                except AttributeError: # either resolution in maps or upper in maps.resolution
-                    return False
-            kwargs['input_label'] = label
-            output_label = analysis_tree[label].autoindex(kwargs.get('output_label', None))
-            if self.verbose:
-                print('{} -- {}'.format(label, output_label))
-            infer(analysis_tree, *args, **kwargs)
-            if self.update_metadata is not None:
-                self.update_metadata(analysis_tree[label][output_label])
-            return True
-        else:
-            import warnings
-            warnings.warn("no partition available for region '{}'".format(label))
-        return False
-    def reset_roi(self, r, analysis_tree, *args, **kwargs):
-        del analysis_tree[self.region_label(r)]
 
 
 class RoiCollection(object):
@@ -341,8 +425,11 @@ class RoiCollection(object):
         self.regions.add_collection(roi, label)
     @property
     def bounding_box(self):
-        m,n = self.regions.collection_range(self.label)
-        return self.regions.unit_bounding_boxes[m:n]
+        try:
+            return self.regions.unit_region[self.label]
+        except TypeError:
+            m,n = self.regions.collection_range(self.label)
+            return self.regions.unit_bounding_boxes[m:n]
     def __len__(self):
         raise NotImplementedError
         # TODO: this collection only?
@@ -356,9 +443,15 @@ class RoiCollection(object):
     def get_subset(self, r=None, s=None):
         if s is None:
             s = self.subset_index(r)
-        return self.regions.group[s]
+        try:
+            return self.regions.group[s]
+        except AttributeError:
+            return [s]
     def roi_label(self, r):
-        return self.regions.unit_region_label(r, self.label)
+        try:
+            return self.regions.unit_region_label(r, self.label)
+        except AttributeError:
+            return self.regions.gen_label(r, self.label)
     def get_subtree(self, i, analysis_tree):
         label = self.subset_label(i)
         if label in analysis_tree:
@@ -498,13 +591,20 @@ class RoiCollection(object):
         self.regions.reset_roi(self.get_subset_index(i), analysis_tree)
 
 class RoiCollections(AutosaveCapable):
-    def __init__(self, rwa_file=None, autosave=True, metadata=None, verbose=True):
+    def __init__(self, group_overlapping_roi=False, rwa_file=None, autosave=True, metadata=None, verbose=True):
         AutosaveCapable.__init__(self, rwa_file, autosave)
-        self.regions = SupportRegions(
-                region_label=self.roi_label,
+        if group_overlapping_roi:
+            Regions = GroupedRegions
+            label = self.roi_label
+        else:
+            Regions = UnitRegions
+            label = self.single_roi_label
+        self.regions = Regions(
+                region_label=label,
                 update_metadata=metadata,
                 verbose=verbose)
-        self.regions.unit_region_label = self.single_roi_label
+        if group_overlapping_roi:
+            self.regions.unit_region_label = self.single_roi_label
         self.collections = {}
     def __len__(self):
         return len(self.collections)
@@ -570,7 +670,8 @@ import itertools
 class RoiHelper(Helper):
     def __init__(self, input_data, roi=None,
             meta_label='all %Sroi', meta_label_sep=' ',
-            rwa_file=None, autosave=True, verbose=True):
+            rwa_file=None, autosave=True, verbose=True,
+            group_overlapping_roi=True):
         Helper.__init__(self)
         input_data = Tessellate.prepare_data(self, input_data)
 
@@ -587,8 +688,10 @@ class RoiHelper(Helper):
         self.meta_label_pattern = meta_label
         self.meta_label_sep = meta_label_sep
 
-        #self.collections = RoiCollections(rwa_file, autosave, self.add_metadata, verbose)
-        self.collections = RoiCollections(autosave=False, metadata=self.add_metadata)
+        #self.collections = RoiCollections(group_overlapping_roi,
+        #        rwa_file, autosave, self.add_metadata, verbose)
+        self.collections = RoiCollections(autosave=False, metadata=self.add_metadata,
+                group_overlapping_roi=group_overlapping_roi)
 
         if roi is None:
             for coll_label, meta_label in self.get_meta_labels().items():
@@ -636,8 +739,8 @@ class RoiHelper(Helper):
         roi_centers = np.stack([ _space((_min+_max)/2) for _min,_max in roi ], axis=0)
         roi_adjacency = sparse.coo_matrix(([],([],[])), shape=(len(roi),len(roi)), dtype=bool)
         # 2D only
-        roi_vertices = np.stack(list(itertools.chain(*[
-            [ [_min[0],_min[1]], [_min[0],_max[1]], [_max[0],_max[1]],  [_max[0],_min[1]] ] for _min,_max in roi ])), axis=0)
+        roi_vertices = np.vstack(list(itertools.chain(*[
+            [ [_min[0],_min[1]], [_min[0],_max[1]], [_max[0],_max[1]],  [_max[0],_min[1]] ] for _min,_max in roi ])))
         roi_cell_vertices = list(np.reshape(np.arange(len(roi_vertices)), (len(roi),-1)))
         roi_vertex_adjacency_row = np.concatenate([ 4*i + np.array([0, 0, 1, 2]) for i in range(len(roi)) ])
         roi_vertex_adjacency_col = np.concatenate([ 4*i + np.array([1, 3, 2, 3]) for i in range(len(roi)) ])
@@ -710,6 +813,7 @@ class RoiHelper(Helper):
         roi_mesh = self.get_global_partition(meta_label=meta_label).tessellation
         roi = []
         for vertex_indices in roi_mesh.cell_vertices:
+            assert len(vertex_indices) == 4
             bottom_left = roi_mesh.vertices[vertex_indices[0]]
             top_right = roi_mesh.vertices[vertex_indices[2]]
             roi.append((bottom_left, top_right))
@@ -790,5 +894,5 @@ class RoiHelper(Helper):
         self.collections.reset()
 
 
-__all__ = [ 'SupportRegions', 'RoiCollection', 'RoiCollections', 'RoiHelper' ]
+__all__ = [ 'SupportRegions', 'UnitRegions', 'GroupedRegions', 'RoiCollection', 'RoiCollections', 'RoiHelper' ]
 
