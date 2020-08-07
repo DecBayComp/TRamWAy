@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -624,6 +624,67 @@ class TimeLattice(Tessellation):
                 ts.append((self.time_lattice[t], xt))
             else:
                 ts.append(xt)
+        return ts
+
+    def split_segments(self, spdata, return_times=False):
+        if self.spatial_mesh is None:
+            raise NotImplementedError('missing spatial tessellation')
+        ncells = self.spatial_mesh.cell_adjacency.shape[0]
+        nsegments = self.time_lattice.shape[0]
+        ts = []
+        if isinstance(spdata, (pd.Series, pd.DataFrame)):
+            df = spdata
+            # borrowed from `split_frames`
+            try:
+                # not tested yet
+                segment, cell = np.divmod(df.index, ncells) # 1.13.0 <= numpy
+            except AttributeError:
+                try:
+                    segment = df.index // ncells
+                except TypeError:
+                    print(df.index)
+                    raise
+                cell = np.mod(df.index, ncells)
+            for t in range(nsegments):
+                xt = df[segment == t]
+                xt.index = cell[segment == t]
+                if return_times:
+                    if self.time_lattice.dtype == int:
+                        raise ValueError('cannot return timestamps')
+                    ts.append((self.time_lattice[t], xt))
+                else:
+                    ts.append(xt)
+            #
+        elif spdata.tessellation is self:
+            df = spdata.points
+            tessellation = self.spatial_mesh
+            for t in range(nsegments):
+                p,c = spdata.cell_index
+                points = df.iloc[p[((t-1)*ncells<=c) & (c<t*ncells)]]
+                #
+                try:
+                    assignment_kwargs = dict(spdata.param['partition'])
+                    for k in tuple(assignment_kwargs.keys()):
+                        if t.startswith('time'):
+                            del assignment_kwargs[k]
+                except KeyError:
+                    assignment_kwargs = {}
+                assignment = self.cell_index(points, **assignment_kwargs)
+                #
+                cells = type(spdata)(points, tessellation, assignment)
+                #
+                try:
+                    cells.param['tessellation'] = spdata.param['tessellation']
+                except KeyError:
+                    pass
+                if assignment_kwargs:
+                    cells.param['partition'] = assignment_kwargs
+                if return_times:
+                    ts.append((self.time_lattice[t], cells))
+                else:
+                    ts.append(cells)
+        else:
+            raise ValueError('unsupported input argument')
         return ts
 
     def freeze(self):
