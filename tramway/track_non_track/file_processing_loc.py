@@ -26,8 +26,6 @@ def load_xyt(path_xyt):
 
 
 	return xyt, xyt_pandas
-
-
 ####################################################################
 ####################################################################
 ####################################################################
@@ -59,7 +57,6 @@ def get_dt(movie_per_frame, n_unique):
 	t_end   = movie_per_frame[n_unique - 1][0,2]
 
 	return dt_theo, t_init, t_end
-
 ####################################################################
 ####################################################################
 ####################################################################
@@ -163,11 +160,16 @@ def correct_cost_function(C,length_high):
 		CC               = np.squeeze(CC[col_reduced])
 		#square the matrix
 		nn               = np.maximum(n_row_reduced,n_col_reduced)
-		C_reduced        = np.zeros((nn,nn))
+		C_reduced        = np.zeros((n_row_reduced,nn))
+		#C_reduced        = np.zeros((nn,nn))
+		#print((n_row_reduced, n_col_reduced))
 		if nn == 1:
 			C_reduced[0,0] = CC
 		else:
-			C_reduced[0:n_row_reduced,0:n_col_reduced] = CC[:,:]		
+			C_reduced[0,0:n_col_reduced] = CC[:]
+			#C_reduced[0:n_row_reduced,0:n_col_reduced] = CC[:]		
+			#print(C_reduced)
+
 		d_max            = np.amax(C_reduced , where=~np.isinf(C_reduced) , initial=-1)
 
 		# adjust the isze of the matrix to ensure reasonnable assugments
@@ -308,12 +310,115 @@ def get_assigment_matrix_from_reduced_cost(C_reduced_corrected,row_reduced,col_r
 ####################################################################
 ####################################################################
 ####################################################################
+def plot_linking_two_images(movie_per_frame, indice, row_ind, col_ind):
+	## red first frame
+	## blue second frame
+
+	xyt1 = movie_per_frame[indice]
+	xyt2 = movie_per_frame[indice+1]
+
+	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
+	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
+
+	dx      = np.squeeze( xyt2[col_ind,0] - xyt1[row_ind,0] )
+	dy      = np.squeeze( xyt2[col_ind,1] - xyt1[row_ind,1] )
+	x_start = np.squeeze( xyt1[row_ind,0] )
+	y_start = np.squeeze( xyt1[row_ind,1] )
+	#print(x_start, y_start, dx, dy)
+
+	try:
+		for idx in range( len(dx) ):
+			plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
+	except TypeError:
+			plt.arrow(x_start,y_start, dx ,dy , fc='k', ec='k',head_width=0.5 )
 
 
+
+
+	#plt.axis('scaled')
+	plt.axis('scaled')
+	plt.show()
+
+
+	return 1
 ####################################################################
 ####################################################################
 ####################################################################
+def plot_linking_from_list(movie_per_frame, indice, liste_row, liste_col ):
+	## red first frame
+	## blue second frame
 
+	xyt1 = movie_per_frame[indice]
+	xyt2 = movie_per_frame[indice+1]
+
+	row_ind  = liste_row[indice]
+	col_ind  = liste_col[indice]	
+
+	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
+	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
+
+	dx      = np.squeeze( xyt2[col_ind,0] - xyt1[row_ind,0] )
+	dy      = np.squeeze( xyt2[col_ind,1] - xyt1[row_ind,1] )
+	x_start = np.squeeze( xyt1[row_ind,0] )
+	y_start = np.squeeze( xyt1[row_ind,1] )
+	#print(x_start, y_start, dx, dy)
+
+	try:
+		for idx in range( len(dx) ):
+			plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
+	except TypeError:
+			plt.arrow(x_start,y_start, dx ,dy , fc='k', ec='k',head_width=0.5 )
+
+
+
+
+	#plt.axis('scaled')
+	plt.axis('scaled')
+	plt.show()
+
+
+
+	return 1
+####################################################################
+####################################################################
+####################################################################
+def plot_linking_3_from_list(movie_per_frame, indice, liste_row, liste_col ):
+	## red first frame
+	## blue second frame
+
+	xyt1 = movie_per_frame[indice]
+	xyt2 = movie_per_frame[indice+1]
+	xyt3 = movie_per_frame[indice+2]
+
+
+	row_ind  = liste_row[indice]
+	col_ind  = liste_col[indice]	
+
+	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
+	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
+
+	dx      = np.squeeze( xyt2[col_ind,0] - xyt1[row_ind,0] )
+	dy      = np.squeeze( xyt2[col_ind,1] - xyt1[row_ind,1] )
+	x_start = np.squeeze( xyt1[row_ind,0] )
+	y_start = np.squeeze( xyt1[row_ind,1] )
+	#print(x_start, y_start, dx, dy)
+
+	try:
+		for idx in range( len(dx) ):
+			plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
+	except TypeError:
+			plt.arrow(x_start,y_start, dx ,dy , fc='k', ec='k',head_width=0.5 )
+
+
+
+
+	#plt.axis('scaled')
+	plt.axis('scaled')
+	plt.show()
+
+
+
+	return 1
 
 
 ####################################################################
@@ -429,38 +534,30 @@ def correct_deficiencies(edge):
 ####################################################################
 ####################################################################
 ####################################################################
-def plot_linking_two_images(movie_per_frame, indice, row_ind, col_ind):
-	## red first frame
-	## blue second frame
-
-	xyt1 = movie_per_frame[indice]
-	xyt2 = movie_per_frame[indice+1]
-
-	plt.scatter(xyt1[:,0],xyt1[:,1], s=5,  c='r')
-	plt.scatter(xyt2[:,0],xyt2[:,1], s=10, c='b')
-
-	dx      = np.squeeze( xyt2[col_ind,0] -xyt1[row_ind,0] )
-	dy      = np.squeeze( xyt2[col_ind,1] -xyt1[row_ind,1] )
-	x_start = np.squeeze(xyt1[row_ind,0])
-	y_start = np.squeeze(xyt1[row_ind,1])
-	#print(x_start, y_start, dx, dy)
-
-	try:
-		for idx in range( len(dx) ):
-			plt.arrow(x_start[idx],y_start[idx], dx[idx] ,dy[idx] , fc='k', ec='k',head_width=0.5 )
-	except TypeError:
-			plt.arrow(x_start,y_start, dx ,dy , fc='k', ec='k',head_width=0.5 )
 
 
 
 
-	plt.axis('scaled')
-	plt.show()
 
-
-	return 1
 
 ####################################################################
 ####################################################################
 ####################################################################
+
+
+
+
+
+####################################################################
+####################################################################
+####################################################################
+
+
+
+
+
+####################################################################
+####################################################################
+####################################################################
+
 

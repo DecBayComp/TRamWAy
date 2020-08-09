@@ -8,17 +8,51 @@ from   os.path import abspath
 import gc
 import os
 
-from scipy.optimize import linear_sum_assignment
-from file_processing_loc.py import *
+from scipy.optimize      import linear_sum_assignment
+from file_processing_loc import *
 
 
 ####################################################################
 ####################################################################
 ####################################################################
-def traj_from_assigment(liste_assingment,Min_length_traj=2, number_init):
+def traj_from_assigment(liste_assingment,Min_length_traj, number_init):
+
 
 
 	return 1
+####################################################################
+####################################################################
+####################################################################
+def position_and_displacement_from_assignment(liste_assingment, liste_row, liste_col,movie_per_frame,filename):
+
+
+	
+	liste = []
+	indice = 0
+	for (row, col) in zip(liste_row,liste_col):
+		if np.size(row) == 0:
+			1
+		else:
+			x  = movie_per_frame[indice][row,0]
+			y  = movie_per_frame[indice][row,1]
+			t  = movie_per_frame[indice][row,2]
+			dx = movie_per_frame[indice+1][col,0] - movie_per_frame[indice][row,0]
+			dy = movie_per_frame[indice+1][col,1] - movie_per_frame[indice][row,1]
+			dt = movie_per_frame[indice+1][col,2] - movie_per_frame[indice][row,2]
+			#f.write("%e,%e,%e,%e,%e,%e\n" % (x,y,t,dx,dy,dt))
+			out = np.vstack((x,y,t,dx,dy,dt))
+			out = np.transpose(out)
+			liste.append(out)
+			del out
+		indice = indice + 1
+			#x = 
+	liste_array = np.vstack(liste)
+
+	pd.DataFrame(liste_array).to_csv(filename, header=None, index=0, sep="\t", float_format='%e')
+
+
+	return liste_array 
+
 
 ####################################################################
 ####################################################################
@@ -38,6 +72,7 @@ def get_all_assigment_stack(path_xyt):
 	for indice in range(n_unique-1):
 		#if (indice>18000):
 		#	print((indice,n_unique))
+		#print(indice)
 		if (indice%1000)==0:
 			print((indice,n_unique))
 
@@ -67,9 +102,9 @@ if __name__ == "__main__":
 	warnings.filterwarnings('ignore')
 
     # parse the input arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--server-name', type=str, help="server name", required=True)
-    args = parser.parse_args()
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--server-name', type=str, help="server name", required=True)
+	args = parser.parse_args()
 
 
 
