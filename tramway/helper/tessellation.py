@@ -1492,34 +1492,28 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
     except ImportError:
         with_segments = False
     if with_segments:
-        xyt = cells.points
-        mesh = cells.tessellation.spatial_mesh
-        prms = cells.param.get('partition', {})
-        prms.pop('exclude_cells_by_location_count', None)
-        time_col = prms.pop('time_col', 't')
-        if segment is not None:
+        if segment is None:
+            xyt = cells.points
+            mesh = cells.tessellation.spatial_mesh
+            prms = cells.param.get('partition', {})
+            prms.pop('exclude_cells_by_location_count', None)
+            time_col = prms.pop('time_col', 't')
+            try:
+                prms.pop('time_knn')
+            except KeyError:
+                pass
+            else:
+                warn('ignoring `time_knn`', RuntimeWarning)
+            bb = cells.bounding_box
+            cells = Partition(xyt, mesh, mesh.cell_index(xyt, **prms))
+            cells.bounding_box = bb
+        else:
             if isinstance(segment, (tuple, list)):
                 if segment[1:]:
                     warn('cannot plot multiple segments in a single `cell_plot` call', RuntimeWarning)
                 segment = segment.pop()
                 print('plotting segment {}'.format(segment))
-            try:
-                t0, t1 = cells.tessellation.time_lattice[segment]
-            except IndexError:
-                raise IndexError('segment index {} is out of bounds (max {})'.format(segment, len(cells.tessellation.time_lattice)-1))
-            ts = xyt[time_col]
-            if isinstance(ts, (pd.Series, pd.DataFrame)):
-                ts = ts.values
-            xyt = xyt[np.logical_and(t0 <= ts, ts < t1)]
-        try:
-            prms.pop('time_knn')
-        except KeyError:
-            pass
-        else:
-            warn('ignoring `time_knn`', RuntimeWarning)
-        bb = cells.bounding_box
-        cells = Partition(xyt, mesh, mesh.cell_index(xyt, **prms))
-        cells.bounding_box = bb
+            cells = cells.tessellation.split_segments(cells)[segment]
     elif segment is not None:
         warn('cannot find time segments', RuntimeWarning)
         segment = None
@@ -1600,18 +1594,26 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             raise e
     fig = None
     if dim == 2 and not complementary_plots:
-        if figs or figsize is not None or num is not None:
+        if 'figure' in kwargs:
+            fig = kwargs['figure']
+        elif figs or figsize is not None or num is not None:
             fig = mplt.figure(figsize=figsize, dpi=dpi, num = num)
         else:
             fig = mplt.gcf()
         figs.append(fig)
         if locations is not None:
+            if 'axes' in kwargs:
+                locations['axes'] = kwargs['axes']
             if 'knn' in cells.param: # if knn <= min_count, min_count is actually ignored
                 tplt.plot_points(cells, **locations)
             else:
                 tplt.plot_points(cells, min_count=min_location_count, **locations)
         if aspect is not None:
-            fig.gca().set_aspect(aspect)
+            try:
+                ax = kwargs['axes']
+            except KeyError:
+                ax = fig.gca()
+            ax.set_aspect(aspect)
         if voronoi is None:
             voronoi = issubclass(type(cells.tessellation), Voronoi)
         if xy_layer != 'delaunay' and voronoi:
@@ -1619,16 +1621,22 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
                 voronoi = {}
             if cell_indices and 'centroid_style' not in voronoi:
                 voronoi['centroid_style'] = None
+            if 'axes' in kwargs:
+                voronoi['axes'] = kwargs['axes']
             tplt.plot_voronoi(cells, **voronoi)
             voronoi = True
         if xy_layer == 'delaunay' or delaunay: # Delaunay above Voronoi
             if not isinstance(delaunay, dict):
                 delaunay = {}
+            if 'axes' in kwargs:
+                delaunay['axes'] = kwargs['axes']
             tplt.plot_delaunay(cells, **delaunay)
             delaunay = True
         if cell_indices:
             if not isinstance(cell_indices, dict):
                 cell_indices = {}
+            if 'axes' in kwargs:
+                cell_indices['axes'] = kwargs['axes']
             tplt.plot_indices(cells, **cell_indices)
         if title:
             if isinstance(title, str):

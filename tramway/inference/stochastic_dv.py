@@ -589,6 +589,9 @@ def infer_stochastic_DV(cells,
     else:
         sbfgs_kwargs['returns'] = set()
 
+    assert not np.any(np.isnan(dv.combined))
+    assert not np.any(np.isinf(dv.combined))
+
     # run the optimization routine
     result = minimize_sparse_bfgs(local_dv_neg_posterior, dv.combined, component, covariate,
             gradient_subspace, descent_subspace, args, **sbfgs_kwargs)

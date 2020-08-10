@@ -29,7 +29,7 @@ from collections import defaultdict
 __colors__ = ['darkgreen', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen', 'darkslateblue', 'darkslategray', 'darkviolet', 'deeppink', 'deepskyblue', 'dodgerblue', 'firebrick', 'forestgreen', 'gold', 'goldenrod', 'hotpink', 'indianred', 'indigo', 'lightblue', 'lightcoral', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightsteelblue', 'limegreen', 'maroon', 'mediumaquamarine', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'navajowhite', 'navy', 'olive', 'olivedrab', 'orange', 'orangered', 'orchid', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', '#663399', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'sienna', 'skyblue', 'slateblue', 'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'yellowgreen']
 
 
-def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None, resize=True, **kwargs):
+def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None, **kwargs):
     """
     Plot 2D points coloured by associated cell.
 
@@ -56,8 +56,8 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
 
     Extra keyword arguments are passed to *matplotlib* 's *scatter* or *plot*.
     """
-    import matplotlib.pyplot as plt
     if axes is None:
+        import matplotlib.pyplot as plt
         axes = plt
     if isinstance(cells, np.ndarray):
         points = cells
@@ -106,7 +106,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
 
     handles = []
 
-    if label is None:
+    if label is None or (isinstance(color, str) and len(color)==1):
         if color is None:
             color = 'k'
         elif isinstance(color, (pd.Series, pd.DataFrame)):
@@ -134,19 +134,18 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
                 style, color=color[i], markersize=size, **kwargs))
 
     # resize window
-    if resize:
-        try:
-            plt.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
-        except AttributeError:
-            pass
-        except ValueError:
-            print(traceback.format_exc())
+    try:
+        axes.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
+    except AttributeError:
+        pass
+    except ValueError:
+        print(traceback.format_exc())
 
     return handles
 
 
 def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
-        linewidth=1, fallback_color='gray', verbose=True):
+        linewidth=1, fallback_color='gray', verbose=True, axes=None):
     """
     Voronoi plot.
 
@@ -184,7 +183,9 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
         tuple: list of handles of the plotted edges,
             handle of the plotted centroids
     """
-    import matplotlib.pyplot as plt
+    if axes is None:
+        import matplotlib.pyplot as plt
+        axes = plt
     vertices = cells.tessellation.vertices
     labels, color = _graph_theme(cells.tessellation, labels, color, negative)
     try:
@@ -241,7 +242,7 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
                 _clr = fallback_color
         else:
             _clr = fallback_color
-        h = plt.plot(x, y, style, color=_clr, linewidth=linewidth)
+        h = axes.plot(x, y, style, color=_clr, linewidth=linewidth)
         assert not h[1:]
         edge_handles.append(h[0])
 
@@ -256,21 +257,21 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
             #       continue
             i, j = special_edges[edge_ix]
             x_, y_ = zip(i, j)
-            plt.plot(x_, y_, 'c-')
+            axes.plot(x_, y_, 'c-')
             x_, y_ = (i + j) / 2
-            plt.text(x_, y_, str(edge_ix), \
+            axes.text(x_, y_, str(edge_ix), \
                 horizontalalignment='center', verticalalignment='center')
 
     centroids = cells.tessellation.cell_centers
     # plot cell centers
     if centroid_style:
-        h = plt.plot(centroids[:,0], centroids[:,1], centroid_style)
+        h = axes.plot(centroids[:,0], centroids[:,1], centroid_style)
         assert not h[1:]
         centroid_handle = h[0]
 
     # resize window
     try:
-        plt.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
+        axes.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
     except AttributeError:
         pass
     except ValueError:

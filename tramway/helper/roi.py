@@ -500,36 +500,41 @@ class RoiCollection(object):
     def get_tessellation(self, i, analysis_tree):
         cells, inner_cell = self.get_cells(i, analysis_tree)
         return cells.tessellation, inner_cell
-    def cell_plot(self, i, analysis_tree, **kwargs):
-        label = self.subset_label(i)
-        title = kwargs.pop('title', self.roi_label(i))
+    def cell_plot(self, i, analysis_tree, decorate=True, **kwargs):
+        if isinstance(i, str):
+            label = i
+            title = kwargs.pop('title', label)
+        else:
+            label = self.subset_label(i)
+            title = kwargs.pop('title', self.roi_label(i))
         if 'delaunay' not in kwargs:
             # anticipate future changes in `helper.tessellation.cell_plot`
             voronoi = kwargs.pop('voronoi', dict(centroid_style=None))
             kwargs['voronoi'] = voronoi
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
-        plot_bb = self.overlaps(i)
+        plot_bb = decorate and self.overlaps(i)
         if True:#plot_bb:
             kwargs['show'] = False
         #
         cell_plot(analysis_tree, label=label, title=title, **kwargs)
         #
-        if 'axes' in kwargs:
-            ax = kwargs['axes']
-        else:
-            import matplotlib.pyplot as plt
-            ax = plt.gca()
-        _min,_max = self.bounding_box[i]
-        x0, y0, x1, y1 = _min[0], _min[1], _max[0], _max[1]
-        xl, yl = ax.get_xlim(), ax.get_ylim()
-        xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
-        if not plot_bb:
-            x0, y0, x1, y1 = xl[0], yl[0], xl[1], yl[1]
-        ax.plot(
-                [x0, x1, np.nan, xc, xc],
-                [yc, yc, np.nan, y0, y1],
-                color='k', linestyle='--', alpha=1, linewidth=1)
+        if decorate:
+            if 'axes' in kwargs:
+                ax = kwargs['axes']
+            else:
+                import matplotlib.pyplot as plt
+                ax = plt.gca()
+            _min,_max = self.bounding_box[i]
+            x0, y0, x1, y1 = _min[0], _min[1], _max[0], _max[1]
+            xl, yl = ax.get_xlim(), ax.get_ylim()
+            xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
+            if not plot_bb:
+                x0, y0, x1, y1 = xl[0], yl[0], xl[1], yl[1]
+            ax.plot(
+                    [x0, x1, np.nan, xc, xc],
+                    [yc, yc, np.nan, y0, y1],
+                    color='k', linestyle='--', alpha=1, linewidth=1)
         if plot_bb:
             from matplotlib.collections import PatchCollection
             from matplotlib.patches import Rectangle
@@ -552,8 +557,12 @@ class RoiCollection(object):
             ax.set_xlim(xl)
             ax.set_ylim(yl)
     def map_plot(self, i, analysis_tree, map_label, decorate=True, **kwargs):
-        label = self.subset_label(i)
-        title = kwargs.pop('title', self.roi_label(i))
+        if isinstance(i, str):
+            label = i
+            title = kwargs.pop('title', label)
+        else:
+            label = self.subset_label(i)
+            title = kwargs.pop('title', self.roi_label(i))
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
         kwargs['show'] = False
