@@ -660,25 +660,20 @@ class TimeLattice(Tessellation):
             tessellation = self.spatial_mesh
             for t in range(nsegments):
                 p,c = spdata.cell_index
-                points = df.iloc[p[((t-1)*ncells<=c) & (c<t*ncells)]]
-                #
-                try:
-                    assignment_kwargs = dict(spdata.param['partition'])
-                    for k in tuple(assignment_kwargs.keys()):
-                        if t.startswith('time'):
-                            del assignment_kwargs[k]
-                except KeyError:
-                    assignment_kwargs = {}
-                assignment = self.cell_index(points, **assignment_kwargs)
+                seg = ((t-1)*ncells<=c) & (c<t*ncells)
+                seg_p = np.unique(p[seg])
+                points = df.iloc[seg_p]
+                wrong = p.max()
+                p_tr = np.full(p.max(), wrong, dtype=int)
+                p_tr[seg_p] = np.arange(seg_p.size)
+                seg_p = p_tr[p[seg]]
+                assert not np.any(seg_p == wrong)
+                seg_c = c[seg] - (t-1)*ncells
+                assignment = (seg_p, seg_c)
                 #
                 cells = type(spdata)(points, tessellation, assignment)
+                cells.param = dict(spdata.param)
                 #
-                try:
-                    cells.param['tessellation'] = spdata.param['tessellation']
-                except KeyError:
-                    pass
-                if assignment_kwargs:
-                    cells.param['partition'] = assignment_kwargs
                 if return_times:
                     ts.append((self.time_lattice[t], cells))
                 else:
