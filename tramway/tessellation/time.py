@@ -661,10 +661,13 @@ class TimeLattice(Tessellation):
             for t in range(nsegments):
                 p,c = spdata.cell_index
                 seg = ((t-1)*ncells<=c) & (c<t*ncells)
+                if seg.size == 0:
+                    import warnings
+                    warnings.warn('empty segment; please check the implementation')
                 seg_p = np.unique(p[seg])
                 points = df.iloc[seg_p]
                 wrong = p.max()
-                p_tr = np.full(p.max(), wrong, dtype=int)
+                p_tr = np.full(p.max()+1, wrong, dtype=int)
                 p_tr[seg_p] = np.arange(seg_p.size)
                 seg_p = p_tr[p[seg]]
                 assert not np.any(seg_p == wrong)
@@ -673,6 +676,7 @@ class TimeLattice(Tessellation):
                 #
                 cells = type(spdata)(points, tessellation, assignment)
                 cells.param = dict(spdata.param)
+                cells.bounding_box = spdata.bounding_box
                 #
                 if return_times:
                     ts.append((self.time_lattice[t], cells))

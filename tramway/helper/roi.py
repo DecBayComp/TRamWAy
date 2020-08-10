@@ -513,10 +513,13 @@ class RoiCollection(object):
         if True:#plot_bb:
             kwargs['show'] = False
         #
-        import matplotlib.pyplot as plt
         cell_plot(analysis_tree, label=label, title=title, **kwargs)
         #
-        ax = plt.gca()
+        if 'axes' in kwargs:
+            ax = kwargs['axes']
+        else:
+            import matplotlib.pyplot as plt
+            ax = plt.gca()
         _min,_max = self.bounding_box[i]
         x0, y0, x1, y1 = _min[0], _min[1], _max[0], _max[1]
         xl, yl = ax.get_xlim(), ax.get_ylim()
@@ -548,22 +551,26 @@ class RoiCollection(object):
                     color='k', linestyle='-', alpha=1, linewidth=1)
             ax.set_xlim(xl)
             ax.set_ylim(yl)
-    def map_plot(self, i, analysis_tree, map_label, **kwargs):
+    def map_plot(self, i, analysis_tree, map_label, decorate=True, **kwargs):
         label = self.subset_label(i)
         title = kwargs.pop('title', self.roi_label(i))
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
         kwargs['show'] = False
-        plot_bb = self.overlaps(i)
+        plot_bb = decorate and self.overlaps(i)
         #
         map_plot(analysis_tree, label=(label,map_label), title=title, **kwargs)
         #
-        _min,_max = self.bounding_box[i]
-        x0, y0, x1, y1 = _min[0], _min[1], _max[0], _max[1]
-        xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
-        import matplotlib.pyplot as plt
-        ax = plt.gca()
-        ax.plot(xc, yc, 'r+')
+        if decorate:
+            _min,_max = self.bounding_box[i]
+            x0, y0, x1, y1 = _min[0], _min[1], _max[0], _max[1]
+            xc, yc = .5 * (x0 + x1), .5 * (y0 + y1)
+            if 'axes' in kwargs:
+                ax = kwargs['axes']
+            else:
+                import matplotlib.pyplot as plt
+                ax = plt.gca()
+            ax.plot(xc, yc, 'r+')
         if plot_bb:
             from matplotlib.collections import PatchCollection
             from matplotlib.patches import Rectangle

@@ -944,8 +944,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 warn('cannot plot multiple segments in a single `map_plot` call', RuntimeWarning)
             segment = segment.pop()
             print('plotting segment {}'.format(segment))
-        _mesh = cells.tessellation.spatial_mesh
-        _cells, cells = cells, Partition(tessellation=_mesh, points=cells.points, location_count=np.ones(_mesh.cell_centers.shape[0]))
+        _cells, cells = cells, cells.tessellation.split_segments(cells)[segment]
     elif segment is not None:
         warn('cannot find time segments', RuntimeWarning)
 
@@ -1001,6 +1000,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     else:
         import matplotlib.pyplot as mplt
         import tramway.plot      as tplt
+        if 'figure' in kwargs:
+            fig = kwargs['figure']
+        if point_style is not None and 'axes' in kwargs:
+            point_style['axes'] = kwargs['axes']
 
     # identify and plot the possibly various maps
     figs = []
@@ -1060,7 +1063,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             if point_style is not None:
                 point_style['figure'] = fig
         else:
-            if new_fig or figs:
+            if 'figure' in kwargs:
+                pass
+            elif new_fig or figs:
                 fig = mplt.figure(figsize=figsize, dpi=dpi)
             else:
                 fig = mplt.gcf()
@@ -1160,7 +1165,9 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             if point_style is not None:
                 point_style['figure'] = fig
         else:
-            if new_fig or figs:
+            if 'figure' in kwargs:
+                pass
+            elif new_fig or figs:
                 fig = mplt.figure(figsize=figsize, dpi=dpi)
             else:
                 fig = mplt.gcf()

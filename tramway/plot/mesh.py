@@ -29,7 +29,7 @@ from collections import defaultdict
 __colors__ = ['darkgreen', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen', 'darkslateblue', 'darkslategray', 'darkviolet', 'deeppink', 'deepskyblue', 'dodgerblue', 'firebrick', 'forestgreen', 'gold', 'goldenrod', 'hotpink', 'indianred', 'indigo', 'lightblue', 'lightcoral', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightsteelblue', 'limegreen', 'maroon', 'mediumaquamarine', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'navajowhite', 'navy', 'olive', 'olivedrab', 'orange', 'orangered', 'orchid', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', '#663399', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'sienna', 'skyblue', 'slateblue', 'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'yellowgreen']
 
 
-def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
+def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None, resize=True, **kwargs):
     """
     Plot 2D points coloured by associated cell.
 
@@ -57,6 +57,8 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
     Extra keyword arguments are passed to *matplotlib* 's *scatter* or *plot*.
     """
     import matplotlib.pyplot as plt
+    if axes is None:
+        axes = plt
     if isinstance(cells, np.ndarray):
         points = cells
         label = None
@@ -86,7 +88,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
             points = cells[i].origins
             if isinstance(points, pd.DataFrame):
                 points = points[['x', 'y']].values
-            h = plt.plot(points[:,0], points[:,1], style, color=color[i],
+            h = axes.plot(points[:,0], points[:,1], style, color=color[i],
                 markersize=size, **kwargs)
             assert not h[1:]
             handles.append(h[0])
@@ -114,7 +116,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
             color = (color - cmin) / (cmax - cmin)
             cmap = plt.get_cmap()
             color = [ cmap(c) for c in color ]
-        handles.append(plt.scatter(x, y, color=color, marker=style, s=size, **kwargs))
+        handles.append(axes.scatter(x, y, color=color, marker=style, s=size, **kwargs))
     else:
         L = np.unique(label)
         if color in [None, 'light']:
@@ -128,16 +130,17 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, **kwargs):
                 color = ['gray', 'k']
             else:   color = 'k'
         for i, l in enumerate(L):
-            handles.append(plt.plot(x[label == l], y[label == l],
+            handles.append(axes.plot(x[label == l], y[label == l],
                 style, color=color[i], markersize=size, **kwargs))
 
     # resize window
-    try:
-        plt.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
-    except AttributeError:
-        pass
-    except ValueError:
-        print(traceback.format_exc())
+    if resize:
+        try:
+            plt.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
+        except AttributeError:
+            pass
+        except ValueError:
+            print(traceback.format_exc())
 
     return handles
 
