@@ -45,29 +45,30 @@ class SlidingWindow(TimeLattice):
         self.start_time = start_time
 
     def cell_index(self, points, *args, **kwargs):
-        time_col = kwargs.get('time_col', 't')
-        if isstructured(points):
-            ts = points[time_col]
-            if isinstance(ts, (pd.Series, pd.DataFrame)):
-                ts = ts.values
-        else:
-            ts = points[:,time_col]
-        t0, t1 = ts.min(), ts.max()
-        if self.start_time is not None:
-            t0 = self.start_time
-        duration, shift = self.duration, self.shift
-        if isinstance(duration, int):
-            dt = np.median(np.diff(np.unique(ts)))
-            duration *= dt
-            shift *= dt
-            dt /= 10.
-        else:
-            dt = 1e-7 # precision down to a microsecond (quantum < microsecond)
-        nsegments = max(1., np.round((t1 - t0 - duration) / shift) + 1.)
-        t1 = t0 + (nsegments - 1.) * shift + duration
-        t0s = np.arange(t0, t1 - duration + dt, shift)
-        t1s = t0s + duration
-        self.time_lattice = np.stack((t0s, t1s), axis=-1)
+        if self.time_lattice is None:
+            time_col = kwargs.get('time_col', 't')
+            if isstructured(points):
+                ts = points[time_col]
+                if isinstance(ts, (pd.Series, pd.DataFrame)):
+                    ts = ts.values
+            else:
+                ts = points[:,time_col]
+            t0, t1 = ts.min(), ts.max()
+            if self.start_time is not None:
+                t0 = self.start_time
+            duration, shift = self.duration, self.shift
+            if isinstance(duration, int):
+                dt = np.median(np.diff(np.unique(ts)))
+                duration *= dt
+                shift *= dt
+                dt /= 10.
+            else:
+                dt = 1e-7 # precision down to a microsecond (quantum < microsecond)
+            nsegments = max(1., np.round((t1 - t0 - duration) / shift) + 1.)
+            t1 = t0 + (nsegments - 1.) * shift + duration
+            t0s = np.arange(t0, t1 - duration + dt, shift)
+            t1s = t0s + duration
+            self.time_lattice = np.stack((t0s, t1s), axis=-1)
         return TimeLattice.cell_index(self, points, *args, **kwargs)
 
 

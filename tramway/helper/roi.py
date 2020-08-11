@@ -66,7 +66,7 @@ class SupportRegions(object):
                 self.update_metadata(analysis_tree[label])
             return True
     def infer(self, r, analysis_tree, *args, **kwargs):
-        if isinstance(r, str):
+        if isinstance(r, str) and (r == 'all' or r not in analysis_tree):
             if r == 'all':
                 description = 'Inferring dynamics parameters'
             else:
@@ -77,7 +77,10 @@ class SupportRegions(object):
                     any_new = True
             return any_new
         #
-        label = self.region_label(r)
+        if isinstance(r, str):
+            label = r
+        else:
+            label = self.region_label(r)
         if label in analysis_tree:
             skip_interrupted = kwargs.pop('preserve_interrupted_inferences', False)
             try:
