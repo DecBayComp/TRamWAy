@@ -384,11 +384,16 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
             if not ylim:
                 ylim = (xy_min[1], xy_max[1])
         ix = np.arange(xy.shape[0])
-        try:
-            vertices, cell_vertices, Av = box_voronoi_2d(cells.tessellation, xlim, ylim)
-        except AssertionError:
-            warn('could not fix the borders', RuntimeWarning)
+        from tramway.tessellation.hexagon import HexagonalMesh
+        from tramway.tessellation.kdtree import KDTreeMesh
+        if isinstance(cells.tessellation, (RegularMesh, HexagonalMesh, KDTreeMesh)):
             vertices, cell_vertices, Av = cells.tessellation.vertices, cells.tessellation.cell_vertices, cells.tessellation.vertex_adjacency.tocsr()
+        else:
+            try:
+                vertices, cell_vertices, Av = box_voronoi_2d(cells.tessellation, xlim, ylim)
+            except AssertionError:
+                warn('could not fix the borders', RuntimeWarning)
+                vertices, cell_vertices, Av = cells.tessellation.vertices, cells.tessellation.cell_vertices, cells.tessellation.vertex_adjacency.tocsr()
         try:
             ok = 0 < cells.location_count
         except (KeyboardInterrupt, SystemExit):

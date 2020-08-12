@@ -178,7 +178,7 @@ def _render_map(args):
         del kwargs['clip']
     if kwargs['title'] is None:
         kwargs.pop('title')
-    map_plot(input_file[0], output_file=output_file, fig_format=fig_format, figsize=True, **kwargs)
+    map_plot(input_file[0], output_file=output_file, fig_format=fig_format, figsize=True, show=True, **kwargs)
     sys.exit(0)
 
 def _dump_rwa(args):
