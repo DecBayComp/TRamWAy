@@ -122,6 +122,10 @@ class SupportRegions(object):
             return iternum
 
 class UnitRegions(SupportRegions):
+    __slots__ = ('unit_region','_bw_comp',)
+    def __init__(self, *args, **kwargs):
+        SupportRegions.__init__(self, *args, **kwargs)
+        self._bw_comp = False
     def __reset__(self):
         self.unit_region = OrderedDict()
     def add_collection(self, unit_regions, label=None):
@@ -140,7 +144,10 @@ class UnitRegions(SupportRegions):
                 r -= n
             else:
                 break
-        return self.gen_label(r, collection if collection else None)
+        if self._bw_comp:
+            return self.gen_label(r, collection if collection else None)
+        else:
+            return self.gen_label({ collection if collection else '': [r] })
     @property
     def region_labels(self):
         labels = []
@@ -149,7 +156,10 @@ class UnitRegions(SupportRegions):
             if not collection:
                 collection = None
             for r in range(n):
-                labels.append(self.gen_label(r, collection))
+                if self._bw_comp:
+                    labels.append(self.gen_label(r, collection))
+                else:
+                    labels.append(self.gen_label({ collection if collection else '': [r] }))
         return labels
     def unit_to_region(self, u, collection=None):
         if collection is None:
@@ -610,20 +620,24 @@ class RoiCollection(object):
         self.regions.reset_roi(self.get_subset_index(i), analysis_tree)
 
 class RoiCollections(AutosaveCapable):
-    def __init__(self, group_overlapping_roi=False, rwa_file=None, autosave=True, metadata=None, verbose=True):
+    def __init__(self, group_overlapping_roi=False, rwa_file=None, autosave=True, metadata=None, verbose=True, _bw_comp=False):
         AutosaveCapable.__init__(self, rwa_file, autosave)
+        label = self.roi_label
+        kwargs = dict()
         if group_overlapping_roi:
             Regions = GroupedRegions
-            label = self.roi_label
         else:
             Regions = UnitRegions
-            label = self.single_roi_label
+            if _bw_comp:
+                label = self.single_roi_label
         self.regions = Regions(
                 region_label=label,
                 update_metadata=metadata,
                 verbose=verbose)
         if group_overlapping_roi:
             self.regions.unit_region_label = self.single_roi_label
+        elif _bw_comp:
+            self.regions._bw_comp = True
         self.collections = {}
     def __len__(self):
         return len(self.collections)
@@ -657,6 +671,7 @@ class RoiCollections(AutosaveCapable):
                 label.append( 'roi'+num_label )
         return ' - '.join(label)
     def single_roi_label(self, i, collection_label=None):
+        """ for figure titles """
         num_label = self.numeric_format.format(i) if isinstance(i, int) else i
         if collection_label:
             return '{} roi {}'.format(collection_label, num_label)
@@ -690,7 +705,7 @@ class RoiHelper(Helper):
     def __init__(self, input_data, roi=None,
             meta_label='all %Sroi', meta_label_sep=' ',
             rwa_file=None, autosave=True, verbose=True,
-            group_overlapping_roi=True):
+            group_overlapping_roi=True, _bw_comp=False):
         Helper.__init__(self)
         input_data = Tessellate.prepare_data(self, input_data)
 
@@ -710,7 +725,7 @@ class RoiHelper(Helper):
         #self.collections = RoiCollections(group_overlapping_roi,
         #        rwa_file, autosave, self.add_metadata, verbose)
         self.collections = RoiCollections(autosave=False, metadata=self.add_metadata,
-                group_overlapping_roi=group_overlapping_roi)
+                group_overlapping_roi=group_overlapping_roi, _bw_comp=_bw_comp)
 
         if roi is None:
             for coll_label, meta_label in self.get_meta_labels().items():
@@ -872,7 +887,7 @@ class RoiHelper(Helper):
 
     def save_analyses(self, output_file=None, verbose=None, force=None, **kwargs):
         if output_file is not None:
-            raise NotImplemented
+            raise NotImplementedError
         self.analyses.save(out_of_context=True)
         return
         # deprecated
