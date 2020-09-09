@@ -134,6 +134,18 @@ class UnitRegions(SupportRegions):
         self.unit_region[label] = unit_regions
     def __len__(self):
         return sum([0]+[ len(self.unit_region[r]) for r in self.unit_region ])
+    def __contains__(self, r):
+        return 0<=r and r<len(self)
+    def __iter__(self):
+        yield from range(len(self))
+    def __getitem__(self, r):
+        for coll in self.unit_region:
+            rs = self.unit_region[coll]
+            if r<len(rs):
+                return rs[r]
+            else:
+                r -= len(rs)
+        raise IndexError('out of bounds: {}'.format(r))
     def region_label(self, r):
         if not isinstance(r, int):
             assert not r[1:]
@@ -464,7 +476,7 @@ class RoiCollection(object):
         try:
             return self.regions.unit_region_label(r, self.label)
         except AttributeError:
-            return self.regions.gen_label(r, self.label)
+            return self.regions.gen_label({self.label: [r]})
     def get_subtree(self, i, analysis_tree):
         label = self.subset_label(i)
         if label in analysis_tree:

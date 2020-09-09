@@ -261,7 +261,7 @@ class Scheduler(object):
         if worker_count is None:
             worker_count = multiprocessing.cpu_count() - 1
         elif worker_count < 0:
-            worker_count = multiprocessing.cpu_count() - worker_count
+            worker_count = multiprocessing.cpu_count() + worker_count
         kwargs.update(_kwargs)
         if worker_count:
             self.task_queue = multiprocessing.Queue()

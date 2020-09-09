@@ -292,7 +292,7 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
     points = points.copy()
     if add_deltas:
         cols_with_deltas = [ c[1:] for c in delta_cols ]
-        cols_to_diff = [ c for c in points.columns if c not in ['n']+cols_with_deltas ]
+        cols_to_diff = [ c for c in points.columns if c not in ['n']+cols_with_deltas+delta_cols ]
         deltas = points[cols_to_diff].diff().shift(-1)
         deltas = deltas[paired_src]
         deltas.columns = [ 'd'+c for c in cols_to_diff ]

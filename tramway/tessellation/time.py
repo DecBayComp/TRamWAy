@@ -626,25 +626,34 @@ class TimeLattice(Tessellation):
                 ts.append(xt)
         return ts
 
-    def split_segments(self, spdata, return_times=False):
+    def split_segments(self, spt_data, return_times=False):
         if self.spatial_mesh is None:
-            raise NotImplementedError('missing spatial tessellation')
-        ncells = self.spatial_mesh.cell_adjacency.shape[0]
+            #raise NotImplementedError('missing spatial tessellation')
+            ncells = 1
+        else:
+            ncells = self.spatial_mesh.cell_adjacency.shape[0]
         nsegments = self.time_lattice.shape[0]
         ts = []
-        if isinstance(spdata, (pd.Series, pd.DataFrame)):
-            df = spdata
-            # borrowed from `split_frames`
-            try:
-                # not tested yet
-                segment, cell = np.divmod(df.index, ncells) # 1.13.0 <= numpy
-            except AttributeError:
+        try:
+            spt_data = spt_data.maps
+        except AttributeError:
+            pass
+        if isinstance(spt_data, (pd.Series, pd.DataFrame)):
+            df = spt_data
+            if ncells == 1:
+                segment = np.asarray(df.index)
+                cell = np.zeros_like(segment)
+            else:
+                # borrowed from `split_frames`
                 try:
-                    segment = df.index // ncells
-                except TypeError:
-                    print(df.index)
-                    raise
-                cell = np.mod(df.index, ncells)
+                    segment, cell = np.divmod(df.index, ncells) # 1.13.0 <= numpy
+                except AttributeError:
+                    try:
+                        segment = df.index // ncells
+                    except TypeError:
+                        print(df.index)
+                        raise
+                    cell = np.mod(df.index, ncells)
             for t in range(nsegments):
                 xt = df[segment == t]
                 xt.index = cell[segment == t]
@@ -655,28 +664,28 @@ class TimeLattice(Tessellation):
                 else:
                     ts.append(xt)
             #
-        elif spdata.tessellation is self:
-            df = spdata.points
+        elif spt_data.tessellation is self:
+            df = spt_data.points
             tessellation = self.spatial_mesh
             for t in range(nsegments):
-                p,c = spdata.cell_index
-                seg = ((t-1)*ncells<=c) & (c<t*ncells)
+                p,c = format_cell_index(spt_data.cell_index, 'tuple')
+                seg = (t*ncells<=c) & (c<(t+1)*ncells)
                 if seg.size == 0:
                     import warnings
                     warnings.warn('empty segment; please check the implementation')
                 seg_p = np.unique(p[seg])
                 points = df.iloc[seg_p]
-                wrong = p.max()
+                wrong = p.max()+1
                 p_tr = np.full(p.max()+1, wrong, dtype=int)
                 p_tr[seg_p] = np.arange(seg_p.size)
                 seg_p = p_tr[p[seg]]
                 assert not np.any(seg_p == wrong)
-                seg_c = c[seg] - (t-1)*ncells
+                seg_c = c[seg] - t*ncells
                 assignment = (seg_p, seg_c)
                 #
-                cells = type(spdata)(points, tessellation, assignment)
-                cells.param = dict(spdata.param)
-                cells.bounding_box = spdata.bounding_box
+                cells = type(spt_data)(points, tessellation, assignment)
+                cells.param = dict(spt_data.param)
+                cells.bounding_box = spt_data.bounding_box
                 #
                 if return_times:
                     ts.append((self.time_lattice[t], cells))

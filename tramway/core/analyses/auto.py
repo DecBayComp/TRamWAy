@@ -15,6 +15,7 @@
 from . import abc
 from . import base
 from . import lazy
+import warnings
 
 
 class EventDict(dict):
@@ -56,7 +57,7 @@ def with_state(cls, handler):
     If `cls` is a class instance instead, then it copies `cls` into an object
     that inhertits from `type(cls)` and `WithState`.
 
-    The resulting class or class instance features a `stateless` method that
+    The resulting class or class instance features a `statefree` method that
     returns a copy of `self` in the original parent type.
     """
     if isinstance(cls, type):
@@ -65,10 +66,10 @@ def with_state(cls, handler):
             def __init__(self, data=None, metadata=None):
                 WithState.__init__(self, data, metadata, cls=base.Analyses)
                 self._instances = EventDict(self._instances, handler.preprocess(self), handler.postprocess(self))
-            def stateless(self):
+            def statefree(self):
                 analyses = cls(self.data, self.metadata)
                 analyses._comments = self._comments
-                analyses._instances = { label: self[label].stateless() for label in self.labels }
+                analyses._instances = { label: self[label].statefree() for label in self.labels }
                 return analyses
         return AnalysesWithState
     else:
@@ -89,7 +90,12 @@ class AnalysesProxy(object):
     """ proxy for analyses objects """
     __slots__ = ('_analyses',)
     def __init__(self, data=None, metadata=None, cls=base.Analyses):
-        self._analyses = cls(data, metadata)
+        if isinstance(data, cls):
+            self.analyses = data
+            if metadata:
+                warnings.warn('ignoring argument `metadata`')
+        else:
+            self.analyses = cls(data, metadata)
     @property
     def analyses(self):
         return self._analyses
@@ -104,7 +110,10 @@ class AnalysesProxy(object):
         self.analyses.data = d
     @property
     def _data(self):
-        return self.analyses.data
+        return self.analyses._data
+    @_data.setter
+    def _data(self, d):
+        self.analyses._data = d
     @property
     def artefact(self):
         return self.analyses.artefact
@@ -162,7 +171,7 @@ abc.Analyses.register(AnalysesProxy)
 class LazyAnalysesProxy(AnalysesProxy):
     __slots__ = ()
     def __init__(self, data=None, metadata=None, cls=lazy.Analyses):
-        self.analyses = cls(data, metadata)
+        AnalysesProxy.__init__(self, data, metadata, cls)
     @property
     def type(self):
         return self.analyses.type
@@ -205,6 +214,11 @@ class AutosaveCapable(object):
             return bool(self._default_autosave_policy)
         else:
             return bool(self._active_autosave_policy)
+    @autosave.setter
+    def autosave(self, flag):
+        if not (isinstance(flag, bool) or isinstance(flag, str)):
+            raise TypeError('autosave supports only boolean and string values')
+        self._default_autosave_policy = flag
     @property
     def autosave_policy(self):
         if isinstance(self._active_autosave_policy, bool):
@@ -248,7 +262,7 @@ class AutosaveCapable(object):
         return self
     def save(self):
         """ should call `self.reset_modification_flag(True)` """
-        raise NotImplemented('abstract method')
+        raise NotImplementedError('abstract method')
 
 
 class Analyses(LazyAnalysesProxy, AutosaveCapable):
@@ -256,8 +270,10 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
     
     Argument and attribute `rwa_file` designate the output file."""
     __slots__ = __autosavecapable_slots__ + ('rwa_file','save_options')
-    def __init__(self, rwa_file, autosave=False):
-        LazyAnalysesProxy.__init__(self)
+    def __init__(self, data=None, metadata=None, rwa_file=None, autosave=False):
+        if isinstance(data, AutosaveCapable):
+            raise TypeError('nested autosave-capable objects')
+        LazyAnalysesProxy.__init__(self, data, metadata)
         AutosaveCapable.__init__(self, autosave)
         self.rwa_file = rwa_file
         self.save_options = dict(force=True, compress=False)
@@ -267,22 +283,27 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
     @analyses.setter
     def analyses(self, a):
         self._analyses = with_state(a, self.handler)
+    def add(self, analysis, label=None, comment=None, raw=False):
+        if not (raw or isinstance(analysis, abc.Analyses)):
+            analysis = lazy.Analyses(analysis)
+        if isinstance(analysis, abc.Analyses) and not isinstance(analysis, WithState):
+            analysis = with_state(analysis, self.handler)
+        self.analyses.add(analysis, label, comment, raw)
     @classmethod
     def from_rwa_file(cls, input_file, output_file=None, **kwargs):
         from tramway.core.hdf5.store import load_rwa
         if output_file is None:
             output_file = input_file
-        analyses = cls(output_file, **kwargs)
-        analyses.analyses = load_rwa(input_file, lazy=True)
+        analyses = load_rwa(input_file, lazy=True)
+        analyses = cls(analyses, rwa_file=output_file, **kwargs)
     def save(self, out_of_context=False):
         if not (out_of_context or self.active):
             raise RuntimeError("method 'save' called from outside the context")
         if self.rwa_file:
             from tramway.core.hdf5.store import save_rwa
-            save_rwa(self.rwa_file, self.analyses.stateless(), **self.save_options)
+            save_rwa(self.rwa_file, self.analyses.statefree(), **self.save_options)
             self.analyses.reset_modification_flag(True)
         else:
-            import warnings
             warnings.warn('no output file defined', RuntimeWarning)
     # WithState proxy
     def flag_as_modified(self):
@@ -314,5 +335,5 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
                 _self.postprocess = self.postprocess
         return PP()
 
-__all__ = ['Analyses']
+__all__ = ['Analyses', 'AutosaveCapable']
 

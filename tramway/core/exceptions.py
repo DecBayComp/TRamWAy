@@ -26,3 +26,6 @@ class MultipleArgumentError(ValueError):
         s = ' or '.join((', '.join(args[:-1]), args[-1]))
         return 'please define either ' + s
 
+class MisplacedAttributeWarning(UserWarning):
+    pass
+
