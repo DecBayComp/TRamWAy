@@ -1,0 +1,87 @@
+
+from ..attribute import *
+from ..artefact import analysis
+from .. import attribute
+from .abc import *
+from . import stdalg as mappers
+from tramway.inference import plugins
+from tramway.helper.inference import Infer
+
+
+class MapperInitializer(Initializer):
+    __slots__ = ()
+    def from_plugin(self, plugin):
+        self.specialize( MapperPlugin, plugin )
+    def from_callable(self, cls):
+        self.specialize( StdMapper, cls )
+
+
+class MapperPlugin(AnalyzerNode):
+    __slots__ = ('_name','_module','_setup','_mapper','_kwargs')
+    def __init__(self, plugin, **kwargs):
+        init_kwargs = {}
+        for k in attribute.__analyzer_node_init_args__:
+            try:
+                arg = kwargs.pop(k)
+            except KeyError:
+                pass
+            else:
+                init_kwargs[k] = arg
+        AnalyzerNode.__init__(self, **init_kwargs)
+        self._name = self._module = self._mapper = None
+        self._setup, self._kwargs = {}, {}
+        if isinstance(plugin, str):
+            self._name = plugin
+            try:
+                plugin = plugins[plugin]
+            except KeyError:
+                raise KeyError('no such plugin: {}'.format(self._name))
+        if callable(plugin):
+            self._setup = kwargs
+            self._mapper = plugin
+        elif isinstance(plugin, tuple):
+            setup, self._module = plugin
+            self._setup = dict(setup) # copy
+            self._mapper = getattr(self._module, self._setup.pop('infer'))
+    @property
+    def name(self):
+        return self._name
+    @property
+    def setup(self):
+        return self._setup
+    def __getattr__(self, attrname):
+        try:
+            return self._setup[attrname]
+        except KeyError:
+            return self._kwargs.get(attrname, None)
+    def __setattr__(self, attrname, val):
+        try:
+            AnalyzerNode.__setattr__(self, attrname, val)
+        except AttributeError:
+            if attrname in self._setup:
+                self._setup[attrname] = val
+            else:
+                self._kwargs[attrname] = val
+                if attrname.endswith('time_prior'):
+                    self.time.enable_regularization()
+    @analysis
+    def infer(self, sampling):
+        helper = Infer()
+        helper.prepare_data(sampling)
+        distr_kwargs, infer_kwargs = {}, {}
+        for k in self._kwargs:
+            if k in ('new_cell','new_group','include_empty_cells','grad','rgrad'):
+                distr_kwargs[k] = self._kwargs[k]
+            if k not in ('new_cell','new_group','include_empty_cells','grad'):
+                infer_kwargs[k] = self._kwargs[k]
+        infer_kwargs['sigma'] = self._parent.spt_data.localization_precision
+        cells = helper.distribute(**distr_kwargs)
+        helper.name, helper.setup, helper._infer = self.name, self.setup, self._mapper
+        maps = helper.infer(cells, **infer_kwargs)
+        return maps
+    @property
+    def time(self):
+        return self._parent.time
+
+Mapper.register(MapperPlugin)
+
