@@ -362,10 +362,43 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
     return pd.DataFrame(np.vstack([ traj.values for traj in trajs ]), columns=trajectories.columns)
 
 
+def load_mat(path, columns=None, varname='plist', dt=None, pixel_size=None):
+    """
+    Load SPT data from MatLab V7 file.
+
+    Arguments:
+
+        path (str): file path.
+
+        columns (sequence of str): data column names.
+
+        varname (str): record name.
+
+    Returns:
+
+        pandas.DataFrame: SPT data.
+    """
+    import h5py
+    with h5py.File(path, 'r') as f:
+        spt_data = f[varname][...]
+    if columns is None:
+        if spt_data.shape[0]==3:
+            columns = list('txy')
+        else:
+            raise NotImplementedError('cannot infer the column names')
+    spt_data = pd.DataFrame(spt_data.T, columns=columns)
+    if dt is not None:
+        spt_data['t'] = spt_data['t'] * dt
+    if pixel_size is not None:
+        spt_data[list('xy')] = spt_data[list('xy')] * pixel_size
+    return spt_data
+
+
 __all__ = [
     'translocations',
     'iter_trajectories',
     'load_xyt',
+    'load_mat',
     'crop',
     'discard_static_trajectories',
     ]

@@ -4,7 +4,7 @@ from ..artefact import *
 from ..roi import HasROI
 from .abc import *
 import os.path
-from tramway.core.xyt import load_xyt, discard_static_trajectories
+from tramway.core.xyt import load_xyt, load_mat, discard_static_trajectories
 from tramway.core.analyses.auto import Analyses, AutosaveCapable
 import warnings
 from math import sqrt
@@ -173,6 +173,29 @@ class SPTDataInitializer(Initializer):
         self.specialize( StandaloneSPTDataFrame, df )
     def from_dataframes(self, dfs):
         self.specialize( SPTDataFrames, dfs )
+    def from_mat_file(self, filepath):
+        """
+        Sets a MatLab V7 file as the source of SPT data.
+
+        Note that data loading is NOT performed while calling this method.
+        Loading is postponed until the data is actually required.
+        This lets additional arguments to be provided to the spt_data attribute.
+        """
+        self.specialize( StandaloneSPTMatFile, filepath )
+    def from_mat_files(self, filepattern):
+        """
+        Sets MatLab V7 files, which paths match with a pattern, as the source of SPT data.
+
+        `filepattern` is a standard filepath with the '*' placeholder.
+        For example:  `'datasets/*.txt'`
+
+        The parts of the filename that match the placeholder are used as keys.
+
+        Note that data loading is NOT performed while calling this method.
+        Loading is postponed until the data is actually required.
+        This lets additional arguments to be provided to the spt_data attribute.
+        """
+        self.specialize( SPTMatFiles, filepattern )
     def from_rwa_file(self, filepath):
         """
         Similar to `from_ascii_file`.
@@ -267,8 +290,23 @@ class _SPTDataFrame(HasROI, SPTParameters):
         _bounds = np.stack((_min, _max), axis=0)
         _bounds = pd.DataFrame( _bounds, columns=_min.index, index=['min','max'])
         return _bounds
-    def to_ascii_file(self, filepath):
-        self.dataframe.to_csv(filepath, sep='\t', index=False)
+    def to_ascii_file(self, filepath, columns=None, header=True):
+        """
+        Exports the data to text file.
+
+        Arguments:
+
+            filepath (str): output filepath.
+
+            columns (sequence of str): columns to be exported.
+
+            header (bool): print column names on the first line.
+
+        """
+        df = self.dataframe
+        if columns:
+            df = df[columns]
+        df.to_csv(filepath, sep='\t', index=False, header=header)
     def to_rwa_file(self, filepath, **kwargs):
         if self.analyses.data is None:
             raise ValueError('no data available')
@@ -388,12 +426,14 @@ class SPTFile(_SPTDataFrame):
             else:
                 return self._columns
         return self._dataframe.columns
-    def load(self):
-        # post-processing only; to be called last by children classes
+    def _trigger_discard_static_trajectories(self):
         if self._discard_static_trajectories is True:
             SPTDataFrame.discard_static_trajectories(self)
-        elif self._discard_static_trajectories:
+        elif self._discard_static_trajectories: # not in (None, False)
             SPTDataFrame.discard_static_trajectories(self, **self._discard_static_trajectories)
+    def _trigger_reset_origin(self):
+        if self._reset_origin:
+            SPTDataFrame.reset_origin(self, self._reset_origin)
     def reset_origin(self, columns=None, same_origin=False):
         if self.reified:
             SPTDataFrame.reset_origin(self, columns)
@@ -408,14 +448,11 @@ class SPTFile(_SPTDataFrame):
             self._discard_static_trajectories = kwargs if kwargs else True
 
 
-class SPTAsciiFile(SPTFile):
+class RawSPTFile(SPTFile):
     __slots__ = ('_columns',)
     def __init__(self, filepath, dataframe=None, **kwargs):
         SPTFile.__init__(self, filepath, dataframe, **kwargs)
         self._columns = None
-        assert bool(self._analyses.metadata)
-        assert 'datafile' in self._analyses.metadata
-        assert self._analyses.metadata['datafile'] == filepath
     @property
     def columns(self):
         if self._dataframe is None:
@@ -430,9 +467,11 @@ class SPTAsciiFile(SPTFile):
             raise AttributeError('the SPT data have already been loaded; cannot set column names anymore')
         else:
             self._columns = cols
+
+class SPTAsciiFile(RawSPTFile):
     def load(self):
         self._dataframe = load_xyt(os.path.expanduser(self.filepath), self._columns, reset_origin=self._reset_origin)
-        SPTFile.load(self) # post-process
+        self._trigger_discard_static_trajectories()
 
 SPTDataItem.register(SPTAsciiFile)
 
@@ -513,7 +552,8 @@ class RWAFile(SPTFile):
         SPTFile.__init__(self, filepath, None, **kwargs)
     def load(self):
         self.analyses = load_rwa(self.filepath, lazy=True)
-        SPTFile.load(self) # post-process
+        self._trigger_discard_static_trajectories()
+        self._trigger_reset_origin()
 
 SPTDataItem.register(RWAFile)
 
@@ -528,6 +568,64 @@ class RWAFiles(SPTFiles):
     def list_files(self):
         SPTFiles.list_files(self)
         self._files = [ self._bear_child( RWAFile, filepath ) for filepath in self._files ]
+
+SPTData.register(RWAFiles)
+
+
+class SPTMatFile(RawSPTFile):
+    __slots__ = ('_pixel_size',)
+    def __init__(self, filepath, dataframe=None, **kwargs):
+        RawSPTFile.__init__(self, filepath, dataframe, **kwargs)
+        self._pixel_size = None
+    @property
+    def pixel_size(self):
+        return self._pixel_size
+    @pixel_size.setter
+    def pixel_size(self, siz):
+        if self.reified:
+            raise AttributeError('the SPT data have already been loaded; cannot set the pixel size anymore')
+        else:
+            self._pixel_size = siz
+    def load(self):
+        try:
+            self._dataframe = load_mat(os.path.expanduser(self.filepath),
+                    columns=self._columns, dt=self.dt, pixel_size=self.pixel_size)
+        except OSError as e:
+            raise OSError('While loading file: {}\n{}'.format(self.source, e))
+        self._trigger_discard_static_trajectories()
+        self._trigger_reset_origin()
+
+SPTDataItem.register(SPTMatFile)
+
+class StandaloneSPTMatFile(SPTMatFile, StandaloneDataItem):
+    __slots__ = ()
+
+SPTData.register(StandaloneSPTMatFile)
+
+
+class SPTMatFiles(SPTFiles):
+    __slots__ = ()
+    @property
+    def pixel_size(self):
+        it = iter(self)
+        px = next(it).pixel_size
+        while True:
+            try:
+                _px = next(it).pixel_size
+            except StopIteration:
+                break
+            else:
+                _delta = px - _px
+                if 1e-12 < _delta*_delta:
+                    raise AttributeError('not all the data blocks share the same time step (dt)')
+        return px
+    @pixel_size.setter
+    def pixel_size(self, px):
+        for f in self:
+            f.pixel_size = px
+    def list_files(self):
+        SPTFiles.list_files(self)
+        self._files = [ self._bear_child( SPTMatFile, filepath ) for filepath in self._files ]
 
 SPTData.register(RWAFiles)
 
