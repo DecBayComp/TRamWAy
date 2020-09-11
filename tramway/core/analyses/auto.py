@@ -16,6 +16,7 @@ from . import abc
 from . import base
 from . import lazy
 import warnings
+import os.path
 
 
 class EventDict(dict):
@@ -301,7 +302,7 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
             raise RuntimeError("method 'save' called from outside the context")
         if self.rwa_file:
             from tramway.core.hdf5.store import save_rwa
-            save_rwa(self.rwa_file, self.analyses.statefree(), **self.save_options)
+            save_rwa(os.path.expanduser(self.rwa_file), self.analyses.statefree(), **self.save_options)
             self.analyses.reset_modification_flag(True)
         else:
             warnings.warn('no output file defined', RuntimeWarning)

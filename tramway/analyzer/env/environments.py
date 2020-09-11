@@ -161,9 +161,12 @@ class Env(AnalyzerNode):
             if valid_arguments is None:
                 break
         if valid_arguments:
+            # worker side
             self.wd = valid_arguments.pop('working_directory', self.wd)
             self.selectors = valid_arguments
             #self.logger.debug(self.selectors)
+            if self.script.endswith('.ipynb'):
+                self.script = self.script[:-5]+'py'
             for f in self.spt_data_selector(self.analyzer.spt_data):
                 f.analyses.rwa_file = self.make_temporary_file(output=True)
                 f.analyses.autosave = True
@@ -264,21 +267,23 @@ class Env(AnalyzerNode):
     @property
     def worker_side(self):
         return self.selectors is not None
-    def make_temporary_file(self, output=False, directory=False, standard_location=False):
+    def make_temporary_file(self, output=False, directory=False, standard_location=False, **kwargs):
         _dir = None if standard_location else self.working_directory
         if directory:
             tmpfile = tempfile.mkdtemp(dir=_dir)
         else:
-            suffix = '.rwa' if output else None
-            fd, tmpfile = tempfile.mkstemp(dir=_dir, suffix=suffix)
+            suffix = kwargs.pop('suffix', '.rwa' if output else None)
+            fd, tmpfile = tempfile.mkstemp(dir=_dir, suffix=suffix, **kwargs)
             os.close(fd)
         if not output:
             self._temporary_files.append(tmpfile)
         return tmpfile
     def dispatch(self, **kwargs):
-        pass
+        if not kwargs:
+            self.prepare_script()
+            return True
     def save_analyses(self, spt_data):
-        tmpfile = self.make_temporary_file()
+        tmpfile = self.make_temporary_file(suffix='.rwa')
         spt_data.to_rwa_file(tmpfile, force=True)
     def __del__(self):
         #self.delete_temporary_data()
@@ -339,29 +344,63 @@ class Env(AnalyzerNode):
         end_result_files = []
         for source in analyses:
             rwa_file = os.path.splitext(source)[0]+'.rwa'
-            if rwa_file.startswith('~/'):
-                rwa_file = rwa_file[2:]
             logger.info('writing file: {}...'.format(rwa_file))
-            save_rwa(rwa_file, analyses[source], force=True)
+            save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True)
             end_result_files.append(rwa_file)
         return end_result_files
     def collect_results(self):
         self._collect_results(self.wd, self.logger)
-    def cleanup_script(self, script=None):
-        if script is None:
+    def prepare_script(self, script=None):
+        main_script = script is None
+        if main_script:
             script = self.script
-        with open(self.script, 'r') as f:
-            content = f.readlines()
+        # load
+        if script.endswith('.ipynb'):
+            content = self.import_ipynb(script)
+        else:
+            with open(self.script, 'r') as f:
+                content = f.readlines()
+        # modify
+        filtered_content = self.cleanup_script_content(content)
+        if script in self.temporary_files:
+            tmpfile = script # reuse file
+        else:
+            tmpfile = self.make_temporary_file(suffix='.py', text=True, standard_location=True)
+            if not os.path.isfile(tmpfile):
+                self.temporary_files.append(tmpfile)
+        # flush
+        with open(tmpfile, 'w') as f:
+            for line in filtered_content:
+                f.write(line)
+        if main_script:
+            self.script = tmpfile
+        else:
+            return tmpfile
+    def cleanup_script_content(self, content):
         filtered_content = []
         for line in content:
             if line.startswith('get_ipython('):
                 continue
             filtered_content.append(line)
-        tmpfile = self.make_temporary_file()
-        with open(tmpfile, 'w') as f:
-            for line in filtered_content:
-                f.write(line)
-        return tmpfile
+        return filtered_content
+    def import_ipynb(self, notebook):
+        cmd = 'jupyter nbconvert --to python "{}" --stdout'.format(notebook)
+        self.logger.info('running: '+cmd)
+        p = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        out, err = p.communicate()
+        if out:
+            if not isinstance(out, str):
+                out = out.decode('utf-8')
+            content = out.splitlines()
+        else:
+            content = None
+        if err:
+            if not isinstance(err, str):
+                err = err.decode('utf-8')
+            if err != '[NbConvertApp] Converting notebook {} to python\n'.format(notebook):
+                self.logger.error(err)
+        return content
+
 
 class LocalHost(Env):
     """
@@ -390,7 +429,7 @@ class LocalHost(Env):
         assert self.submit_side
         self.running_jobs = []
         for job in self.pending_jobs:
-            self.logger.debug('running: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
+            self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
                     stderr=subprocess.STDOUT)#, stdout=subprocess.PIPE)
             self.running_jobs.append(p)
@@ -573,10 +612,10 @@ class SlurmOverSSH(Slurm):
             wd = os.path.abspath(os.path.expanduser(wd))
             if not os.path.isdir(wd):
                 os.makedirs(wd)
-    def make_temporary_file(self, output=False, directory=False, standard_location=False, local=False):
+    def make_temporary_file(self, output=False, directory=False, standard_location=False, local=False, **kwargs):
         local = local or standard_location
         if self.worker_side or local:
-            return Slurm.make_temporary_file(self, output, directory, local)
+            return Slurm.make_temporary_file(self, output, directory, local, **kwargs)
         else:
             cmd = ['mktemp','-p','"{}"'.format(self.wd)]
             if directory:
@@ -599,21 +638,20 @@ class SlurmOverSSH(Slurm):
             self.script = '/'.join((self.wd, os.path.basename(self.script)))
     def dispatch(self, **kwargs):
         if not kwargs:
-            src = self.cleanup_script()
-            dest = '/'.join((self.wd, os.path.basename(self.script)))
+            self.prepare_script()
+            dest = os.path.basename(self.script)
+            #if dest.endswith('.ipynb'):
+            #    dest = dest[:-5]+'py'
+            dest = '/'.join((self.wd, dest))
             attrs = self.sftp_conn.put(src, dest, confirm=False)
             self.logger.info(attrs)
             self.script = dest
             self.logger.info('Python script location: '+dest)
-    def cleanup_script(self, script=None):
-        if script is None:
-            script = self.script
-        with open(self.script, 'r') as f:
-            content = f.readlines()
+            return True
+    def cleanup_script_content(self, content):
+        content = Slurm.cleanup_script_content(content)
         filtered_content = []
         for line in content:
-            if line.startswith('get_ipython('):
-                continue
             pattern = '.spt_data.from_'
             if self.remote_data_location and pattern in line:
                 analyzer, suffix = line.split(pattern)
@@ -630,11 +668,7 @@ class SlurmOverSSH(Slurm):
                                 self.remote_data_location, arg,
                                 quote)
             filtered_content.append(line)
-        tmpfile = self.make_temporary_file(local=True)
-        with open(tmpfile, 'w') as f:
-            for line in filtered_content:
-                f.write(line)
-        return tmpfile
+        return filtered_content
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
         if source is not None and self.remote_data_location:
             source = '/'.join((self.remote_data_location, os.path.basename(source)))

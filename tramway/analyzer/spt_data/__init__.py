@@ -234,7 +234,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
         prms = SPTParameters.__parse__(kwargs)
         HasROI.__init__(self, **kwargs)
         self._source = source
-        self.analyses = Analyses(df, standard_metadata())
+        self.analyses = Analyses(df, standard_metadata(), autosave=True)
         self._dt = self._localization_error = None
         SPTParameters.__init__(self, *prms)
     def set_analyses(self, tree):
@@ -325,6 +325,11 @@ class _SPTDataFrame(HasROI, SPTParameters):
         return Analysis.get_analysis(self.analyses, label)
     def autosaving(self, *args, **kwargs):
         assert isinstance(self.analyses, AutosaveCapable)
+        if not self.analyses.rwa_file:
+            if self.source:
+                self.analyses.rwa_file = os.path.splitext(self.source)[0]+'.rwa'
+            else:
+                warnings.warn('no output filename defined', RuntimeWarning)
         return self.analyses.autosaving(*args, **kwargs)
 
 class SPTDataFrame(_SPTDataFrame):

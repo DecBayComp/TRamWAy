@@ -82,16 +82,17 @@ class Pipeline(AnalyzerNode):
                     #self.env.save_analyses(self.spt_data)
                 else:
                     assert self.env.submit_side
-                    self.logger.debug('submit side')
-                    self.env.dispatch()
+                    if self.env.dispatch():
+                        self.logger.info('initial dispatch done')
                     for s, stage in enumerate(self._stage):
-                        self.env.dispatch(stage_index=s)
-                        self.logger.info('stage {:d} dispatched'.format(s))
+                        if self.env.dispatch(stage_index=s):
+                            self.logger.info('stage {:d} dispatched'.format(s))
                         if stage.granularity == 'roi':
                             for f in self.spt_data:
                                 if f.source is None and 1<len(self.spt_data):
                                     raise NotImplementedError('undefined source identifiers')
-                                self.env.dispatch(source=f.source)
+                                if self.env.dispatch(source=f.source):
+                                    self.logger.info('source "{}" dispatched'.format(f.source))
                                 for i, _ in f.roi.as_support_regions(return_index=True):
                                     self.env.make_job(stage_index=s, source=f.source, region_index=i)
                         else:
