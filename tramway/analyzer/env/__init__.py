@@ -11,6 +11,12 @@ class EnvironmentInitializer(Initializer):
             self.specialize( env )
         else:
             raise TypeError('env is not an Environment')
+    @property
+    def script(self):
+        return None
+    @script.setter
+    def script(self, filename):
+        pass
 
 
 __all__ = ['Environment', 'EnvironmentInitializer', 'environments']

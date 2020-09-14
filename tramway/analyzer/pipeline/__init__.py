@@ -18,6 +18,13 @@ class PipelineStage(object):
 
 
 class Pipeline(AnalyzerNode):
+    """
+    `pipeline` attribute of an :class:`~tramway.analyzer.RWAnalyzer` object.
+
+    The main methods are `append_stage` and `run`.
+    Note that the `run` method is called by :met:`~tramway.analyzer.RWAnalyzer.run`
+    of :class:`~tramway.analyzer.RWAnalyzer`.
+    """
     __slots__ = ('_stage',)
     def __init__(self, *args, **kwargs):
         AnalyzerNode.__init__(self, *args, **kwargs)
@@ -50,10 +57,32 @@ class Pipeline(AnalyzerNode):
     def env(self):
         return self._parent.env
     def reset(self):
+        """
+        Empties the pipeline processing chain.
+        """
         self._stage = []
     def append_stage(self, stage, granularity='coarsest'):
+        """
+        Appends a pipeline stage to the processing chain.
+
+        Arguments:
+
+            stage (callable): function that takes an :class:`~tramway.analyzer.RWAnalyzer` object
+                as unique input argument.
+
+            granularity (str): smallest data item `stage` can independently process;
+                any of *'coarsest'* or equivalently *'full dataset'*,
+                *'source'* or equivalently *'data source'* or *'spt data source'*,
+                *'roi'* or equivalently *'region of interest'*.
+
+        """
         self._stage.append(PipelineStage(stage, granularity))
     def run(self, stages='all', verbose=False):
+        """
+        Sequentially runs the different stages of the pipeline.
+
+        The input arguments are currently ignored.
+        """
         if self.env.initialized:
             try:
                 self.env.setup(*sys.argv)
@@ -85,9 +114,20 @@ class Pipeline(AnalyzerNode):
                     if self.env.dispatch():
                         self.logger.info('initial dispatch done')
                     for s, stage in enumerate(self._stage):
+                        granularity = '' if stage.granularity is None else stage.granularity.lower()
+                        if granularity in ('coarsest','full dataset'):
+                            stage(self)
+                            continue
                         if self.env.dispatch(stage_index=s):
                             self.logger.info('stage {:d} dispatched'.format(s))
-                        if stage.granularity == 'roi':
+                        if granularity.endswith('source'):
+                            for f in self.spt_data:
+                                if f.source is None and 1<len(self.spt_data):
+                                    raise NotImplementedError('undefined source identifiers')
+                                if self.env.dispatch(source=f.source):
+                                    self.logger.info('source "{}" dispatched'.format(f.source))
+                                self.env.make_job(stage_index=s, source=f.source)
+                        elif granularity in ('roi','region of interest'):
                             for f in self.spt_data:
                                 if f.source is None and 1<len(self.spt_data):
                                     raise NotImplementedError('undefined source identifiers')
@@ -104,10 +144,9 @@ class Pipeline(AnalyzerNode):
                         self.logger.info('jobs complete')
                         self.env.collect_results()
                         self.logger.info('results collected')
-            except:
+            finally:
                 if self.env.submit_side:
                     self.env.delete_temporary_data()
-                raise
         else:
             for stage in self._stage:
                 stage(self)

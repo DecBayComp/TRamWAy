@@ -14,8 +14,6 @@ import glob
 import traceback
 from tramway.core.hdf5.store import load_rwa, save_rwa
 from tramway.core.analyses.base import append_leaf
-import paramiko
-import getpass
 
 
 class Proxy(object):
@@ -36,15 +34,15 @@ class Proxy(object):
 class Env(AnalyzerNode):
     __slots__ = ('_interpreter','_script','_working_directory','_worker_count',
             '_pending_jobs','_selectors', '_selector_classes', '_temporary_files')
-    def __init__(self, wd=None, wc=None, **kwargs):
+    def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
         self._interpreter = 'python3'
         self._script = None
         self._selectors = None
         self._selector_classes = {}
         self._temporary_files = []
-        self.working_directory = wd
-        self.worker_count = wc
+        self._working_directory = None
+        self._worker_count = None
         self.pending_jobs = []
     @property
     def logger(self):
@@ -54,12 +52,6 @@ class Env(AnalyzerNode):
         return self._working_directory
     @working_directory.setter
     def working_directory(self, wd):
-        if wd is None:
-            wd = os.getcwd()
-        else:
-            wd = os.path.abspath(os.path.expanduser(wd))
-            if not os.path.isdir(wd):
-                os.makedirs(wd)
         self._working_directory = wd
     @property
     def wd(self):
@@ -67,6 +59,9 @@ class Env(AnalyzerNode):
     @wd.setter
     def wd(self, wd):
         self.working_directory = wd
+    @property
+    def wd_is_available(self):
+        return True
     @property
     def interpreter(self):
         return self._interpreter
@@ -165,17 +160,21 @@ class Env(AnalyzerNode):
             self.wd = valid_arguments.pop('working_directory', self.wd)
             self.selectors = valid_arguments
             #self.logger.debug(self.selectors)
-            if self.script.endswith('.ipynb'):
+            if self.script is not None and self.script.endswith('.ipynb'):
                 self.script = self.script[:-5]+'py'
             for f in self.spt_data_selector(self.analyzer.spt_data):
-                f.analyses.rwa_file = self.make_temporary_file(output=True)
+                f.analyses.rwa_file = self.make_temporary_file(suffix='.rwa', output=True)
                 f.analyses.autosave = True
         elif self.script is None:
+            candidate_files = [ f for f in os.listdir() \
+                    if f.endswith('.py') or f.endswith('.ipynb') ]
+            if candidate_files and not candidate_files[1:]:
+                self.script = candidate_files[0]
+                os.logger.info('candidate script: {} (in {})'.format(self.script, os.getcwd()))
             raise ValueError('attribute `script` is not set')
         else:
-            self.wd = self.make_temporary_file(directory=True)
+            self.make_working_directory()
             self.logger.info('working directory: '+self.wd)
-            self.temporary_files.append(self.wd)
     def spt_data_selector(self, spt_data_attr):
         if isinstance(spt_data_attr, Initializer) or len(spt_data_attr)==1:
             return spt_data_attr
@@ -267,13 +266,28 @@ class Env(AnalyzerNode):
     @property
     def worker_side(self):
         return self.selectors is not None
-    def make_temporary_file(self, output=False, directory=False, standard_location=False, **kwargs):
-        _dir = None if standard_location else self.working_directory
-        if directory:
-            tmpfile = tempfile.mkdtemp(dir=_dir)
+    def make_working_directory(self):
+        assert self.submit_side
+        self.wd = self.make_temporary_file(directory=True)
+    def make_temporary_file(self, output=False, directory=False, **kwargs):
+        """
+        Arguments:
+
+            output (bool): do not delete the file once the task is done.
+
+            directory (bool): make a temporary directory.
+
+        More keyword arguments can be passed to :fun:`tempfile.mkstemp`.
+        See for example *suffix*.
+        """
+        if self.wd_is_available:
+            parent_dir = self.working_directory
         else:
-            suffix = kwargs.pop('suffix', '.rwa' if output else None)
-            fd, tmpfile = tempfile.mkstemp(dir=_dir, suffix=suffix, **kwargs)
+            parent_dir = None # standard /tmp location
+        if directory:
+            tmpfile = tempfile.mkdtemp(dir=parent_dir)
+        else:
+            fd, tmpfile = tempfile.mkstemp(dir=parent_dir, **kwargs)
             os.close(fd)
         if not output:
             self._temporary_files.append(tmpfile)
@@ -282,9 +296,6 @@ class Env(AnalyzerNode):
         if not kwargs:
             self.prepare_script()
             return True
-    def save_analyses(self, spt_data):
-        tmpfile = self.make_temporary_file(suffix='.rwa')
-        spt_data.to_rwa_file(tmpfile, force=True)
     def __del__(self):
         #self.delete_temporary_data()
         pass
@@ -331,8 +342,8 @@ class Env(AnalyzerNode):
             try:
                 source = __analyses.metadata['datafile']
             except KeyError:
-                print(__analyses)
-                print('metadata: ',__analyses.metadata)
+                logger.debug(str(__analyses))
+                logger.debug('metadata: ',__analyses.metadata)
                 logger.critical('key `datafile` not found in the metadata')
                 return
             try:
@@ -365,13 +376,11 @@ class Env(AnalyzerNode):
         if script in self.temporary_files:
             tmpfile = script # reuse file
         else:
-            tmpfile = self.make_temporary_file(suffix='.py', text=True, standard_location=True)
-            if not os.path.isfile(tmpfile):
-                self.temporary_files.append(tmpfile)
+            tmpfile = self.make_temporary_file(suffix='.py', text=True)
         # flush
         with open(tmpfile, 'w') as f:
             for line in filtered_content:
-                f.write(line)
+                f.write(line+'\n')
         if main_script:
             self.script = tmpfile
         else:
@@ -404,16 +413,10 @@ class Env(AnalyzerNode):
 
 class LocalHost(Env):
     """
-    This class is of no practical use, as a local script
-    will not operate a proper pipeline, but directly run
-    the processing steps instead.
-
-    This class is maintained as a prototype for job
-    management over multiple hosts.
     """
     __slots__ = ('running_jobs',)
-    def __init__(self, wd=None, wc=None, **kwargs):
-        Env.__init__(self, wd, wc, **kwargs)
+    def __init__(self, **kwargs):
+        Env.__init__(self, **kwargs)
         self.running_jobs = []
     @property
     def worker_count(self):
@@ -429,28 +432,43 @@ class LocalHost(Env):
         assert self.submit_side
         self.running_jobs = []
         for job in self.pending_jobs:
+            if len(self.running_jobs) == self.wc:
+                self.wait_for_job_completion(1)
             self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
                     stderr=subprocess.STDOUT)#, stdout=subprocess.PIPE)
             self.running_jobs.append(p)
         self.pending_jobs = []
-    def wait_for_job_completion(self):
+    def wait_for_job_completion(self, count=None):
         assert self.submit_side
-        for p in self.running_jobs:
+        for n,p in enumerate(self.running_jobs):
             out, err = p.communicate()
             if out:
-                print(out)
+                if not isinstance(out, str):
+                    out = out.decode('utf-8')
+                self.logger.info(out)
             if err:
-                print(err)
+                if not isinstance(err, str):
+                    err = err.decode('utf-8')
+                self.logger.error(err)
+            self.logger.debug('job {:d} done'.format(n))
+            if n==count:
+                self.running_jobs = self.running_jobs[n:]
+                return
         self.running_jobs = []
 
 Environment.register(LocalHost)
 
 
 class Slurm(Env):
+    """
+    Not supposed to properly run, as TRamWAy is expected to be called
+    inside a container;
+    see :class:`SlurmOverSSH` instead.
+    """
     __slots__ = ('_sbatch_options','_job_id','_sbatch_script','refresh_interval')
-    def __init__(self, wd=None, wc=None, **kwargs):
-        Env.__init__(self, wd, wc, **kwargs)
+    def __init__(self, **kwargs):
+        Env.__init__(self, **kwargs)
         self._sbatch_options = dict(
                 output='%J.out',
                 error='%J.err',
@@ -494,8 +512,9 @@ class Slurm(Env):
                 error_log = os.path.join(self.wd, error_log)
                 self.sbatch_options['error'] = error_log
     def make_sbatch_script(self, path=None):
+        assert self.submit_side
         if path is None:
-            sbatch_script = self.make_temporary_file(standard_location=True)
+            sbatch_script = self.make_temporary_file(suffix='.sh', text=True)
         else:
             sbatch_script = path
         self.job_name # set default job name if not defined yet
@@ -509,7 +528,9 @@ class Slurm(Env):
                 if isinstance(value, str) and ' ' in value:
                     value = '"{}"'.format(value)
                 f.write(line.format(option, value))
-            f.write('#SBATCH --array=0-{:d}\n'.format(len(self.pending_jobs)-1))
+            f.write('#SBATCH --array=0-{:d}{}\n'.format(
+                len(self.pending_jobs)-1,
+                '' if self.wc is None else '%{:d}'.format(self.wc)))
             f.write('\ndeclare -a tasks\n')
             for j, job in enumerate(self.pending_jobs):
                 f.write('tasks[{:d}]="{}"\n'.format(j,
@@ -554,84 +575,96 @@ class Slurm(Env):
                 break
 
 
-class SlurmOverSSH(Slurm):
-    __slots__ = ('ssh_host','_ssh_conn','_sftp_conn','_password',
-            'remote_dependencies','local_data_location','remote_data_location')
-    def __init__(self, wd=None, wc=None, **kwargs):
-        Slurm.__init__(self, wd, wc, **kwargs)
-        self.ssh_host = None
-        self._ssh_conn = None
-        self._sftp_conn = None
+class SSH(object):
+    __slots__ = ('_host','_conn','_sftp_client','_password')
+    def __init__(self, host=None):
+        self._host = host
+        self._conn = None
+        self._sftp_client = None
         self._password = None
+    @property
+    def host(self):
+        return self._host
+    @host.setter
+    def host(self, addr):
+        self._host = addr
+    @property
+    def connection(self):
+        if self._conn is None:
+            self.connect()
+        return self._conn
+    @property
+    def sftp_client(self):
+        if self._sftp_client is None:
+            self._sftp_client = self.connection.open_sftp()
+        return self._sftp_client
+    @property
+    def password(self):
+        if self._password is None:
+            import getpass
+            self._password = getpass.getpass(self.host+"'s password: ")
+        return self._password
+    def connect(self):
+        user, host = self.host.split('@')
+        try:
+            import paramiko
+        except ImportError:
+            raise ImportError('package paramiko is required'.format(_typ))
+        self._conn = paramiko.SSHClient()
+        self._conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self._conn.load_system_host_keys()
+        self._conn.connect(host, 22, user, self.password)
+    def exec(self, cmd, shell=False, logger=None):
+        if shell:
+            cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
+        if logger is not None:
+            logger.info('running command: '+cmd)
+        _in, _out, _err = self.connection.exec_command(cmd)
+        out = _out.read()
+        if out and not isinstance(out, str):
+            out = out.decode('utf-8')
+        err = _err.read()
+        if err and not isinstance(err, str):
+            err = err.decode('utf-8')
+        return out, err
+    def put(self, src, dest, confirm=False):
+        return self.sftp_client.put(src, dest, confirm=confirm)
+    def get(self, target, dest):
+        if target.startswith('~/'):
+            target = target[2:]
+        self.sftp_client.get(target, dest)
+    def close(self):
+        if self._conn is not None:
+            self._conn.close()
+
+
+class SlurmOverSSH(Slurm):
+    """
+    Calls *sbatch* through an SSH connection to a Slurm server.
+    """
+    __slots__ = ('_ssh','remote_dependencies','local_data_location','remote_data_location')
+    def __init__(self, **kwargs):
+        Slurm.__init__(self, **kwargs)
+        self._ssh = SSH()
         self.remote_dependencies = None
         self.local_data_location = None
         self.remote_data_location = None
     @property
-    def ssh_conn(self):
-        if self._ssh_conn is None:
-            user, host = self.ssh_host.split('@')
-            self._ssh_conn = paramiko.SSHClient()
-            self._ssh_conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self._ssh_conn.load_system_host_keys()
-            self._ssh_conn.connect(host, 22, user, self.password)
-        return self._ssh_conn
+    def ssh(self):
+        return self._ssh
     @property
-    def sftp_conn(self):
-        if self._sftp_conn is None:
-            self._sftp_conn = self.ssh_conn.open_sftp()
-        return self._sftp_conn
-    @property
-    def password(self):
-        if self._password is None:
-            self._password = getpass.getpass(self.ssh_host+"'s password: ")
-        return self._password
-    @property
-    def working_directory(self):
-        return self._working_directory
-    @working_directory.setter
-    def working_directory(self, wd):
-        if self.worker_side:
-            if wd is None:
-                wd = os.getcwd()
-            else:
-                wd = os.path.abspath(os.path.expanduser(wd))
-                if not os.path.isdir(wd):
-                    os.makedirs(wd)
-        self._working_directory = wd
+    def wd_is_available(self):
+        return self.worker_side
     def make_working_directory(self):
         if self.submit_side:
-            cmd = ' '.join(['mkdir','-p',self.working_directory])
-            _in, out, err = self.ssh_conn.exec_command(cmd)
-            out = out.read() # should be silent
-            if out:
-                self.logger.info(out)
-            err = err.read()
+            cmd = 'mkdir -p "{}"; mktemp -d -p "{}"'.format(self.working_directory, self.working_directory)
+            out, err = self.ssh.exec(cmd)
             if err:
                 self.logger.error(err)
+            elif out:
+                self.working_directory = out.rstrip()
         else:
-            wd = os.path.abspath(os.path.expanduser(wd))
-            if not os.path.isdir(wd):
-                os.makedirs(wd)
-    def make_temporary_file(self, output=False, directory=False, standard_location=False, local=False, **kwargs):
-        local = local or standard_location
-        if self.worker_side or local:
-            return Slurm.make_temporary_file(self, output, directory, local, **kwargs)
-        else:
-            cmd = ['mktemp','-p','"{}"'.format(self.wd)]
-            if directory:
-                cmd.append('-d')
-                self.make_working_directory()
-            _in, out, err = self.ssh_conn.exec_command(' '.join(cmd))
-            err = err.read()
-            if err:
-                self.logger.error(err)
-            out = out.read()
-            if out:
-                if not isinstance(out, str):
-                    out = out.decode('utf-8')
-                return out.rstrip()
-            else:
-                raise RuntimeError('temporary file creation failed')
+            assert os.path.isdir(self.wd)
     def setup(self, *argv):
         Slurm.setup(self, *argv)
         if self.worker_side:
@@ -639,17 +672,18 @@ class SlurmOverSSH(Slurm):
     def dispatch(self, **kwargs):
         if not kwargs:
             self.prepare_script()
+            src = self.script
             dest = os.path.basename(self.script)
             #if dest.endswith('.ipynb'):
             #    dest = dest[:-5]+'py'
             dest = '/'.join((self.wd, dest))
-            attrs = self.sftp_conn.put(src, dest, confirm=False)
+            attrs = self.ssh.put(src, dest)
             self.logger.info(attrs)
             self.script = dest
             self.logger.info('Python script location: '+dest)
             return True
     def cleanup_script_content(self, content):
-        content = Slurm.cleanup_script_content(content)
+        content = Slurm.cleanup_script_content(self, content)
         filtered_content = []
         for line in content:
             pattern = '.spt_data.from_'
@@ -675,54 +709,39 @@ class SlurmOverSSH(Slurm):
         Slurm.make_job(self, stage_index, source, region_index, segment_index)
     def submit_jobs(self):
         dest = '/'.join((self.wd, os.path.basename(self.sbatch_script)))
-        attrs = self.sftp_conn.put(self.sbatch_script, dest, confirm=False)
+        attrs = self.ssh.put(self.sbatch_script, dest)
         self.logger.info(attrs)
         self.logger.info('sbatch script transferred to: '+dest)
         #self.logger.info('running: module load singularity')
-        #_in, out, err = self.ssh_conn.exec_command('module load singularity')
+        #out, err = self.ssh.exec('module load singularity')
         if self.remote_dependencies:
             cmd = self.remote_dependencies+'; sbatch '+dest
         else:
             cmd = 'sbatch '+dest
-        cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
         self.logger.info('running: '+cmd)
-        _in, out, err = self.ssh_conn.exec_command(cmd)
-        out = out.read()
+        out, err = self.ssh.exec(cmd, shell=True)
         if out:
-            if not isinstance(out, str):
-                out = out.decode('utf-8')
             out = out.rstrip()
             self.logger.debug(out)
             if out.startswith('Submitted batch job '):
                 self.job_id = out.split(' ')[-1]
-        err = err.read()
         if err:
-            if not isinstance(err, str):
-                err = err.decode('utf-8')
             self.logger.error(err.rstrip())
         self.pending_jobs = []
     def wait_for_job_completion(self):
         cmd = 'squeue -j {} -h -o "%.2t %.10M %R"'.format(self.job_id)
-        cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
         while True:
             time.sleep(self.refresh_interval)
-            _in, out, err = self.ssh_conn.exec_command(cmd)
-            err = err.read()
+            out, err = self.ssh.exec(cmd, shell=True)
             if err:
-                if not isinstance(err, str):
-                    err = err.decode('utf-8')
                 self.logger.error(err.rstrip())
+            elif out:
+                out = out.splitlines()[0]
+                out = out.split()
+                status, time_used, reason = out[0], out[1], ' '.join(out[2:])
+                self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
             else:
-                out = out.read()
-                if out:
-                    if not isinstance(out, str):
-                        out = out.decode('utf-8')
-                    out = out.splitlines()[0]
-                    out = out.split()
-                    status, time_used, reason = out[0], out[1], ' '.join(out[2:])
-                    self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
-                else:
-                    break
+                break
     def collect_results(self):
         code = """
 from tramway.analyzer import environments, BasicLogger
@@ -732,30 +751,23 @@ files = environments.LocalHost._collect_results(wd, BasicLogger())
 
 print(';'.join(files))
 """.format(self.wd)
-        local_script = self.make_temporary_file(local=True)
+        local_script = self.make_temporary_file(suffix='.sh', text=True)
         with open(local_script, 'w') as f:
             f.write(code)
         remote_script = '/'.join((self.wd, os.path.basename(local_script)))
-        attrs = self.sftp_conn.put(local_script, remote_script)
+        attrs = self.ssh.put(local_script, remote_script, confirm=True)
         self.logger.info(attrs)
         cmd = '{}{} {}; rm {}'.format(
                 '' if self.remote_dependencies is None else self.remote_dependencies+'; ',
                 self.interpreter, remote_script, remote_script)
-        cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
-        _in, out, err = self.ssh_conn.exec_command(cmd)
-        err = err.read()
+        out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
         if err:
-            if not isinstance(err, str):
-                err = err.decode('utf-8')
             self.logger.error(err.rstrip())
-        out = out.read()
         if out:
-            if not isinstance(out, str):
-                out = out.decode('utf-8')
             end_result_files = out.splitlines()[-1].split(';')
             for end_result_file in end_result_files:
                 self.logger.info('retrieving file: '+end_result_file)
-                self.sftp_conn.get(end_result_file,
+                self.ssh.get(end_result_file,
                         os.path.join(os.path.expanduser(self.local_data_location),
                             os.path.basename(end_result_file)))
 
@@ -764,16 +776,19 @@ Environment.register(SlurmOverSSH)
 
 
 class Tars(SlurmOverSSH):
-    def __init__(self, wd=None, wc=None, **kwargs):
-        SlurmOverSSH.__init__(self, wd, wc, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME:/home -B /pasteur tramway2-200907.sif python3.6 -s'
+    """
+    Designed for server *tars.pasteur.fr*.
+    """
+    def __init__(self, **kwargs):
+        SlurmOverSSH.__init__(self, **kwargs)
+        self.interpreter = 'singularity exec -H $HOME:/home -B /pasteur tramway2-200910.sif python3.6 -s'
         self.remote_dependencies = 'module load singularity'
     @property
     def username(self):
-        return None if self.ssh_host is None else self.ssh_host.split('@')[0]
+        return None if self.ssh.host is None else self.ssh.host.split('@')[0]
     @username.setter
     def username(self, name):
-        self.ssh_host = None if name is None else name+'@tars.pasteur.fr'
+        self.ssh.host = None if name is None else name+'@tars.pasteur.fr'
         if self.wd is None:
             self.wd = '/pasteur/scratch/users/'+name
     @property
@@ -785,6 +800,14 @@ class Tars(SlurmOverSSH):
         parts = self.interpreter.split()
         p = parts.index('python3.6')
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
+    def delete_temporary_data(self):
+        Slurm.delete_temporary_data(self)
+        # delete worker-side working directory
+        out, err = self.ssh.exec('rm -rf '+self.wd)
+        if err:
+            self.logger.error(err)
+        if out:
+            self.logger.error(out)
 
 
 __all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars']
