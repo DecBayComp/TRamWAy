@@ -62,6 +62,7 @@ def with_state(cls, handler):
     returns a copy of `self` in the original parent type.
     """
     if isinstance(cls, type):
+        assert cls in (base.Analyses, lazy.Analyses)
         class AnalysesWithState(cls, WithState):
             __slots__ = ('_modified',)
             def __init__(self, data=None, metadata=None):
@@ -75,8 +76,13 @@ def with_state(cls, handler):
         return AnalysesWithState
     else:
         analyses = cls
+        if isinstance(analyses, Analyses):
+            analyses = analyses.analyses
+            assert not isinstance(analyses, Analyses)
+            return analyses
         cls = with_state(type(analyses), handler)
         def _with_state(_analyses):
+            assert isinstance(_analyses, (base.Analyses, lazy.Analyses))
             _state = cls(_analyses._data, _analyses._metadata)
             _state._comments = _analyses._comments
             _state._instances = EventDict(
@@ -335,6 +341,8 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
                 _self.preprocess = self.preprocess
                 _self.postprocess = self.postprocess
         return PP()
+    def statefree(self):
+        return self.analyses.statefree()
 
 __all__ = ['Analyses', 'AutosaveCapable']
 

@@ -142,7 +142,7 @@ class Common(object):
 
     def equal(self, tree_a, tree_b, label=None):
         try:
-            tree_a = tree_a.analyses
+            tree_a = tree_a.statefree()
         except AttributeError:
             pass
         assert type(tree_a) is type(tree_b)
@@ -361,7 +361,7 @@ class TestMapper(Common):
         print(tree_b)
         print(tree_a['hexagons']['sdv'].data)
         print(tree_b['hexagons']['sdv'].data)
-        assert self.equal(tree_a, tree_b.analyses)
+        assert self.equal(tree_a, tree_b.statefree())
 
     def test_time_regul(self, dynamicmesh, tmpdir):
         self.tmpdir = tmpdir
