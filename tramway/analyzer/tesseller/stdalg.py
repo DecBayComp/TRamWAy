@@ -20,9 +20,9 @@ class Squares(TessellerProxy):
                 avg_location_count = None,
                 ))
 
-    #scaler          = proxy_property('scaler',          'attr')
-    lower_bound     = proxy_property('lower_bound',     'attr')
-    upper_bound     = proxy_property('upper_bound',     'attr')
+    #scaler          = proxy_property('scaler', 'attr')
+    lower_bound     = proxy_property('lower_bound', 'attr')
+    upper_bound     = proxy_property('upper_bound', 'attr')
     count_per_dim   = proxy_property('count_per_dim',   'attr')
     min_probability = proxy_property('min_probability', 'attr')
     avg_probability = proxy_property('avg_probability', 'attr')
@@ -54,15 +54,15 @@ class Hexagons(TessellerProxy):
                 avg_location_count = None,
                 ))
 
-    #scaler          = proxy_property('scaler',          'attr')
-    tilt            = proxy_property('tilt',            'attr')
+    #scaler          = proxy_property('scaler', 'attr')
+    tilt            = proxy_property('tilt',    'attr')
     min_probability = proxy_property('min_probability', 'attr')
     avg_probability = proxy_property('avg_probability', 'attr')
     max_probability = proxy_property('max_probability', 'attr')
     min_distance    = proxy_property('min_distance',    'attr')
     avg_distance    = proxy_property('avg_distance',    'attr')
-    lower_bound     = proxy_property('lower_bound')
-    upper_bound     = proxy_property('upper_bound')
+    lower_bound     = proxy_property('lower_bound', 'tessellate')
+    upper_bound     = proxy_property('upper_bound', 'tessellate')
 
 
 from tramway.tessellation.kmeans import KMeansMesh
@@ -86,15 +86,15 @@ class KMeans(TessellerProxy):
                 avg_location_count = None,
                 ))
 
-    #scaler          = proxy_property('scaler',          'attr')
-    initial         = proxy_property('initial',         'attr')
+    #scaler          = proxy_property('scaler', 'attr')
+    initial         = proxy_property('initial', 'attr')
     avg_probability = proxy_property('avg_probability', 'attr')
     _min_distance   = proxy_property('_min_distance',   'attr')
-    min_distance    = proxy_property('min_distance', '__init__')
-    tol             = proxy_property('tol')
-    prune           = proxy_property('prune')
-    plot            = proxy_property('plot')
-    avg_distance    = proxy_property('avg_distance')
+    min_distance    = proxy_property('min_distance',    '__init__')
+    tol             = proxy_property('tol', 'tessellate')
+    prune           = proxy_property('prune',   'tessellate')
+    plot            = proxy_property('plot',    'tessellate')
+    avg_distance    = proxy_property('avg_distance',    'tessellate')
 
 
 from tramway.tessellation.gwr import GasMesh
@@ -129,24 +129,24 @@ class GWR(TessellerProxy):
                 min_location_count = None,
                 ))
 
-    #scaler             = proxy_property('scaler',          'attr')
-    min_probability    = proxy_property('min_probability', 'attr')
-    _min_distance      = proxy_property('_min_distance',   'attr')
-    _avg_distance      = proxy_property('_avg_distance',   'attr')
-    _max_distance      = proxy_property('_max_distance',   'attr')
-    batch_size         = proxy_property('batch_size')
-    tau                = proxy_property('tau')
-    trust              = proxy_property('trust')
-    lifetime           = proxy_property('lifetime')
-    pass_count         = proxy_property('pass_count')
-    residual_factor    = proxy_property('residual_factor')
-    error_count_tol    = proxy_property('error_count_tol')
-    min_growth         = proxy_property('min_growth')
-    collapse_tol       = proxy_property('collapse_tol')
-    stopping_criterion = proxy_property('stopping_criterion')
-    verbose            = proxy_property('verbose')
-    alpha_risk         = proxy_property('alpha_risk')
-    complete_delaunay  = proxy_property('complete_delaunay')
+    #scaler             = proxy_property('scaler',  'attr')
+    min_probability    = proxy_property('min_probability',  'attr')
+    _min_distance      = proxy_property('_min_distance',    'attr')
+    _avg_distance      = proxy_property('_avg_distance',    'attr')
+    _max_distance      = proxy_property('_max_distance',    'attr')
+    batch_size         = proxy_property('batch_size',   'tessellate')
+    tau                = proxy_property('tau',  'tessellate')
+    trust              = proxy_property('trust',    'tessellate')
+    lifetime           = proxy_property('lifetime', 'tessellate')
+    pass_count         = proxy_property('pass_count',   'tessellate')
+    residual_factor    = proxy_property('residual_factor',  'tessellate')
+    error_count_tol    = proxy_property('error_count_tol',  'tessellate')
+    min_growth         = proxy_property('min_growth',   'tessellate')
+    collapse_tol       = proxy_property('collapse_tol', 'tessellate')
+    stopping_criterion = proxy_property('stopping_criterion',   'tessellate')
+    verbose            = proxy_property('verbose',  'tessellate')
+    alpha_risk         = proxy_property('alpha_risk',   'tessellate')
+    complete_delaunay  = proxy_property('complete_delaunay',    'tessellate')
 
 
 __all__ = ['Squares', 'Hexagons', 'KMeans', 'GWR']

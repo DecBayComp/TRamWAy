@@ -4,6 +4,7 @@ from .abc import Tesseller
 from .proxy import TessellerProxy
 from .plugin import TessellerPlugin
 from . import stdalg as tessellers
+from .post import cell_mergers
 
 
 class TessellerInitializer(Initializer):
@@ -14,8 +15,8 @@ class TessellerInitializer(Initializer):
         """
         Argument:
 
-            cls (callable): 0-argument callable that returns an object
-                with method :met:`tessellate`; usually a class.
+            cls (callable): no-argument callable object (usually a class)
+                that returns a :class:`Tesseller` object.
 
         """
         if issubclass(cls, TessellerProxy):
@@ -24,5 +25,6 @@ class TessellerInitializer(Initializer):
             self.specialize( TessellerProxy, cls )
 
 
-__all__ = ['Tesseller', 'TessellerInitializer', 'TessellerProxy', 'TessellerPlugin', 'tessellers']
+__all__ = ['Tesseller', 'TessellerInitializer', 'TessellerProxy', 'TessellerPlugin', 'tessellers',
+        'cell_mergers']
 

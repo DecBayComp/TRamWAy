@@ -72,8 +72,8 @@ class Pipeline(AnalyzerNode):
 
             granularity (str): smallest data item `stage` can independently process;
                 any of *'coarsest'* or equivalently *'full dataset'*,
-                *'source'* or equivalently *'data source'* or *'spt data source'*,
-                *'roi'* or equivalently *'region of interest'*.
+                *'source'* or equivalently *'spt data'*, *'data source'* or *'spt data source'*,
+                *'roi'* or equivalently *'region of interest'* (case-insensitive).
 
         """
         self._stage.append(PipelineStage(stage, granularity))
@@ -120,7 +120,7 @@ class Pipeline(AnalyzerNode):
                             continue
                         if self.env.dispatch(stage_index=s):
                             self.logger.info('stage {:d} dispatched'.format(s))
-                        if granularity.endswith('source'):
+                        if granularity.endswith('source') or granularity.startswith('spt data'):
                             for f in self.spt_data:
                                 if f.source is None and 1<len(self.spt_data):
                                     raise NotImplementedError('undefined source identifiers')

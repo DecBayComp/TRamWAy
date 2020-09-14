@@ -5,6 +5,7 @@ from .abc import *
 from tramway.helper.tessellation import Tessellate
 from copy import deepcopy
 from warnings import warn
+from .post import TessellationPostProcessingInitializer
 
 
 def proxy_property(propname, level='default', doc=None):
@@ -64,13 +65,17 @@ class TessellerProxy(AnalyzerNode):
     * explicit `__init__` arguments take precedence over standard attributes;
 
     """
-    __slots__ = ('_tesseller', '_init_kwargs', '_tessellate_kwargs', '_explicit_kwargs', 'alg_name')
+    __slots__ = ('_tesseller', '_init_kwargs', '_tessellate_kwargs', '_explicit_kwargs', 'alg_name',
+            '_post_processing')
     def __init__(self, cls, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
         self._tesseller = cls
         self._reset_kwargs()
         self._explicit_kwargs = {}
         self.alg_name = None
+        # self-initializing properties
+        self._post_processing = None
+        self.post_processing  = TessellationPostProcessingInitializer
     def _reset_kwargs(self):
         self._init_kwargs = dict(ref_distance=None)
         self._tessellate_kwargs = {}
@@ -156,6 +161,10 @@ class TessellerProxy(AnalyzerNode):
             self.calibrate(spt_dataframe)
         tesseller = deepcopy(self.tesseller)
         tesseller.tessellate(spt_dataframe[self.colnames], **self._tessellate_kwargs)
+        #
+        if self.post_processing.initialized:
+            tesseller = self.post_processing(tesseller, spt_dataframe[self.colnames])
+        #
         return tesseller
     @property
     def colnames(self):
@@ -187,6 +196,12 @@ class TessellerProxy(AnalyzerNode):
         else:
             self.ref_distance = .5 * res
 
+    def _get_post_processing(self):
+        return self._post_processing
+    def _set_post_processing(self, merger):
+        self._post_processing = merger
+    post_processing = selfinitializing_property('post_processing', _get_post_processing, _set_post_processing, TessellationPostProcessing)
+
     def __getattr__(self, attrname):
         """ beware: ignores `_init_kwargs` symbols;
         `__init__` arguments should be made available defining a proxy property with
@@ -198,10 +213,15 @@ class TessellerProxy(AnalyzerNode):
         return val
     def __setattr__(self, attrname, val):
         """ beware: ignores `_init_kwargs` symbols """
+        # special setters for self-initializing properties
+        if attrname == 'post_processing' and isinstance(self.post_processing, Initializer):
+            self.post_processing.from_callable(val)
+            return
+        #
         try:
             AnalyzerNode.__setattr__(self, attrname, val)
         except AttributeError:
-            if attrname in ('cls','tesseller'):
+            if attrname in ('cls','tesseller','post_processing'):
                 raise AttributeError(attrname+' is read-only')
             if attrname in self._tessellate_kwargs:
                 self._tessellate_kwargs[attrname] = val

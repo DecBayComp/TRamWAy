@@ -153,5 +153,8 @@ class RWAnalyzer(object):
             return getattr(proper_parent, attrname)
 
 
-__all__ = ['RWAnalyzer', 'tessellers', 'Analysis', 'commit_as_analysis', 'environments']
+__all__ = ['RWAnalyzer',
+        'tessellers', 'cell_mergers',
+        'Analysis', 'commit_as_analysis',
+        'environments']
 

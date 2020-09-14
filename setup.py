@@ -66,6 +66,7 @@ setup(
         'tramway.analyzer.roi',
         'tramway.analyzer.time',
         'tramway.analyzer.tesseller',
+        'tramway.analyzer.tesseller.post',
         'tramway.analyzer.sampler',
         'tramway.analyzer.mapper',
         'tramway.analyzer.env',
