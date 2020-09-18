@@ -163,7 +163,7 @@ class TessellerProxy(AnalyzerNode):
         tesseller.tessellate(spt_dataframe[self.colnames], **self._tessellate_kwargs)
         #
         if self.post_processing.initialized:
-            tesseller = self.post_processing(tesseller, spt_dataframe[self.colnames])
+            tesseller = self.post_processing.post_process(tesseller, spt_dataframe[self.colnames])
         #
         return tesseller
     @property

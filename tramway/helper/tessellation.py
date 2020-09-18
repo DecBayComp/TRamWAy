@@ -1844,7 +1844,7 @@ def delete_low_count_cells(partition, count_threshold, priority_by=None, label=T
     return new_partition, deleted_cells, label
 
 
-def update_cell_centers(cells, max_iter, partition_kwargs):
+def update_cell_centers(cells, max_iter, partition_kwargs={}):
     points = cells.points[['x','y']].values # TODO: use `descriptors` instead
     tess = cells.tessellation
     cell_indices = cells.cell_index

@@ -6,10 +6,12 @@ import traceback
 
 
 class PipelineStage(object):
-    __slots__ = ('_run','_granularity')
-    def __init__(self, run, granularity='coarsest'):
+    __slots__ = ('_run','_granularity','mutable','options')
+    def __init__(self, run, granularity='coarsest', mutable=False, **options):
         self._run = run
         self._granularity = granularity
+        self.mutable = mutable
+        self.options = options
     @property
     def granularity(self):
         return self._granularity
@@ -61,7 +63,7 @@ class Pipeline(AnalyzerNode):
         Empties the pipeline processing chain.
         """
         self._stage = []
-    def append_stage(self, stage, granularity='coarsest'):
+    def append_stage(self, stage, granularity='coarsest', mutable=False, **options):
         """
         Appends a pipeline stage to the processing chain.
 
@@ -75,8 +77,11 @@ class Pipeline(AnalyzerNode):
                 *'source'* or equivalently *'spt data'*, *'data source'* or *'spt data source'*,
                 *'roi'* or equivalently *'region of interest'* (case-insensitive).
 
+            mutable (bool): callable object `stage` alters input argument `self`.
+                Stages with `mutable` set to ``True`` are always run as dependencies.
+
         """
-        self._stage.append(PipelineStage(stage, granularity))
+        self._stage.append(PipelineStage(stage, granularity, mutable, **options))
     def run(self, stages='all', verbose=False):
         """
         Sequentially runs the different stages of the pipeline.
@@ -90,15 +95,21 @@ class Pipeline(AnalyzerNode):
                 if self.env.worker_side:
                     # a single stage can apply
                     stage_index = self.env.selectors.get('stage_index', 0)
+                    if isinstance(stage_index, (tuple,list)):
+                        for i in stage_index[:-1]:
+                            stage = self._stage[i]
+                            stage(self)
+                        stage_index = stage_index[-1]
                     stage = self._stage[stage_index]
                     # alter the iterators for spt_data
-                    self.analyzer._spt_data = self.env.spt_data_selector(self.spt_data)
+                    self.analyzer.spt_data.self_update(self.env.spt_data_selector)
                     # alter the iterators for roi
                     if isinstance(self.roi, DecentralizedROIManager):
                         for f in self.spt_data:
-                            f._roi = self.env.roi_selector(f.roi)
-                    else:
-                        self.analyzer._roi = self.env.roi_selector(self.roi)
+                            f.roi.self_update(self.env.roi_selector)
+                            print('pipeline', f.source, type(f.roi))
+                    elif not isinstance(self.roi, Initializer):
+                        self.analyzer.roi.self_update(self.env.roi_selector)
                     self.logger.info('stage {:d} ready'.format(stage_index))
                     try:
                         stage(self)
@@ -113,13 +124,22 @@ class Pipeline(AnalyzerNode):
                     assert self.env.submit_side
                     if self.env.dispatch():
                         self.logger.info('initial dispatch done')
+                    mutable = []
                     for s, stage in enumerate(self._stage):
                         granularity = '' if stage.granularity is None else stage.granularity.lower()
                         if granularity in ('coarsest','full dataset'):
+                            self.logger.info('stage {:d} ready'.format(s))
                             stage(self)
+                            self.logger.info('stage {:d} done'.format(s))
+                            if stage.mutable:
+                                mutable.append(s)
                             continue
-                        if self.env.dispatch(stage_index=s):
+                        if stage.mutable:
+                            raise NotImplementedError('cannot make a dispatched job modify the local analyzer')
+                        if self.env.dispatch(stage_index=s, stage_options=stage.options):
                             self.logger.info('stage {:d} dispatched'.format(s))
+                        if mutable:
+                            s = mutable+[s]
                         if granularity.endswith('source') or granularity.startswith('spt data'):
                             for f in self.spt_data:
                                 if f.source is None and 1<len(self.spt_data):
@@ -138,14 +158,19 @@ class Pipeline(AnalyzerNode):
                         else:
                             raise NotImplementedError('only roi-level granularity is currently supported')
                         self.logger.info('jobs ready')
-                        self.env.submit_jobs()
-                        self.logger.info('jobs submitted')
-                        self.env.wait_for_job_completion()
+                        try:
+                            self.env.submit_jobs()
+                            self.logger.info('jobs submitted')
+                            self.env.wait_for_job_completion()
+                        except KeyboardInterrupt:
+                            self.logger.critical('interrupting jobs...')
+                            if not self.env.interrupt_jobs():
+                                raise
                         self.logger.info('jobs complete')
                         self.env.collect_results()
                         self.logger.info('results collected')
             finally:
-                if self.env.submit_side:
+                if self.env.submit_side and not self.env.debug:
                     self.env.delete_temporary_data()
         else:
             for stage in self._stage:

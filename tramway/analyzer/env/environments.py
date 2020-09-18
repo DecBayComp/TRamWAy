@@ -20,9 +20,18 @@ class Proxy(object):
     __slots__ = ('_proxied',)
     def __init__(self, proxied):
         self._proxied = proxied
+    def __len__(self):
+        return self._proxied.__len__()
+    def __iter__(self):
+        return self._proxied.__iter__()
+    @property
+    def _parent(self):
+        return self._proxied._parent
+    @_parent.setter
+    def _parent(self, par):
+        self._proxied._parent = par
     def __getattr__(self, attrname):
-        if attrname == '_proxied':
-            raise TypeError('class {} does not declare attribute `_proxied`'.format(type(self)))
+        print('Proxy.getattr', attrname)
         return getattr(self._proxied, attrname)
     def __setattr__(self, attrname, val):
         if attrname == '_proxied':
@@ -33,7 +42,8 @@ class Proxy(object):
 
 class Env(AnalyzerNode):
     __slots__ = ('_interpreter','_script','_working_directory','_worker_count',
-            '_pending_jobs','_selectors', '_selector_classes', '_temporary_files')
+            '_pending_jobs','_selectors', '_selector_classes', '_temporary_files',
+            'debug')
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
         self._interpreter = 'python3'
@@ -44,6 +54,7 @@ class Env(AnalyzerNode):
         self._working_directory = None
         self._worker_count = None
         self.pending_jobs = []
+        self.debug = False
     @property
     def logger(self):
         return self._parent.logger
@@ -108,8 +119,9 @@ class Env(AnalyzerNode):
     def analyzer(self):
         return self._parent
     def setup(self, *argv):
-        if not argv:
-            return
+        assert argv
+        #if not argv:
+        #    return
         valid_keys = set(('stage-index', 'source', 'region-index', 'segment-index', 'cell-index',
             'working-directory'))
         valid_arguments = {}
@@ -160,8 +172,24 @@ class Env(AnalyzerNode):
             self.wd = valid_arguments.pop('working_directory', self.wd)
             self.selectors = valid_arguments
             #self.logger.debug(self.selectors)
+            #
             if self.script is not None and self.script.endswith('.ipynb'):
                 self.script = self.script[:-5]+'py'
+            #
+            try:
+                sources = valid_arguments['source']
+            except KeyError:
+                pass
+            else:
+                if isinstance(sources, str):
+                    sources = os.path.expanduser(sources)
+                else:
+                    sources = tuple([
+                        os.path.expanduser(source) for source in sources
+                        ])
+                self.selectors['source'] = sources
+                self.logger.debug('selecting source: '+', '.join((sources,) if isinstance(sources, str) else sources))
+            #
             for f in self.spt_data_selector(self.analyzer.spt_data):
                 f.analyses.rwa_file = self.make_temporary_file(suffix='.rwa', output=True)
                 f.analyses.autosave = True
@@ -207,46 +235,46 @@ class Env(AnalyzerNode):
             selector_cls = self._selector_classes[cls]
         except KeyError:
             try:
-                sources = self.selectors['source']
+                source = self.selectors['source']
             except KeyError:
-                sources = None
+                source = None
                 def _source(source_arg):
                     return source_arg
             else:
-                if isinstance(sources, str):
-                    sources = (sources,)
+                sources = set([source]) if isinstance(source, str) else set(source)
                 def _source(source_arg):
                     if source_arg is None:
-                        return lambda src: src in sources
+                        return source
                     if callable(source_arg):
                         return lambda src: src in sources and source_arg(src)
                     elif source_arg in sources:
-                        return source_arg
+                        return source_arg # or lambda src: True
                     else:
                         return lambda src: False
             try:
-                regions = self.selectors['region_index']
+                region = self.selectors['region_index']
             except KeyError:
-                if sources is None:
+                if source is None:
                     return roi_attr
                 def _region(index_arg):
                     return index_arg
             else:
-                if isinstance(regions, int):
-                    regions = (regions,)
+                print('roi_selector: ',region)
+                regions = set([region]) if isinstance(region, int) else set(regions)
                 def _region(index_arg):
                     if index_arg is None:
-                        return lambda r: r in regions
+                        return region
                     elif callable(index_arg):
                         return lambda r: r in regions and index_arg(r)
                     elif index_arg in regions:
-                        return index_arg
+                        return index_arg # or lambda r: True
                     else:
                         return lambda r: False
             logger = self.logger
             class selector_cls(Proxy):
                 __slots__ = ()
                 def as_support_regions(self, index=None, source=None, return_index=False):
+                    print('as_support_regions wrapper: ',index,_region(index))
                     yield from cls.as_support_regions(self, _region(index), _source(source), return_index)
                     #for i,r in cls.as_support_regions(self, _region(index), _source(source), True):
                     #    logger.debug('region {} selected'.format(i if r.label is None else i))
@@ -259,6 +287,7 @@ class Env(AnalyzerNode):
                     raise NotImplementedError
             ROI.register(selector_cls)
             self._selector_classes[cls] = selector_cls
+        print(selector_cls, roi_attr)
         return selector_cls(roi_attr)
     @property
     def submit_side(self):
@@ -315,7 +344,9 @@ class Env(AnalyzerNode):
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
         assert self.submit_side
         command_options = ['--working-directory="{}"'.format(self.wd)]
-        if stage_index is not None:
+        if isinstance(stage_index, list):
+            command_options.append(','.join(['--stage-index={}']+['{}']*(len(stage_index)-1)).format(*stage_index))
+        elif stage_index is not None:
             command_options.append('--stage-index={:d}'.format(stage_index))
         if source is not None:
             command_options.append('--source="{}"'.format(source))
@@ -331,7 +362,7 @@ class Env(AnalyzerNode):
         while output_files:
             output_file = output_files.pop()
             if os.stat(output_file).st_size == 0:
-                logger.warning('skipping empty file '+output_file)
+                logger.info('skipping empty file '+output_file)
                 continue
             logger.info('reading file: {}...'.format(output_file))
             try:
@@ -409,6 +440,8 @@ class Env(AnalyzerNode):
             if err != '[NbConvertApp] Converting notebook {} to python\n'.format(notebook):
                 self.logger.error(err)
         return content
+    def interrupt_jobs(self):
+        pass
 
 
 class LocalHost(Env):
@@ -418,6 +451,7 @@ class LocalHost(Env):
     def __init__(self, **kwargs):
         Env.__init__(self, **kwargs)
         self.running_jobs = []
+        self.wc = None
     @property
     def worker_count(self):
         return self._worker_count
@@ -431,17 +465,18 @@ class LocalHost(Env):
     def submit_jobs(self):
         assert self.submit_side
         self.running_jobs = []
-        for job in self.pending_jobs:
+        for j,job in enumerate(self.pending_jobs):
             if len(self.running_jobs) == self.wc:
                 self.wait_for_job_completion(1)
             self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
-                    stderr=subprocess.STDOUT)#, stdout=subprocess.PIPE)
-            self.running_jobs.append(p)
+                    stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            self.running_jobs.append((j,p))
         self.pending_jobs = []
     def wait_for_job_completion(self, count=None):
         assert self.submit_side
-        for n,p in enumerate(self.running_jobs):
+        n = 0
+        for j,p in self.running_jobs:
             out, err = p.communicate()
             if out:
                 if not isinstance(out, str):
@@ -451,11 +486,24 @@ class LocalHost(Env):
                 if not isinstance(err, str):
                     err = err.decode('utf-8')
                 self.logger.error(err)
-            self.logger.debug('job {:d} done'.format(n))
+            self.logger.debug('job {:d} done'.format(j))
+            n += 1
             if n==count:
                 self.running_jobs = self.running_jobs[n:]
                 return
         self.running_jobs = []
+    def interrupt_jobs(self):
+        for j,p in self.running_jobs:
+            p.terminate()
+        for j,p in self.running_jobs:
+            out, err = p.communicate()
+            if err:
+                self.logger.error(err)
+                return False
+            elif out:
+                self.logger.info(out)
+        self.running_jobs = []
+        return True
 
 Environment.register(LocalHost)
 
@@ -466,7 +514,7 @@ class Slurm(Env):
     inside a container;
     see :class:`SlurmOverSSH` instead.
     """
-    __slots__ = ('_sbatch_options','_job_id','_sbatch_script','refresh_interval')
+    __slots__ = ('_sbatch_options','_job_id','refresh_interval')
     def __init__(self, **kwargs):
         Env.__init__(self, **kwargs)
         self._sbatch_options = dict(
@@ -474,7 +522,6 @@ class Slurm(Env):
                 error='%J.err',
                 )
         self._job_id = None
-        self._sbatch_script = None
         self.refresh_interval = 10
     @property
     def sbatch_options(self):
@@ -500,9 +547,16 @@ class Slurm(Env):
     @job_id.setter
     def job_id(self, i):
         self._job_id = i
+    @property
+    def task_count(self):
+        return self.worker_count
+    @task_count.setter
+    def task_count(self, count):
+        self.worker_count = count
     def setup(self, *argv):
         Env.setup(self, *argv)
         if self.submit_side:
+            self.job_name # sets job-name sbatch option
             output_log = self.sbatch_options['output']
             if not os.path.isabs(os.path.expanduser(output_log)):
                 output_log = os.path.join(self.wd, output_log)
@@ -511,10 +565,10 @@ class Slurm(Env):
             if not os.path.isabs(os.path.expanduser(error_log)):
                 error_log = os.path.join(self.wd, error_log)
                 self.sbatch_options['error'] = error_log
-    def make_sbatch_script(self, path=None):
+    def make_sbatch_script(self, stage=None, path=None):
         assert self.submit_side
         if path is None:
-            sbatch_script = self.make_temporary_file(suffix='.sh', text=True)
+            sbatch_script = self.make_temporary_file(suffix='.sh' if stage is None else '-stage{:d}.sh'.format(stage), text=True)
         else:
             sbatch_script = path
         self.job_name # set default job name if not defined yet
@@ -532,23 +586,44 @@ class Slurm(Env):
                 len(self.pending_jobs)-1,
                 '' if self.wc is None else '%{:d}'.format(self.wc)))
             f.write('\ndeclare -a tasks\n')
+            wd, si = None, None
             for j, job in enumerate(self.pending_jobs):
+                assert job[0].startswith('--working-directory=')
+                if wd is None:
+                    assert j == 0
+                    wd = job[0]
+                else:
+                    assert wd == job[0]
+                if job[1].startswith('--stage-index='):
+                    if si is None:
+                        assert j == 0
+                        si = job[1]
+                    else:
+                        assert si == job[1]
+                    job = job[2:]
+                else:
+                    assert si is None
+                    job = job[1:]
                 f.write('tasks[{:d}]="{}"\n'.format(j,
                     ' '.join(['{}']*len(job)).format(*job).replace('"',r'\"')))
+            if si is None:
+                common_task_args = wd
+            else:
+                common_task_args = '{} {}'.format(wd.replace('"',r'\"'), si)
             #f.write('\npushd "{}" > /dev/null\n'.format(self.wd))
-            f.write('\n{} {} ${{tasks[SLURM_ARRAY_TASK_ID]}}\n'.format(self.interpreter, self.script))
+            f.write('\n{} {} {} ${{tasks[SLURM_ARRAY_TASK_ID]}}\n'.format(self.interpreter, self.script,
+                common_task_args))
             #f.write('\npopd > /dev/null\n')
             f.write('\nunset tasks\n')
-        self._sbatch_script = sbatch_script
-    @property
-    def sbatch_script(self):
-        if self._sbatch_script is None:
-            self.make_sbatch_script()
-        return self._sbatch_script
+        if True:
+            with open(sbatch_script, 'r') as f:
+                self.logger.debug(f.read())
+        return sbatch_script
     def submit_jobs(self):
         sbatch = 'sbatch'
-        self.logger.info('running: {} {}'.format(sbatch, self.sbatch_script))
-        p = subprocess.Popen([sbatch, self.sbatch_script],
+        sbatch_script = self.make_sbatch_script()
+        self.logger.info('running: {} {}'.format(sbatch, sbatch_script))
+        p = subprocess.Popen([sbatch, sbatch_script],
                 stderr=subprocess.STDOUT)#, stdout=subprocess.PIPE)
         out, err = p.communicate()
         if out:
@@ -559,20 +634,25 @@ class Slurm(Env):
             self.logger.error(err)
         self.pending_jobs = []
     def wait_for_job_completion(self):
-        while True:
-            time.sleep(self.refresh_interval)
-            p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.2t %.10M %R"'),
-                    stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-            out, err = p.communicate()
-            if err:
-                self.logger.error(err)
-            elif out:
-                out = out.splitlines()[0]
-                out = out.split(' ')
-                status, time_used, reason = out[0], out[1], ' '.join(out[2:])
-                self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
-            else:
-                break
+        try:
+            while True:
+                time.sleep(self.refresh_interval)
+                p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.2t %.10M %R"'),
+                        stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                out, err = p.communicate()
+                if err:
+                    self.logger.error(err)
+                elif out:
+                    out = out.splitlines()[0]
+                    out = out.split(' ')
+                    status, time_used, reason = out[0], out[1], ' '.join(out[2:])
+                    self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
+                else:
+                    break
+        except:
+            self.logger.info('killing jobs with: scancel '+self.job_id)
+            subprocess.Popen(('scancel', self.job_id)).communicate()
+            raise
 
 
 class SSH(object):
@@ -609,7 +689,7 @@ class SSH(object):
         try:
             import paramiko
         except ImportError:
-            raise ImportError('package paramiko is required'.format(_typ))
+            raise ImportError('package paramiko is required')
         self._conn = paramiko.SSHClient()
         self._conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self._conn.load_system_host_keys()
@@ -682,6 +762,13 @@ class SlurmOverSSH(Slurm):
             self.script = dest
             self.logger.info('Python script location: '+dest)
             return True
+        elif 'stage_options' in kwargs:
+            stage_options = kwargs['stage_options']
+            for option in stage_options:
+                if option == 'sbatch_options':
+                    self.sbatch_options.update(stage_options[option])
+                else:
+                    self.logger.debug('ignoring option: '+option)
     def cleanup_script_content(self, content):
         content = Slurm.cleanup_script_content(self, content)
         filtered_content = []
@@ -704,12 +791,18 @@ class SlurmOverSSH(Slurm):
             filtered_content.append(line)
         return filtered_content
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
-        if source is not None and self.remote_data_location:
-            source = '/'.join((self.remote_data_location, os.path.basename(source)))
+        if source is not None:
+            if self.remote_data_location:
+                source = '/'.join((self.remote_data_location, os.path.basename(source)))
+            else:
+                home = os.path.expanduser('~')
+                if os.path.isabs(source) and os.path.normpath(source).startswith(home):
+                    source = '~'+source[len(home):]
         Slurm.make_job(self, stage_index, source, region_index, segment_index)
     def submit_jobs(self):
-        dest = '/'.join((self.wd, os.path.basename(self.sbatch_script)))
-        attrs = self.ssh.put(self.sbatch_script, dest)
+        sbatch_script = self.make_sbatch_script()
+        dest = '/'.join((self.wd, os.path.basename(sbatch_script)))
+        attrs = self.ssh.put(sbatch_script, dest)
         self.logger.info(attrs)
         self.logger.info('sbatch script transferred to: '+dest)
         #self.logger.info('running: module load singularity')
@@ -729,28 +822,34 @@ class SlurmOverSSH(Slurm):
             self.logger.error(err.rstrip())
         self.pending_jobs = []
     def wait_for_job_completion(self):
-        cmd = 'squeue -j {} -h -o "%.2t %.10M %R"'.format(self.job_id)
-        while True:
-            time.sleep(self.refresh_interval)
-            out, err = self.ssh.exec(cmd, shell=True)
-            if err:
-                self.logger.error(err.rstrip())
-            elif out:
-                out = out.splitlines()[0]
-                out = out.split()
-                status, time_used, reason = out[0], out[1], ' '.join(out[2:])
-                self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
-            else:
-                break
+        try:
+            cmd = 'squeue -j {} -h -o "%.2t %.10M %R"'.format(self.job_id)
+            while True:
+                time.sleep(self.refresh_interval)
+                out, err = self.ssh.exec(cmd, shell=True)
+                if err:
+                    self.logger.error(err.rstrip())
+                elif out:
+                    out = out.splitlines()[0]
+                    out = out.split()
+                    status, time_used, reason = out[0], out[1], ' '.join(out[2:])
+                    self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
+                else:
+                    break
+        except:
+            self.logger.info('killing jobs with: scancel '+self.job_id)
+            self.ssh.exec('scancel '+self.job_id, shell=True)
+            raise
     def collect_results(self):
+        _prefix = 'OUTPUT_FILES='
         code = """
 from tramway.analyzer import environments, BasicLogger
 
 wd = '{}'
 files = environments.LocalHost._collect_results(wd, BasicLogger())
 
-print(';'.join(files))
-""".format(self.wd)
+print('{}'+';'.join(files))
+""".format(self.wd, _prefix)
         local_script = self.make_temporary_file(suffix='.sh', text=True)
         with open(local_script, 'w') as f:
             f.write(code)
@@ -764,12 +863,28 @@ print(';'.join(files))
         if err:
             self.logger.error(err.rstrip())
         if out:
-            end_result_files = out.splitlines()[-1].split(';')
+            self.logger.debug(out)
+            out = out.splitlines()
+            while True:
+                try:
+                    line = out.pop() # starting from last line
+                except IndexError: # empty list
+                    raise RuntimeError('missing output: {}...'.format(_prefix))
+                if line.startswith(_prefix):
+                    end_result_files = line[len(_prefix):].split(';')
+                    break
             for end_result_file in end_result_files:
+                if not end_result_file:
+                    continue
                 self.logger.info('retrieving file: '+end_result_file)
-                self.ssh.get(end_result_file,
-                        os.path.join(os.path.expanduser(self.local_data_location),
-                            os.path.basename(end_result_file)))
+                if self.local_data_location:
+                    dest = os.path.join(
+                            os.path.expanduser(self.local_data_location),
+                            os.path.basename(end_result_file),
+                        )
+                else:
+                    dest = end_result_file
+                self.ssh.get(end_result_file, dest)
 
 
 Environment.register(SlurmOverSSH)
@@ -781,7 +896,7 @@ class Tars(SlurmOverSSH):
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME:/home -B /pasteur tramway2-200910.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway2-200910.sif python3.6 -s'
         self.remote_dependencies = 'module load singularity'
     @property
     def username(self):
@@ -807,7 +922,7 @@ class Tars(SlurmOverSSH):
         if err:
             self.logger.error(err)
         if out:
-            self.logger.error(out)
+            self.logger.info(out)
 
 
 __all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars']

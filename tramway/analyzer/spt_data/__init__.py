@@ -142,6 +142,8 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                     self._bounds.loc['min'] = np.minimum(self._bounds.loc['min'], _bounds.loc['min'])
                     self._bounds.loc['max'] = np.minimum(self._bounds.loc['max'], _bounds.loc['max'])
         return self._bounds
+    def self_update(self, op):
+        self._parent._spt_data = op(self)
 
 
 class SPTDataInitializer(Initializer):
@@ -225,6 +227,8 @@ class StandaloneDataItem(object):
         yield self
     def as_dataframes(self, source=None):
         return SPTDataIterator.as_dataframes(self, source)
+    def self_update(self, op):
+        self._parent._spt_data = op(self)
 
 
 

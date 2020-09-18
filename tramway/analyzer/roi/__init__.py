@@ -44,9 +44,11 @@ class BoundingBox(IndividualROI):
     def __init__(self, bb, label, spt_data, **kwargs):
         IndividualROI.__init__(self, spt_data, label, **kwargs)
         self._bounding_box = bb
-    def crop(self):
+    def crop(self, df=None):
         _min,_max = self._bounding_box
-        return crop(self._spt_data.dataframe, np.r_[_min, _max-_min])
+        if df is None:
+            df = self._spt_data.dataframe
+        return crop(df, np.r_[_min, _max-_min])
     @property
     def bounding_box(self):
         return self._bounding_box
@@ -60,8 +62,10 @@ class SupportRegion(BaseRegion):
                 **kwargs)
         self._sr_index = r
         self._support_regions = regions
-    def crop(self):
-        return self._support_regions.crop(self._sr_index, self._spt_data.dataframe)
+    def crop(self, df=None):
+        if df is None:
+            df = self._spt_data.dataframe
+        return self._support_regions.crop(self._sr_index, df)
     @property
     def bounding_box(self):
         if isinstance(self._support_regions, helper.UnitRegions):
@@ -73,8 +77,8 @@ class SupportRegion(BaseRegion):
 
 class FullRegion(BaseRegion):
     __slots__ = ()
-    def crop(self):
-        return self._spt_data.dataframe
+    def crop(self, df=None):
+        return self._spt_data.dataframe if df is None else df
 
 
 class DecentralizedROIManager(AnalyzerNode):
@@ -87,6 +91,9 @@ class DecentralizedROIManager(AnalyzerNode):
     def _register_decentralized_roi(self, has_roi):
         self._records.add(has_roi)
         has_roi.roi._global = self
+    def self_update(self, op):
+        raise NotImplementedError('why for?')
+        self._parent._roi = op(self)
     def as_individual_roi(self, index=None, collection=None, source=None, **kwargs):
         if source is None:
             for rec in self._records:
@@ -123,7 +130,7 @@ class ROIInitializer(Initializer):
     __slots__ = ()
     def specialize(self, cls, *args, **kwargs):
         Initializer.specialize(self, cls, *args, **kwargs)
-        if self._parent is self._eldest_parent:
+        if self._parent is self._eldest_parent and not issubclass(cls, DecentralizedROIManager):
             # replace all individual-SPT-item-level roi initializers by mirrors
             spt_data, roi = self._parent.spt_data, self._parent.roi
             if not spt_data.initialized:
@@ -196,6 +203,8 @@ class CommonROI(AnalyzerNode):
             warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             return
         yield from self._global.as_support_regions(index, spt_data.source, return_index)
+    def self_update(self, op):
+        raise RuntimeError('cannot alter a mirror attribute')
     def as_individual_roi(self, index=None, collection=None, source=None, return_index=False):
         spt_data = self._parent
         if not spt_data.compatible_source(source):
@@ -210,6 +219,12 @@ class SpecializedROI(AnalyzerNode):
         AnalyzerNode.__init__(self, **kwargs)
         self._global = None
         self._collections = None
+    def self_update(self, op):
+        self._parent._roi = op(self)
+        assert self._global is not None
+        if self._global is not None:
+            # parent spt_data object should still be registered
+            assert self._parent in self._global._records
     def as_support_regions(self, index=None, source=None, return_index=False):
         if return_index:
             def bear_child(cls, r, *args):
@@ -226,6 +241,7 @@ class SpecializedROI(AnalyzerNode):
             if source is not None:
                 warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             spt_data = self._parent
+            print('as_support_regions: ',spt_data.source,spt_data.roi,index)
             for r in indexer(index, self._collections.regions, **kwargs):
                 yield bear_child( SupportRegion, r, self._collections.regions, spt_data )
         else:
@@ -266,7 +282,7 @@ class BoundingBoxes(SpecializedROI):
     @property
     def bounding_boxes(self):
         return self._bounding_boxes
-    def as_individual_roi(self, index=None, return_index=False):
+    def as_individual_roi(self, index=None, collection=None, source=None, return_index=False):
         if return_index:
             def bear_child(i, *args):
                 return i, self._bear_child(*args)
@@ -280,13 +296,13 @@ class BoundingBoxes(SpecializedROI):
             if source is not None:
                 warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             spt_data = self._parent
-            for label in self.bounding_boxes:
+            for label in indexer(collection, self.bounding_boxes):
                 for i, bb in indexer(index, self.bounding_boxes[label], return_index=True):
                     roi_label = self._collections[label].roi_label(i)
                     yield bear_child(i, BoundingBox, bb, roi_label, spt_data )
         else:
             for d in spt_data:
-                for label in self.bounding_boxes:
+                for label in indexer(collection, self.bounding_boxes):
                     for i, bb in indexer(index, self.bounding_boxes[label], return_index=True):
                         roi_label = self._collections[label].roi_label(i)
                         yield bear_child(i, BoundingBox, bb, roi_label, d )
@@ -301,7 +317,8 @@ class HasROI(AnalyzerNode):
     def _set_roi(self, roi):
         self._roi = roi
         global_roi_attr = self._eldest_parent.roi
-        assert not global_roi_attr.initialized # initializing the analyzer-level roi attribute should initialize the roi attributes of the individual spt data items
+        if global_roi_attr.initialized:
+            assert isinstance(global_roi_attr, DecentralizedROIManager)
         global_roi_attr._register_decentralized_roi(self)
     roi = selfinitializing_property('roi', _get_roi, _set_roi, ROI)
     def __init__(self, roi=ROIInitializer, **kwargs):

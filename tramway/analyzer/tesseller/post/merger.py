@@ -18,7 +18,7 @@ class ByTranslocationCount(CellMerger):
         dim = tessellation.cell_centers.shape[1]
         min_ncells = dim + 2
         ncells = tessellation.number_of_cells
-        cells = Partition(tessellation, spt_dataframe) # no options; Voronoi partition
+        cells = Partition(spt_dataframe, tessellation) # no options; Voronoi partition
         label = True
         while True:
             # TODO: consider translocations instead of any location
