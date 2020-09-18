@@ -634,18 +634,21 @@ class Slurm(Env):
             self.logger.error(err)
         self.pending_jobs = []
     def wait_for_job_completion(self):
+        prefix = '{}_['.format(self.job_id)
         try:
             while True:
                 time.sleep(self.refresh_interval)
-                p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.2t %.10M %R"'),
+                p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.18i %.2t %.10M %R"'),
                         stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 out, err = p.communicate()
                 if err:
                     self.logger.error(err)
                 elif out:
-                    out = out.splitlines()[0]
-                    out = out.split(' ')
-                    status, time_used, reason = out[0], out[1], ' '.join(out[2:])
+                    for row in out.splitlines():
+                        if row.startswith(prefix):
+                            break
+                    out = row.split(' ')
+                    status, time_used, reason = out[1], out[2], ' '.join(out[3:])
                     self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
                 else:
                     break
@@ -885,6 +888,14 @@ print('{}'+';'.join(files))
                 else:
                     dest = end_result_file
                 self.ssh.get(end_result_file, dest)
+    def delete_temporary_data(self):
+        Slurm.delete_temporary_data(self)
+        # delete worker-side working directory
+        out, err = self.ssh.exec('rm -rf '+self.wd)
+        if err:
+            self.logger.error(err)
+        if out:
+            self.logger.info(out)
 
 
 Environment.register(SlurmOverSSH)
@@ -915,15 +926,33 @@ class Tars(SlurmOverSSH):
         parts = self.interpreter.split()
         p = parts.index('python3.6')
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
-    def delete_temporary_data(self):
-        Slurm.delete_temporary_data(self)
-        # delete worker-side working directory
-        out, err = self.ssh.exec('rm -rf '+self.wd)
-        if err:
-            self.logger.error(err)
-        if out:
-            self.logger.info(out)
 
 
-__all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars']
+class GPULab(SlurmOverSSH):
+    """
+    Designed for server *adm.inception.hubbioit.pasteur.fr*.
+    """
+    def __init__(self, **kwargs):
+        SlurmOverSSH.__init__(self, **kwargs)
+        self.interpreter = 'singularity exec -H $HOME tramway2-200910.sif python3.6 -s'
+    @property
+    def username(self):
+        return None if self.ssh.host is None else self.ssh.host.split('@')[0]
+    @username.setter
+    def username(self, name):
+        self.ssh.host = None if name is None else name+'@adm.inception.hubbioit.pasteur.fr'
+        if self.wd is None:
+            self.wd = '/master/home/{}/scratch'.format(name)
+    @property
+    def container(self):
+        parts = self.interpreter.split()
+        return parts[parts.index('python3.6')-1]
+    @container.setter
+    def container(self, path):
+        parts = self.interpreter.split()
+        p = parts.index('python3.6')
+        self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
+
+
+__all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab']
 
