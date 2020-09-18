@@ -91,6 +91,9 @@ class DecentralizedROIManager(AnalyzerNode):
     def _register_decentralized_roi(self, has_roi):
         self._records.add(has_roi)
         has_roi.roi._global = self
+    def _update_decentralized_roi(self, known_record, new_record):
+        self._records.remove(known_record)
+        self._register_decentralized_roi(new_record)
     def self_update(self, op):
         raise NotImplementedError('why for?')
         self._parent._roi = op(self)
@@ -241,7 +244,6 @@ class SpecializedROI(AnalyzerNode):
             if source is not None:
                 warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             spt_data = self._parent
-            print('as_support_regions: ',spt_data.source,spt_data.roi,index)
             for r in indexer(index, self._collections.regions, **kwargs):
                 yield bear_child( SupportRegion, r, self._collections.regions, spt_data )
         else:

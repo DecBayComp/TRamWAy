@@ -143,7 +143,13 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                     self._bounds.loc['max'] = np.minimum(self._bounds.loc['max'], _bounds.loc['max'])
         return self._bounds
     def self_update(self, op):
-        self._parent._spt_data = op(self)
+        new_self = op(self)
+        if new_self is not self:
+            try:
+                self.roi._global._update_decentralized_roi(self, new_self)
+            except AttributeError:
+                pass
+        self._parent._spt_data = new_self
 
 
 class SPTDataInitializer(Initializer):
@@ -228,7 +234,13 @@ class StandaloneDataItem(object):
     def as_dataframes(self, source=None):
         return SPTDataIterator.as_dataframes(self, source)
     def self_update(self, op):
-        self._parent._spt_data = op(self)
+        new_self = op(self)
+        if new_self is not self:
+            try:
+                self.roi._global._update_decentralized_roi(self, new_self)
+            except AttributeError:
+                pass
+        self._parent._spt_data = new_self
 
 
 

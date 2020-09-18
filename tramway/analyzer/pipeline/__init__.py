@@ -107,7 +107,6 @@ class Pipeline(AnalyzerNode):
                     if isinstance(self.roi, DecentralizedROIManager):
                         for f in self.spt_data:
                             f.roi.self_update(self.env.roi_selector)
-                            print('pipeline', f.source, type(f.roi))
                     elif not isinstance(self.roi, Initializer):
                         self.analyzer.roi.self_update(self.env.roi_selector)
                     self.logger.info('stage {:d} ready'.format(stage_index))

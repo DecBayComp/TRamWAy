@@ -31,7 +31,6 @@ class Proxy(object):
     def _parent(self, par):
         self._proxied._parent = par
     def __getattr__(self, attrname):
-        print('Proxy.getattr', attrname)
         return getattr(self._proxied, attrname)
     def __setattr__(self, attrname, val):
         if attrname == '_proxied':
@@ -259,7 +258,6 @@ class Env(AnalyzerNode):
                 def _region(index_arg):
                     return index_arg
             else:
-                print('roi_selector: ',region)
                 regions = set([region]) if isinstance(region, int) else set(regions)
                 def _region(index_arg):
                     if index_arg is None:
@@ -274,7 +272,6 @@ class Env(AnalyzerNode):
             class selector_cls(Proxy):
                 __slots__ = ()
                 def as_support_regions(self, index=None, source=None, return_index=False):
-                    print('as_support_regions wrapper: ',index,_region(index))
                     yield from cls.as_support_regions(self, _region(index), _source(source), return_index)
                     #for i,r in cls.as_support_regions(self, _region(index), _source(source), True):
                     #    logger.debug('region {} selected'.format(i if r.label is None else i))
@@ -283,11 +280,9 @@ class Env(AnalyzerNode):
                     #    else:
                     #        yield r
                 def as_individual_roi(self, *args, **kwargs):
-                    print('not implemented')
                     raise NotImplementedError
             ROI.register(selector_cls)
             self._selector_classes[cls] = selector_cls
-        print(selector_cls, roi_attr)
         return selector_cls(roi_attr)
     @property
     def submit_side(self):
