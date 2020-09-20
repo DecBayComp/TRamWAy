@@ -145,11 +145,15 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
     def self_update(self, op):
         new_self = op(self)
         if new_self is not self:
+            self._parent._spt_data = new_self
             try:
-                self.roi._global._update_decentralized_roi(self, new_self)
+                roi_central = next(iter(new_self)).roi._global
+                roi_central.reset()
             except AttributeError:
                 pass
-        self._parent._spt_data = new_self
+            else:
+                for f in new_self:
+                    roi_central._register_decentralized_roi(f)
 
 
 class SPTDataInitializer(Initializer):
@@ -236,11 +240,15 @@ class StandaloneDataItem(object):
     def self_update(self, op):
         new_self = op(self)
         if new_self is not self:
+            self._parent._spt_data = new_self
             try:
-                self.roi._global._update_decentralized_roi(self, new_self)
+                roi_central = next(iter(new_self)).roi._global
+                roi_central.reset()
             except AttributeError:
                 pass
-        self._parent._spt_data = new_self
+            else:
+                for f in new_self:
+                    roi_central._register_decentralized_roi(f)
 
 
 

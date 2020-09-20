@@ -94,6 +94,8 @@ class DecentralizedROIManager(AnalyzerNode):
     def _update_decentralized_roi(self, known_record, new_record):
         self._records.remove(known_record)
         self._register_decentralized_roi(new_record)
+    def reset(self):
+        self._records = set()
     def self_update(self, op):
         raise NotImplementedError('why for?')
         self._parent._roi = op(self)
