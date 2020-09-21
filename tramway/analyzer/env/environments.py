@@ -416,6 +416,10 @@ class Env(AnalyzerNode):
         for line in content:
             if line.startswith('get_ipython('):
                 continue
+            elif '.run()' in line:
+                # last line
+                filtered_content.append(line)
+                break
             filtered_content.append(line)
         return filtered_content
     def import_ipynb(self, notebook):
@@ -653,69 +657,6 @@ class Slurm(Env):
             raise
 
 
-class SSH(object):
-    __slots__ = ('_host','_conn','_sftp_client','_password')
-    def __init__(self, host=None):
-        self._host = host
-        self._conn = None
-        self._sftp_client = None
-        self._password = None
-    @property
-    def host(self):
-        return self._host
-    @host.setter
-    def host(self, addr):
-        self._host = addr
-    @property
-    def connection(self):
-        if self._conn is None:
-            self.connect()
-        return self._conn
-    @property
-    def sftp_client(self):
-        if self._sftp_client is None:
-            self._sftp_client = self.connection.open_sftp()
-        return self._sftp_client
-    @property
-    def password(self):
-        if self._password is None:
-            import getpass
-            self._password = getpass.getpass(self.host+"'s password: ")
-        return self._password
-    def connect(self):
-        user, host = self.host.split('@')
-        try:
-            import paramiko
-        except ImportError:
-            raise ImportError('package paramiko is required')
-        self._conn = paramiko.SSHClient()
-        self._conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self._conn.load_system_host_keys()
-        self._conn.connect(host, 22, user, self.password)
-    def exec(self, cmd, shell=False, logger=None):
-        if shell:
-            cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
-        if logger is not None:
-            logger.info('running command: '+cmd)
-        _in, _out, _err = self.connection.exec_command(cmd)
-        out = _out.read()
-        if out and not isinstance(out, str):
-            out = out.decode('utf-8')
-        err = _err.read()
-        if err and not isinstance(err, str):
-            err = err.decode('utf-8')
-        return out, err
-    def put(self, src, dest, confirm=False):
-        return self.sftp_client.put(src, dest, confirm=confirm)
-    def get(self, target, dest):
-        if target.startswith('~/'):
-            target = target[2:]
-        self.sftp_client.get(target, dest)
-    def close(self):
-        if self._conn is not None:
-            self._conn.close()
-
-
 class SlurmOverSSH(Slurm):
     """
     Calls *sbatch* through an SSH connection to a Slurm server.
@@ -723,7 +664,8 @@ class SlurmOverSSH(Slurm):
     __slots__ = ('_ssh','remote_dependencies','local_data_location','remote_data_location')
     def __init__(self, **kwargs):
         Slurm.__init__(self, **kwargs)
-        self._ssh = SSH()
+        from tramway.analyzer.env import ssh
+        self._ssh = ssh.Client()
         self.remote_dependencies = None
         self.local_data_location = None
         self.remote_data_location = None
