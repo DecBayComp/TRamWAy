@@ -1,3 +1,16 @@
+# -*- coding: utf-8 -*-
+
+# Copyright © 2020, Institut Pasteur
+#   Contributor: François Laurent
+
+# This file is part of the TRamWAy software available at
+# "https://github.com/DecBayComp/TRamWAy" and is distributed under
+# the terms of the CeCILL license as circulated at the following URL
+# "http://www.cecill.info/licenses.en.html".
+
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+
 
 from tramway.core.exceptions import MisplacedAttributeWarning
 from warnings   import warn
@@ -27,21 +40,128 @@ from .pipeline  import *
 
 
 class BasicLogger(object):
+    """
+    emulates the most basic functionalities of `logging.Logger`
+    without the need for additional configuration.
+    """
+    __slots__ = ('_level',)
+    def __init__(self, level=0):
+        self.level = level
+    def _print(self, msg, lvl):
+        if self.level <= lvl:
+            print(msg)
     def debug(self, msg):
-        print(msg)
+        self._print(msg, 10)
     def info(self, msg):
-        print(msg)
+        self._print(msg, 20)
     def warning(self, msg):
-        print(msg)
+        self._print(msg, 30)
     def error(self, msg):
-        print(msg)
+        self._print(msg, 40)
     def critical(self, msg):
-        print(msg)
+        self._print(msg, 50)
+    @property
+    def level(self):
+        return self._level
+    @level.setter
+    def level(self, lvl):
+        if isinstance(lvl, str):
+            lvl = lvl.lower()
+            lvl = dict(
+                    notset = 0,
+                    debug = 10,
+                    info = 20,
+                    warning = 30,
+                    error = 40,
+                    critical = 50,
+                ).get(lvl, 0)
+        elif not isinstance(lvl, int):
+            try:
+                lvl = int(lvl)
+            except:
+                lvl = 0
+        self._level = lvl
     def setLevel(self, lvl):
-        pass
+        self.level = lvl
 
 
 class RWAnalyzer(object):
+    """
+    A `RWAnalyzer` object gathers the paremeters of all the processing steps
+    of a standard processing chain, from SPT data loading/generation to
+    inferring model parameters at microdomains.
+
+    The supported steps are defined in a declarative way with spatial attributes;
+    these steps and corresponding attributes are as follows:
+
+    * `spt_data`: SPT data loading or generation
+    * `roi`: regions of interest
+    * `time`: temporal segmentation of the tracking data
+    * `tesseller`: spatial segmentation
+    * `sampler`: assignment of SPT data points to microdomains
+    * `mapper`: estimation of model parameters at each microdomains
+
+    Most attributes are self-morphing, i.e. they first are initializers and exhibit
+    *from_...* methods (for example `from_dataframe` and `from_ascii_file`
+    for `spt_data`) and then, once any such initializer method is called, they specialize
+    into a new attribute and exhibit specific attributes depending on the chosen
+    initializer.
+
+    Specialized attributes themselves can exhibit self-morphing attributes.
+    For example, regions of interest can be defined globally using the main
+    `roi` attribute, or on a per-SPT-dataset basis:
+
+    .. code-block:: python
+
+        a = RWAnalyzer()
+        a.spt_data.from_ascii_files('my_data_repository/*.txt')
+        a.roi.from_squares(roi_centers, square_size)
+
+    or
+
+    .. code-block:: python
+
+        a = RWAnalyzer()
+        a.spt_data.from_ascii_files('my_data_repository/*.txt')
+        for spt_file in a.spt_data:
+            spt_file.roi.from_squares(roi_centers, square_size)
+
+    In the above example, per-dataset ROI definition is useful when multiple
+    datasets are loaded and the ROI may differ between datasets.
+    The main `roi` attribute is still convenient as it allows to iterate
+    over all the defined ROI, omitting the `spt_data` loop (continues any of
+    the code blocks above):
+
+    .. code-block:: python
+
+        for roi in a.roi.as_support_regions():
+            roi_spt_data = roi.crop()
+
+    See the documentation of the `roi` attribute for more information about
+    the various iterators available.
+
+    While the `spt_data` and `roi` attributes act as data providers,
+    the `time`, `tesseller`, `sampler` and `mapper` attributes do not feature
+    direct access to the data and require the SPT data to be passed as input
+    argument to their main processing methods.
+    For example:
+
+    .. code-block:: python
+
+        a.tesseller.from_plugin('kmeans')
+        for roi in a.roi.as_support_regions():
+            roi_spt_data = roi.crop()
+            tessellation = a.tesseller.tessellate(roi_spt_data)
+
+
+    Other attributes drive the execution of the processing chain.
+    The `run` method launches the processing chain, which is operated by the
+    `pipeline` attribute.
+    
+    Various parallelization schemes are available, and the platform-specific
+    implementation of these schemes are provided by the `env` attribute.
+
+    """
     __slots__ = ( '_logger', '_spt_data', '_roi', '_time', '_tesseller', '_sampler', '_mapper',
             '_env', '_pipeline' )
 

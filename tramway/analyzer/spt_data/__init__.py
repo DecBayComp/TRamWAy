@@ -1,3 +1,16 @@
+# -*- coding: utf-8 -*-
+
+# Copyright © 2020, Institut Pasteur
+#   Contributor: François Laurent
+
+# This file is part of the TRamWAy software available at
+# "https://github.com/DecBayComp/TRamWAy" and is distributed under
+# the terms of the CeCILL license as circulated at the following URL
+# "http://www.cecill.info/licenses.en.html".
+
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+
 
 from ..attribute import *
 from ..artefact import *
@@ -6,6 +19,7 @@ from .abc import *
 import os.path
 from tramway.core.xyt import load_xyt, load_mat, discard_static_trajectories
 from tramway.core.analyses.auto import Analyses, AutosaveCapable
+from tramway.core.hdf5.store import load_rwa
 import warnings
 from math import sqrt
 import numpy as np

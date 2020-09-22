@@ -1,12 +1,30 @@
+# -*- coding: utf-8 -*-
+
+# Copyright © 2020, Institut Pasteur
+#   Contributor: François Laurent
+
+# This file is part of the TRamWAy software available at
+# "https://github.com/DecBayComp/TRamWAy" and is distributed under
+# the terms of the CeCILL license as circulated at the following URL
+# "http://www.cecill.info/licenses.en.html".
+
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+
 
 try:
     import paramiko
 except ImportError:
     raise ImportError('package paramiko is required')
 import os.path
+from tramway.core.rc import __user_interaction__
 
 
 class Client(object):
+    """
+    encapsulates the low-level API of Paramiko,
+    and merely simplifies authentification.
+    """
     __slots__ = ('_host','_conn','_sftp_client','_password','_options')
     def __init__(self, host=None, **options):
         self._host = host
@@ -33,8 +51,11 @@ class Client(object):
     @property
     def password(self):
         if self._password is None:
-            import getpass
-            self._password = getpass.getpass(self.host+"'s password: ")
+            if __user_interaction__ is True:
+                import getpass
+                self._password = getpass.getpass(self.host+"'s password: ")
+            else:
+                raise RuntimeError('a password is required')
         return self._password
     @property
     def options(self):
