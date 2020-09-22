@@ -178,42 +178,79 @@ class RWAnalyzer(object):
         self._logger = logger
 
     def _get_spt_data(self):
+        """
+        SPT data accessor.
+
+        See :class:`~spt_data.SPTDataInitializer`.
+        """
         return self._spt_data
     def _set_spt_data(self, data):
         self._spt_data = data
     spt_data = selfinitializing_property('spt_data', _get_spt_data, _set_spt_data, SPTData)
 
     def _get_roi(self):
+        """
+        ROI accessor.
+
+        See :class:`~roi.ROIInitializer`.
+        """
         return self._roi
     def _set_roi(self, roi):
         self._roi = roi
     roi = selfinitializing_property('roi', _get_roi, _set_roi, ROI)
 
     def _get_time(self):
+        """
+        Time segmentation procedure.
+
+        See :class:`~time.TimeInitializer`.
+        """
         return self._time
     def _set_time(self, time):
         self._time = time
     time = selfinitializing_property('time', _get_time, _set_time, Time)
 
     def _get_tesseller(self):
+        """
+        Tessellation procedure.
+
+        See :class:`~tesseller.TessellerInitializer`.
+        """
         return self._tesseller
     def _set_tesseller(self, tesseller):
         self._tesseller = tesseller
     tesseller = selfinitializing_property('tesseller', _get_tesseller, _set_tesseller, Tesseller)
 
     def _get_sampler(self):
+        """
+        Sampling procedure.
+
+        See :class:`~sampler.SamplerInitializer`.
+        """
         return self._sampler
     def _set_sampler(self, sampler):
         self._sampler = sampler
     sampler = selfinitializing_property('sampler', _get_sampler, _set_sampler, Sampler)
 
     def _get_mapper(self):
+        """
+        Inference procedure.
+
+        See :class:`~mapper.MapperInitializer`.
+        """
         return self._mapper
     def _set_mapper(self, mapper):
         self._mapper = mapper
     mapper = selfinitializing_property('mapper', _get_mapper, _set_mapper, Mapper)
 
     def _get_env(self):
+        """
+        Environment backend for operating the pipeline.
+
+        If not set, the pipeline will run locally in the current interpreter.
+
+        See :mod:`~env.environments`.
+        """
         return self._env
     def _set_env(self, env):
         self._env = env
@@ -238,9 +275,17 @@ class RWAnalyzer(object):
 
     @property
     def pipeline(self):
+        """
+        Parallelization scheme.
+
+        See `env`.
+        """
         return self._pipeline
 
     def run(self):
+        """
+        launches the pipeline.
+        """
         return self.pipeline.run()
 
     def __setattr__(self, attrname, obj):

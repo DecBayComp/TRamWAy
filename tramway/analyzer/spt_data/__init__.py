@@ -82,6 +82,7 @@ class SPTParameters(object):
 
 
 class SPTDataIterator(AnalyzerNode, SPTParameters):
+    """ partial implementation for multiple SPT data items """
     __slots__ = ('_bounds',)
     def __init__(self, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
@@ -156,8 +157,12 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                     self._bounds.loc['min'] = np.minimum(self._bounds.loc['min'], _bounds.loc['min'])
                     self._bounds.loc['max'] = np.minimum(self._bounds.loc['max'], _bounds.loc['max'])
         return self._bounds
-    def self_update(self, op):
-        new_self = op(self)
+    def self_update(self, new_self):
+        """
+        """
+        if callable(new_self):
+            f = new_self
+            new_self = f(self)
         if new_self is not self:
             self._parent._spt_data = new_self
             try:
@@ -171,6 +176,12 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
 
 
 class SPTDataInitializer(Initializer):
+    """
+    initial value for the `RWAnalyzer.spt_data` attribute.
+
+    `from_...` methods alters the parent attribute which specializes
+    into an initialized :class:`.abc.SPTData` object.
+    """
     __slots__ = ()
     def from_ascii_file(self, filepath):
         """
@@ -186,7 +197,7 @@ class SPTDataInitializer(Initializer):
         Sets text files, which paths match with a pattern, as the source of SPT data.
 
         `filepattern` is a standard filepath with the '*' placeholder.
-        For example:  `'datasets/*.txt'`
+        For example:  `'dataset/*.txt'`
 
         The parts of the filename that match the placeholder are used as keys.
 
@@ -244,6 +255,9 @@ class SPTDataInitializer(Initializer):
 
 
 class StandaloneDataItem(object):
+    """
+    partial implementation for single data item `RWAnalyzer.spt_data` attribute
+    """
     __slots__ = ()
     def __len__(self):
         return 1
@@ -251,8 +265,10 @@ class StandaloneDataItem(object):
         yield self
     def as_dataframes(self, source=None):
         return SPTDataIterator.as_dataframes(self, source)
-    def self_update(self, op):
-        new_self = op(self)
+    def self_update(self, new_self):
+        if callable(new_self):
+            f = new_self
+            new_self = f(self)
         if new_self is not self:
             self._parent._spt_data = new_self
             try:
@@ -377,12 +393,18 @@ SPTDataItem.register(SPTDataFrame)
 
 
 class StandaloneSPTDataFrame(SPTDataFrame, StandaloneDataItem):
+    """
+    `RWAnalyzer.spt_data` attribute for single dataframes.
+    """
     __slots__ = ()
 
 SPTData.register(StandaloneSPTDataFrame)
 
 
 class SPTDataFrames(SPTDataIterator):
+    """
+    `RWAnalyzer.spt_data` attribute for multiple dataframes.
+    """
     __slots__ = ('_dataframes',)
     def __init__(self, dfs, **kwargs):
         SPTDataIterator.__init__(self, **kwargs)
@@ -519,6 +541,9 @@ class SPTAsciiFile(RawSPTFile):
 SPTDataItem.register(SPTAsciiFile)
 
 class StandaloneSPTAsciiFile(SPTAsciiFile, StandaloneDataItem):
+    """
+    `RWAnalyzer.spt_data` attribute for single SPT text files.
+    """
     __slots__ = ()
 
 SPTData.register(StandaloneSPTAsciiFile)
@@ -581,6 +606,9 @@ class SPTFiles(SPTDataFrames):
 
 
 class SPTAsciiFiles(SPTFiles):
+    """
+    `RWAnalyzer.spt_data` attribute for multiple SPT text files.
+    """
     __slots__ = ()
     def list_files(self):
         SPTFiles.list_files(self)
@@ -601,12 +629,18 @@ class RWAFile(SPTFile):
 SPTDataItem.register(RWAFile)
 
 class StandaloneRWAFile(RWAFile, StandaloneDataItem):
+    """
+    `RWAnalyzer.spt_data` attribute for single RWA files.
+    """
     __slots__ = ()
 
 SPTData.register(StandaloneRWAFile)
 
 
 class RWAFiles(SPTFiles):
+    """
+    `RWAnalyzer.spt_data` attribute for multiple RWA files.
+    """
     __slots__ = ()
     def list_files(self):
         SPTFiles.list_files(self)
@@ -641,12 +675,18 @@ class SPTMatFile(RawSPTFile):
 SPTDataItem.register(SPTMatFile)
 
 class StandaloneSPTMatFile(SPTMatFile, StandaloneDataItem):
+    """
+    `RWAnalyzer.spt_data` attribute for single MatLab v7 data files.
+    """
     __slots__ = ()
 
 SPTData.register(StandaloneSPTMatFile)
 
 
 class SPTMatFiles(SPTFiles):
+    """
+    `RWAnalyzer.spt_data` attribute for multiple MatLab v7 data files.
+    """
     __slots__ = ()
     @property
     def pixel_size(self):
@@ -679,6 +719,9 @@ class RWGenerator(SPTDataFrame):
 
 
 class RWAnalyses(StandaloneSPTDataFrame):
+    """
+    `RWAnalyzer.spt_data` attribute for single analysis trees as stored in *.rwa* files.
+    """
     __slots__ = ()
     def __init__(self, analyses, copy=False, **kwargs):
         dataframe = analyses.data

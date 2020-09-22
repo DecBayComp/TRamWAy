@@ -15,5 +15,6 @@ The recommended starting point is :mod:`tramway.helper`.
     tramway.inference
     tramway.feature
     tramway.utils
+    tramway.analyzer
 
 

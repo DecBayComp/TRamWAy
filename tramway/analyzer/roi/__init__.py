@@ -53,6 +53,7 @@ class IndividualROI(BaseRegion):
     pass
 
 class BoundingBox(IndividualROI):
+    """ See :class:`BoundingBoxes`. """
     __slots__ = ('_bounding_box',)
     def __init__(self, bb, label, spt_data, **kwargs):
         IndividualROI.__init__(self, spt_data, label, **kwargs)
@@ -67,6 +68,9 @@ class BoundingBox(IndividualROI):
         return self._bounding_box
 
 class SupportRegion(BaseRegion):
+    """
+    union of overlapping ROI.
+    """
     __slots__ = ('_sr_index','_support_regions')
     def __init__(self, r, regions, spt_data, **kwargs):
         BaseRegion.__init__(self,
@@ -89,12 +93,19 @@ class SupportRegion(BaseRegion):
             return np.min(np.stack(minima, axis=0), axis=0), np.max(np.stack(maxima, axis=0), axis=0)
 
 class FullRegion(BaseRegion):
+    """
+    supplies with the full dataset; does not actually crop.
+    """
     __slots__ = ()
     def crop(self, df=None):
         return self._spt_data.dataframe if df is None else df
 
 
 class DecentralizedROIManager(AnalyzerNode):
+    """
+    This class allows to iterate over the ROI defined at the level of
+    each SPT data item.
+    """
     __slots__ = ('_records',)
     def __init__(self, first_record=None, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
@@ -145,6 +156,12 @@ ROI.register(DecentralizedROIManager)
 
 
 class ROIInitializer(Initializer):
+    """
+    initial value for the `RWAnalyzer.roi` attribute.
+
+    `from_...` methods alters the parent attribute which specializes
+    into an initialized :class:`.abc.ROI` object.
+    """
     __slots__ = ()
     def specialize(self, cls, *args, **kwargs):
         Initializer.specialize(self, cls, *args, **kwargs)
@@ -166,8 +183,14 @@ class ROIInitializer(Initializer):
     def _register_decentralized_roi(self, roi):
         self.specialize( DecentralizedROIManager, roi )
     def from_bounding_boxes(self, bb, label=None, group_overlapping_roi=False):
+        """
+        Defines ROI as bounding boxes.
+        """
         self.specialize( BoundingBoxes, bb, label, group_overlapping_roi )
     def from_squares(self, centers, side, label=None, group_overlapping_roi=False):
+        """
+        Defines ROI as centers for squares/cubes of uniform size.
+        """
         bb = [ (center-.5*side, center+.5*side) for center in centers ]
         self.from_bounding_boxes(bb, label, group_overlapping_roi)
     ## in the case no ROI are defined
@@ -211,6 +234,9 @@ ROI.register(ROIInitializer)
 
 
 class CommonROI(AnalyzerNode):
+    """
+    Mirrors the global `RWAnalyzer.roi` attribute.
+    """
     __slots__ = ('_global',)
     def __init__(self, roi, parent=None):
         AnalyzerNode.__init__(self, parent)
@@ -232,6 +258,9 @@ class CommonROI(AnalyzerNode):
 
 
 class SpecializedROI(AnalyzerNode):
+    """
+    Base class for initialized *roi* attributes.
+    """
     __slots__ = ('_global','_collections')
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
@@ -328,6 +357,9 @@ ROI.register(BoundingBoxes)
 
 
 class HasROI(AnalyzerNode):
+    """ Class to be inherited from by SPT data item classes.
+    
+    Maintains a self-modifying *roi* attribute."""
     __slots__ = ('_roi',)
     def _get_roi(self):
         return self._roi
@@ -338,6 +370,7 @@ class HasROI(AnalyzerNode):
             assert isinstance(global_roi_attr, DecentralizedROIManager)
         global_roi_attr._register_decentralized_roi(self)
     roi = selfinitializing_property('roi', _get_roi, _set_roi, ROI)
+
     def __init__(self, roi=ROIInitializer, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
         self._roi = roi(self._set_roi, parent=self)

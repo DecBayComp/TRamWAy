@@ -37,7 +37,7 @@ class Pipeline(AnalyzerNode):
     `pipeline` attribute of an :class:`~tramway.analyzer.RWAnalyzer` object.
 
     The main methods are `append_stage` and `run`.
-    Note that the `run` method is called by :met:`~tramway.analyzer.RWAnalyzer.run`
+    Note that the `run` method is called by :meth:`~tramway.analyzer.RWAnalyzer.run`
     of :class:`~tramway.analyzer.RWAnalyzer`.
     """
     __slots__ = ('_stage',)

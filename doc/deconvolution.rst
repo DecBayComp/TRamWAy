@@ -1,3 +1,4 @@
+.. _deconvolution:
 
 The :mod:`~tramway.deconvolution` module adds several dependencies, including *scikit-image>=0.14.2*, *tifffile* and *tensorflow*. *keras* is optional as it is now included in *tensorflow* releases.
 
