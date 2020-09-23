@@ -12,10 +12,6 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-try:
-    import paramiko
-except ImportError:
-    raise ImportError('package paramiko is required')
 import os.path
 from tramway.core.rc import __user_interaction__
 
@@ -61,6 +57,10 @@ class Client(object):
     def options(self):
         return self._options
     def connect(self):
+        try:
+            import paramiko
+        except ImportError:
+            raise ImportError('package paramiko is required')
         user, host = self.host.split('@')
         self._conn = paramiko.SSHClient()
         self._conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())

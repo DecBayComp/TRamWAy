@@ -55,7 +55,7 @@ class Proxy(object):
 class Env(AnalyzerNode):
     __slots__ = ('_interpreter','_script','_working_directory','_worker_count',
             '_pending_jobs','_selectors', '_selector_classes', '_temporary_files',
-            'debug')
+            '_collectibles','debug')
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
         self._interpreter = 'python3'
@@ -64,6 +64,7 @@ class Env(AnalyzerNode):
         self._selector_classes = {}
         self._temporary_files = []
         self._working_directory = None
+        self.collectibles = None
         self._worker_count = None
         self.pending_jobs = []
         self.debug = False
@@ -130,6 +131,17 @@ class Env(AnalyzerNode):
     @property
     def analyzer(self):
         return self._parent
+    @property
+    def collectibles(self):
+        return self._collectibles
+    @collectibles.setter
+    def collectibles(self, cs):
+        if cs:
+            self._collectibles = set(cs)
+        else:
+            self._collectibles = set()
+    def pending_collectibles(self):
+        return self.collectibles
     def setup(self, *argv):
         assert argv
         #if not argv:
@@ -364,7 +376,7 @@ class Env(AnalyzerNode):
             command_options.append('--segment-index={:d}'.format(segment_index))
         self.pending_jobs.append(tuple(command_options))
     @classmethod
-    def _collect_results(cls, wd, logger):
+    def _combine_analyses(cls, wd, logger):
         analyses = {}
         output_files = glob.glob(os.path.join(wd, '*.rwa'))
         while output_files:
@@ -384,7 +396,7 @@ class Env(AnalyzerNode):
                 logger.debug(str(__analyses))
                 logger.debug('metadata: ',__analyses.metadata)
                 logger.critical('key `datafile` not found in the metadata')
-                return
+                analyses = {}; break
             try:
                 _analyses = analyses[source]
             except KeyError:
@@ -399,7 +411,7 @@ class Env(AnalyzerNode):
             end_result_files.append(rwa_file)
         return end_result_files
     def collect_results(self):
-        self._collect_results(self.wd, self.logger)
+        return bool(self._combine_analyses(self.wd, self.logger))
     def prepare_script(self, script=None):
         main_script = script is None
         if main_script:
@@ -677,13 +689,15 @@ class SlurmOverSSH(Slurm):
     __slots__ = ('_ssh','remote_dependencies','local_data_location','remote_data_location')
     def __init__(self, **kwargs):
         Slurm.__init__(self, **kwargs)
-        from tramway.analyzer.env import ssh
-        self._ssh = ssh.Client()
+        self._ssh = None
         self.remote_dependencies = None
         self.local_data_location = None
         self.remote_data_location = None
     @property
     def ssh(self):
+        if self._ssh is None:
+            from tramway.analyzer.env import ssh
+            self._ssh = ssh.Client()
         return self._ssh
     @property
     def wd_is_available(self):
@@ -742,6 +756,12 @@ class SlurmOverSSH(Slurm):
                                 self.remote_data_location, arg,
                                 quote)
             filtered_content.append(line)
+        # last line is "[analyzer].run()\n"
+        call = line.find('.run()')
+        if 0<call:
+            analyzer_var = line[:call]
+            filtered_content.append("\nprint('OUTPUT_FILES='+';'.join({}.env.collectibles))\n".format(analyzer_var))
+        # 
         return filtered_content
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
         if source is not None:
@@ -793,13 +813,37 @@ class SlurmOverSSH(Slurm):
             self.logger.info('killing jobs with: scancel '+self.job_id)
             self.ssh.exec('scancel '+self.job_id, shell=True)
             raise
+    @classmethod
+    def _collectibles_from_log_files(cls, wd, logger):
+        collectibles = []
+        _prefix = 'OUTPUT_FILES='
+        home = os.path.expanduser('~')
+        log_files = glob.glob(os.path.join(wd,'*.out'))
+        for log_file in log_files:
+            with open(log_file, 'r') as f:
+                try:
+                    last_line = f.readlines()[-1]
+                except IndexError:
+                    continue
+            if last_line.startswith(_prefix):
+                last_line = last_line.rstrip()
+                for collectible in last_line[len(_prefix):].split(';'):
+                    if not collectible:
+                        continue
+                    if os.path.isabs(collectible) and os.path.normpath(collectible).startswith(home):
+                        collectible = '~'+collectible[len(home):]
+                    collectibles.append(collectible)
+        return collectibles
     def collect_results(self):
         _prefix = 'OUTPUT_FILES='
         code = """
 from tramway.analyzer import environments, BasicLogger
 
 wd = '{}'
-files = environments.LocalHost._collect_results(wd, BasicLogger())
+logger = BasicLogger()
+
+files  = environments.Slurm._combine_analyses(wd, logger)
+files += environments.SlurmOverSSH._collectibles_from_log_files(wd, logger)
 
 print('{}'+';'.join(files))
 """.format(self.wd, _prefix)
@@ -815,29 +859,33 @@ print('{}'+';'.join(files))
         out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
         if err:
             self.logger.error(err.rstrip())
-        if out:
-            self.logger.debug(out)
-            out = out.splitlines()
-            while True:
-                try:
-                    line = out.pop() # starting from last line
-                except IndexError: # empty list
-                    raise RuntimeError('missing output: {}...'.format(_prefix))
-                if line.startswith(_prefix):
-                    end_result_files = line[len(_prefix):].split(';')
-                    break
-            for end_result_file in end_result_files:
-                if not end_result_file:
-                    continue
-                self.logger.info('retrieving file: '+end_result_file)
-                if self.local_data_location:
-                    dest = os.path.join(
-                            os.path.expanduser(self.local_data_location),
-                            os.path.basename(end_result_file),
-                        )
-                else:
-                    dest = end_result_file
-                self.ssh.get(end_result_file, dest)
+        if not out:
+            return False
+        self.logger.debug(out)
+        out = out.splitlines()
+        while True:
+            try:
+                line = out.pop() # starting from last line
+            except IndexError: # empty list
+                raise RuntimeError('missing output: {}...'.format(_prefix))
+            if line.startswith(_prefix):
+                end_result_files = line[len(_prefix):].split(';')
+                break
+        any_transfer = False
+        for end_result_file in end_result_files:
+            if not end_result_file:
+                continue
+            self.logger.info('retrieving file: '+end_result_file)
+            if self.local_data_location:
+                dest = os.path.join(
+                        os.path.expanduser(self.local_data_location),
+                        os.path.basename(end_result_file),
+                    )
+            else:
+                dest = end_result_file
+            self.ssh.get(end_result_file, dest)
+            any_transfer = True
+        return any_transfer
     def delete_temporary_data(self):
         Slurm.delete_temporary_data(self)
         # delete worker-side working directory

@@ -19,15 +19,18 @@ import traceback
 
 
 class PipelineStage(object):
-    __slots__ = ('_run','_granularity','mutable','options')
-    def __init__(self, run, granularity='coarsest', mutable=False, **options):
+    __slots__ = ('_run','_granularity','_mutability','options')
+    def __init__(self, run, granularity='coarsest', requires_mutability=False, **options):
         self._run = run
         self._granularity = granularity
-        self.mutable = mutable
+        self._mutability = requires_mutability
         self.options = options
     @property
     def granularity(self):
         return self._granularity
+    @property
+    def requires_mutability(self):
+        return self._mutability
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
 
@@ -76,7 +79,7 @@ class Pipeline(AnalyzerNode):
         Empties the pipeline processing chain.
         """
         self._stage = []
-    def append_stage(self, stage, granularity='coarsest', mutable=False, **options):
+    def append_stage(self, stage, granularity='coarsest', requires_mutability=False, **options):
         """
         Appends a pipeline stage to the processing chain.
 
@@ -90,16 +93,14 @@ class Pipeline(AnalyzerNode):
                 *'source'* or equivalently *'spt data'*, *'data source'* or *'spt data source'*,
                 *'roi'* or equivalently *'region of interest'* (case-insensitive).
 
-            mutable (bool): callable object `stage` alters input argument `self`.
+            requires_mutability (bool): callable object `stage` alters input argument `self`.
                 Stages with `mutable` set to ``True`` are always run as dependencies.
 
         """
-        self._stage.append(PipelineStage(stage, granularity, mutable, **options))
-    def run(self, stages='all', verbose=False):
+        self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
+    def run(self):
         """
         Sequentially runs the different stages of the pipeline.
-
-        The input arguments are currently ignored.
         """
         if self.env.initialized:
             try:
@@ -136,23 +137,30 @@ class Pipeline(AnalyzerNode):
                     assert self.env.submit_side
                     if self.env.dispatch():
                         self.logger.info('initial dispatch done')
-                    mutable = []
+                    stack = []
+                    permanent_stack = []
                     for s, stage in enumerate(self._stage):
-                        granularity = '' if stage.granularity is None else stage.granularity.lower()
-                        if granularity in ('coarsest','full dataset'):
-                            self.logger.info('stage {:d} ready'.format(s))
-                            stage(self)
-                            self.logger.info('stage {:d} done'.format(s))
-                            if stage.mutable:
-                                mutable.append(s)
-                            continue
-                        if stage.mutable:
-                            raise NotImplementedError('cannot make a dispatched job modify the local analyzer')
+                        granularity = '' if stage.granularity is None \
+                                else stage.granularity.lower().replace('-',' ').replace('_',' ')
+                        if stage.requires_mutability:
+                            if granularity in ('coarsest','full dataset'):
+                                # run locally
+                                self.logger.info('stage {:d} ready'.format(s))
+                                stage(self)
+                                self.logger.info('stage {:d} done'.format(s))
+                                # make the next dispatched stages run this stage again
+                                permanent_stack.append(s)
+                                continue
+                            else:
+                                raise NotImplementedError('cannot make a dispatched job modify the local analyzer')
                         if self.env.dispatch(stage_index=s, stage_options=stage.options):
                             self.logger.info('stage {:d} dispatched'.format(s))
-                        if mutable:
-                            s = mutable+[s]
-                        if granularity.endswith('source') or granularity.startswith('spt data'):
+                        if stack or permanent_stack:
+                            s = sorted(permanent_stack+stack+[s])
+                            stack = []
+                        if granularity in ('coarsest','full dataset'):
+                            self.env.make_job(stage_index=s)
+                        elif granularity.endswith('source') or granularity.startswith('spt data'):
                             for f in self.spt_data:
                                 if f.source is None and 1<len(self.spt_data):
                                     raise NotImplementedError('undefined source identifiers')
@@ -168,7 +176,7 @@ class Pipeline(AnalyzerNode):
                                 for i, _ in f.roi.as_support_regions(return_index=True):
                                     self.env.make_job(stage_index=s, source=f.source, region_index=i)
                         else:
-                            raise NotImplementedError('only roi-level granularity is currently supported')
+                            raise NotImplementedError
                         self.logger.info('jobs ready')
                         try:
                             self.env.submit_jobs()
@@ -179,14 +187,17 @@ class Pipeline(AnalyzerNode):
                             if not self.env.interrupt_jobs():
                                 raise
                         self.logger.info('jobs complete')
-                        self.env.collect_results()
-                        self.logger.info('results collected')
+                        if self.env.collect_results():
+                            self.logger.info('results collected')
             finally:
                 if self.env.submit_side and not self.env.debug:
                     self.env.delete_temporary_data()
         else:
             for stage in self._stage:
                 stage(self)
+
+    def add_collectible(self, filepath):
+        self.env.collectibles.add(filepath)
 
 
 __all__ = ['Pipeline']
