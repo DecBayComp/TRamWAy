@@ -31,6 +31,9 @@ class PipelineStage(object):
     @property
     def requires_mutability(self):
         return self._mutability
+    @property
+    def name(self):
+        return self._run.__name__
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
 
@@ -187,7 +190,7 @@ class Pipeline(AnalyzerNode):
                             if not self.env.interrupt_jobs():
                                 raise
                         self.logger.info('jobs complete')
-                        if self.env.collect_results():
+                        if self.env.collect_results(stage_index=s):
                             self.logger.info('results collected')
             finally:
                 if self.env.submit_side and not self.env.debug:

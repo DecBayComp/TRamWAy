@@ -54,7 +54,7 @@ class Proxy(object):
 
 class Env(AnalyzerNode):
     __slots__ = ('_interpreter','_script','_working_directory','_worker_count',
-            '_pending_jobs','_selectors', '_selector_classes', '_temporary_files',
+            '_pending_jobs','_selectors','_selector_classes','_temporary_files',
             '_collectibles','debug')
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
@@ -142,6 +142,10 @@ class Env(AnalyzerNode):
             self._collectibles = set()
     def pending_collectibles(self):
         return self.collectibles
+    @property
+    def current_stage(self):
+        assert self.worker_side
+        return self.selectors['stage_index']
     def setup(self, *argv):
         assert argv
         #if not argv:
@@ -376,7 +380,7 @@ class Env(AnalyzerNode):
             command_options.append('--segment-index={:d}'.format(segment_index))
         self.pending_jobs.append(tuple(command_options))
     @classmethod
-    def _combine_analyses(cls, wd, logger):
+    def _combine_analyses(cls, wd, logger, *args):
         analyses = {}
         output_files = glob.glob(os.path.join(wd, '*.rwa'))
         while output_files:
@@ -410,8 +414,8 @@ class Env(AnalyzerNode):
             save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True)
             end_result_files.append(rwa_file)
         return end_result_files
-    def collect_results(self):
-        return bool(self._combine_analyses(self.wd, self.logger))
+    def collect_results(self, stage_index=None):
+        return bool(self._combine_analyses(self.wd, self.logger, stage_index))
     def prepare_script(self, script=None):
         main_script = script is None
         if main_script:
@@ -760,7 +764,9 @@ class SlurmOverSSH(Slurm):
         call = line.find('.run()')
         if 0<call:
             analyzer_var = line[:call]
-            filtered_content.append("\nprint('OUTPUT_FILES='+';'.join({}.env.collectibles))\n".format(analyzer_var))
+            filtered_content.append(\
+                    "\nprint({}.env.collectible_prefix()+';'.join({}.env.collectibles))\n".format(
+                        analyzer_var, analyzer_var))
         # 
         return filtered_content
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
@@ -814,9 +820,22 @@ class SlurmOverSSH(Slurm):
             self.ssh.exec('scancel '+self.job_id, shell=True)
             raise
     @classmethod
-    def _collectibles_from_log_files(cls, wd, logger):
+    def _collectible_prefix(cls, stage_index=None):
+        if stage_index is None:
+            prefix = 'OUTPUT_FILES='
+        elif isinstance(stage_index, (tuple, list)):
+            prefix = 'OUTPUT_FILES[{}]='.format('-'.join([ str(i) for i in stage_index ]))
+        else:
+            prefix = 'OUTPUT_FILES[{}]='.format(stage_index)
+        return prefix
+    def collectible_prefix(self, stage_index=None):
+        if stage_index is None:
+            stage_index = self.current_stage
+        return self._collectible_prefix(stage_index)
+    @classmethod
+    def _collectibles_from_log_files(cls, wd, logger, stage_index=None):
         collectibles = []
-        _prefix = 'OUTPUT_FILES='
+        _prefix = cls._collectible_prefix(stage_index)
         home = os.path.expanduser('~')
         log_files = glob.glob(os.path.join(wd,'*.out'))
         for log_file in log_files:
@@ -834,19 +853,20 @@ class SlurmOverSSH(Slurm):
                         collectible = '~'+collectible[len(home):]
                     collectibles.append(collectible)
         return collectibles
-    def collect_results(self):
-        _prefix = 'OUTPUT_FILES='
+    def collect_results(self, stage_index=None):
+        _prefix = self.collectible_prefix(stage_index)
         code = """
 from tramway.analyzer import environments, BasicLogger
 
 wd = '{}'
 logger = BasicLogger()
+stage = {!r}
 
-files  = environments.Slurm._combine_analyses(wd, logger)
-files += environments.SlurmOverSSH._collectibles_from_log_files(wd, logger)
+files  = environments.Slurm._combine_analyses(wd, logger, stage)
+files += environments.SlurmOverSSH._collectibles_from_log_files(wd, logger, stage)
 
 print('{}'+';'.join(files))
-""".format(self.wd, _prefix)
+""".format(self.wd, stage_index, _prefix)
         local_script = self.make_temporary_file(suffix='.sh', text=True)
         with open(local_script, 'w') as f:
             f.write(code)
