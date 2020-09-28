@@ -427,7 +427,7 @@ class Env(AnalyzerNode):
             with open(self.script, 'r') as f:
                 content = f.readlines()
         # modify
-        filtered_content = self.cleanup_script_content(content)
+        filtered_content = self.filter_script_content(content)
         if script in self.temporary_files:
             tmpfile = script # reuse file
         else:
@@ -440,7 +440,7 @@ class Env(AnalyzerNode):
             self.script = tmpfile
         else:
             return tmpfile
-    def cleanup_script_content(self, content):
+    def filter_script_content(self, content):
         filtered_content = []
         for line in content:
             if line.startswith('get_ipython('):
@@ -686,23 +686,89 @@ class Slurm(Env):
             raise
 
 
-class SlurmOverSSH(Slurm):
+__remote_host_attrs__ = ('_ssh','_local_data_location','_remote_data_location','_directory_mapping','_remote_dependencies')
+
+class RemoteHost(object):
     """
-    Calls *sbatch* through an SSH connection to a Slurm server.
+    children classes should define attributes listed in `__remote_host_attrs__`.
+
+    minimum base implementation:
+
+    .. code-block: python
+
+        assert issubclass(cls, Env)
+
+        class Cls(cls, RemoteHost):
+            __slots__ = __remote_host_attrs__
+            def __init__(self, **kwargs):
+                cls.__init__(self, **kwargs)
+                RemoteHost.__init__(self)
+            def setup(self, *argv):
+                cls.setup(self, *argv)
+                RemoteHost.setup(self, *argv)
+            def filter_script_content(self, content):
+                return RemoteHost.filter_script_content(self,
+                        cls.filter_script_content(self, content))
+            def make_job(self, stage_index=None, source=None, region_index=None,
+                        segment_index=None):
+                cls.make_job(self, stage_index, self.format_source(source),
+                        region_index, segment_index)
+            def collect_results(self, stage_index=None):
+                log_pattern = '*.out' # to be adapted
+                RemoteHost.collect_results(self, log_pattern, stage_index):
+            def delete_temporary_data(self):
+                RemoteHost.delete_temporary_data(self)
+                cls.delete_temporary_data(self)
+
     """
-    __slots__ = ('_ssh','remote_dependencies','local_data_location','remote_data_location')
-    def __init__(self, **kwargs):
-        Slurm.__init__(self, **kwargs)
+    def __init__(self):
         self._ssh = None
-        self.remote_dependencies = None
-        self.local_data_location = None
-        self.remote_data_location = None
+        self._local_data_location = None
+        self._remote_data_location = None
+        self._directory_mapping = {}
+        self._remote_dependencies = None
     @property
     def ssh(self):
         if self._ssh is None:
             from tramway.analyzer.env import ssh
             self._ssh = ssh.Client()
         return self._ssh
+    @property
+    def remote_data_location(self):
+        return self._remote_data_location
+    @remote_data_location.setter
+    def remote_data_location(self, path):
+        former_location = self.remote_data_location
+        if path != former_location:
+            if self.local_data_location is not None:
+                if path is None: # former_location is not None
+                    # therefore key `local_data_location` can be found in `directory_mapping`
+                    del self.directory_mapping[self.local_data_location]
+                else:
+                    self.directory_mapping[self.local_data_location] = path
+            self._remote_data_location = path
+    @property
+    def local_data_location(self):
+        return self._local_data_location
+    @local_data_location.setter
+    def local_data_location(self, path):
+        former_location = self.local_data_location
+        if path != former_location:
+            if self.remote_data_location is not None:
+                if path is None: # former_location is not None
+                    del self.directory_mapping[former_location]
+                else:
+                    self.directory_mapping[path] = self.remote_data_location
+            self._local_data_location = path
+    @property
+    def directory_mapping(self):
+        return self._directory_mapping
+    @property
+    def remote_dependencies(self):
+        return self._remote_dependencies
+    @remote_dependencies.setter
+    def remote_dependencies(self, deps):
+        self._remote_dependencies = deps
     @property
     def wd_is_available(self):
         return self.worker_side
@@ -711,15 +777,33 @@ class SlurmOverSSH(Slurm):
             cmd = 'mkdir -p "{}"; mktemp -d -p "{}"'.format(self.working_directory, self.working_directory)
             out, err = self.ssh.exec(cmd)
             if err:
+                # attribute `logger` must be defined by the concrete parent class
                 self.logger.error(err)
             elif out:
                 self.working_directory = out.rstrip()
         else:
             assert os.path.isdir(self.wd)
     def setup(self, *argv):
-        Slurm.setup(self, *argv)
         if self.worker_side:
             self.script = '/'.join((self.wd, os.path.basename(self.script)))
+    def format_collectibles(self):
+        home = os.path.expanduser('~')
+        for path in self.collectibles:
+            path = os.path.normpath(path)
+            if os.path.isabs(path) and path.startswith(home):
+                path = '~'+path[len(home):]
+            yield path
+    def format_source(self, source):
+        if source is not None:
+            source = os.path.normpath(source)
+            home = os.path.expanduser('~')
+            if os.path.isabs(source) and source.startswith(home):
+                source = '~'+source[len(home):]
+            for _dir in self.directory_mapping:
+                if source.startswith(_dir):
+                    source = self.directory_mapping[_dir]+source[len(_dir):]
+                    break
+        return source
     def dispatch(self, **kwargs):
         if not kwargs:
             self.prepare_script()
@@ -729,19 +813,98 @@ class SlurmOverSSH(Slurm):
             #    dest = dest[:-5]+'py'
             dest = '/'.join((self.wd, dest))
             attrs = self.ssh.put(src, dest)
-            self.logger.info(attrs)
+            self.logger.debug(attrs)
             self.script = dest
             self.logger.info('Python script location: '+dest)
             return True
-        elif 'stage_options' in kwargs:
-            stage_options = kwargs['stage_options']
-            for option in stage_options:
-                if option == 'sbatch_options':
-                    self.sbatch_options.update(stage_options[option])
-                else:
-                    self.logger.debug('ignoring option: '+option)
-    def cleanup_script_content(self, content):
-        content = Slurm.cleanup_script_content(self, content)
+    @classmethod
+    def _collectible_prefix(cls, stage_index=None):
+        if stage_index is None:
+            prefix = 'OUTPUT_FILES='
+        elif isinstance(stage_index, (tuple, list)):
+            prefix = 'OUTPUT_FILES[{}]='.format('-'.join([ str(i) for i in stage_index ]))
+        else:
+            prefix = 'OUTPUT_FILES[{}]='.format(stage_index)
+        return prefix
+    def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env'):
+        if stage_index is None:
+            # attribute `current_stage` is expected to defined in the concrete parent class
+            stage_index = self.current_stage
+        _prefix = self._collectible_prefix(stage_index)
+        code = """
+from tramway.analyzer import environments, BasicLogger
+
+wd = '{}'
+logger = BasicLogger()
+stage = {!r}
+log_pattern = '{}'
+
+files  = environments.{}._combine_analyses(wd, logger, stage)
+files += environments.RemoteHost._collectibles_from_log_files(wd, log_pattern, stage)
+
+print('{}'+';'.join(files))
+""".format(self.wd, stage_index, _log_pattern, _parent_cls, _prefix)
+        local_script = self.make_temporary_file(suffix='.sh', text=True)
+        with open(local_script, 'w') as f:
+            f.write(code)
+        remote_script = '/'.join((self.wd, os.path.basename(local_script)))
+        attrs = self.ssh.put(local_script, remote_script, confirm=True)
+        self.logger.debug(attrs)
+        cmd = '{}{} {}; rm {}'.format(
+                '' if self.remote_dependencies is None else self.remote_dependencies+'; ',
+                self.interpreter, remote_script, remote_script)
+        out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
+        if err:
+            self.logger.error(err.rstrip())
+        if not out:
+            return False
+        self.logger.debug(out)
+        out = out.splitlines()
+        while True:
+            try:
+                line = out.pop() # starting from last line
+            except IndexError: # empty list
+                raise RuntimeError('missing output: {}...'.format(_prefix))
+            if line.startswith(_prefix):
+                end_result_files = line[len(_prefix):].split(';')
+                break
+        any_transfer = False
+        for end_result_file in end_result_files:
+            if not end_result_file:
+                continue
+            end_result_file = os.path.normpath(end_result_file)
+            self.logger.info('retrieving file: '+end_result_file)
+            dest = end_result_file
+            for local, remote in self.directory_mapping.items():
+                if dest.startswith(remote):
+                    dest = local+dest[len(remote):]
+                    break
+            self.ssh.get(end_result_file, dest)
+            any_transfer = True
+        return any_transfer
+    @classmethod
+    def _collectibles_from_log_files(cls, wd, log_pattern, stage_index=None):
+        collectibles = []
+        _prefix = cls._collectible_prefix(stage_index)
+        home = os.path.expanduser('~')
+        log_files = glob.glob(os.path.join(wd,log_pattern))
+        for log_file in log_files:
+            with open(log_file, 'r') as f:
+                try:
+                    last_line = f.readlines()[-1]
+                except IndexError:
+                    continue
+            if last_line.startswith(_prefix):
+                last_line = last_line.rstrip()
+                for collectible in last_line[len(_prefix):].split(';'):
+                    if collectible:
+                        collectible = os.path.normpath(collectible)
+                        if os.path.isabs(collectible):
+                            if collectible.startswith(home):
+                                collectible = '~'+collectible[len(home):]
+                        collectibles.append(collectible)
+        return collectibles
+    def filter_script_content(self, content):
         filtered_content = []
         for line in content:
             pattern = '.spt_data.from_'
@@ -765,19 +928,45 @@ class SlurmOverSSH(Slurm):
         if 0<call:
             analyzer_var = line[:call]
             filtered_content.append(\
-                    "\nprint({}.env.collectible_prefix()+';'.join({}.env.collectibles))\n".format(
+                    "\nprint({}.env.collectible_prefix()+';'.join({}.env.format_collectibles()))\n".format(
                         analyzer_var, analyzer_var))
         # 
         return filtered_content
+    def delete_temporary_data(self):
+        # delete worker-side working directory
+        out, err = self.ssh.exec('rm -rf '+self.wd)
+        if err:
+            self.logger.error(err)
+        if out:
+            self.logger.info(out)
+
+
+class SlurmOverSSH(Slurm, RemoteHost):
+    """
+    Calls *sbatch* through an SSH connection to a Slurm server.
+    """
+    __slots__ = __remote_host_attrs__
+    def __init__(self, **kwargs):
+        Slurm.__init__(self, **kwargs)
+        RemoteHost.__init__(self)
+    def setup(self, *argv):
+        Slurm.setup(self, *argv)
+        RemoteHost.setup(self, *argv)
+    def dispatch(self, **kwargs):
+        if 'stage_options' in kwargs:
+            stage_options = kwargs['stage_options']
+            for option in stage_options:
+                if option == 'sbatch_options':
+                    self.sbatch_options.update(stage_options[option])
+                else:
+                    self.logger.debug('ignoring option: '+option)
+        return RemoteHost.dispatch(self, **kwargs)
+    def filter_script_content(self, content):
+        return RemoteHost.filter_script_content(self,
+                Slurm.filter_script_content(self, content))
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
-        if source is not None:
-            if self.remote_data_location:
-                source = '/'.join((self.remote_data_location, os.path.basename(source)))
-            else:
-                home = os.path.expanduser('~')
-                if os.path.isabs(source) and os.path.normpath(source).startswith(home):
-                    source = '~'+source[len(home):]
-        Slurm.make_job(self, stage_index, source, region_index, segment_index)
+        Slurm.make_job(self, stage_index, self.format_source(source),
+                region_index, segment_index)
     def submit_jobs(self):
         sbatch_script = self.make_sbatch_script()
         dest = '/'.join((self.wd, os.path.basename(sbatch_script)))
@@ -819,101 +1008,11 @@ class SlurmOverSSH(Slurm):
             self.logger.info('killing jobs with: scancel '+self.job_id)
             self.ssh.exec('scancel '+self.job_id, shell=True)
             raise
-    @classmethod
-    def _collectible_prefix(cls, stage_index=None):
-        if stage_index is None:
-            prefix = 'OUTPUT_FILES='
-        elif isinstance(stage_index, (tuple, list)):
-            prefix = 'OUTPUT_FILES[{}]='.format('-'.join([ str(i) for i in stage_index ]))
-        else:
-            prefix = 'OUTPUT_FILES[{}]='.format(stage_index)
-        return prefix
-    def collectible_prefix(self, stage_index=None):
-        if stage_index is None:
-            stage_index = self.current_stage
-        return self._collectible_prefix(stage_index)
-    @classmethod
-    def _collectibles_from_log_files(cls, wd, logger, stage_index=None):
-        collectibles = []
-        _prefix = cls._collectible_prefix(stage_index)
-        home = os.path.expanduser('~')
-        log_files = glob.glob(os.path.join(wd,'*.out'))
-        for log_file in log_files:
-            with open(log_file, 'r') as f:
-                try:
-                    last_line = f.readlines()[-1]
-                except IndexError:
-                    continue
-            if last_line.startswith(_prefix):
-                last_line = last_line.rstrip()
-                for collectible in last_line[len(_prefix):].split(';'):
-                    if not collectible:
-                        continue
-                    if os.path.isabs(collectible) and os.path.normpath(collectible).startswith(home):
-                        collectible = '~'+collectible[len(home):]
-                    collectibles.append(collectible)
-        return collectibles
     def collect_results(self, stage_index=None):
-        _prefix = self.collectible_prefix(stage_index)
-        code = """
-from tramway.analyzer import environments, BasicLogger
-
-wd = '{}'
-logger = BasicLogger()
-stage = {!r}
-
-files  = environments.Slurm._combine_analyses(wd, logger, stage)
-files += environments.SlurmOverSSH._collectibles_from_log_files(wd, logger, stage)
-
-print('{}'+';'.join(files))
-""".format(self.wd, stage_index, _prefix)
-        local_script = self.make_temporary_file(suffix='.sh', text=True)
-        with open(local_script, 'w') as f:
-            f.write(code)
-        remote_script = '/'.join((self.wd, os.path.basename(local_script)))
-        attrs = self.ssh.put(local_script, remote_script, confirm=True)
-        self.logger.info(attrs)
-        cmd = '{}{} {}; rm {}'.format(
-                '' if self.remote_dependencies is None else self.remote_dependencies+'; ',
-                self.interpreter, remote_script, remote_script)
-        out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
-        if err:
-            self.logger.error(err.rstrip())
-        if not out:
-            return False
-        self.logger.debug(out)
-        out = out.splitlines()
-        while True:
-            try:
-                line = out.pop() # starting from last line
-            except IndexError: # empty list
-                raise RuntimeError('missing output: {}...'.format(_prefix))
-            if line.startswith(_prefix):
-                end_result_files = line[len(_prefix):].split(';')
-                break
-        any_transfer = False
-        for end_result_file in end_result_files:
-            if not end_result_file:
-                continue
-            self.logger.info('retrieving file: '+end_result_file)
-            if self.local_data_location:
-                dest = os.path.join(
-                        os.path.expanduser(self.local_data_location),
-                        os.path.basename(end_result_file),
-                    )
-            else:
-                dest = end_result_file
-            self.ssh.get(end_result_file, dest)
-            any_transfer = True
-        return any_transfer
+        RemoteHost.collect_results(self, '*.out', stage_index):
     def delete_temporary_data(self):
+        RemoteHost.delete_temporary_data(self)
         Slurm.delete_temporary_data(self)
-        # delete worker-side working directory
-        out, err = self.ssh.exec('rm -rf '+self.wd)
-        if err:
-            self.logger.error(err)
-        if out:
-            self.logger.info(out)
 
 
 Environment.register(SlurmOverSSH)
@@ -925,7 +1024,7 @@ class Tars(SlurmOverSSH):
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway2-200910.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-200928.sif python3.6 -s'
         self.remote_dependencies = 'module load singularity'
     @property
     def username(self):
@@ -944,6 +1043,12 @@ class Tars(SlurmOverSSH):
         parts = self.interpreter.split()
         p = parts.index('python3.6')
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
+    @property
+    def container_url(self):
+        return 'https://dl.pasteur.fr/kl/tramway-hpc-200928.sif'
+    def setup(self, *argv):
+        SlurmOverSSH.setup(self, *argv)
+        self.ssh.download_if_missing(self.container, self.container_url)
 
 
 class GPULab(SlurmOverSSH):
@@ -952,7 +1057,7 @@ class GPULab(SlurmOverSSH):
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME tramway2-200910.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME tramway-hpc-200928.sif python3.6 -s'
     @property
     def username(self):
         return None if self.ssh.host is None else self.ssh.host.split('@')[0]
@@ -970,6 +1075,12 @@ class GPULab(SlurmOverSSH):
         parts = self.interpreter.split()
         p = parts.index('python3.6')
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
+    @property
+    def container_url(self):
+        return 'https://dl.pasteur.fr/kl/tramway-hpc-200928.sif'
+    def setup(self, *argv):
+        SlurmOverSSH.setup(self, *argv)
+        self.ssh.download_if_missing(self.container, self.container_url)
 
 
 __all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab']
