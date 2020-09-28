@@ -96,10 +96,7 @@ class Client(object):
         dest = os.path.expanduser(dest)
         self.sftp_client.get(target, dest)
     def download_if_missing(self, target, target_url, logger=None):
-        try:
-            info = self.sftp_client.lstat(target)
-        except:
-            info = None
+        info = self.sftp_client.lstat(target)
         if info is None:
             if logger is not None:
                 logger.info('downloading {}...'.format(target_url))

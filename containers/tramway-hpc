@@ -61,6 +61,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     pip3.6 install . -r requirements.txt
     pip3.6 install .[roi]
 
+    pip3.6 install tqdm scikit-learn
     pip3.6 install paramiko # required on the submit side only
     #pip3.6 install notebook bokeh
 

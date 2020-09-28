@@ -703,6 +703,8 @@ class RemoteHost(object):
             def __init__(self, **kwargs):
                 cls.__init__(self, **kwargs)
                 RemoteHost.__init__(self)
+            wd_is_available = RemoteHost.wd_is_available
+            make_working_directory = RemoteHost.make_working_directory
             def setup(self, *argv):
                 cls.setup(self, *argv)
                 RemoteHost.setup(self, *argv)
@@ -826,11 +828,13 @@ class RemoteHost(object):
         else:
             prefix = 'OUTPUT_FILES[{}]='.format(stage_index)
         return prefix
-    def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env'):
+    def collectible_prefix(self, stage_index=None):
         if stage_index is None:
             # attribute `current_stage` is expected to defined in the concrete parent class
             stage_index = self.current_stage
-        _prefix = self._collectible_prefix(stage_index)
+        return self._collectible_prefix(stage_index)
+    def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env'):
+        _prefix = self.collectible_prefix(stage_index)
         code = """
 from tramway.analyzer import environments, BasicLogger
 
@@ -949,6 +953,8 @@ class SlurmOverSSH(Slurm, RemoteHost):
     def __init__(self, **kwargs):
         Slurm.__init__(self, **kwargs)
         RemoteHost.__init__(self)
+    wd_is_available = RemoteHost.wd_is_available
+    make_working_directory = RemoteHost.make_working_directory
     def setup(self, *argv):
         Slurm.setup(self, *argv)
         RemoteHost.setup(self, *argv)
@@ -1009,7 +1015,7 @@ class SlurmOverSSH(Slurm, RemoteHost):
             self.ssh.exec('scancel '+self.job_id, shell=True)
             raise
     def collect_results(self, stage_index=None):
-        RemoteHost.collect_results(self, '*.out', stage_index):
+        RemoteHost.collect_results(self, '*.out', stage_index)
     def delete_temporary_data(self):
         RemoteHost.delete_temporary_data(self)
         Slurm.delete_temporary_data(self)
@@ -1045,10 +1051,11 @@ class Tars(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'https://dl.pasteur.fr/kl/tramway-hpc-200928.sif'
+        return 'https://dl.pasteur.fr//tramway-hpc-200928.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
-        self.ssh.download_if_missing(self.container, self.container_url)
+        if self.submit_side:
+            self.ssh.download_if_missing(self.container, self.container_url)
 
 
 class GPULab(SlurmOverSSH):
@@ -1077,10 +1084,11 @@ class GPULab(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'https://dl.pasteur.fr/kl/tramway-hpc-200928.sif'
+        return 'https://dl.pasteur.fr//tramway-hpc-200928.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
-        self.ssh.download_if_missing(self.container, self.container_url)
+        if self.submit_side:
+            self.ssh.download_if_missing(self.container, self.container_url)
 
 
 __all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab']
