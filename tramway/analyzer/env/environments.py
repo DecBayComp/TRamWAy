@@ -383,6 +383,7 @@ class Env(AnalyzerNode):
     def _combine_analyses(cls, wd, logger, *args):
         analyses = {}
         output_files = glob.glob(os.path.join(wd, '*.rwa'))
+        loaded_files = []
         while output_files:
             output_file = output_files.pop()
             if os.stat(output_file).st_size == 0:
@@ -392,27 +393,33 @@ class Env(AnalyzerNode):
             try:
                 __analyses = load_rwa(output_file, lazy=True)
             except:
-                traceback.print_exc()
-                raise
+                logger.critical(traceback.format_exc())
+                #raise
+                continue
             try:
                 source = __analyses.metadata['datafile']
             except KeyError:
                 logger.debug(str(__analyses))
                 logger.debug('metadata: ',__analyses.metadata)
                 logger.critical('key `datafile` not found in the metadata')
-                analyses = {}; break
+                #analyses = {}; break
+                continue
             try:
                 _analyses = analyses[source]
             except KeyError:
                 analyses[source] = __analyses
             else:
                 append_leaf(_analyses, __analyses)
+            loaded_files.append(output_file)
         end_result_files = []
         for source in analyses:
-            rwa_file = os.path.splitext(source)[0]+'.rwa'
+            rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
             logger.info('writing file: {}...'.format(rwa_file))
             save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True)
             end_result_files.append(rwa_file)
+        for output_file in loaded_files:
+            if output_file not in end_result_files:
+                os.unlink(output_file)
         return end_result_files
     def collect_results(self, stage_index=None):
         return bool(self._combine_analyses(self.wd, self.logger, stage_index))
@@ -788,13 +795,20 @@ class RemoteHost(object):
     def setup(self, *argv):
         if self.worker_side:
             self.script = '/'.join((self.wd, os.path.basename(self.script)))
-    def format_collectibles(self):
+    @classmethod
+    def _format_collectibles(cls, paths):
         home = os.path.expanduser('~')
-        for path in self.collectibles:
+        collectibles = []
+        for path in paths:
             path = os.path.normpath(path)
             if os.path.isabs(path) and path.startswith(home):
                 path = '~'+path[len(home):]
-            yield path
+            collectibles.append(path)
+        return collectibles
+    def format_collectibles(self, paths=None):
+        if paths is None:
+            paths = self.collectibles
+        return self._format_collectibles(paths)
     def format_source(self, source):
         if source is not None:
             source = os.path.normpath(source)
@@ -835,7 +849,7 @@ class RemoteHost(object):
         return self._collectible_prefix(stage_index)
     def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env'):
         _prefix = self.collectible_prefix(stage_index)
-        code = """
+        code = """\
 from tramway.analyzer import environments, BasicLogger
 
 wd = '{}'
@@ -846,7 +860,9 @@ log_pattern = '{}'
 files  = environments.{}._combine_analyses(wd, logger, stage)
 files += environments.RemoteHost._collectibles_from_log_files(wd, log_pattern, stage)
 
-print('{}'+';'.join(files))
+files  = environments.RemoteHost._format_collectibles(files)
+
+print('{}'+';'.join(files))\
 """.format(self.wd, stage_index, _log_pattern, _parent_cls, _prefix)
         local_script = self.make_temporary_file(suffix='.sh', text=True)
         with open(local_script, 'w') as f:
@@ -903,9 +919,9 @@ print('{}'+';'.join(files))
                 for collectible in last_line[len(_prefix):].split(';'):
                     if collectible:
                         collectible = os.path.normpath(collectible)
-                        if os.path.isabs(collectible):
-                            if collectible.startswith(home):
-                                collectible = '~'+collectible[len(home):]
+                        #if os.path.isabs(collectible):
+                        #    if collectible.startswith(home):
+                        #        collectible = '~'+collectible[len(home):]
                         collectibles.append(collectible)
         return collectibles
     def filter_script_content(self, content):
