@@ -75,8 +75,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'TRamWAy'
-copyright = u'2017-2019, Institut Pasteur, François Laurent' #, Jean-Baptiste Masson
-author = u'François Laurent' #, Jean-Baptiste Masson
+copyright = u'2017-2020, Institut Pasteur'
+author = u'François Laurent'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -287,7 +287,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'inferencemap', u'TRamWAy Documentation',
+    (master_doc, 'tramway', u'TRamWAy Documentation',
      [author], 1)
 ]
 

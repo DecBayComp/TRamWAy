@@ -7,6 +7,14 @@ tramway.helper package
     :show-inheritance:
 
 
+tramway.helper.roi module
+-------------------------
+
+.. automodule:: tramway.helper.roi
+    :members:
+    :show-inheritance:
+
+
 tramway.helper.tessellation module
 ----------------------------------
 
