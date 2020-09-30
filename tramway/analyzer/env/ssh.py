@@ -30,6 +30,9 @@ class Client(object):
         self._options = options
     @property
     def host(self):
+        """
+        account information in the following format: *username@hostname*
+        """
         return self._host
     @host.setter
     def host(self, addr):
@@ -46,6 +49,12 @@ class Client(object):
         return self._sftp_client
     @property
     def password(self):
+        """
+        read-only property that requests a password from the user if a password is required.
+
+        set attribute `_password` to explicitly pass a password.
+        Note however plain text passwords are security breaches.
+        """
         if self._password is None:
             if __user_interaction__ is True:
                 import getpass
@@ -55,6 +64,15 @@ class Client(object):
         return self._password
     @property
     def options(self):
+        """
+        keyword arguments passed to `paramiko.client.SSHClient.connect`.
+
+        additional supported options are:
+
+        * *allow_password* (bool): makes `connect` crash if a password is required
+                and *allow_password* is ``False``
+
+        """
         return self._options
     def connect(self):
         try:
@@ -76,6 +94,11 @@ class Client(object):
         if allow_password is not None:
             self.options['allow_password'] = allow_password
     def exec(self, cmd, shell=False, logger=None):
+        """
+        runs command *cmd* on the remote host.
+
+        if some executable is reported missing, set ``shell=True``.
+        """
         if shell:
             cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
         if logger is not None:
@@ -89,14 +112,32 @@ class Client(object):
             err = err.decode('utf-8')
         return out, err
     def put(self, src, dest, confirm=False):
+        """
+        uploads *src* to remote file *dest*.
+
+        see also `paramiko.sftp_client.SFTPClient.put`.
+        """
         return self.sftp_client.put(src, dest, confirm=confirm)
     def get(self, target, dest):
+        """
+        downloads *target* as local file *dest*.
+
+        see also `paramiko.sftp_client.SFTPClient.put`.
+        """
         if target.startswith('~/'):
             target = target[2:]
         dest = os.path.expanduser(dest)
         self.sftp_client.get(target, dest)
     def download_if_missing(self, target, target_url, logger=None):
-        info = self.sftp_client.lstat(target)
+        """
+        downloads *target_url* if *target* is missing on the remote host.
+
+        note: command *wget* is run from the remote host.
+        """
+        try:
+            info = self.sftp_client.lstat(target)
+        except:
+            info = None
         if info is None:
             if logger is not None:
                 logger.info('downloading {}...'.format(target_url))

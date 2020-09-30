@@ -1043,6 +1043,9 @@ Environment.register(SlurmOverSSH)
 class Tars(SlurmOverSSH):
     """
     Designed for server *tars.pasteur.fr*.
+
+    By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
+    See also `https://github.com/DecBayComp/TRamWAy/containers/available_images.rst`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
@@ -1067,16 +1070,19 @@ class Tars(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'https://dl.pasteur.fr//tramway-hpc-200928.sif'
+        return 'http://dl.pasteur.fr/fop/VsJYgkxP/tramway-hpc-200928.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:
-            self.ssh.download_if_missing(self.container, self.container_url)
+            self.ssh.download_if_missing(self.container, self.container_url, self.logger)
 
 
 class GPULab(SlurmOverSSH):
     """
     Designed for server *adm.inception.hubbioit.pasteur.fr*.
+
+    By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
+    See also `https://github.com/DecBayComp/TRamWAy/containers/available_images.rst`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
@@ -1100,11 +1106,11 @@ class GPULab(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'https://dl.pasteur.fr//tramway-hpc-200928.sif'
+        return 'http://dl.pasteur.fr/fop/VsJYgkxP/tramway-hpc-200928.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:
-            self.ssh.download_if_missing(self.container, self.container_url)
+            self.ssh.download_if_missing(self.container, self.container_url, self.logger)
 
 
 __all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab']
