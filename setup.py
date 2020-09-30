@@ -5,7 +5,7 @@ from codecs import open
 from os import path
 
 # requirements moved to requirements.txt
-install_requires = []#'six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
+install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
 extras_require = {'animate': ['opencv-python', 'tqdm'], 'roi': ['polytope', 'cvxopt', 'tqdm']}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']

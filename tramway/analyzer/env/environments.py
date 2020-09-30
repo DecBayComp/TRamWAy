@@ -1045,7 +1045,7 @@ class Tars(SlurmOverSSH):
     Designed for server *tars.pasteur.fr*.
 
     By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
-    See also `https://github.com/DecBayComp/TRamWAy/containers/available_images.rst`_.
+    See also https://github.com/DecBayComp/TRamWAy/containers/available_images.rst.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
@@ -1082,7 +1082,7 @@ class GPULab(SlurmOverSSH):
     Designed for server *adm.inception.hubbioit.pasteur.fr*.
 
     By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
-    See also `https://github.com/DecBayComp/TRamWAy/containers/available_images.rst`_.
+    See also https://github.com/DecBayComp/TRamWAy/containers/available_images.rst.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
