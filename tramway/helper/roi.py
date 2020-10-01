@@ -33,6 +33,13 @@ else:
 
 
 class SupportRegions(object):
+    """
+    A support region can either be a region of interest or the union of regions of interest.
+    Major processing steps such as tessellation and inference may operate
+    on support regions so that a region of interest simply acts as a window.
+
+    This class offers a base implementation for :class:`UnitRegions` and :class:`GroupedRegions`.
+    """
     __slots__ = ('gen_label','update_metadata','verbose')
     def __init__(self, region_label=None, update_metadata=None, verbose=True):
         self.__reset__()
@@ -122,6 +129,9 @@ class SupportRegions(object):
             return iternum
 
 class UnitRegions(SupportRegions):
+    """
+    Regions of interest are considered separately, independently of whether they overlap or not.
+    """
     __slots__ = ('unit_region','_bw_comp',)
     def __init__(self, *args, **kwargs):
         SupportRegions.__init__(self, *args, **kwargs)
@@ -214,6 +224,11 @@ class UnitRegions(SupportRegions):
                 return df
 
 class GroupedRegions(SupportRegions):
+    """
+    overlapping regions of interest are pooled together and form a unique support region.
+
+    Pooling disregards which collection a ROI pertains to.
+    """
     def __reset__(self):
         self.unit_region = []
         self._unit_polytope = {}
@@ -444,6 +459,8 @@ class GroupedRegions(SupportRegions):
 
 
 class RoiCollection(object):
+    """
+    """
     def __init__(self, roi, label=None, regions=None):
         self.label = label
         self.regions = regions
@@ -484,6 +501,9 @@ class RoiCollection(object):
     def overlaps(self, i):
         return 1 < len(self.get_subset(i))
     def get_map(self, i, analysis_tree, map_label, full=False):
+        """
+        returns the `Map` object for unit roi *i*.
+        """
         label = self.subset_label(i)
         try:
             subtree = analysis_tree[label]
@@ -507,6 +527,9 @@ class RoiCollection(object):
             maps.maps = maps.maps[inside[maps.maps.index]]
         return maps
     def get_cells(self, i, analysis_tree):
+        """
+        returns the `Partition` object for unit roi *i*.
+        """
         label = self.subset_label(i)
         cells = analysis_tree[label].data
         tessellation = cells.tessellation
@@ -523,9 +546,17 @@ class RoiCollection(object):
             inner_cell = np.ones(tessellation.number_of_cells, dtype=bool)
         return cells, inner_cell
     def get_tessellation(self, i, analysis_tree):
+        """
+        returns the `Tessellation` object for unit roi *i*,
+        together with a boolean array so that the *k*-th element is ``True``
+        if microdomain *k* lies within roi *i*.
+        """
         cells, inner_cell = self.get_cells(i, analysis_tree)
         return cells.tessellation, inner_cell
     def cell_plot(self, i, analysis_tree, decorate=True, **kwargs):
+        """
+        plots the `Partition` for unit roi *i*.
+        """
         if isinstance(i, str):
             label = i
             title = kwargs.pop('title', label)
@@ -582,6 +613,9 @@ class RoiCollection(object):
             ax.set_xlim(xl)
             ax.set_ylim(yl)
     def map_plot(self, i, analysis_tree, map_label, decorate=True, **kwargs):
+        """
+        plots the `Maps` for unit roi *i*.
+        """
         if isinstance(i, str):
             label = i
             title = kwargs.pop('title', label)
@@ -632,6 +666,12 @@ class RoiCollection(object):
         self.regions.reset_roi(self.get_subset_index(i), analysis_tree)
 
 class RoiCollections(AutosaveCapable):
+    """
+    collection of all collections of roi.
+
+    manages the analysis tree for the spt data.
+    Modifications can be automatically saved into an *.rwa* file.
+    """
     def __init__(self, group_overlapping_roi=False, rwa_file=None, autosave=True, metadata=None, verbose=True, _bw_comp=False):
         AutosaveCapable.__init__(self, rwa_file, autosave)
         label = self.roi_label
@@ -714,6 +754,10 @@ import scipy.sparse as sparse
 import itertools
 
 class RoiHelper(Helper):
+    """
+    maintains an extra data artefact in the *.rwa* file to store/load
+    roi definitions.
+    """
     def __init__(self, input_data, roi=None,
             meta_label='all %Sroi', meta_label_sep=' ',
             rwa_file=None, autosave=True, verbose=True,
