@@ -28,8 +28,8 @@ class Time(Attribute):
         * segment :class:`~tramway.tessellation.base.Partition` object, from `sampling`,
         * segment maps (:class:`pandas.DataFrame`) from `maps`, if `maps` is defined.
 
-        `index` is a selector on the segment index, either as an *int* or a boolean callable that takes
-        a segment index as input argument.
+        `index` is a selector on the segment index, either as an *int* or a *sequence* of *int*s,
+        or a boolean *callable* that takes a segment index (*int*) as input argument.
         """
         pass
     @property

@@ -18,6 +18,9 @@ from .proxy import *
 from tramway.tessellation.grid import RegularMesh
 
 class Squares(TessellerProxy):
+    """
+    Wraps :class:`tramway.tessellation.grid.RegularMesh`.
+    """
     __slots__ = ()
     def __init__(self, **kwargs):
         TessellerProxy.__init__(self, RegularMesh, **kwargs)
@@ -47,6 +50,9 @@ class Squares(TessellerProxy):
 from tramway.tessellation.hexagon import HexagonalMesh
 
 class Hexagons(TessellerProxy):
+    """
+    Wraps :class:`tramway.tessellation.hexagon.HexagonalMesh`.
+    """
     __slots__ = ()
     def __init__(self, **kwargs):
         TessellerProxy.__init__(self, HexagonalMesh, **kwargs)
@@ -81,6 +87,9 @@ class Hexagons(TessellerProxy):
 from tramway.tessellation.kmeans import KMeansMesh
 
 class KMeans(TessellerProxy):
+    """
+    Wraps :class:`tramway.tessellation.kmeans.KMeansMesh`.
+    """
     __slots__ = ()
     def __init__(self, **kwargs):
         TessellerProxy.__init__(self, KMeansMesh, **kwargs)
@@ -113,6 +122,9 @@ class KMeans(TessellerProxy):
 from tramway.tessellation.gwr import GasMesh
 
 class GWR(TessellerProxy):
+    """
+    Wraps :class:`tramway.tessellation.gwr.GasMesh`.
+    """
     __slots__ = ()
     def __init__(self, **kwargs):
         TessellerProxy.__init__(self, GasMesh, **kwargs)

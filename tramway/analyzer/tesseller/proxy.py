@@ -23,6 +23,9 @@ from .post import TessellationPostProcessingInitializer
 
 def proxy_property(propname, level='default', doc=None):
     """
+    Property factory function similar to builtin *property*,
+    dedicated to the :class:`TessellerProxy` class.
+
     For *'tessellate'* level properties, the default level is safe.
 
     For *'__init__'* level properties, the level must be specified.
@@ -61,6 +64,8 @@ def proxy_property(propname, level='default', doc=None):
 
 class TessellerProxy(AnalyzerNode):
     """
+    Encapsulates a tessellation plugin as defined in the :mod:`tramway.tessellation` package.
+
     Attributes are managed with the following rules:
 
     * if an attribute is set using a proxy property,

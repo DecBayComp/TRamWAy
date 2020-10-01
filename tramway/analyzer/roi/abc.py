@@ -21,11 +21,7 @@ class ROI(Attribute):
     @abstractmethod
     def as_individual_roi(self, index=None, collection=None):
         """ 
-        If `collection` is defined, `index` is the index in the collection,
-        otherwise, `index` is a linearized index across all the collections.
-
-        In the case a single collection is defined, the two indexing should
-        be equivalent.
+        `index` is the index in the collection.
         """
         pass
     @abstractmethod

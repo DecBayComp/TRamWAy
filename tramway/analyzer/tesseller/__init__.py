@@ -21,6 +21,25 @@ from .post import cell_mergers
 
 
 class TessellerInitializer(Initializer):
+    """
+    initializer class for the `RWAnalyzer.tesseller` main analyzer attribute.
+
+    The `RWAnalyzer.tesseller` attribute self-modifies on calling *from_...* methods.
+
+    The easiest way to define a tesseller is to set the `tesseller` attribute with
+    one of the tesseller classes provided by the *tessellers* module:
+
+    .. code-block: python
+
+        from tramway.analyzer import *
+
+        a = RWAnalyzer()
+        a.tesseller = tessellers.KMeans
+
+    Note that *tessellers* is made available by importing :mod:`tramway.analyzer`
+    just like :class:`~tramway.analyzer.RWAnalyzer`.
+
+    """
     __slots__ = ()
     def from_plugin(self, plugin):
         self.specialize( TessellerPlugin, plugin )

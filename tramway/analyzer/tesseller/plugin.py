@@ -18,6 +18,9 @@ from tramway.tessellation import plugins
 
 
 class TessellerPlugin(TessellerProxy):
+    """
+    Wraps any plugin referenced in `tramway.tessellation.plugins`.
+    """
     __slots__ = ('_module','_setup')
     def __init__(self, name, **kwargs):
         try:
@@ -36,6 +39,10 @@ class TessellerPlugin(TessellerProxy):
 
 
 def tesseller_plugin(name):
+    """ not implemented yet.
+
+    Will translate plugin names into `RWAnalyzer`-ready tessellers as
+    defined in the *tessellers* module, if any. """
     pass
     #if name in ('grid', 'hexagon', 'kmeans', 'gwr'):
 

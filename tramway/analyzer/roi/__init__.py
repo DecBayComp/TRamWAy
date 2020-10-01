@@ -94,7 +94,9 @@ class SupportRegion(BaseRegion):
 
 class FullRegion(BaseRegion):
     """
-    supplies with the full dataset; does not actually crop.
+    wraps the full dataset; does not actually crop.
+
+    A `FullRegion` can be both an individual ROI and a support region.
     """
     __slots__ = ()
     def crop(self, df=None):
@@ -124,6 +126,29 @@ class DecentralizedROIManager(AnalyzerNode):
         raise NotImplementedError('why for?')
         self._parent._roi = op(self)
     def as_individual_roi(self, index=None, collection=None, source=None, **kwargs):
+        """ returns a generator to loop over all the individual roi.
+
+        Filtering is delegated to the individual *.spt_data.roi* attributes.
+
+        A *callable* filter takes a single key (*int* for indices, *str* for labels and paths)
+        and returns a *bool*.
+        
+        Arguments:
+            
+            index (*int*, *sequence* of *int*s, or *callable*):
+                individual ROI index filter; indices apply within a collection
+                
+            collection (*str*, *sequence* of *str*s, or *callable*):
+                collection label filter
+            
+            source (*str*, *sequence* of *str*s, or *callable*):
+                SPT data source filter
+                
+        Returns:
+            
+            generator: iterator for individual ROI
+            
+        """
         if source is None:
             for rec in self._records:
                 for roi in rec.roi.as_individual_roi(index, collection, **kwargs):
@@ -138,6 +163,29 @@ class DecentralizedROIManager(AnalyzerNode):
                     for roi in rec.roi.as_individual_roi(index, collection, **kwargs):
                         yield roi
     def as_support_regions(self, index=None, source=None, **kwargs):
+        """ returns a generator to loop over all the support regions.
+
+        Support regions are equivalent to individual ROI if *group_overlapping_roi*
+        was set to ``False``.
+
+        Filtering is delegated to the individual *.spt_data.roi* attributes.
+
+        A *callable* filter takes a single key (*int* for indices, *str* for paths)
+        and returns a *bool*.
+        
+        Arguments:
+            
+            index (*int*, *sequence* of *int*s, or *callable*):
+                support region index filter
+            
+            source (*str*, *sequence* of *str*s, or *callable*):
+                SPT data source filter
+                
+        Returns:
+            
+            generator: iterator for support regions
+            
+        """
         if source is None:
             for rec in self._records:
                 for reg in rec.roi.as_support_regions(index, **kwargs):
@@ -185,16 +233,35 @@ class ROIInitializer(Initializer):
     def from_bounding_boxes(self, bb, label=None, group_overlapping_roi=False):
         """
         Defines ROI as bounding boxes.
+
+        Arguments:
+
+            bb (sequence): collection of bounding boxes, each bounding boxes being
+                a pair of lower and upper bounds (*numpy.ndarray*s)
+
+            label (str): unique label for the collection
+
+            group_overlapping_roi (bool): if ``False``, `as_support_regions` will
+               behave similarly to `as_individual_roi`, otherwise support regions
+               are unions of overlapping ROI
+
+        See also :class:`BoundingBoxes`.
         """
         self.specialize( BoundingBoxes, bb, label, group_overlapping_roi )
     def from_squares(self, centers, side, label=None, group_overlapping_roi=False):
         """
         Defines ROI as centers for squares/cubes of uniform size.
+
+        See also `from_bounding_boxes`.
         """
         bb = [ (center-.5*side, center+.5*side) for center in centers ]
         self.from_bounding_boxes(bb, label, group_overlapping_roi)
     ## in the case no ROI are defined
     def as_support_regions(self, index=None, source=None, return_index=False):
+        """ returns a generator to loop over all the support regions.
+        
+        A `ROIInitializer` does not define any ROI,
+        as a consequence a single `FullRegion` object is generated."""
         if not null_index(index):
             raise ValueError('no ROI defined; cannot seek for the ith ROI')
         if return_index:
@@ -226,6 +293,10 @@ class ROIInitializer(Initializer):
                     if sfilter(d.source):
                         yield bear_child( FullRegion, d )
     def as_individual_roi(self, index=None, collection=None, source=None, **kwargs):
+        """ returns a generator to loop over all the individual roi.
+        
+        A `ROIInitializer` does not define any ROI,
+        as a consequence a single `FullRegion` object is generated."""
         if collection is not None:
             warnings.warn('ignoring argument `collection`', helper.IgnoredInputWarning)
         return self.as_support_regions(index, source, **kwargs)
@@ -236,6 +307,11 @@ ROI.register(ROIInitializer)
 class CommonROI(AnalyzerNode):
     """
     Mirrors the global `RWAnalyzer.roi` attribute.
+
+    The individual `.spt_data.roi` attributes become `CommonROI` objects
+    as soon as the global `.roi` attribute is specialized,
+    so that `as_support_regions` and `as_individual_roi` iterators delegate
+    to the global attribute.
     """
     __slots__ = ('_global',)
     def __init__(self, roi, parent=None):
@@ -375,6 +451,9 @@ class HasROI(AnalyzerNode):
         AnalyzerNode.__init__(self, **kwargs)
         self._roi = roi(self._set_roi, parent=self)
     def compatible_source(self, source):
+        """
+        returns ``True`` if filter *source* matches with `self.source`.
+        """
         if source is None:
             return True
         elif callable(source):
