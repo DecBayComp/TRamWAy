@@ -30,7 +30,7 @@ def calculate_one_2D_posterior(zeta_t, zeta_sp, zeta_a, n, V, V_pi, loc_error, d
         logging.info('None values encountered in cell. Skipping cell.')
         return [np.nan] * 3
 
-    if lamb is 'marg':
+    if lamb == 'marg':
         lamb = 'int'
 
     if loc_error > 0:

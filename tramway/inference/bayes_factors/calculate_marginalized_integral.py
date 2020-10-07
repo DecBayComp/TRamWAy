@@ -68,7 +68,7 @@ def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error, zet
     if np.isclose(np.linalg.norm(zeta_sp), 0, atol=atol):
         return integrate_me(0)
     # Skip integration if a fixed-lambda convention is used
-    if lamb is not 'int':
+    if lamb != 'int':
         return integrate_me(lamb)
 
     # Calculate break points
@@ -152,8 +152,8 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
     The integrals are taken over lambda if lamb == 'marg', otherwise they are evaluated at the given lambda.
     """
 
-    x0u = arg_func_up(lamb) if lamb is not 'marg' else arg_func_up(0.5)
-    x0d = arg_func_down(lamb) if lamb is not 'marg' else arg_func_down(0.5)
+    x0u = arg_func_up(lamb) if lamb != 'marg' else arg_func_up(0.5)
+    x0d = arg_func_down(lamb) if lamb != 'marg' else arg_func_down(0.5)
 
     if np.any(np.array([pow_up, pow_down]) <= 0) or np.any(np.isnan([pow_up, pow_down])):
         logging.error(
@@ -176,7 +176,7 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
                 log(q * rel_loc_error) - q * rel_loc_error
             return exp(res)
 
-        q_eval = arg_func(lamb) if lamb is not 'marg' else arg_func(0.5)
+        q_eval = arg_func(lamb) if lamb != 'marg' else arg_func(0.5)
         q_eval *= rel_loc_error
         if q_eval < pow + 1:
             # print('Low x regime', pow, q_eval)
@@ -199,7 +199,7 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
         with q(l) = arg_func(l)
         """
         f, ln_prefactor = get_f_with_loc_error(arg_func, pow, x0)
-        if lamb is 'marg':
+        if lamb == 'marg':
             ln_res = log(integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0])
         else:
             ln_res = log(f(lamb))
@@ -214,7 +214,7 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
 
         def f(l):
             return exp(ln_f(l))
-        if lamb is 'marg':
+        if lamb == 'marg':
             ln_res = integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0]
             ln_res = log(ln_res)
         else:

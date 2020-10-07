@@ -1689,7 +1689,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         are_translocations = trajectory_col is not None or has_precomputed_deltas
     else:
         if issubclass(new_cell, Locations):
-            are_translocations = False
+            are_translocations = are_tracked_molecules = False
         elif issubclass(new_cell, Translocations):
             are_translocations = True
             are_tracked_molecules = issubclass(new_cell, TrackedMolecules)

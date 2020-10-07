@@ -143,7 +143,7 @@ def _calculate_one_bayes_factor(zeta_t, zeta_sp, n, V, V_pi, loc_error, dim, B_t
     """Calculate the Bayes factor for one bin."""
 
     test = check_for_nan(zeta_t, zeta_sp, n, V, V_pi, loc_error)
-    if test is not 'ok':
+    if test != 'ok':
         raise NaNInputError()
         # logging.warning(
         #     f'>>A {test} value is present in the input parameters for _calculate_one_bayes_factor.\nSkipping Bayes factor calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n={n}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<')
@@ -209,7 +209,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     """
 
     test = check_for_nan(zeta_t, zeta_sp, n0, V, V_pi, loc_error)
-    if test is not 'ok':
+    if test != 'ok':
         logging.warning(
             '>>A {test} value is present in the input parameters for calculate_minimal_n.\nSkipping minimal n calculation for the current bin.\nCall parameters: zeta_t={zeta_t}, zeta_sp={zeta_sp}, n0={n0}, V={V}, V_pi={V_pi}, loc_error={loc_error}<<'.format(
                 test=test, zeta_t=zeta_t, zeta_sp=zeta_sp, n0=n0, V=V, V_pi=V_pi, loc_error=loc_error))

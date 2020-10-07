@@ -333,7 +333,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
         tessellation = cells
 
     vertices = tessellation.cell_centers
-    if negative is 'voronoi':
+    if negative == 'voronoi':
         voronoi = tessellation.cell_vertices
 
     labels, color = _graph_theme(tessellation, labels, color, negative)
@@ -361,7 +361,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
             except ValueError:
                 continue
             if label <= 0:
-                if negative is 'voronoi':
+                if negative == 'voronoi':
                     try:
                         vert_ids = set(tessellation.cell_vertices.get(i, [])) & set(tessellation.cell_vertices.get(j, []))
                         x, y = voronoi[vert_ids].T

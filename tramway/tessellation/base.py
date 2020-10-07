@@ -1586,7 +1586,7 @@ class Voronoi(Delaunay):
 
         See also: :meth:`pack_indices`.
         """
-        if metric is not 'euclidean':
+        if metric != 'euclidean':
             raise NotImplementedError("delete_cell(metric='{}') not supported".format(metric))
 
         _connect = adjacency_label is not None

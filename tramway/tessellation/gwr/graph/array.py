@@ -271,13 +271,13 @@ class ArrayGraph(Graph):
         #print('{:.0f}'.format((time.time() - t) * 1e6))
         #assert np.all(I[Iadj]) and Iadj.size == np.sum(I)
         A = self.adjacency[I].tocsc()[:,I]
-        if sparse is 'csc':
+        if sparse == 'csc':
             A = A.tocsc()
-        elif sparse is 'csr':
+        elif sparse == 'csr':
             A = A.tocsr()
-        elif sparse is 'bsr':
+        elif sparse == 'bsr':
             A = A.tobsr()
-        elif sparse is 'coo':
+        elif sparse == 'coo':
             A = A.tocoo()
         else:
             raise NotImplementedError
