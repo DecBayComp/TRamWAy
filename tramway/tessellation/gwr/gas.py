@@ -369,7 +369,7 @@ class Gas(Graph):
         n = sample.shape[0]
         l = 0 # node count
         residuals = []
-        if stopping_criterion is 1:
+        if stopping_criterion == 1:
             import statsmodels.api as sm
         # if stopping_criterion is 2
         residual_mean = float('+inf')
@@ -432,7 +432,7 @@ class Gas(Graph):
                 if verbose and 0 < dl:
                     txt = '{} (-{})'.format(l, dl)
             if verbose:
-                if i is 1:
+                if i == 1:
                     if self.collapse_below:
                         print("\t#nodes (-#collapsed)")
                     else:   print("\t#nodes")
@@ -468,7 +468,7 @@ class Gas(Graph):
                         print('stopping criterion: relative collapse: {:.0f}%'.format(collapse_rel * 100))
                     break
             # exclusive criteria
-            if stopping_criterion is 1:
+            if stopping_criterion == 1:
                 regression = sm.OLS(np.array(r), \
                         sm.add_constant(np.linspace(0,1,len(r)))\
                     ).fit()
@@ -477,7 +477,7 @@ class Gas(Graph):
                 else:
                     fit = 1/(1+exp((.1-regression.pvalues[1])/.01)) # invert p-value
                 do = tolerance < fit
-            elif stopping_criterion is 2:
+            elif stopping_criterion == 2:
                 residual_prev = residual_mean
                 #_, r = self.eval(sample[np.random.choice(n, size=self.validation_batch_size),:])
                 residual_mean = np.mean(r)
