@@ -18,7 +18,10 @@ from . import environments
 
 
 class EnvironmentInitializer(Initializer):
-    __slots__ = ()
+    __slots__ = ('_script',)
+    def __init__(self, attribute_setter, parent=None):
+        Initializer.__init__(self, attribute_setter, parent=parent)
+        self._script = None
     def from_callable(self, env):
         if issubclass(env, Environment):
             self.specialize( env )
@@ -26,10 +29,12 @@ class EnvironmentInitializer(Initializer):
             raise TypeError('env is not an Environment')
     @property
     def script(self):
-        return None
+        #return None
+        return self._script
     @script.setter
     def script(self, filename):
-        pass
+        #pass
+        self._script = filename
 
 
 __all__ = ['Environment', 'EnvironmentInitializer', 'environments']

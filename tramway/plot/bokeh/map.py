@@ -14,11 +14,15 @@
 
 import bokeh.plotting as plt
 from bokeh.models.ranges import Range1d
+from bokeh.models import ColorBar, LinearColorMapper, BasicTicker
+from bokeh.layouts import row
 from tramway.core import *
-from tramway.tessellation.base import Partition, format_cell_index
+from tramway.tessellation.base import Partition, format_cell_index, Tessellation, Delaunay
+from tramway.inference.base import FiniteElements
 from tramway.plot.mesh import _graph_theme
 import tramway.plot.map as mplt
 import matplotlib as mpl
+from math import tan, atan2, degrees, radians
 import numpy as np
 import pandas as pd
 import itertools
@@ -241,7 +245,9 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
 
 
 
-def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=None, ylim=None, **kwargs):
+def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
+        colorbar=True, colormap=None, unit=None, clabel=None, colorbar_figure=None,
+        xlim=None, ylim=None, **kwargs):
     """
     Plot an interactive 2D scalar map as a colourful image.
 
@@ -258,6 +264,13 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=No
 
         delaunay (bool or dict): overlay the Delaunay graph; if ``dict``, options are passed
             to :func:`~tramway.plot.bokeh.plot_delaunay`
+
+        colorbar (bool or str or dict): add a colour bar; if ``dict``, options are passed to
+            :func:`~bokeh.models.ColorBar`
+
+        unit/clabel (str): colorbar label, usually the unit of displayed feature
+
+        colormap (str): colormap name; see also https://matplotlib.org/users/colormaps.html
 
         xlim (2-element sequence): lower and upper x-axis bounds
 
@@ -327,11 +340,16 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=No
             polygons.append((_vertices[:,0], _vertices[:,1]))
 
     scalar_map = values.loc[ix[ok]].values
+    vmin, vmax = scalar_map.min(), scalar_map.max()
     clim = {} if clim is None else dict(vmin=clim[0], vmax=clim[1])
     scalar_map = mpl.colors.Normalize(**clim)(scalar_map)
 
+    if colormap:
+        color_map = mpl.cm.get_cmap(colormap)
+    else:
+        color_map = mpl.cm.viridis
     colors = [
-            "#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*mpl.cm.viridis(scalar_map)
+            "#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*color_map(scalar_map)
             ]
     patch_kwargs = dict(fill_color=colors, line_width=0)
     figure.patches(*zip(*polygons), **patch_kwargs)
@@ -343,6 +361,31 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False, xlim=No
 
     figure.x_range = Range1d(*xlim)
     figure.y_range = Range1d(*ylim)
+
+    if colorbar:
+        low = clim.get('vmin', vmin)
+        high = clim.get('vmax', vmax)
+        color_map = 'Viridis256' if colormap is None else colormap
+        color_map = LinearColorMapper(palette=color_map, low=low, high=high)
+        color_bar = ColorBar(color_mapper=color_map, ticker=BasicTicker(),
+                border_line_color=None, margin=0)
+        color_bar.background_fill_color = None
+        if unit is None:
+            unit = clabel
+        if colorbar_figure is None:
+            if unit is not None:
+                color_bar.title = unit
+            figure.add_layout(color_bar, place='right')
+        else:
+            if unit is not None:
+                colorbar_figure.title.text = unit
+                colorbar_figure.title_location = 'right'
+                colorbar_figure.title.align = 'center'
+            color_bar.height = colorbar_figure.plot_height
+            if isinstance(colorbar_figure.center[-1], ColorBar):
+                colorbar_figure.center = colorbar_figure.center[:-1]
+            colorbar_figure.add_layout(color_bar, place='center')
+            #print(colorbar_figure.center, colorbar_figure.plot_height, color_bar.width, color_bar.height, color_bar.margin, color_bar.padding)
 
     #plt.show(figure)
 
@@ -439,6 +482,124 @@ def _line_style_to_dash_pattern(style):
         }.get(style, style)
 
 
+def field_map_2d(cells, values, angular_width=30.0,
+        figure=None,
+        cell_arrow_ratio=None,
+        markercolor='#bfbf00', markeredgecolor='#000000', markeralpha=0.8, markerlinewidth=None,
+        inferencemap=False,
+        **kwargs):
+    """
+    Plot a 2D field (vector) map as arrows.
 
-__all__ = ['plot_points', 'plot_trajectories', 'plot_delaunay', 'scalar_map_2d']
+    Arguments:
+
+        cells (Partition or Distributed): spatial description of the cells
+
+        values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
+
+        angular_width (float): angle of the tip of the arrows
+
+        figure (matplotlib.figure.Figure): figure handle
+
+        cell_arrow_ratio (float): size of the largest arrow relative to the median
+            inter-cell distance; default is ``0.4`` if `inferencemap` is ``True``,
+            else ``1``
+
+        markercolor (str): colour of the arrows
+
+        markeredgecolor (str): colour of the border of the arrows
+
+        markeralpha (float): alpha value of the arrows
+
+        markerlinewidth (float): line width of the border of the arrows
+
+        inferencemap (bool): if ``True``, the arrow length only depends on the cell size
+
+    """
+    force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
+    if figure is None:
+        figure = plt.figure()
+    if markercolor is None and 'color' in kwargs:
+        markercolor = kwargs['color']
+    if markeredgecolor is None and 'edgecolor' in kwargs:
+        markeredgecolor = kwargs['edgecolor']
+    if markeralpha is None and 'alpha' in kwargs:
+        markeralpha = kwargs['alpha']
+    if markerlinewidth is None and 'linewidth' in kwargs:
+        markerlinewidth = kwargs['linewidth']
+    xy = cells.tessellation.cell_centers
+    xy_min, _, xy_max, _ = mplt._bounding_box(cells, xy)
+    xlim = (xy_min[0], xy_max[0])
+    ylim = (xy_min[1], xy_max[1])
+    xmin, xmax = xlim
+    ymin, ymax = ylim
+    # identify the visible cell centers
+    if isinstance(cells, Tessellation):
+        pts = cells.cell_centers
+    elif isinstance(cells, FiniteElements):
+        pts = np.vstack([ cells[i].center for i in cells ])#values.index ])
+    elif isinstance(cells, Partition):
+        assert isinstance(cells.tessellation, Tessellation)
+        pts = cells.tessellation.cell_centers#[values.index]
+    inside = (xmin<=pts[:,0]) & (pts[:,0]<=xmax) & (ymin<=pts[:,1]) & (pts[:,1]<=ymax)
+    # compute the distance between adjacent cell centers
+    if isinstance(cells, Delaunay):
+        A = cells.cell_adjacency
+    elif isinstance(cells, FiniteElements):
+        A = cells.adjacency
+    elif isinstance(cells, Partition) and isinstance(cells.tessellation, Delaunay):
+        A = cells.tessellation.cell_adjacency
+    if inferencemap:
+        if cell_arrow_ratio is None:
+            cell_arrow_ratio = .5
+        A = A.tocsr()
+        scale = np.full(A.shape[0], np.nan, dtype=pts.dtype)
+        for i in values.index:
+            if not inside[i]:
+                continue
+            js = A.indices[A.indptr[i]:A.indptr[i+1]]
+            pts_i, pts_j = pts[[i]], pts[js[inside[js]]]
+            if pts_j.size:
+                inter_cell_distance = pts_i - pts_j
+                inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
+                #scale[i] = np.nanmean(inter_cell_distance)
+                scale = np.nanquantile(inter_cell_distance, .1) * cell_arrow_ratio
+    else:
+        if cell_arrow_ratio is None:
+            cell_arrow_ratio = .4 # backward compatibility
+        A = sparse.triu(A, format='coo')
+        I, J = A.row, A.col
+        _inside = inside[I] & inside[J]
+        pts_i, pts_j = pts[I[_inside]], pts[J[_inside]]
+        inter_cell_distance = pts_i - pts_j
+        inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
+        # scale force amplitude
+        large_arrow_length = np.nanmax(force_amplitude[inside[values.index]]) # TODO: clipping
+        scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
+    #
+    dw = float(angular_width) / 2.0
+    t = tan(radians(dw))
+    t = np.array([[0.0, -t], [t, 0.0]])
+    markers = []
+    for i in values.index:
+        center = pts[i]
+        radius = force_amplitude[i]
+        if inferencemap:
+            f = np.asarray(values.loc[i])
+            f *= scale / max(1e-16, np.sqrt(np.sum(f * f)))
+        else:
+            f = np.asarray(values.loc[i]) * scale
+        base, vertex = center + np.outer([-1./3, 2./3], f)
+        ortho = np.dot(t, f)
+        vertices = np.stack((vertex, base + ortho, base - ortho), axis=0)
+        #vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
+        markers.append((vertices[:,0], vertices[:,1]))
+
+    patch_kwargs = dict(fill_color=markercolor, fill_alpha=markeralpha,
+            line_width=markerlinewidth, line_color=markeredgecolor)
+    figure.patches(*zip(*markers), **patch_kwargs)
+
+
+
+__all__ = ['plot_points', 'plot_trajectories', 'plot_delaunay', 'scalar_map_2d', 'field_map_2d']
 

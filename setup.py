@@ -70,6 +70,7 @@ setup(
         'tramway.analyzer.sampler',
         'tramway.analyzer.mapper',
         'tramway.analyzer.env',
+        'tramway.analyzer.browser',
         'tramway.analyzer.pipeline'],
     scripts = ['scripts/tramway'],
     install_requires = install_requires,

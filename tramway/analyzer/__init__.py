@@ -37,6 +37,7 @@ from .sampler   import *
 from .mapper    import *
 from .env       import *
 from .pipeline  import *
+from .browser   import *
 
 
 class BasicLogger(object):
@@ -161,9 +162,29 @@ class RWAnalyzer(object):
     Various parallelization schemes are available, and the platform-specific
     implementation of these schemes are provided by the `env` attribute.
 
+    Last but not least, the `RWAnalyzer` allows to plot the inferred parameter maps
+    from a Jupyter notebook, or calling the ``bokeh serve`` command:
+
+    .. code-block:: python
+
+        from tramway.analyzer import *
+
+        a = RWAnalyzer()
+
+        # load the rwa files available in the current directory:
+        a.spt_data.from_rwa_files('*.rwa')
+
+        # help the analyzer to localize this piece of code:
+        try:
+            a.script = __file__
+        except NameError: # in a notebook
+            a.script = 'MyNotebook.ipynb' # this notebook's name (please adapt)
+
+        a.browser.show_maps()
+
     """
     __slots__ = ( '_logger', '_spt_data', '_roi', '_time', '_tesseller', '_sampler', '_mapper',
-            '_env', '_pipeline' )
+            '_env', '_pipeline', '_browser' )
 
     @property
     def logger(self):
@@ -272,6 +293,7 @@ class RWAnalyzer(object):
         self.mapper    = MapperInitializer
         self.env       = EnvironmentInitializer
         self._pipeline = Pipeline(self)
+        self._browser  = Browser(self)
 
     @property
     def pipeline(self):
@@ -288,8 +310,32 @@ class RWAnalyzer(object):
         """
         return self.pipeline.run()
 
+    @property
+    def browser(self):
+        """
+        Visualize data artefacts.
+
+        See also :class:`Browser`.
+        """
+        return self._browser
+
+    @property
+    def script(self):
+        """
+        Path to the *__main__* file in which the analyzer is defined.
+
+        Designating a script is required for parallelizing computations,
+        or visualizing maps without explicitly calling the ``bokeh serve`` command
+        (e.g. from a Jupyter notebook).
+        """
+        return self.env.script
+    @script.setter
+    def script(self, filename):
+        self.env.script = filename
+
     def __setattr__(self, attrname, obj):
-        if attrname[0] == '_' or (isinstance(obj, type) and issubclass(obj, Initializer)):
+        if attrname[0] == '_' or (isinstance(obj, type) and issubclass(obj, Initializer)) or\
+                attrname in ('script',):
             object.__setattr__(self, attrname, obj)
         elif callable(obj):
             attr = getattr(self, attrname)
