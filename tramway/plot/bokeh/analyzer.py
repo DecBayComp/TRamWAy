@@ -417,7 +417,8 @@ def browse_maps(analyzer, **kwargs):
     if not model.spt_data_sources[1:]:
         controller.load_source(model.spt_data_sources[0])
 
-    if not sys.argv[0].endswith('bokeh') and analyzer.env.script:
+    if not sys.argv[0].endswith('bokeh') and analyzer.env.script and not \
+            (os.path.isabs(analyzer.env.script) and sys.argv[0] == os.path.basename(analyzer.env.script)):
         print('running bokeh server...\n')
         import subprocess
         p = subprocess.Popen([sys.executable, '-m', 'bokeh', 'serve', '--show', analyzer.env.script],
