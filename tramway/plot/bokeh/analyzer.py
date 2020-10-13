@@ -12,9 +12,13 @@ from bokeh.layouts import row, column
 
 
 def short(path):
+    """ Returns the basename with no file extension. """
     return os.path.splitext(os.path.basename(path))[0]
 
 class Model(object):
+    """
+    Stores the analyzer browsing state.
+    """
     def __init__(self, analyzer):
         self.analyzer = analyzer
         self.spt_data_sources = [ short(f.source) for f in analyzer.spt_data ]
@@ -78,7 +82,24 @@ class Model(object):
         self.current_feature = None
         
 class Controller(object):
-    def __init__(self, model):
+    """
+    Makes and manages the browser view.
+
+    Note: time browsing is not supported yet.
+    """
+    def __init__(self, model, side_panel=None, webdriver=None):
+        """
+        Arguments:
+
+            model (Model): analyzer browsing state.
+
+            side_panel (bool): show the side panel with experimental export features.
+
+            webdriver (type): *selenium* webdriver (subclass of
+                :class:`selenium.webdriver.remote.webdriver.WebDriver`)
+                for exporting figures.
+
+        """
         self.model = model
         options = model.spt_data_sources
         self.source_dropdown = Select(options=['None'] + options if options[1:] else options)
@@ -90,6 +111,9 @@ class Controller(object):
         self.mapping_dropdown.on_change('value', lambda attr, old, new: self.load_mapping(new))
         self.feature_dropdown.on_change('value', lambda attr, old, new: self.load_feature(new))
         self.trajectories_kwargs = dict(color='r', line_width=.5, line_alpha=.5, loc_alpha=.1, loc_size=6)
+        self.show_side_panel = webdriver is not None if side_panel is None else side_panel
+        self.selenium_webdriver = webdriver
+        self.figure_export_width = self.figure_export_height = None
     def load_source(self, source_name):
         if self.model.current_spt_data is not None:
             self.unload_source()
@@ -102,6 +126,8 @@ class Controller(object):
         self.sampling_dropdown.options = ['None'] + options if options[1:] else options
         self.sampling_dropdown.disabled = False
         if not self.model.sampling_labels[1:]:
+            if not self.model.sampling_labels:
+                raise ValueError('no sampling available; please process the data first')
             self.load_sampling(self.model.sampling_labels[0])
     def unload_source(self):
         if self.model.current_sampling is not None:
@@ -142,6 +168,7 @@ class Controller(object):
     def unload_mapping(self):
         if self.model.current_feature is not None:
             self.unload_feature()
+        self.unset_export_status('data')
         self.feature_dropdown.disabled = True
         self.feature_dropdown.options = []
         self.model.release_mapping()
@@ -152,6 +179,7 @@ class Controller(object):
             if feature == 'None':
                 self.unload_feature()
                 return
+            self.unset_export_status('figure')
             self.model.select_feature(feature)
             self.draw_map(feature)
             self.draw_trajectories()
@@ -163,6 +191,7 @@ class Controller(object):
             _curdoc.unhold()
     def unload_feature(self):
         self.disable_side_panel()
+        self.unset_export_status('figure')
         self.disable_time_view()
         self.disable_space_view()
         if self.main_figure.renderers:
@@ -172,6 +201,9 @@ class Controller(object):
             self.colorbar_figure.renderers = []
         self.feature_dropdown.value = 'None'
     def make_main_view(self):
+        """
+        Makes the main view `browse_maps` adds as document root.
+        """
         menu_view = row([self.source_dropdown, self.sampling_dropdown, self.mapping_dropdown, self.feature_dropdown])
         main_view = [menu_view]
         time_view = self.make_time_view()
@@ -227,7 +259,7 @@ class Controller(object):
                     diffusivity='$\mu\\rm{m}^2\\rm{s}^{-1}$',
                     potential='$k_{\\rm{B}}T$',
                     force='$k_{\\rm{B}}T$',
-                    )
+                    ) # LaTeX not supported yet
             unit = dict(
                     diffusivity='µm²/s',
                     potential='kT',
@@ -260,19 +292,21 @@ class Controller(object):
         for handle in self.trajectory_handles:
             handle.visible = b
     def enable_side_panel(self):
+        if not self.show_side_panel:
+            return
         self.export_file_input.disabled = False
-        self.export_file_input.value = '_'.join((self.source_dropdown.value, self.sampling_dropdown.value, self.mapping_dropdown.value))
-        print(self.export_file_input.width, self.figure_export_button.width, self.export_status_label.width)
+        self.export_file_input.value = '_'.join([ part for part in (self.source_dropdown.value, self.sampling_dropdown.value, self.mapping_dropdown.value) if part ])
     def disable_side_panel(self):
+        if not self.show_side_panel:
+            return
         self.export_file_input.disabled = True
         self.export_file_input.value = ''
         self.figure_export_button.disabled = True
         self.data_export_button.disabled = True
     def make_side_panel(self):
-        self.export_file_input = TextInput(disabled=True, value='', placeholder='*.png,*.svg,*.txt,*.csv')
+        self.export_file_input = TextInput(disabled=True, value='', title='append any of: .png, .svg, .txt, .csv')
         self.figure_export_button = Button(disabled=True, label='Export figure', button_type='success')
         self.data_export_button = Button(disabled=True, label='Export data', button_type='success')
-        self.export_status_label = Paragraph(text='')
         def _update_buttons(attr, old, new):
             if new.endswith('.png') or new.endswith('.svg'):
                 self.figure_export_button.disabled = False
@@ -293,29 +327,58 @@ class Controller(object):
         self.export_file_input.on_change('value', _update_buttons)
         self.figure_export_button.on_click(_export_figure)
         self.data_export_button.on_click(_export_data)
-        return column(self.export_file_input, self.figure_export_button, self.data_export_button, self.export_status_label)
+        layout = column(self.export_file_input, self.figure_export_button, self.data_export_button)
+        if not self.show_side_panel:
+            layout.visible = False
+        return layout
+    def set_export_status(self, what, status):
+        if what == 'figure':
+            obj = self.figure_export_button
+        elif what == 'data':
+            obj = self.data_export_button
+        else:
+            raise ValueError("'{}' not supported; accepted values are: 'figure', 'data'".format(what))
+        obj.label = '{} [{}]'.format(obj.label, status)
+    def unset_export_status(self, what):
+        if what == 'figure':
+            self.figure_export_button.label = 'Export figure'
+        elif what == 'data':
+            self.data_export_button.label = 'Export data'
+        else:
+            raise ValueError("'{}' not supported; accepted values are: 'figure', 'data'".format(what))
     def export_figure(self, output_file):
-        self.export_status_label.text = 'exporting...'
+        """
+        Requires a working *selenium* driver (https://www.selenium.dev/selenium/docs/api/py/).
+
+        Related attributes are `selenium_webdriver`, `figure_export_width` and `figure_export_height`.
+        """
+        export_kwargs = {}
+        if self.selenium_webdriver is not None:
+            export_kwargs['webdriver'] = self.selenium_webdriver()
+        if self.figure_export_width is not None:
+            export_kwargs['width'] = self.figure_export_width
+        if self.figure_export_height is not None:
+            export_kwargs['height'] = self.figure_export_height
+        #self.set_export_status('figure', 'exporting...')
         try:
             doc = row(self.main_figure, self.colorbar_figure)
             from bokeh.io import export
             if output_file.endswith('.png'):
-                export.export_png(doc, filename=output_file)
+                export.export_png(doc, filename=output_file, **export_kwargs)
             elif output_file.endswith('.svg'):
-                export.export_svg(doc, filename=output_file)
+                export.export_svg(doc, filename=output_file, **export_kwargs)
             else:
                 raise NotImplementedError("format '{}' not supported".format(os.path.splitext(output_file)[1]))
-            self.export_status_label.text = 'exporting... [done]'
+            self.set_export_status('figure', 'done')
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
             traceback.print_exc()
-            self.export_status_label.text = 'exporting... [failed]'
-        finally:
-            time.sleep(1)
-            self.export_status_label.text = ''
+            self.set_export_status('figure', 'failed')
+        #finally:
+        #    self.unset_export_status('figure')
     def export_data(self, output_file):
-        self.export_status_label.text = 'exporting...'
+        #self.set_export_status('data', 'exporting...')
         try:
             xy = self.model.current_sampling.tessellation
             try:
@@ -327,23 +390,26 @@ class Controller(object):
             index = list(df.index)
             df = df.join(pd.DataFrame(xy[index], index=index, columns=['center x', 'center y']))
             df.to_csv(output_file, sep='\t')
-            self.export_status_label.text = 'exporting... [done]'
+            self.set_export_status('data', 'done')
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
             traceback.print_exc()
-            self.export_status_label.text = 'exporting... [failed]'
-        finally:
-            time.sleep(1)
-            self.export_status_label.text = ''
+            self.set_export_status('data', 'failed')
+        #finally:
+        #    self.unset_export_status('data')
 
         
-def browse_maps(analyzer):
+def browse_maps(analyzer, **kwargs):
     """
-    Runs with ``bokeh serve``
+    Runs a bokeh application for viewing the inferred parameter maps available through the analyzer.
+
+    If ``bokeh serve`` is not called explicitly, then `browse_maps` opens a new tab browser.
+
+    See also :class:`~tramway.analyzer.browser.Browser`.
     """
     model = Model(analyzer)
-    controller = Controller(model)
+    controller = Controller(model, **kwargs)
 
     curdoc().add_root(controller.make_main_view())
     curdoc().title = 'TRamWAy viewer'
@@ -362,8 +428,9 @@ def browse_maps(analyzer):
             out, err = p.communicate()
         out = out.decode('utf-8')
         for line in out.splitlines():
-            if line.startswith('2'):
-                print(line)
+            if not line:
+                continue
+            print(line)
         if err:
             print(err.decode('utf-8'))
         print('bokeh server shut down')

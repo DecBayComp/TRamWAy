@@ -622,7 +622,8 @@ class RWAFile(SPTFile):
     def __init__(self, filepath, **kwargs):
         SPTFile.__init__(self, filepath, None, **kwargs)
     def load(self):
-        self.analyses = load_rwa(self.filepath, lazy=True)
+        # ~ expansion is no longer necessary from rwa-python==0.8.4
+        self.analyses = load_rwa(os.path.expanduser(self.filepath), lazy=True)
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
 

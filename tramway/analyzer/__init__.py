@@ -182,6 +182,9 @@ class RWAnalyzer(object):
 
         a.browser.show_maps()
 
+    See also :class:`~tramway.analyzer.browser.Browser` for additional information
+    on how to export data and figures while browsing the inferred parameter maps.
+
     """
     __slots__ = ( '_logger', '_spt_data', '_roi', '_time', '_tesseller', '_sampler', '_mapper',
             '_env', '_pipeline', '_browser' )
