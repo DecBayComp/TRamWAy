@@ -666,7 +666,7 @@ class SPTMatFile(RawSPTFile):
     def load(self):
         try:
             self._dataframe = load_mat(os.path.expanduser(self.filepath),
-                    columns=self._columns, dt=self.dt, pixel_size=self.pixel_size)
+                    columns=self._columns, dt=self._dt, pixel_size=self.pixel_size)
         except OSError as e:
             raise OSError('While loading file: {}\n{}'.format(self.source, e))
         self._trigger_discard_static_trajectories()
