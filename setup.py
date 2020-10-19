@@ -19,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.4.6',
+    version = '0.4.6-nt',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -57,7 +57,8 @@ setup(
         'tramway.plot.tk',
         'tramway.helper',
         'tramway.helper.simulation',
-        'tramway.utils'],
+        'tramway.utils',
+        'tramway.track_non_track'],
     scripts = ['scripts/tramway'],
     install_requires = install_requires,
     extras_require = extras_require,

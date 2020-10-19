@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 
 import sys
-sys.path.append("..")
 import argparse
 from   os.path import abspath
 import gc
