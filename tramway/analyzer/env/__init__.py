@@ -37,7 +37,7 @@ class EnvironmentInitializer(Initializer):
         self._script = filename
     @property
     def collectibles(self):
-        return []
+        return set()
 
 
 __all__ = ['Environment', 'EnvironmentInitializer', 'environments']
