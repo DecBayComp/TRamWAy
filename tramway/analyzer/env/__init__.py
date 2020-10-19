@@ -30,6 +30,9 @@ class EnvironmentInitializer(Initializer):
     @script.setter
     def script(self, filename):
         pass
+    @property
+    def collectibles(self):
+        return []
 
 
 __all__ = ['Environment', 'EnvironmentInitializer', 'environments']
