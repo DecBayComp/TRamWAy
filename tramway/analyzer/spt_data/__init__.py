@@ -20,7 +20,6 @@ import os.path
 from tramway.core.xyt import load_xyt, load_mat, discard_static_trajectories
 from tramway.core.analyses.auto import Analyses, AutosaveCapable
 from tramway.core.hdf5.store import load_rwa
-import warnings
 from math import sqrt
 import numpy as np
 import pandas as pd
@@ -79,6 +78,9 @@ class SPTParameters(object):
     @time_step.setter
     def time_step(self, dt):
         self.dt = dt
+    @property
+    def logger(self):
+        return self._eldest_parent.logger
 
 
 class SPTDataIterator(AnalyzerNode, SPTParameters):
@@ -344,7 +346,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
         _bounds = np.stack((_min, _max), axis=0)
         _bounds = pd.DataFrame( _bounds, columns=_min.index, index=['min','max'])
         return _bounds
-    def to_ascii_file(self, filepath, columns=None, header=True):
+    def to_ascii_file(self, filepath, columns=None, header=True, **kwargs):
         """
         Exports the data to text file.
 
@@ -356,11 +358,20 @@ class _SPTDataFrame(HasROI, SPTParameters):
 
             header (bool): print column names on the first line.
 
+        Additional keyword arguments are passed to `pandas.DataFrame.to_csv`.
+        See for example `float_format`.
         """
         df = self.dataframe
         if columns:
             df = df[columns]
-        df.to_csv(filepath, sep='\t', index=False, header=header)
+        for arg in ('sep', 'index'):
+            try:
+                kwargs.pop(arg)
+            except KeyError:
+                pass
+            else:
+                self.logger.warning("ignoring argument '{}'".format(arg))
+        df.to_csv(filepath, sep='\t', index=False, header=header, **kwargs)
     def to_rwa_file(self, filepath, **kwargs):
         if self.analyses.data is None:
             raise ValueError('no data available')
@@ -383,7 +394,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
             if self.source:
                 self.analyses.rwa_file = os.path.splitext(self.source)[0]+'.rwa'
             else:
-                warnings.warn('no output filename defined', RuntimeWarning)
+                self.logger.warning('no output filename defined')
         return self.analyses.autosaving(*args, **kwargs)
 
 class SPTDataFrame(_SPTDataFrame):

@@ -102,10 +102,10 @@ class Controller(object):
         """
         self.model = model
         options = model.spt_data_sources
-        self.source_dropdown = Select(options=['None'] + options if options[1:] else options)
-        self.sampling_dropdown = Select(disabled=True)
-        self.mapping_dropdown = Select(disabled=True)
-        self.feature_dropdown = Select(disabled=True)
+        self.source_dropdown = Select(title='Data source:', options=['None'] + options if options[1:] else options)
+        self.sampling_dropdown = Select(title='Sampling:', disabled=True)
+        self.mapping_dropdown = Select(title='Mapping:', disabled=True)
+        self.feature_dropdown = Select(title='Feature:', disabled=True)
         self.source_dropdown.on_change('value', lambda attr, old, new: self.load_source(new))
         self.sampling_dropdown.on_change('value', lambda attr, old, new: self.load_sampling(new))
         self.mapping_dropdown.on_change('value', lambda attr, old, new: self.load_mapping(new))
