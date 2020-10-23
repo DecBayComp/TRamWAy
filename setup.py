@@ -19,7 +19,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.5-beta',
+    version = '0.5-beta2',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -71,7 +71,8 @@ setup(
         'tramway.analyzer.mapper',
         'tramway.analyzer.env',
         'tramway.analyzer.browser',
-        'tramway.analyzer.pipeline'],
+        'tramway.analyzer.pipeline',
+        'tramway.analyzer.images'],
     scripts = ['scripts/tramway'],
     install_requires = install_requires,
     extras_require = extras_require,

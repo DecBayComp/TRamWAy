@@ -1,6 +1,5 @@
 
 from ..attribute import *
-from tramway.plot.bokeh.analyzer import *
 
 class Browser(AnalyzerNode):
     """
@@ -55,6 +54,7 @@ class Browser(AnalyzerNode):
     """
     def show_maps(self, **kwargs):
         """ see also :func:`~tramway.plot.bokeh.analyzer.browse_maps`. """
+        from tramway.plot.bokeh.analyzer import browse_maps
         browse_maps(self._eldest_parent, **kwargs)
 
 

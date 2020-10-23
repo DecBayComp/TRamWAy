@@ -38,6 +38,7 @@ from .mapper    import *
 from .env       import *
 from .pipeline  import *
 from .browser   import *
+from .images    import *
 
 
 class BasicLogger(object):
@@ -187,7 +188,7 @@ class RWAnalyzer(object):
 
     """
     __slots__ = ( '_logger', '_spt_data', '_roi', '_time', '_tesseller', '_sampler', '_mapper',
-            '_env', '_pipeline', '_browser' )
+            '_env', '_pipeline', '_browser', '_images' )
 
     @property
     def logger(self):
@@ -280,6 +281,17 @@ class RWAnalyzer(object):
         self._env = env
     env = selfinitializing_property('env', _get_env, _set_env, Environment)
 
+    def _get_images(self):
+        """
+        Single molecule microscopy image stacks.
+
+        See :class:`~images.ImagesInitializer`.
+        """
+        return self._images
+    def _set_images(self, images):
+        self._images = images
+    images = selfinitializing_property('images', _get_images, _set_images, Images)
+
     def __init__(self):
         self._logger = \
                 self._spt_data = \
@@ -287,7 +299,8 @@ class RWAnalyzer(object):
                 self._tesseller = \
                 self._sampler = \
                 self._mapper = \
-                self._env = None
+                self._env = \
+                self._images = None
         self.spt_data  = SPTDataInitializer
         self.roi       = ROIInitializer
         self.time      = TimeInitializer
@@ -295,6 +308,7 @@ class RWAnalyzer(object):
         self.sampler   = SamplerInitializer
         self.mapper    = MapperInitializer
         self.env       = EnvironmentInitializer
+        self.images    = ImagesInitializer
         self._pipeline = Pipeline(self)
         self._browser  = Browser(self)
 
@@ -312,6 +326,14 @@ class RWAnalyzer(object):
         launches the pipeline.
         """
         return self.pipeline.run()
+
+    def add_collectible(self, collectible):
+        """
+        designates a file generated at the worker side to be transferred back to the submit side.
+
+        See :meth:`Pipeline.add_collectible`
+        """
+        self.pipeline.add_collectible(collectible)
 
     @property
     def browser(self):

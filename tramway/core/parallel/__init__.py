@@ -245,11 +245,19 @@ class Scheduler(object):
     may complete on termination criteria.
     """
     def __init__(self, workspace, tasks, worker_count=None, iter_max=None,
-            name=None, args=(), kwargs={}, daemon=None, **_kwargs):
+            name=None, args=(), kwargs={}, daemon=None, max_runtime=None, **_kwargs):
         """
         Arguments:
 
             workspace (Workspace): workspace to be replicated
+
+            ...
+
+            max_runtime (float): timeout in seconds;
+                runtime is absolute, not cumulated over all workers;
+                the active workers are interrupted on reaching the timeout;
+                *new in 0.5b2*.
+
         """
         self.workspace = workspace
         self.task = tasks
@@ -258,6 +266,7 @@ class Scheduler(object):
         self.dead_workers = dict()
         self.k_eff = 0
         self.k_max = iter_max
+        self.timeout = max_runtime
         if worker_count is None:
             worker_count = multiprocessing.cpu_count() - 1
         elif worker_count < 0:
@@ -431,6 +440,8 @@ class Scheduler(object):
         for w in self.workers.values():
             w.start()
         self.init_resource_lock()
+        if self.timeout:
+            self.start_time = time.time()
         k = 0
         postponed = dict()
         try:
@@ -439,6 +450,8 @@ class Scheduler(object):
                 if not self.workers_alive():
                     break
                 if not self.get_processed_step():
+                    break
+                if self.timeout and self.timeout <= (time.time() - self.start_time):
                     break
                 if postponed:
                     for i in list(postponed):

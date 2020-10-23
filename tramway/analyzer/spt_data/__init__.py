@@ -84,7 +84,9 @@ class SPTParameters(object):
 
 
 class SPTDataIterator(AnalyzerNode, SPTParameters):
-    """ partial implementation for multiple SPT data items """
+    """ partial implementation for multiple SPT data items.
+
+    Children classes must implement the `__iter__` method. """
     __slots__ = ('_bounds',)
     def __init__(self, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
