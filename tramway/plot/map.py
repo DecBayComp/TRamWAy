@@ -210,13 +210,13 @@ def box_voronoi_2d(tessellation, xlim, ylim):
             v0c_keep = np.isclose(D2[v0c_match, np.arange(len(V1))], 0, atol=1e-6)
             if not np.any(v0c_keep):
                 warn('the Voronoi diagrams totally mismatch at the border', RuntimeWarning)
-                continue
-                print(D2[v0c_match, np.arange(len(V1))])
-                import matplotlib.pyplot as plt
-                plt.scatter(V0[:,0], V0[:,1], 200, c='g', marker='+')
-                plt.scatter(V1[:,0], V1[:,1], 200, c='r', marker='x')
-                #plt.scatter(corners[:,0], corners[:,1], c='b', marker='o')
-                plt.show()
+                #continue
+                #print(D2[v0c_match, np.arange(len(V1))])
+                #import matplotlib.pyplot as plt
+                #plt.scatter(V0[:,0], V0[:,1], 200, c='g', marker='+')
+                #plt.scatter(V1[:,0], V1[:,1], 200, c='r', marker='x')
+                ##plt.scatter(corners[:,0], corners[:,1], c='b', marker='o')
+                #plt.show()
             v0_match = v0[v0c_match[v0c_keep]]
             v1_match = v1[v0c_keep]
             v1_replace = v1[~v0c_keep]
@@ -232,7 +232,10 @@ def box_voronoi_2d(tessellation, xlim, ylim):
             v1_cntr += len(V1_new)
             #
             v1_map[v1_replace[v1_mapped==not_a_vertex]] = v1_new
-            cell_vertices1[c] = np.r_[np.array(list(v0_kept)), v1_reused, v1_new]
+            if v0_kept.size==0 and v1_new.size==0:
+                cell_vertices1[c] = v1_reused
+            else:
+                cell_vertices1[c] = np.r_[np.array(list(v0_kept)), v1_reused, v1_new]
             #
             v1_set = set(v1)
             for _v0, _v1 in zip(v0_match, v1_match):
@@ -295,7 +298,7 @@ def box_voronoi_2d(tessellation, xlim, ylim):
 
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
         delaunay=False, colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
-        xlim=None, ylim=None, **kwargs):
+        xlim=None, ylim=None, try_fix_corners=True, **kwargs):
     """
     Plot a 2D scalar map as a colourful image.
 
@@ -355,6 +358,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
             delaunay['linewidth'] = linewidth
 
     # turn the cells into polygons
+    ids = []
     polygons = []
     if isinstance(cells, Distributed):
 
@@ -428,12 +432,41 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
                     else:
                         #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
                         warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
+                        if try_fix_corners:
+                            vs = vertices[cell_vertices[i]]
+                            if len(vs) != 3:
+                                _min = vs.min(axis=0) == np.r_[xlim[0],ylim[0]]
+                                _max = vs.max(axis=0) == np.r_[xlim[1],ylim[1]]
+                                if _min[0]:
+                                    vx = v0x = xlim[0]
+                                    v1x = vs[:,0].max()
+                                elif _max[0]:
+                                    vx = v0x = xlim[1]
+                                    v1x = vs[:,0].min()
+                                else:
+                                    vx = None
+                                if _min[1]:
+                                    vy = v1y = ylim[0]
+                                    v0y = vs[:,1].max()
+                                elif _max[1]:
+                                    vy = v1y = ylim[1]
+                                    v0y = vs[:,1].min()
+                                else:
+                                    vy = None
+                                if vx is None or vy is None:
+                                    vs = None
+                                else:
+                                    vs = np.array([[v0x,v0y],[vx,vy],[v1x,v1y]])
+                            if vs is not None:
+                                polygons.append(Polygon(vs, True))
+                                ids.append(i)
                         break
                 v = ws.pop()
             #
             if _vertices:
                 _vertices = np.vstack(_vertices)
                 polygons.append(Polygon(_vertices, True))
+                ids.append(i)
     else:
         _type = repr(type(cells))
         if _type.endswith("'>"):
@@ -446,7 +479,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         except AttributeError:
             raise TypeError('wrong type for `cells`: {}'.format(_type))
 
-    scalar_map = values.loc[ix[ok]].values
+    if not ids:
+        ids = ix[ok]
+    scalar_map = values.loc[ids].values
 
     #print(np.nonzero(~ok)[0])
 

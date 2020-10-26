@@ -105,8 +105,10 @@ class _RawImage(AnalyzerNode, ImageParameters):
             else:
                 yield frame
 
-    def to_color_movie(self, output_file=None, opencv_fourcc='MJPG', colormap='Greys',
-            locations=None, trajectories=None, frames=None, linecolor='many'):
+    def to_color_movie(self, output_file=None, fourcc='VP80', colormap='gray',
+            locations=None, trajectories=None, frames=None,
+            markersize=2, linecolor='many', linewidth=1,
+            zoom=None, playback_rate=None, light_intensity=1.):
         """
         Generates a movie of the images with overlaid locations or trajectories.
 
@@ -114,7 +116,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             output_file (str): path of the movie file.
 
-            opencv_fourcc (str): 4-character code string.
+            fourcc (str): 4-character code string.
 
             colormap (str or matplotlib.colors.ListedColormap): Matplotlib colormap;
                 see also https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html.
@@ -128,10 +130,29 @@ class _RawImage(AnalyzerNode, ImageParameters):
             frames (sequence): iterable of time (*float*, in seconds) and frame (2D pixel array)
                 pairs; :meth:`as_frames` is called instead if undefined.
 
-            linecolor (str or 3-column float array): color for trajectories.
+            markersize (int): location marker size in pixels (side).
+
+            linecolor (str or 3-column float array): color for trajectories;
+                value ``None`` defaults to red.
+
+            linewidth (float): trajectory line width
+
+            zoom (int or str): the original image pixels can be represented as square-patches
+                of *zoom* video pixel side; if *str*:
+                '1x'= round(pixel_size/localization_precision),
+                '2x'= round(2*pixel_size/localization_precision);
+                '2x' is adequate for overlaid trajectories, even with the over-compressing
+                'MJPG' encoder.
+
+            playback_rate (float): default playback rate;
+                1 is real-time, 0.5 is half the normal speed.
+
+            light_intensity (float): scale the pixel intensity values;
+                works best with the 'gray' colormap.
 
         """
         import cv2
+        # TODO: support PIL as an optional replacement for skimage
         from skimage.util import img_as_ubyte
         from skimage import draw
         from matplotlib import cm, colors
@@ -143,10 +164,15 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 raise ValueError('output_file is not defined')
 
         dt = self.dt
-        width, height = self.width, self.height
+        if frames is None:
+            width, height = self.width, self.height
+        else:
+            first_frame = frames[0][1]
+            height, width = first_frame.shape
         pxsize = self.pixel_size
         if pxsize is None:
             pxsize = 1.
+
         if self.loc_offset is None:
             offset = np.zeros((1,2), dtype=np.float)
         else:
@@ -155,7 +181,30 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 offset = offset[np.newaxis,:]
         x_offset, y_offset = offset[0,0], offset[0,1]
 
+        if zoom is None:
+            zoom = 1
+        elif isinstance(zoom, str) and zoom.endswith('x'):
+            try:
+                zoom = float(zoom[:-1])
+            except ValueError:
+                raise ValueError('cannot parse the zoom factor')
+            try:
+                zoom *= self.pixel_size / self._eldest_parent.localization_precision
+            except (AttributeError, TypeError):
+                raise ValueError('failed to adjust zoom; pixel_side or localization_precision not defined')
+            zoom = int(np.round(zoom))
+
+        if playback_rate is None:
+            playback_rate = 1.
+
+        if light_intensity == 1:
+            color_scale = None
+        else:
+            color_scale = int(np.round(1./light_intensity))
+
         marker_color = line_color = np.array([[1,0,0]], dtype=np.float) # red
+        if locations is not None:
+            marker_size_delta = .5*float(markersize-1)
         if trajectories is not None:
             if isinstance(linecolor, str):
                 if linecolor == 'many':
@@ -166,60 +215,85 @@ class _RawImage(AnalyzerNode, ImageParameters):
             elif isinstance(linecolor, np.ndarray):
                 line_color = linecolor
             lc = line_color
-            def zip_n(n, ijk):
+            def append_n(n, ijk):
                 i, j, k = ijk
                 return i, j, k, np.full(k.shape, n)
+            trajectories_as_dict = { n: trajectories[list('xyt')][trajectories['n']==n]
+                    for n in np.unique(trajectories['n']) }
+        dt_max_err = (.5*dt)**2
+        def isclose(ts, t):
+            _dt = ts-t
+            return _dt*_dt < dt_max_err
 
         vid = cv2.VideoWriter(os.path.expanduser(output_file),
-                cv2.VideoWriter_fourcc(*opencv_fourcc),
-                1./dt, (width, height), True)
+                cv2.VideoWriter_fourcc(*fourcc),
+                playback_rate/dt, (width*zoom, height*zoom), True)
+
+        vid_pxsize = pxsize / zoom
+        ii_max = height * zoom - 1
 
         if isinstance(colormap, str):
             colormap = cm.get_cmap(colormap)
         elif not callable(colormap):#isinstance(colormap, colors.ListedColormap):
             colormap = cm.viridis
 
+        t_prev = -1
         for t, frame in self.as_frames(return_time=True) if frames is None else frames:
+            if t <= t_prev:
+                raise RuntimeError('time does not strictly increase')
+            t_prev = t
+
+            if color_scale:
+                frame = frame // color_scale
+
             frame = colormap(frame)[:,:,:3]
 
+            if zoom:
+                frame = np.repeat(np.repeat(frame, zoom, axis=0), zoom, axis=1)
+
             if locations is not None:
-                xy = locations[ (locations['t']-t)**2 < (.5*dt)**2 ]
-                xy_f = (xy[list('xy')].values + offset) / pxsize
+                xy = locations[ isclose(locations['t'], t) ]
+                xy_f = (xy[list('xy')].values + offset) / vid_pxsize
                 for j,i in xy_f:
-                    i = np.array([np.floor(i), np.ceil(i)], dtype=np.int)
-                    j = np.array([np.floor(j), np.ceil(j)], dtype=np.int)
-                    i,j = np.meshgrid(i[0<=i], j[0<=j], indexing='ij')
-                    frame[height-1-np.ravel(i),np.ravel(j),:] = marker_color
+                    i = np.array([np.floor(i-marker_size_delta), np.ceil(i+marker_size_delta)], dtype=np.int)
+                    j = np.array([np.floor(j-marker_size_delta), np.ceil(j+marker_size_delta)], dtype=np.int)
+                    if np.any(i<0) or np.any(j<0):
+                        continue
+                    i,j = np.meshgrid(np.arange(i[0],i[1]), np.arange(j[0],j[1]), indexing='ij')
+                    frame[ii_max-np.ravel(i),np.ravel(j),:] = marker_color
 
             if trajectories is not None:
-                # get the locations for frame f
-                xy = trajectories[ (trajectories['t']-t)**2 < (.5*dt)**2 ]
+                # get the ids of the active trajectories for frame f
+                active_trajectories = trajectories['n'][ isclose(trajectories['t'], t) ]
+                assert all_unique(active_trajectories)
 
-                # ...and the corresponding truncated trajectories
-                trajs_f, n_f = [], []
-                for n in xy['n']:
-                    xy_n = trajectories[trajectories['n']==n]
-                    xy_n = xy_n[xy_n['t']<t+.5*dt]
-                    if 1<len(xy_n):
-                        traj = (xy_n[list('xy')].values + offset) / pxsize
-                        traj = np.round(traj).astype(np.int64)
-                        if np.any(traj < 0):
-                            continue
-                        trajs_f.append(traj)
-                        n_f.append(n)
+                # extract the corresponding coordinate series truncated at time t
+                trajs_f = []
+                for n in active_trajectories:
+                    #xy_n = trajectories[trajectories['n']==n]
+                    xyt_n = trajectories_as_dict[n]
+                    xy_n = xyt_n[list('xy')][xyt_n['t']<t+.5*dt]
+                    if len(xy_n)<2:
+                        continue
+                    traj = (xy_n.values + offset) / vid_pxsize
+                    if np.any(traj < 0): # this may occur with negative offsets
+                        continue
+                    traj = np.round(traj).astype(np.uint32)
+                    trajs_f.append((n, traj))
 
-                # overlay the trajectories
+                # overlay the truncated trajectories
                 if trajs_f:
-                    jj, ii, kk, nn = zip(*[
-                            zip_n(n, draw.line_aa(traj[pt,0], traj[pt,1], traj[pt+1,0], traj[pt+1,1]))
-                            for pt in range(traj.shape[0]-1) for n, traj in zip(n_f, trajs_f) ])
+                    # TODO: draw a proper polyline with unique ii and jj and max(kk)
+                    jj, ii, kk, nn = zip(*[ append_n(n,
+                            draw.line_aa(traj[p,0], traj[p,1], traj[p+1,0], traj[p+1,1])
+                        ) for n, traj in trajs_f for p in range(traj.shape[0]-1) ])
                     ii = np.concatenate(ii)
                     jj = np.concatenate(jj)
                     kk = np.concatenate(kk)[:,np.newaxis]
                     if 1<len(line_color):
                         nn = np.concatenate(nn)
                         lc = line_color[nn % len(line_color)]
-                    frame[height-1-ii,jj,:] = (1.-kk) * frame[height-1-ii,jj,:] + kk * lc
+                    frame[ii_max-ii,jj,:] = (1.-kk) * frame[ii_max-ii,jj,:] + kk * lc
 
             vid.write(img_as_ubyte(frame)[:,:,::-1])
         vid.release()
@@ -388,6 +462,9 @@ def TiffFiles(ImageFiles):
     __slots__ = ()
     def list_files(self):
         ImageFiles.list_files(self, TiffFile)
+
+def all_unique(values):
+    return np.unique(values).size == values.size
 
 __all__ = ['Image', 'Images', 'ImagesInitializer', 'ImageParameters', 'RawImage', 'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile', 'RawImages', 'ImageFiles', 'TiffFiles']
 

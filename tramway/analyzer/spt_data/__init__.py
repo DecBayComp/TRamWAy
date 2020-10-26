@@ -634,6 +634,8 @@ class RWAFile(SPTFile):
     __slots__ = ()
     def __init__(self, filepath, **kwargs):
         SPTFile.__init__(self, filepath, None, **kwargs)
+    def set_analyses(self, tree):
+        self._analyses = tree
     def load(self):
         # ~ expansion is no longer necessary from rwa-python==0.8.4
         self.analyses = load_rwa(os.path.expanduser(self.filepath), lazy=True)
