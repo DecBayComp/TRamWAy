@@ -65,6 +65,10 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     pip3.6 install paramiko
     pip3.6 install notebook bokeh
 
+    apt-get install -y --no-install-recommends \
+        firefox firefox-geckodriver
+    pip3.6 install selenium
+
     mkdir -p /pasteur
 
 %runscript

@@ -362,7 +362,7 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
     return pd.DataFrame(np.vstack([ traj.values for traj in trajs ]), columns=trajectories.columns)
 
 
-def load_mat(path, columns=None, varname='plist', dt=None, pixel_size=None):
+def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pixel_size=None):
     """
     Load SPT data from MatLab V7 file.
 
@@ -389,8 +389,13 @@ def load_mat(path, columns=None, varname='plist', dt=None, pixel_size=None):
     spt_data = pd.DataFrame(spt_data.T, columns=columns)
     if dt is not None:
         spt_data['t'] = spt_data['t'] * dt
-    if pixel_size is not None:
-        spt_data[list('xy')] = spt_data[list('xy')] * pixel_size
+    if coord_scale is None:
+        if pixel_size is not None:
+
+            warnings.warn('attribute pixel_size is deprecated; use coord_scale instead', DeprecationWarning)
+            coord_scale = pixel_size
+    if coord_scale is not None:
+        spt_data[list('xy')] = spt_data[list('xy')] * coord_scale
     return spt_data
 
 

@@ -73,7 +73,7 @@ setup(
         'tramway.analyzer.browser',
         'tramway.analyzer.pipeline',
         'tramway.analyzer.images'],
-    scripts = ['scripts/tramway'],
+    scripts = ['scripts/tramway', 'scripts/tramway-browse'],
     install_requires = install_requires,
     extras_require = extras_require,
     setup_requires = setup_requires,

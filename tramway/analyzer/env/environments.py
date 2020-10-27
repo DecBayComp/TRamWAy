@@ -899,8 +899,12 @@ print('{}'+';'.join(files))\
                 if dest.startswith(remote):
                     dest = local+dest[len(remote):]
                     break
-            self.ssh.get(end_result_file, dest)
-            any_transfer = True
+            try:
+                self.ssh.get(end_result_file, dest)
+            except FileNotFoundError: # the target file might be empty
+                self.logger.warning('failed')
+            else:
+                any_transfer = True
         return any_transfer
     @classmethod
     def _collectibles_from_log_files(cls, wd, log_pattern, stage_index=None):
