@@ -422,17 +422,19 @@ def browse_maps(analyzer, **kwargs):
         print('running bokeh server...\n')
         import subprocess
         p = subprocess.Popen([sys.executable, '-m', 'bokeh', 'serve', '--show', analyzer.env.script],
-                cwd=os.getcwd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+                cwd=os.getcwd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True,
+                encoding='utf-8')
         try:
             out, err = p.communicate()
         except KeyboardInterrupt:
             out, err = p.communicate()
-        out = out.decode('utf-8')
+        #out = out.decode('utf-8')
         for line in out.splitlines():
             if not line:
                 continue
             print(line)
         if err:
-            print(err.decode('utf-8'))
+            #print(err.decode('utf-8'))
+            print(err)
         print('bokeh server shut down')
 

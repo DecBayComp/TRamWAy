@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+
+import tempfile as tmp
+import sys
+import subprocess
+
+def browse(files=[], browser='Firefox'):
+    if not files:
+        import glob
+        filepattern = '*.rwa'
+        if not glob.glob(filepattern):
+            filepattern = '*/*.rwa'
+            if not glob.glob(filepattern):
+                print('cannot find any matching rwa file')
+                return
+        files = [filepattern]
+
+    script = tmp.NamedTemporaryFile('w', suffix='.py', encoding='utf-8', delete=False)
+    source = """\
+#!/usr/bin/env python3
+
+from tramway.analyzer import *
+from selenium import webdriver
+
+a = RWAnalyzer()
+a.spt_data.from_rwa_files(['{}'])
+a.env.script = '{}'
+a.browser.show_maps(webdriver=webdriver.{})
+""".format("', '".join(files), script.name, browser)
+    script.write(source)
+    script.flush()
+    try:
+        ret = subprocess.run([sys.executable, script.name], check=True)
+    except KeyboardInterrupt:
+        ret = 'interrupted'
+    script.close()
+    return ret
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(prog='tramway-browse',
+        description='Browse TRamWAy-generated .rwa files')
+    parser.add_argument('files', nargs='*', help='for example: *.rwa or */*.rwa')
+    parser.add_argument('--browser', default='Firefox', choices=['Firefox','Chrome','Edge','Ie','Opera','Safari','WebKitGTK','PhantomJS'])
+    print(browse(**parser.parse_args().__dict__))
+
+if __name__ == '__main__':
+    main()
+

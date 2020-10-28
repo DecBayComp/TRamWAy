@@ -85,7 +85,7 @@ def animate_map_2d(_map, cells, output_file=None,
         tmin, tmax = segments.min(), segments.max()
         _map = cells.tessellation.split_frames(_map)
         _mesh = cells.tessellation.spatial_mesh
-        cells = Partition(tessellation=_mesh, location_count=np.ones(_mesh.number_of_cells))
+        cells = Partition(tessellation=_mesh, location_count=np.ones(_mesh.number_of_cells), points=cells.points)
     else:
         _map = [_map]
         t = cells.locations['t']

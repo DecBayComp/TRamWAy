@@ -59,11 +59,14 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     #pip3.6 install --upgrade pip
     pip3.6 uninstall -qy tramway || true
     pip3.6 install . -r requirements.txt
-    pip3.6 install .[roi]
+    pip3.6 install .[animate,roi,webui]
 
-    pip3.6 install tqdm scikit-learn
+    pip3.6 install scikit-learn
     pip3.6 install paramiko
-    pip3.6 install notebook bokeh
+    pip3.6 install notebook
+
+    #apt-get install -y --no-install-recommends \
+    #    firefox firefox-geckodriver
 
     mkdir -p /pasteur
 

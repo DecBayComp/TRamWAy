@@ -89,6 +89,7 @@ class VideoWriter(object):
                 # always import pyplot as late as possible to allow for backend selection
                 import matplotlib.pyplot as plt
                 figure, axes = plt.subplots()
+                figure.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=None, hspace=None)
                 self.finally_close = True
             else:
                 figure = axes.get_figure()

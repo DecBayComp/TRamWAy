@@ -84,7 +84,9 @@ class SPTParameters(object):
 
 
 class SPTDataIterator(AnalyzerNode, SPTParameters):
-    """ partial implementation for multiple SPT data items """
+    """ partial implementation for multiple SPT data items.
+
+    Children classes must implement the `__iter__` method. """
     __slots__ = ('_bounds',)
     def __init__(self, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
@@ -565,7 +567,10 @@ class SPTFiles(SPTDataFrames):
     def __init__(self, filepattern, **kwargs):
         SPTDataIterator.__init__(self, **kwargs)
         self._files = []
-        self._filepattern = os.path.expanduser(filepattern)
+        if isinstance(filepattern, str):
+            self._filepattern = os.path.expanduser(filepattern)
+        else:
+            self._filepattern = [os.path.expanduser(pattern) for pattern in filepattern]
     @property
     def filepattern(self):
         return self._filepattern
@@ -602,7 +607,12 @@ class SPTFiles(SPTDataFrames):
         yield from self.files
     def list_files(self):
         from glob import glob
-        self._files = glob(self.filepattern)
+        if isinstance(self.filepattern, str):
+            self._files = glob(self.filepattern)
+        else:
+            self._files = []
+            for pattern in self.filepattern:
+                self._files += glob(pattern)
         if not self._files:
             raise ValueError("no files found")
     @property
@@ -632,6 +642,8 @@ class RWAFile(SPTFile):
     __slots__ = ()
     def __init__(self, filepath, **kwargs):
         SPTFile.__init__(self, filepath, None, **kwargs)
+    def set_analyses(self, tree):
+        self._analyses = tree
     def load(self):
         # ~ expansion is no longer necessary from rwa-python==0.8.4
         self.analyses = load_rwa(os.path.expanduser(self.filepath), lazy=True)
@@ -662,23 +674,31 @@ SPTData.register(RWAFiles)
 
 
 class SPTMatFile(RawSPTFile):
-    __slots__ = ('_pixel_size',)
+    __slots__ = ('_coord_scale',)
     def __init__(self, filepath, dataframe=None, **kwargs):
         RawSPTFile.__init__(self, filepath, dataframe, **kwargs)
-        self._pixel_size = None
+        self._coord_scale = None
+    @property
+    def coord_scale(self):
+        return self._coord_scale
+    @coord_scale.setter
+    def coord_scale(self, scale):
+        if self.reified:
+            raise AttributeError('the SPT data have already been loaded; cannot set the coordinate scale anymore')
+        else:
+            self._coord_scale = scale
     @property
     def pixel_size(self):
-        return self._pixel_size
+        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        return self.coord_scale
     @pixel_size.setter
     def pixel_size(self, siz):
-        if self.reified:
-            raise AttributeError('the SPT data have already been loaded; cannot set the pixel size anymore')
-        else:
-            self._pixel_size = siz
+        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        self.coord_scale = siz
     def load(self):
         try:
             self._dataframe = load_mat(os.path.expanduser(self.filepath),
-                    columns=self._columns, dt=self._dt, pixel_size=self.pixel_size)
+                    columns=self._columns, dt=self._dt, coord_scale=self.coord_scale)
         except OSError as e:
             raise OSError('While loading file: {}\n{}'.format(self.source, e))
         self._trigger_discard_static_trajectories()
@@ -701,23 +721,31 @@ class SPTMatFiles(SPTFiles):
     """
     __slots__ = ()
     @property
-    def pixel_size(self):
+    def coord_scale(self):
         it = iter(self)
-        px = next(it).pixel_size
+        px = next(it).coord_scale
         while True:
             try:
-                _px = next(it).pixel_size
+                _px = next(it).coord_scale
             except StopIteration:
                 break
             else:
                 _delta = px - _px
                 if 1e-12 < _delta*_delta:
-                    raise AttributeError('not all the data blocks share the same time step (dt)')
+                    raise AttributeError('not all the data blocks share the same coordinate scale')
         return px
+    @coord_scale.setter
+    def coord_scale(self, scale):
+        for f in self:
+            f.coord_scale = scale
+    @property
+    def pixel_size(self):
+        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        return self.coord_scale
     @pixel_size.setter
     def pixel_size(self, px):
-        for f in self:
-            f.pixel_size = px
+        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        self.coord_scale = px
     def list_files(self):
         SPTFiles.list_files(self)
         self._files = [ self._bear_child( SPTMatFile, filepath ) for filepath in self._files ]

@@ -161,6 +161,20 @@ class SlidingWindow(AnalyzerNode, DT):
     def shift(self, s):
         self._shift = None if s is None else float(s)
     @property
+    def window_duration(self):
+        """ alias for `duration`. """
+        return self.duration
+    @window_duration.setter
+    def window_duration(self, d):
+        self.duration = d
+    @property
+    def window_shift(self):
+        """ alias for `shift`. """
+        return self.shift
+    @window_shift.setter
+    def window_shift(self, s):
+        self.shift = s
+    @property
     def start_time(self):
         """ start time for running the sliding window.
         By default, the window starts from the first data point in the input data

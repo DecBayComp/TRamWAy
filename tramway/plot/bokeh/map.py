@@ -287,6 +287,7 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
         assert False
         figure = plt.figure()
 
+    ids = []
     polygons = []
 
     xy = cells.tessellation.cell_centers
@@ -332,14 +333,46 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
                 else:
                     #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
                     warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
+                    if try_fix_corners:
+                        vs = vertices[cell_vertices[i]]
+                        if len(vs) != 3:
+                            _min = vs.min(axis=0) == np.r_[xlim[0],ylim[0]]
+                            _max = vs.max(axis=0) == np.r_[xlim[1],ylim[1]]
+                            if _min[0]:
+                                vx = v0x = xlim[0]
+                                v1x = vs[:,0].max()
+                            elif _max[0]:
+                                vx = v0x = xlim[1]
+                                v1x = vs[:,0].min()
+                            else:
+                                vx = None
+                            if _min[1]:
+                                vy = v1y = ylim[0]
+                                v0y = vs[:,1].max()
+                            elif _max[1]:
+                                vy = v1y = ylim[1]
+                                v0y = vs[:,1].min()
+                            else:
+                                vy = None
+                            if vx is None or vy is None:
+                                vs = None
+                            else:
+                                vs = np.array([[v0x,v0y],[vx,vy],[v1x,v1y]])
+                        if vs is not None:
+                            polygons.append((vs[:,0],vs[:,1]))
+                            ids.append(i)
                     break
             v = ws.pop()
         #
         if _vertices:
             _vertices = np.vstack(_vertices)
             polygons.append((_vertices[:,0], _vertices[:,1]))
+            ids.append(i)
 
-    scalar_map = values.loc[ix[ok]].values
+    if not ids:
+        ids = ix[ok]
+    scalar_map = values.loc[ids].values
+
     vmin, vmax = scalar_map.min(), scalar_map.max()
     clim = {} if clim is None else dict(vmin=clim[0], vmax=clim[1])
     scalar_map = mpl.colors.Normalize(**clim)(scalar_map)

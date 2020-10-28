@@ -6,7 +6,10 @@ from os import path
 
 # requirements moved to requirements.txt
 install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
-extras_require = {'animate': ['opencv-python', 'tqdm'], 'roi': ['polytope', 'cvxopt', 'tqdm']}
+extras_require = {
+        'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
+        'roi':  ['polytope', 'cvxopt', 'tqdm'],
+        'webui':    ['bokeh', 'selenium']}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']
 
@@ -19,7 +22,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.5-beta',
+    version = '0.5-beta2',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -71,8 +74,9 @@ setup(
         'tramway.analyzer.mapper',
         'tramway.analyzer.env',
         'tramway.analyzer.browser',
-        'tramway.analyzer.pipeline'],
-    scripts = ['scripts/tramway'],
+        'tramway.analyzer.pipeline',
+        'tramway.analyzer.images'],
+    scripts = ['scripts/tramway', 'scripts/tramway-browse'],
     install_requires = install_requires,
     extras_require = extras_require,
     setup_requires = setup_requires,
