@@ -14,7 +14,10 @@
 
 import numpy as np
 import pandas as pd
-import polytope as pt
+try:
+    import polytope as pt
+except ImportError:
+    pt = None
 import copy
 from tramway.core.xyt import crop
 import tramway.core.analyses.auto as autosaving

@@ -30,7 +30,7 @@ a.browser.show_maps(webdriver=webdriver.{})
     script.write(source)
     script.flush()
     try:
-        ret = subprocess.run([sys.executable, script.name])
+        ret = subprocess.run([sys.executable, script.name], check=True)
     except KeyboardInterrupt:
         ret = 'interrupted'
     script.close()
@@ -42,8 +42,8 @@ def main():
     parser = argparse.ArgumentParser(prog='tramway-browse',
         description='Browse TRamWAy-generated .rwa files')
     parser.add_argument('files', nargs='*', help='for example: *.rwa or */*.rwa')
-    parser.add_argument('--browser', default='Firefox', choices=['Firefox'])
-    browse(**parser.parse_args().__dict__)
+    parser.add_argument('--browser', default='Firefox', choices=['Firefox','Chrome','Edge','Ie','Opera','Safari','WebKitGTK','PhantomJS'])
+    print(browse(**parser.parse_args().__dict__))
 
 if __name__ == '__main__':
     main()
