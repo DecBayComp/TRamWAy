@@ -29,3 +29,13 @@ class MultipleArgumentError(ValueError):
 class MisplacedAttributeWarning(UserWarning):
     pass
 
+class RWAFileException(IOError):
+    def __init__(self, filepath=None, exc=None):
+        self.filepath = filepath
+        self.exc = exc
+    def __str__(self):
+        if self.filepath is None:
+            return 'cannot find any analysis tree'
+        else:
+            return 'cannot find any analysis tree in file: '+self.filepath
+

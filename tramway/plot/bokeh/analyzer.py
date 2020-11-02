@@ -1,8 +1,11 @@
 
 from tramway.core.analyses.browser import AnalysisBrowser
+from tramway.core.exceptions import RWAFileException
+from tramway.tessellation.time import TimeLattice
 from .map import *
 import sys
 import os
+import numpy as np
 import pandas as pd
 import time
 import traceback
@@ -67,6 +70,19 @@ class Model(object):
             self.release_mapping()
         self.current_analyses.select_child(mapping_label)
         self.current_mapping = self.current_analyses.artefact
+        if self.has_time_segments():
+            t = self.current_sampling.tessellation
+            m = self.current_mapping
+            self.clim = {}
+            for feature in m.features:
+                _m = m[feature].values
+                if _m.shape[1:]:
+                    if 1<_m.shape[1]:
+                        _m = np.sqrt(np.sum(_m*_m, axis=1))
+                    else:
+                        _m = _m.flatten()
+                self.clim[feature] = [_m.min(), _m.max()]
+            self.current_mapping = { feature: t.split_segments(m[feature]) for feature in m.features }
         return self.current_mapping
     def release_mapping(self, release_feature=True):
         if self.current_feature is not None and release_feature:
@@ -75,11 +91,21 @@ class Model(object):
         self.current_mapping = None
     @property
     def features(self):
-        return list(self.current_mapping.features)
+        assert self.current_mapping is not None
+        if self.has_time_segments():
+            return list(self.current_mapping.keys())
+        else:
+            return list(self.current_mapping.features)
     def select_feature(self, feature):
         self.current_feature = feature
     def release_feature(self):
         self.current_feature = None
+    def has_time_segments(self):
+        assert self.current_sampling is not None
+        return isinstance(self.current_sampling.tessellation, TimeLattice)
+    def n_time_segments(self):
+        assert self.has_time_segments()
+        return len(self.current_sampling.tessellation.time_lattice)
         
 class Controller(object):
     """
@@ -120,7 +146,15 @@ class Controller(object):
         if source_name == 'None':
             #self.unload_source()
             return
-        self.model.select_spt_data(source_name)
+        try:
+            self.model.select_spt_data(source_name)
+        except RWAFileException:
+            import traceback
+            traceback.print_exc()
+            self.source_dropdown.options = [ src for src in self.source_dropdown.options if src != source_name ]
+            if not (self.source_dropdown.options and (self.source_dropdown.options[1:] or self.source_dropdown.options[0] != 'None')):
+                self.source_dropdown.disabled = True
+            return
         self.model.sampling_labels = list(self.model.current_analyses.labels())
         options = self.model.sampling_labels
         self.sampling_dropdown.options = ['None'] + options if options[1:] else options
@@ -146,6 +180,10 @@ class Controller(object):
         options = self.model.mapping_labels
         self.mapping_dropdown.options = ['None'] + options if options[1:] else options
         self.mapping_dropdown.disabled = False
+        # time segmentation support
+        if self.model.has_time_segments():
+            self.time_slider.update(start=1, end=self.model.n_time_segments())
+        #
         if not self.model.mapping_labels[1:]:
             self.load_mapping(self.model.mapping_labels[0])
     def unload_sampling(self):
@@ -181,10 +219,10 @@ class Controller(object):
                 return
             self.unset_export_status('figure')
             self.model.select_feature(feature)
+            if self.model.has_time_segments():
+                self.enable_time_view()
             self.draw_map(feature)
             self.draw_trajectories()
-            if 1 < self.model.analyzer.time.n_time_segments(self.model.current_sampling):
-                self.enable_time_view()
             self.enable_space_view()
             self.enable_side_panel()
         finally:
@@ -200,6 +238,18 @@ class Controller(object):
             print(self.colorbar_figure.renderers)
             self.colorbar_figure.renderers = []
         self.feature_dropdown.value = 'None'
+    def refresh_map(self):
+        feature = self.model.current_feature
+        if feature is None or feature == 'None':
+            return
+        _curdoc = curdoc()
+        _curdoc.hold()
+        try:
+            self.unset_export_status('figure')
+            self.draw_map(feature)
+            self.draw_trajectories()
+        finally:
+            _curdoc.unhold()
     def make_main_view(self):
         """
         Makes the main view `browse_maps` adds as document root.
@@ -214,6 +264,7 @@ class Controller(object):
         return column(main_view)
     def make_time_view(self):
         self.time_slider = Slider(disabled=True, start=0, end=1, step=1)
+        self.time_slider.on_change('value_throttled', lambda attr, old, new: self.refresh_map())
         return self.time_slider
     def make_space_view(self):
         self.main_figure = f = figure(disabled=True, toolbar_location=None, active_drag=None,
@@ -223,7 +274,7 @@ class Controller(object):
                 min_border=0, outline_line_color=None, title_location='right', plot_width=112)
         f.background_fill_color = f.border_fill_color = None
         f.title.align = 'center'
-        f.visible = False
+        #f.visible = False
         self.overlaying_markers = CheckboxGroup(disabled=True, labels=['Localizations','Trajectories'], active=[])
         def _update(attr, old, new):
             if 0 in old and 0 not in new:
@@ -242,7 +293,7 @@ class Controller(object):
         self.colorbar_figure.disabled = True
         self.overlaying_markers.disabled = True
     def enable_space_view(self):
-        self.colorbar_figure.visible = True
+        #self.colorbar_figure.visible = True
         self.main_figure.disabled = False
         self.colorbar_figure.disabled = False
         self.overlaying_markers.disabled = False
@@ -250,8 +301,9 @@ class Controller(object):
         self.time_slider.disabled = True
     def enable_time_view(self):
         self.time_slider.disabled = False
+        assert 0<self.time_slider.start
+        self.time_slider.value = 1
     def draw_map(self, feature):
-        # TODO: support for time segments
         kwargs = self.map_kwargs
         if kwargs.get('unit', None) == 'std':
             kwargs = dict(kwargs)
@@ -268,8 +320,21 @@ class Controller(object):
             kwargs['unit'] = unit.get(feature, None)
         if self.main_figure.renderers:
             self.main_figure.renderers = []
+        _cells = self.model.current_sampling
         _map = self.model.current_mapping[feature]
-        scalar_map_2d(self.model.current_sampling, _map,
+        if self.model.has_time_segments():
+            _cells = _cells.tessellation.split_segments(_cells)
+            _seg = self.time_slider.value
+            if _seg is None:
+                import warnings
+                warnings.warn('could not read time slider value', RuntimeWarning)
+                _seg = 0
+            else:
+                _seg -= 1
+            _cells = _cells[_seg]
+            _map = _map[_seg]
+            kwargs['clim'] = self.model.clim[feature]
+        scalar_map_2d(_cells, _map,
                 figure=self.main_figure, colorbar_figure=self.colorbar_figure, **kwargs)
         if _map.shape[1] == 2:
             field_map_2d(self.model.current_sampling, _map,
@@ -277,7 +342,15 @@ class Controller(object):
         elif _map.shape[1] != 1:
             raise NotImplementedError('neither a scalar map nor a 2D-vector map')
     def draw_trajectories(self):
-        traj_handles = plot_trajectories(self.model.current_sampling.points,
+        sampling = self.model.current_sampling
+        if self.model.has_time_segments():
+            try:
+                seg = self.time_slider.value-1
+            except TypeError:
+                pass
+            else:
+                sampling = sampling.tessellation.split_segments(sampling)[seg]
+        traj_handles = plot_trajectories(sampling.points,
                 figure=self.main_figure, **self.trajectories_kwargs)
         self.trajectory_handles = traj_handles[0::2]
         self.location_handles = traj_handles[1::2]
@@ -354,7 +427,21 @@ class Controller(object):
         """
         export_kwargs = {}
         if self.selenium_webdriver is not None:
-            export_kwargs['webdriver'] = self.selenium_webdriver()
+            try:
+                from importlib import import_module
+                options = import_module(self.selenium_webdriver.__module__[:-9]+'options')
+                options = options.Options()
+                options.headless = True
+                webdriver = self.selenium_webdriver(options=options)
+            except (ImportError, AttributeError):
+                import selenium
+                if self.selenium_webdriver in (selenium.webdriver.Safari, selenium.webdriver.Edge):
+                    pass
+                else:
+                    import warnings, traceback
+                    warnings.warn('could not access the webdriver''s options:\n'+traceback.format_exc(), ImportWarning)
+                webdriver = self.selenium_driver()
+            export_kwargs['webdriver'] = webdriver
         if self.figure_export_width is not None:
             export_kwargs['width'] = self.figure_export_width
         if self.figure_export_height is not None:

@@ -193,6 +193,10 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
         if attr.startswith('loc_'):
             loc_kwargs[attr[4:]] = kwargs.pop(attr)
         if attr.startswith('line_'):
+            if attr == 'line_width':
+                # compatibility for old bokeh versions
+                line_kwargs[attr] = kwargs.pop(attr)
+                continue
             line_kwargs[attr[5:]] = kwargs.pop(attr)
 
     loc_kwargs.update(kwargs)
@@ -373,8 +377,12 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
         ids = ix[ok]
     scalar_map = values.loc[ids].values
 
-    vmin, vmax = scalar_map.min(), scalar_map.max()
-    clim = {} if clim is None else dict(vmin=clim[0], vmax=clim[1])
+    if clim is None:
+        vmin, vmax = scalar_map.min(), scalar_map.max()
+        clim = {}
+    else:
+        vmin, vmax = clim
+        clim = dict(vmin=vmin, vmax=vmax)
     scalar_map = mpl.colors.Normalize(**clim)(scalar_map)
 
     if colormap:
@@ -582,6 +590,8 @@ def field_map_2d(cells, values, angular_width=30.0,
         A = cells.adjacency
     elif isinstance(cells, Partition) and isinstance(cells.tessellation, Delaunay):
         A = cells.tessellation.cell_adjacency
+    else:
+        raise TypeError('unsupported cell type: {}'.format(type(cells)))
     if inferencemap:
         if cell_arrow_ratio is None:
             cell_arrow_ratio = .5

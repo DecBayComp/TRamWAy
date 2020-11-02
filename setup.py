@@ -9,7 +9,7 @@ install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
         'roi':  ['polytope', 'cvxopt', 'tqdm'],
-        'webui':    ['bokeh', 'selenium']}
+        'webui':    ['bokeh>=2.0.2', 'selenium']}
 setup_requires = ['pytest-runner']
 tests_require = ['pytest']
 
@@ -22,7 +22,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.5-beta2',
+    version = '0.5-beta3',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',

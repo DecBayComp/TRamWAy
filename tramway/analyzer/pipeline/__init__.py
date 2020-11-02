@@ -202,6 +202,23 @@ class Pipeline(AnalyzerNode):
     def add_collectible(self, filepath):
         self.env.collectibles.add(filepath)
 
+    def resume(self, **kwargs):
+        """
+        Looks for orphaned remote jobs and collect the generated files.
+
+        Works as a replacement for the :meth:`run` method to recover
+        after connection loss.
+
+        Recovery procedures featured by the `env` backend may fail or recover
+        some of the generated files only.
+
+        See also the *resume* method of the `env` attribute, if available.
+        """
+        try:
+            self.env.resume(**kwargs)
+        except AttributeError:
+            self.logger.error('no recovery procedure available')
+
 
 __all__ = ['Pipeline']
 
