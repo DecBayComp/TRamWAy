@@ -42,7 +42,7 @@ def main():
     parser = argparse.ArgumentParser(prog='tramway-browse',
         description='Browse TRamWAy-generated .rwa files')
     parser.add_argument('files', nargs='*', help='for example: *.rwa or */*.rwa')
-    parser.add_argument('--browser', default='Firefox', choices=['Firefox','Chrome','Edge','Ie','Opera','Safari','WebKitGTK','PhantomJS'])
+    parser.add_argument('--browser', default='Firefox', choices=['Firefox','Chrome','Edge','Ie','Opera','Safari','WebKitGTK'])
     print(browse(**parser.parse_args().__dict__))
 
 if __name__ == '__main__':

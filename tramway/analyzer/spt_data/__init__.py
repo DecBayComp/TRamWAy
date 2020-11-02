@@ -20,6 +20,7 @@ import os.path
 from tramway.core.xyt import load_xyt, load_mat, discard_static_trajectories
 from tramway.core.analyses.auto import Analyses, AutosaveCapable
 from tramway.core.hdf5.store import load_rwa
+from tramway.core.exceptions import RWAFileException
 from math import sqrt
 import numpy as np
 import pandas as pd
@@ -646,7 +647,10 @@ class RWAFile(SPTFile):
         self._analyses = tree
     def load(self):
         # ~ expansion is no longer necessary from rwa-python==0.8.4
-        self.analyses = load_rwa(os.path.expanduser(self.filepath), lazy=True)
+        try:
+            self.analyses = load_rwa(os.path.expanduser(self.filepath), lazy=True)
+        except KeyError as e:
+            raise RWAFileException(self.filepath, e) from None
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
 

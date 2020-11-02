@@ -1017,18 +1017,43 @@ class SlurmOverSSH(Slurm, RemoteHost):
         self.pending_jobs = []
     def wait_for_job_completion(self):
         try:
-            cmd = 'squeue -j {} -h -o "%.2t %.10M %R"'.format(self.job_id)
+            cmd = 'squeue -j {} -h -o "%K %t %M %R"'.format(self.job_id)
             while True:
                 time.sleep(self.refresh_interval)
                 out, err = self.ssh.exec(cmd, shell=True)
                 if err:
+                    err = err.rstrip()
+                    if err == 'slurm_load_jobs error: Invalid job id specified':
+                        # complete
+                        break
                     self.logger.error(err.rstrip())
                 elif out:
-                    out = out.splitlines()[0]
-                    out = out.split()
-                    status, time_used, reason = out[0], out[1], ' '.join(out[2:])
-                    self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
+                    # parse and print progress info
+                    out = out.splitlines()
+                    try:
+                        start, stop = out[0].split()[0].split('-')
+                    except ValueError:
+                        raise RuntimeError('unexpected squeue message: \n'+'\n'.join(out))
+                    stop = stop.split('%')[0]
+                    start, stop = int(start), int(stop)
+                    total = stop
+                    pending = stop - start
+                    running = 0
+                    other = 0
+                    for out in out[1:]:
+                        out = out.split()
+                        array_ix, status, time_used = int(out[0]), out[1], out[2]
+                        reason = ' '.join(out[3:])
+                        if status == 'R':
+                            running += 1
+                        else:
+                            other += 1
+                        #self.logger.debug(task: {:d}   status: {}   time used: {}   reason: {}'.format(array_ix, status, time_used, reason))
+                    self.logger.info('tasks:\t{} done,\t{} running,\t{} pending{}'.format(
+                        total-pending-running-other, running, pending,
+                        ',\t{} in abnormal state'.format(other) if other else ''))
                 else:
+                    # complete
                     break
         except:
             self.logger.info('killing jobs with: scancel '+self.job_id)
@@ -1039,6 +1064,45 @@ class SlurmOverSSH(Slurm, RemoteHost):
     def delete_temporary_data(self):
         RemoteHost.delete_temporary_data(self)
         Slurm.delete_temporary_data(self)
+    def resume(self, log=None, wd=None, stage_index=None, job_id=None):
+        """
+        Parses log output of the disconnected instance, looks for the current stage index,
+        and tries to collect the resulting files.
+
+        This completes the current stage only. Further stages are not run.
+        """
+        if wd is None or stage_index is None or job_id is None:
+            if log is None:
+                log = input('please copy-paste below the log output of the disconnected instance\n(job progress information can be omitted):\n')
+            log = log.splitlines()
+            #job_id = wd = stage_index = None
+            for line in log[::-1]:
+                if wd:
+                    try:
+                        opt = line.index(' --stage-index=')
+                    except ValueError:
+                        pass
+                    else:
+                        stage_index = line[opt+16:].split()[0]
+                        stage_index = [ int(s) for s in stage_index.split(',') ]
+                        break
+                elif job_id:
+                    assert line.startswith('running: sbatch ')
+                    script = line[16:].rstrip()
+                    wd = '/'.join(wd.split('/')[:-1])
+                elif line.startswith('Submitted batch job '):
+                    job_id = line[20:].rstrip()
+        if stage_index:
+            self.setup(sys.executable)
+            assert self.submit_side
+            self.delete_temporary_data() # undo wd creation during setup
+            self.working_directory = wd
+            self.job_id = job_id
+            self.logger.info('trying to complete stage(s): '+', '.join(stage_index))
+            self.wait_for_job_completion()
+            self.collect_results(stage_index=stage_index)
+        else:
+            self.logger.info('cannot identify an execution point where to resume from')
 
 
 Environment.register(SlurmOverSSH)
