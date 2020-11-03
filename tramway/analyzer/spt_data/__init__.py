@@ -16,6 +16,7 @@ from ..attribute import *
 from ..artefact import *
 from ..roi import HasROI
 from .abc import *
+from collections.abc import Sequence, Set
 import os.path
 from tramway.core.xyt import load_xyt, load_mat, discard_static_trajectories
 from tramway.core.analyses.auto import Analyses, AutosaveCapable
@@ -84,6 +85,10 @@ class SPTParameters(object):
         return self._eldest_parent.logger
 
 
+def normalize(p):
+    return os.path.expanduser(os.path.normpath(p))
+
+
 class SPTDataIterator(AnalyzerNode, SPTParameters):
     """ partial implementation for multiple SPT data items.
 
@@ -129,22 +134,59 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
     def dt(self, dt):
         for f in self:
             f.dt = dt
-    def as_dataframes(self, source=None):
+    def as_dataframes(self, source=None, return_index=False):
         """returns an iterator.
         
         `source` can be a source name (filepath) or a boolean function
         that takes a source string as input argument."""
-        if source is None:
-            for f in self:
-                yield f.dataframe
+        for f in self.filter_by_source(source, return_index):
+            yield f.dataframe
+    def filter_by_source(self, source_filter, return_index=False):
+        if return_index:
+            _out = lambda i, f: i, f
         else:
-            if callable(source):
-                filter = source
+            _out = lambda _, f: f
+        if source_filter is None:
+            if return_index:
+                yield from enumerate(self)
             else:
-                filter = lambda s: s == source
-            for f in self:
-                if filter(f.source):
-                    yield f.dataframe
+                yield from self
+        elif callable(source_filter):
+            for i, f in enumerate(self):
+                if source_filter(f.source):
+                    yield _out(i, f)
+        else:
+            if isinstance(source_filter, str):
+                sources = [normalize(source_filter)]
+            elif isinstance(source_filter, Sequence):
+                visited = dict()
+                yielded = set()
+                for _p in source_filter:
+                    p = normalize(_p)
+                    i, it = -1, iter(self)
+                    try:
+                        while True:
+                            i += 1
+                            f = next(it)
+                            try:
+                                s = visited[i]
+                            except KeyError:
+                                visited[i] = s = normalize(f.source)
+                            if s == p:
+                                if i in yielded:
+                                    raise ValueError('duplicate source: {}'.format(_p))
+                                yield _out(i, f)
+                                yielded.add(i)
+                                break
+                    except StopIteration:
+                        raise ValueError('cannot find source: {}'.format(_p))
+                return
+            elif isinstance(source_filter, Set):
+                sources = set([ normalize(p) for p in source_filter ])
+            for i, f in enumerate(self):
+                p = normalize(f.source)
+                if p in sources:
+                    yield _out(i, f)
     def discard_static_trajectories(self, dataframe=None, min_msd=None, **kwargs):
         if dataframe is None:
             for data in self:
@@ -400,6 +442,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
                 self.logger.warning('no output filename defined')
         return self.analyses.autosaving(*args, **kwargs)
 
+
 class SPTDataFrame(_SPTDataFrame):
     __slots__ = ()
 
@@ -466,9 +509,10 @@ SPTData.register(SPTDataFrames)
 
 
 class SPTFile(_SPTDataFrame):
-    __slots__ = ('_filepath','_reset_origin','_discard_static_trajectories')
+    __slots__ = ('_filepath','_alias','_reset_origin','_discard_static_trajectories')
     def __init__(self, filepath, dataframe=None, **kwargs):
         _SPTDataFrame.__init__(self, dataframe, filepath, **kwargs)
+        self._alias = None
         self._reset_origin = False
         self._discard_static_trajectories = False
     @property
@@ -486,6 +530,15 @@ class SPTFile(_SPTDataFrame):
     @source.setter
     def source(self, fp):
         self.filepath = fp
+    @property
+    def alias(self):
+        return self._alias
+    @alias.setter
+    def alias(self, name):
+        if callable(name):
+            self._alias = name(self.filepath)
+        else:
+            self._alias = name
     def get_analyses(self):
         if self._analyses.data is None:
             self.load()
@@ -497,14 +550,6 @@ class SPTFile(_SPTDataFrame):
     @analyses.setter
     def analyses(self, tree):
         self.set_analyses(tree)
-    @property
-    def columns(self):
-        if self._dataframe is None:
-            if self._columns is None:
-                self.load()
-            else:
-                return self._columns
-        return self._dataframe.columns
     def _trigger_discard_static_trajectories(self):
         if self._discard_static_trajectories is True:
             SPTDataFrame.discard_static_trajectories(self)
@@ -534,12 +579,10 @@ class RawSPTFile(SPTFile):
         self._columns = None
     @property
     def columns(self):
-        if self._dataframe is None:
-            if self._columns is None:
-                self.load()
-            else:
-                return self._columns
-        return self._dataframe.columns
+        if self._columns is None:
+            return self.dataframe.columns
+        else:
+            return self._columns
     @columns.setter
     def columns(self, cols):
         if self.reified:
@@ -591,7 +634,7 @@ class SPTFiles(SPTDataFrames):
     def filepaths(self):
         return [ f.filepath for f in self.files ]
     @property
-    def dataframes(self):
+    def dataframes(self): # this also hides the parent class' setter
         return [ f.dataframe for f in self.files ]
     @property
     def partially_reified(self):
@@ -618,16 +661,97 @@ class SPTFiles(SPTDataFrames):
             raise ValueError("no files found")
     @property
     def columns(self):
-        return self.files[0].columns
+        it = iter(self)
+        col = next(it).columns
+        while True:
+            try:
+                _col = next(it).columns
+            except StopIteration:
+                break
+            else:
+                if _col != col:
+                    raise AttributeError('not all the data blocks share the same columns')
+        return col
     def reset_origin(self, columns=None, same_origin=False):
         if same_origin:
             SPTDataFrames.reset_origin(self, columns, True)
         else:
             for f in self.files:
                 f.reset_origin(columns)
+    @property
+    def alias(self):
+        raise AttributeError('alias is write-only')
+    @alias.setter
+    def alias(self, name):
+        if callable(name):
+            for f in self.files:
+                f.alias = name
+        else:
+            raise TypeError('global alias is not callable')
+    @property
+    def aliases(self):
+        return [ f.alias for f in self.files ]
+    def filter_by_source(self, source_filter, return_index=False):
+        if return_index:
+            _out = lambda i, f: i, f
+        else:
+            _out = lambda _, f: f
+        # first test for aliases
+        _any = False
+        if source_filter is None:
+            if return_index:
+                yield from enumerate(self)
+            else:
+                yield from self
+            _any = True
+        elif callable(source_filter):
+            for i, f in enumerate(self):
+                if source_filter(f.alias):
+                    yield _out(i, f)
+                    _any = True
+        else:
+            if isinstance(source_filter, str):
+                aliases = [source_filter]
+            elif isinstance(source_filter, Sequence):
+                yielded = set()
+                for a in source_filter:
+                    i, it = -1, iter(self)
+                    try:
+                        while True:
+                            i += 1
+                            f = next(it)
+                            if f.alias == a:
+                                if i in yielded:
+                                    raise ValueError('duplicate source: {}'.format(a))
+                                yield _out(i, f)
+                                yielded.add(i)
+                                _any = True
+                                break
+                    except StopIteration:
+                        raise ValueError('cannot find source: {}'.format(a))
+            elif isinstance(source_filter, Set):
+                aliases = source_filter
+            if not _any:
+                for i, f in enumerate(self):
+                    if f.alias in aliases:
+                        yield _out(i, f)
+                        _any = True
+        # if no alias matched, try sources
+        if not _any:
+            yield from SPTDataIterator.filter_by_source(self, source_filter, return_index)
+
+class RawSPTFiles(SPTFiles):
+    __slots__ = ()
+    @property
+    def columns(self):
+        return SPTFiles.columns.fget(self)
+    @columns.setter
+    def columns(self, col):
+        for f in self:
+            f.columns = col
 
 
-class SPTAsciiFiles(SPTFiles):
+class SPTAsciiFiles(RawSPTFiles):
     """
     `RWAnalyzer.spt_data` attribute for multiple SPT text files.
     """

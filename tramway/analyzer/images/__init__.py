@@ -96,8 +96,8 @@ class _RawImage(AnalyzerNode, ImageParameters):
     def height(self):
         return self.stack.shape[1]
 
-    def as_frames(self, return_time=False):
-        for f in range(self.n_frames):
+    def as_frames(self, index=None, return_time=False):
+        for f in indexer(index, range(self.n_frames)):
             frame = self.stack[f,:,:]
             if return_time:
                 t = (f+1)*self.dt
@@ -417,7 +417,10 @@ class ImageFiles(ImageIterator):
     def __init__(self, filepattern, **kwargs):
         ImageIterator.__init__(self, **kwargs)
         self._files = []
-        self._filepattern = filepattern
+        if isinstance(filepattern, str):
+            self._filepattern = os.path.expanduser(filepattern)
+        else:
+            self._filepattern = [os.path.expanduser(pattern) for pattern in filepattern]
     @property
     def filepattern(self):
         return self._filepattern
@@ -458,7 +461,7 @@ class ImageFiles(ImageIterator):
 
 Images.register(ImageFiles)
 
-def TiffFiles(ImageFiles):
+class TiffFiles(ImageFiles):
     __slots__ = ()
     def list_files(self):
         ImageFiles.list_files(self, TiffFile)

@@ -251,7 +251,7 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
 
 def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
         colorbar=True, colormap=None, unit=None, clabel=None, colorbar_figure=None,
-        xlim=None, ylim=None, **kwargs):
+        xlim=None, ylim=None, try_fix_corners=True, **kwargs):
     """
     Plot an interactive 2D scalar map as a colourful image.
 
