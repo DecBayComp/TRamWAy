@@ -50,10 +50,9 @@ def main(image_stack_file, weight_file, mean_std_file=None,
         files.weights = weight_file
 
     if files.mean_std is None:
-        img = io.imread(files.img_stack)
-        mean_img, std_img = img.mean(), img.std()
-    else:
-        mean_img, std_img = deconv.get_parameters_mean_std(files.mean_std)
+        files.mean_std = os.path.normpath(os.path.join(os.path.dirname(__file__),
+                '..', 'deconvolution', 'mean_std.txt'))
+    mean_img, std_img = deconv.get_parameters_mean_std(files.mean_std)
 
     if save_magnified_image:
         deconv.save_trimmed_original_image_magnified_for_testing_purposes(
@@ -69,7 +68,7 @@ def main(image_stack_file, weight_file, mean_std_file=None,
 
     if files.high_res_img:
         if not isinstance(files.high_res_img, str):
-            files.high_res_img = os.path.join(basedir, 'predicted.tiff')
+            files.high_res_img = os.path.join(basedir, 'predicted.tif')
         io.imsave(files.high_res_img, high_res_prediction.astype('uint16'))
 
 
@@ -78,9 +77,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('stack', help="path to the tiff image stack")
     parser.add_argument('--weights',  help="path to the weight file")
-    parser.add_argument('--mean-std', help="path to the mean/std file")
-    parser.add_argument('-n', '--gpu', type=int, default=1, help="number of GPUs")
+    parser.add_argument('--mean-std', help="path to the mean/std file (mean/std of the training images)")
+    parser.add_argument('--magnification', default=10, type=int, help="magnification factor for input images")
+    parser.add_argument('--gpu', type=int, default=1, help="number of GPUs")
+    parser.add_argument('--disable-fixes', action='store_true', help="disable compatibility fixes for tensorflow<=1.14.0 and h5py>=3.0.0")
     args   = parser.parse_args()
 
-    main(args.stack, args.weights, args.mean_std, gpu=args.gpu)
+    if args.disable_fixes:
+        from tramway.deconvolution import tf
+        tf.__fix_tf_1_14_0_h5py_3_0_0__ = False
+
+    main(args.stack, args.weights, args.mean_std, gpu=args.gpu,
+            magnification=args.magnification)
 

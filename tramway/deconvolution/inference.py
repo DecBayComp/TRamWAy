@@ -36,7 +36,8 @@ from skimage import data, img_as_float
 try: # recent Keras
 	from tensorflow.keras.preprocessing.image import ImageDataGenerator
 	from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, Callback
-	from tensorflow.keras.models import Model
+	#from tensorflow.keras.models import Model
+	from .tf import Model
 	from tensorflow.keras.layers import Input, Activation, UpSampling2D, Convolution2D, Convolution2DTranspose, MaxPooling2D, BatchNormalization, Dropout, Lambda, concatenate
 	from tensorflow.keras import optimizers, losses
 	from tensorflow.keras.utils import multi_gpu_model
@@ -138,6 +139,8 @@ def get_position_from_predicted_one_image(high_res_prediction, liste, marge, k):
 	liste_loc      = liste[0]
 	(KK, LL)       = liste_loc.shape
 	point_high_res = np.zeros((KK,LL+1))
+	if KK<=0:
+		raise ValueError('no iteration; magnification might be too low')
 	for kk in range(KK):
 		ii        = liste_loc[kk,0]
 		jj        = liste_loc[kk,1]

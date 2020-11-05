@@ -1,7 +1,13 @@
+# note: the versions below do not apply to the current version of the deconvolution package.
+#       notably, the independent keras package is no longer needed and the one featured by
+#       tensorflow is used instead.
 tensorflow : 1.13.1
 keras      : 2.2.4
 numpy      : 1.16.3
 pandas     : 0.24.2
 
-
+# most recent version tracks:
+tensorflow : 1.14.0
+numpy      : 1.19.4
+h5py       : 3.0.0
 
