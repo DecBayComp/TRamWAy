@@ -290,6 +290,7 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
     if figure is None:
         assert False
         figure = plt.figure()
+    glyph_renderers = []
 
     ids = []
     polygons = []
@@ -393,12 +394,16 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
             "#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*color_map(scalar_map)
             ]
     patch_kwargs = dict(fill_color=colors, line_width=0)
-    figure.patches(*zip(*polygons), **patch_kwargs)
+    glyph_renderers.append(
+            figure.patches(*zip(*polygons), **patch_kwargs)
+        )
 
     if delaunay or isinstance(delaunay, dict):
         if not isinstance(delaunay, dict):
             delaunay = {}
-        plot_delaunay(cells, figure=figure, **delaunay)
+        glyph_renderers.append(
+                plot_delaunay(cells, figure=figure, **delaunay)
+            )
 
     figure.x_range = Range1d(*xlim)
     figure.y_range = Range1d(*ylim)
@@ -411,6 +416,7 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
         color_bar = ColorBar(color_mapper=color_map, ticker=BasicTicker(),
                 border_line_color=None, margin=0)
         color_bar.background_fill_color = None
+        #glyph_renderers.append(color_bar)
         if unit is None:
             unit = clabel
         if colorbar_figure is None:
@@ -429,6 +435,7 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
             #print(colorbar_figure.center, colorbar_figure.plot_height, color_bar.width, color_bar.height, color_bar.margin, color_bar.padding)
 
     #plt.show(figure)
+    return glyph_renderers
 
 
 def plot_delaunay(cells, labels=None, color=None, style='-',
@@ -640,7 +647,7 @@ def field_map_2d(cells, values, angular_width=30.0,
 
     patch_kwargs = dict(fill_color=markercolor, fill_alpha=markeralpha,
             line_width=markerlinewidth, line_color=markeredgecolor)
-    figure.patches(*zip(*markers), **patch_kwargs)
+    return figure.patches(*zip(*markers), **patch_kwargs)
 
 
 

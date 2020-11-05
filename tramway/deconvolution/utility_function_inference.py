@@ -13,10 +13,7 @@
 
 
 import numpy as np
-#import sys
-#sys.path.append("..")
 import os
-#import pandas as pd
 from   skimage import io
 from   sklearn.model_selection import train_test_split
 
@@ -29,9 +26,6 @@ except ImportError:
 	from   keras.callbacks import ModelCheckpoint
 	from   keras.callbacks import ReduceLROnPlateau
 import matplotlib.pyplot as plt
-from   skimage.external import tifffile as T
-from   PIL import Image
-#from   model_architecture import *
 #########################################################################################
 #########################################################################################
 #########################################################################################

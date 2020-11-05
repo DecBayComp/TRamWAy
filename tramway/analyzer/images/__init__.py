@@ -56,6 +56,9 @@ class ImageParameters(object):
         self._pixel_size = pxsize
     @property
     def loc_offset(self):
+        """
+        Offset between coordinates and the image, in pixels.
+        """
         return self._loc_offset
     @loc_offset.setter
     def loc_offset(self, offset):
@@ -253,7 +256,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             if locations is not None:
                 xy = locations[ isclose(locations['t'], t) ]
-                xy_f = (xy[list('xy')].values + offset) / vid_pxsize
+                xy_f = xy[list('xy')].values / vid_pxsize - offset
                 for j,i in xy_f:
                     i = np.array([np.floor(i-marker_size_delta), np.ceil(i+marker_size_delta)], dtype=np.int)
                     j = np.array([np.floor(j-marker_size_delta), np.ceil(j+marker_size_delta)], dtype=np.int)
@@ -275,7 +278,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
                     xy_n = xyt_n[list('xy')][xyt_n['t']<t+.5*dt]
                     if len(xy_n)<2:
                         continue
-                    traj = (xy_n.values + offset) / vid_pxsize
+                    traj = xy_n.values / vid_pxsize - offset
                     if np.any(traj < 0): # this may occur with negative offsets
                         continue
                     traj = np.round(traj).astype(np.uint32)

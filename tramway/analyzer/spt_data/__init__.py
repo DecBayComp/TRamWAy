@@ -570,6 +570,42 @@ class SPTFile(_SPTDataFrame):
             if min_msd is not None:
                 kwargs['min_msd'] = min_msd
             self._discard_static_trajectories = kwargs if kwargs else True
+    def get_image(self, match=None):
+        """
+        Looks for the corresponding localization microscopy image in the `~RWAnalyzer.images` attribute.
+
+        The search is based on the object's alias.
+        The first item that contains the alias in its filename is returned as a match.
+
+        If the `alias` attribute is not set or images do not have a defined `filepath`,
+        an `AttributeError` exception is raised.
+
+        The optional argument *match* is a 2-argument callable with the following signature:
+
+        Arguments:
+
+            alias (str): alias of these SPT data.
+
+            filepath (str): filepath to a stack of images.
+
+        Returns
+
+            bool: ``True`` if *filepath* matches with *alias*.
+
+        """
+        if match is None:
+            match = lambda alias, filepath: alias in os.path.basename(filepath)
+        if self.alias is None:
+            raise AttributeError('alias is not defined')
+        analyzer = self._eldest_parent
+        any_filepath_defined = False
+        for image in analyzer.images:
+            if image.filepath: # may raise AttributeError
+                any_filepath_defined = True
+                if match(self.alias, image.filepath):
+                    return image
+        if not any_filepath_defined:
+            raise AttributeError('image filepaths are not defined')
 
 
 class RawSPTFile(SPTFile):
@@ -828,7 +864,7 @@ class SPTMatFile(RawSPTFile):
             self._dataframe = load_mat(os.path.expanduser(self.filepath),
                     columns=self._columns, dt=self._dt, coord_scale=self.coord_scale)
         except OSError as e:
-            raise OSError('While loading file: {}\n{}'.format(self.source, e))
+            raise OSError('{}\nwhile loading file: {}'.format(e, self.source)) from None
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
 

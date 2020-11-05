@@ -14,8 +14,6 @@
 
 # Import Libraries and model
 ## files management
-#import sys
-#sys.path.append("..")
 import argparse
 from   os.path import abspath
 import gc
@@ -31,7 +29,6 @@ try:
 except ImportError:
     raise ImportError('please install scikit-image>=0.14.2')
 from os.path import split
-from tifffile import imsave
 from skimage.feature import peak_local_max
 from skimage import data, img_as_float
 
@@ -210,7 +207,7 @@ def save_trimmed_original_image_magnified_for_testing_purposes(stack,magnificati
 	(K, M, N) = high_res.shape
 	image_high_res = high_res.astype('uint16')
 
-	imsave(path_split[0] + '/' + name_split[0] + '_magnified.tiff', image_high_res)
+	io.imsave(path_split[0] + '/' + name_split[0] + '_magnified.tiff', image_high_res)
 
 
 	return 1
@@ -550,7 +547,7 @@ if __name__ == '__main__':
 
 	## just for talks output high resolution version of the raw data with the distribution of position
 	image                   = high_res_prediction.astype('uint16')
-	imsave(path_split[0] + '/' + 'predicted.tiff', image)
+	io.imsave(path_split[0] + '/' + 'predicted.tiff', image)
 
 
 

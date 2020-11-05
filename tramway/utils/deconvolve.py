@@ -14,17 +14,22 @@
 
 import tramway.deconvolution.inference as deconv
 import os.path
+import numpy as np
+from skimage import io
 
 
 class _Files(object):
     def __init__(self, **kwargs):
         for key, val in kwargs.items():
-            attr = key[:-5] if key.endswith('_file') else key
-            path = os.path.abspath(val) if isinstance(val, str) else val
-            setattr(self, attr, path)
+            if val is None:
+                setattr(self, key, val)
+            else:
+                attr = key[:-5] if key.endswith('_file') else key
+                path = os.path.abspath(val) if isinstance(val, str) else val
+                setattr(self, attr, path)
 
 
-def main(image_stack_file, weight_file, mean_std_file,
+def main(image_stack_file, weight_file, mean_std_file=None,
         high_res_image_file=None, save_magnified_image=False,
         magnification=10, threshold=0, min_distance_peak=2, margin=3,
         header=True, abs_threshold=1., M=64, N=None, n=2, gpu=1):
@@ -38,7 +43,17 @@ def main(image_stack_file, weight_file, mean_std_file,
             high_res_img=high_res_image_file,
             )
 
-    mean_img, std_img = deconv.get_parameters_mean_std(files.mean_std)
+    if files.weights is None:
+        weight_file = 'weight_model_one_GPU' if gpu==1 else 'weight_model'
+        weight_file = os.path.normpath(os.path.join(os.path.dirname(__file__),
+                '..', 'deconvolution', weight_file))
+        files.weights = weight_file
+
+    if files.mean_std is None:
+        img = io.imread(files.img_stack)
+        mean_img, std_img = img.mean(), img.std()
+    else:
+        mean_img, std_img = deconv.get_parameters_mean_std(files.mean_std)
 
     if save_magnified_image:
         deconv.save_trimmed_original_image_magnified_for_testing_purposes(
@@ -48,23 +63,23 @@ def main(image_stack_file, weight_file, mean_std_file,
             magnification, files.weights, mean_img, std_img, M, N, n,
             threshold, min_distance_peak, abs_threshold, margin, 1<gpu)
 
-    [basedir, filename] = os.path.split(files.img_stack)
+    basedir, filename = os.path.split(files.img_stack)
     basename,_ = os.path.splitext(filename)
     deconv.print_position_files(pos, basedir, basename, header)
 
     if files.high_res_img:
         if not isinstance(files.high_res_img, str):
             files.high_res_img = os.path.join(basedir, 'predicted.tiff')
-        deconv.imsave(files.high_res_img, high_res_prediction.astype('uint16'))
+        io.imsave(files.high_res_img, high_res_prediction.astype('uint16'))
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--stack',    help="path to the tiff image stack")
+    parser.add_argument('stack', help="path to the tiff image stack")
     parser.add_argument('--weights',  help="path to the weight file")
-    parser.add_argument('--mean-std', help="path to the mean_std.txt file")
-    parser.add_argument('-n', '--gpu',   type=int, help="number of GPUs")
+    parser.add_argument('--mean-std', help="path to the mean/std file")
+    parser.add_argument('-n', '--gpu', type=int, default=1, help="number of GPUs")
     args   = parser.parse_args()
 
     main(args.stack, args.weights, args.mean_std, gpu=args.gpu)

@@ -25,7 +25,7 @@ class BaseSampler(AnalyzerNode):
     __slots__ = ('_min_location_count',)
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
-        self._min_location_count = None
+        self._min_location_count = 0
     @property
     def min_location_count(self):
         return self._min_location_count
