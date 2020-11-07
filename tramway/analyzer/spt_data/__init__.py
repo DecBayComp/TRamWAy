@@ -626,14 +626,18 @@ class RawSPTFile(SPTFile):
         else:
             self._columns = cols
 
-class SPTAsciiFile(RawSPTFile):
+class _SPTAsciiFile(RawSPTFile):
+    __slots__ = ()
     def load(self):
         self._dataframe = load_xyt(os.path.expanduser(self.filepath), self._columns, reset_origin=self._reset_origin)
         self._trigger_discard_static_trajectories()
 
+class SPTAsciiFile(_SPTAsciiFile):
+    __slots__ = ()
+
 SPTDataItem.register(SPTAsciiFile)
 
-class StandaloneSPTAsciiFile(SPTAsciiFile, StandaloneDataItem):
+class StandaloneSPTAsciiFile(_SPTAsciiFile, StandaloneDataItem):
     """
     `RWAnalyzer.spt_data` attribute for single SPT text files.
     """
@@ -799,7 +803,7 @@ class SPTAsciiFiles(RawSPTFiles):
 SPTData.register(SPTAsciiFiles)
 
 
-class RWAFile(SPTFile):
+class _RWAFile(SPTFile):
     __slots__ = ()
     def __init__(self, filepath, **kwargs):
         SPTFile.__init__(self, filepath, None, **kwargs)
@@ -814,9 +818,12 @@ class RWAFile(SPTFile):
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
 
+class RWAFile(_RWAFile):
+    __slots__ = ()
+
 SPTDataItem.register(RWAFile)
 
-class StandaloneRWAFile(RWAFile, StandaloneDataItem):
+class StandaloneRWAFile(_RWAFile, StandaloneDataItem):
     """
     `RWAnalyzer.spt_data` attribute for single RWA files.
     """
@@ -837,7 +844,7 @@ class RWAFiles(SPTFiles):
 SPTData.register(RWAFiles)
 
 
-class SPTMatFile(RawSPTFile):
+class _SPTMatFile(RawSPTFile):
     __slots__ = ('_coord_scale',)
     def __init__(self, filepath, dataframe=None, **kwargs):
         RawSPTFile.__init__(self, filepath, dataframe, **kwargs)
@@ -868,9 +875,12 @@ class SPTMatFile(RawSPTFile):
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
 
+class SPTMatFile(_SPTMatFile):
+    __slots__ = ()
+
 SPTDataItem.register(SPTMatFile)
 
-class StandaloneSPTMatFile(SPTMatFile, StandaloneDataItem):
+class StandaloneSPTMatFile(_SPTMatFile, StandaloneDataItem):
     """
     `RWAnalyzer.spt_data` attribute for single MatLab v7 data files.
     """
@@ -879,7 +889,7 @@ class StandaloneSPTMatFile(SPTMatFile, StandaloneDataItem):
 SPTData.register(StandaloneSPTMatFile)
 
 
-class SPTMatFiles(SPTFiles):
+class SPTMatFiles(RawSPTFiles):
     """
     `RWAnalyzer.spt_data` attribute for multiple MatLab v7 data files.
     """

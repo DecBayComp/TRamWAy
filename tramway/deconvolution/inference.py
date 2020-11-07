@@ -336,7 +336,7 @@ def Inference(stack,magnification,  weights, mean_image, std_image, M_theo, N_th
 
 	##
 	liste_position = []
-	high_res_prediction = np.zeros((K_original, M_cut_high_res, N_cut_high_res))
+	#high_res_prediction = np.zeros((K_original, M_cut_high_res, N_cut_high_res))
 	#liste_high_res = []
 	for i in range(K_original):
 		if i%100==0:
@@ -350,13 +350,14 @@ def Inference(stack,magnification,  weights, mean_image, std_image, M_theo, N_th
 		position                            = get_position_from_predicted_one_image(high_res, liste_low_res, marge,i)
 		#position                            = get_position_from_predicted(np.expand_dims(high_res,axis=0), liste_low_res, marge,i)
 		liste_position.append(position)
-		high_res_prediction[i,:,:] = high_res
+		#high_res_prediction[i,:,:] = high_res
 		#liste_high_res.append(high_res)
 		del Image, Image_to_stack, K_stack, high_res, image_high_res,liste_low_res, position
 
 	#high_res_presdiction = np.stack(liste_high_res)
 	position = pd.concat(liste_position)
 	#del high_res_norm
+	high_res_presdiction = None
 
 	return high_res_prediction, position
 #########################################################################################
@@ -549,8 +550,8 @@ if __name__ == '__main__':
 	print_position_files(position,path_split[0],name_split[0], bool_header)
 
 	## just for talks output high resolution version of the raw data with the distribution of position
-	image                   = high_res_prediction.astype('uint16')
-	io.imsave(path_split[0] + '/' + 'predicted.tiff', image)
+	#image                   = high_res_prediction.astype('uint16')
+	#io.imsave(path_split[0] + '/' + 'predicted.tiff', image)
 
 
 

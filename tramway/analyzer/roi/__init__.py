@@ -15,7 +15,7 @@
 from .abc import *
 from ..attribute import *
 from tramway.core.xyt import crop
-import tramway.analyzer.roi.collections as helper
+from . import collections as helper
 import warnings
 import numpy as np
 from collections.abc import Sequence, Set
@@ -65,6 +65,13 @@ class BoundingBox(IndividualROI):
     @property
     def bounding_box(self):
         return self._bounding_box
+    def crop_frames(self, **kwargs):
+        """
+        Iterates and crops the image frames.
+
+        `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
+        """
+        yield from self._spt_data.get_image().crop_frames(self.bounding_box, **kwargs)
 
 class SupportRegion(BaseRegion):
     """
@@ -90,6 +97,13 @@ class SupportRegion(BaseRegion):
             minima, maxima = zip(*[ self._support_regions.unit_region[u] \
                 for u in self._support_regions[self._sr_index] ])
             return np.min(np.stack(minima, axis=0), axis=0), np.max(np.stack(maxima, axis=0), axis=0)
+    def crop_images(self, **kwargs):
+        """
+        Iterates and crops the image frames, based on `bounding_box`.
+
+        `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
+        """
+        yield from BoundingBox.crop_images(self, **kwargs)
 
 class FullRegion(BaseRegion):
     """
@@ -100,6 +114,8 @@ class FullRegion(BaseRegion):
     __slots__ = ()
     def crop(self, df=None):
         return self._spt_data.dataframe if df is None else df
+    def crop_images(self, images, pixel_size=None, loc_offset=None):
+        yield from images
 
 
 class DecentralizedROIManager(AnalyzerNode):

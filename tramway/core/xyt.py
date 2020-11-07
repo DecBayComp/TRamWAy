@@ -370,7 +370,8 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
 
         path (str): file path.
 
-        columns (sequence of str): data column names.
+        columns (sequence of str): data column names;
+            default is ['t', 'x', 'y'].
 
         varname (str): record name.
 

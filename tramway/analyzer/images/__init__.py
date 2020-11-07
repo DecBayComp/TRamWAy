@@ -100,6 +100,20 @@ class _RawImage(AnalyzerNode, ImageParameters):
         return self.stack.shape[1]
 
     def as_frames(self, index=None, return_time=False):
+        """
+        Iterates over the image frames.
+
+        Arguments:
+
+            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+
+            return_time (bool): return time along with image frames, as first item.
+
+        Returns:
+
+            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
+
+        """
         for f in indexer(index, range(self.n_frames)):
             frame = self.stack[f,:,:]
             if return_time:
@@ -107,6 +121,39 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 yield t, frame
             else:
                 yield frame
+
+    def crop_frames(self, bounding_box, index=None, return_time=False):
+        """
+        Iterates and crops the image frames, similarly to `as_frames`.
+
+        Arguments:
+
+            bounding_box (tuple): pair of NumPy arrays (lower bound, upper bound).
+
+            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+
+            return_time (bool): return time along with cropped image frames, as first item.
+
+        Returns:
+
+            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
+
+        """
+        lb, ub = [ b / pixel_size - loc_offset for b in bounding_box ]
+        lb = np.floor(lb).astype(int)
+        ub = np.ceil(ub).astype(int)
+        if not np.all(lb <= ub):
+            raise ValueError('image cropping failed: lower bound > upper bound')
+        i_min = max(0, self.height-1-ub[1]) # range start (included)
+        i_max = min(self.height-lb[1], self.height) # range stop (excluded)
+        j_min = max(0, lb[0]) # range start (included)
+        j_max = min(ub[0]+1, self.width) # range stop (excluded)
+        if return_time:
+            for t, frame in self.as_frames(index, return_time):
+                yield t, frame[i_min:i_max, j_min:j_max]
+        else:
+            for frame in self.as_frames(index, return_time):
+                yield frame[i_min:i_max, j_min:j_max]
 
     def to_color_movie(self, output_file=None, fourcc='VP80', colormap='gray',
             locations=None, trajectories=None, frames=None,

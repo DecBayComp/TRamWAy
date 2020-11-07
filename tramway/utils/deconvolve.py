@@ -29,7 +29,7 @@ class _Files(object):
                 setattr(self, attr, path)
 
 
-def main(image_stack_file, weight_file, mean_std_file=None,
+def deconvolve(image_stack_file, weight_file, mean_std_file=None,
         high_res_image_file=None, save_magnified_image=False,
         magnification=10, threshold=0, min_distance_peak=2, margin=3,
         header=True, abs_threshold=1., M=64, N=None, n=2, gpu=1):
@@ -66,13 +66,13 @@ def main(image_stack_file, weight_file, mean_std_file=None,
     basename,_ = os.path.splitext(filename)
     deconv.print_position_files(pos, basedir, basename, header)
 
-    if files.high_res_img:
+    if files.high_res_img and high_res_prediction is not None:
         if not isinstance(files.high_res_img, str):
             files.high_res_img = os.path.join(basedir, 'predicted.tif')
         io.imsave(files.high_res_img, high_res_prediction.astype('uint16'))
 
 
-if __name__ == '__main__':
+def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('stack', help="path to the tiff image stack")
@@ -87,6 +87,10 @@ if __name__ == '__main__':
         from tramway.deconvolution import tf
         tf.__fix_tf_1_14_0_h5py_3_0_0__ = False
 
-    main(args.stack, args.weights, args.mean_std, gpu=args.gpu,
+    deconvolve(args.stack, args.weights, args.mean_std, gpu=args.gpu,
             magnification=args.magnification)
+
+
+if __name__ == '__main__':
+    main()
 
