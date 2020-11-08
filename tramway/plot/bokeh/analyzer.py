@@ -314,14 +314,16 @@ class Controller(object):
             unit = dict(
                     diffusivity='$\mu\\rm{m}^2\\rm{s}^{-1}$',
                     potential='$k_{\\rm{B}}T$',
-                    force='$k_{\\rm{B}}T$',
+                    force='Log. amplitude',
                     ) # LaTeX not supported yet
             unit = dict(
                     diffusivity='µm²/s',
                     potential='kT',
-                    force='Amplitude (kT)',
+                    force='Log. amplitude',
                     )
             kwargs['unit'] = unit.get(feature, None)
+        if self.model.analyzer.browser.colormap is not None:
+            kwargs['colormap'] = self.model.analyzer.browser.colormap
         if self.main_figure.renderers:
             self.main_figure.renderers = []
         try:
@@ -330,6 +332,10 @@ class Controller(object):
             pass
         _cells = self.model.current_sampling
         _map = self.model.current_mapping[feature]
+        _vector_map = None
+        if _map.shape[1] == 2:
+            _vector_map = _map
+            _map = _map.pow(2).sum(1).apply(np.log) / 2
         if self.model.has_time_segments():
             _cells = _cells.tessellation.split_segments(_cells)
             _seg = self.time_slider.value
@@ -344,9 +350,9 @@ class Controller(object):
             kwargs['clim'] = self.model.clim[feature]
         self.map_glyphs = scalar_map_2d(_cells, _map,
                 figure=self.main_figure, colorbar_figure=self.colorbar_figure, **kwargs)
-        if _map.shape[1] == 2:
+        if _vector_map is not None:
             self.map_glyphs.append(
-                    field_map_2d(self.model.current_sampling, _map,
+                    field_map_2d(_cells, _vector_map,
                             figure=self.main_figure, inferencemap=True))
         elif _map.shape[1] != 1:
             raise NotImplementedError('neither a scalar map nor a 2D-vector map')

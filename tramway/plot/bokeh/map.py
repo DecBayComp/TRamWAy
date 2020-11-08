@@ -411,8 +411,29 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
     if colorbar:
         low = clim.get('vmin', vmin)
         high = clim.get('vmax', vmax)
-        color_map = 'Viridis256' if colormap is None else colormap
-        color_map = LinearColorMapper(palette=color_map, low=low, high=high)
+        if colormap is None:
+            color_map = 'Viridis256'
+        elif colormap.lower() in ('greys','inferno','magma','plasma','viridis','cividis','turbo'):
+            color_map = colormap[0].upper()+colormap[1:].lower()+'256'
+        else:
+            try:
+                import colorcet as cc
+            except ImportError:
+                color_map = colormap # let us try anyway...
+            else:
+                try:
+                    color_map = getattr(cc, colormap)
+                except AttributeError:
+                    color_map = colormap
+        try:
+            color_map = LinearColorMapper(palette=color_map, low=low, high=high)
+        except ValueError as e:
+            try:
+                import colorcet
+            except ImportError:
+                raise ValueError('colormap not found; try installing the colorcet package') from e
+            else:
+                raise
         color_bar = ColorBar(color_mapper=color_map, ticker=BasicTicker(),
                 border_line_color=None, margin=0)
         color_bar.background_fill_color = None
@@ -595,8 +616,11 @@ def field_map_2d(cells, values, angular_width=30.0,
         A = cells.cell_adjacency
     elif isinstance(cells, FiniteElements):
         A = cells.adjacency
-    elif isinstance(cells, Partition) and isinstance(cells.tessellation, Delaunay):
-        A = cells.tessellation.cell_adjacency
+    elif isinstance(cells, Partition):
+        if isinstance(cells.tessellation, Delaunay):
+            A = cells.tessellation.cell_adjacency
+        else:
+            raise TypeError('unsupported tessellation type: {}'.format(type(cells.tessellation)))
     else:
         raise TypeError('unsupported cell type: {}'.format(type(cells)))
     if inferencemap:

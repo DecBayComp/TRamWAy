@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -21,7 +21,7 @@ from .exceptions import *
 import re
 
 
-def _translocations(df, sort=True): # very slow; may soon be deprecated
+def _translocations(df, sort=True): # very slow; may be marked as deprecated
     def diff(df):
         df = df.sort_values('t')
         t = df['t'][1:]
@@ -31,7 +31,9 @@ def _translocations(df, sort=True): # very slow; may soon be deprecated
     return df.groupby(['n'], sort=False).apply(diff)
 
 def translocations(df, sort=False):
-    '''each trajectories should be represented by consecutive rows sorted by time.'''
+    '''Each trajectories should be represented by consecutive rows sorted by time.
+
+    Returns displacements without the associated position information.'''
     if sort:
         return _translocations(df) # not exactly equivalent
         #raise NotImplementedError
@@ -53,6 +55,9 @@ def translocations(df, sort=False):
 
 
 def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=False):
+    """
+    Yields index slices, each corresponding to a different trajectory.
+    """
     if not isinstance(trajectories, pd.DataFrame):
         raise TypeError('trajectories is not a DataFrame')
 
@@ -267,7 +272,7 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
 
     Returns:
 
-        pandas.DataFrame: filtered locations
+        pandas.DataFrame: filtered (trans-)locations
     """
     box = np.asarray(box)
     dim = int(box.size / 2)
@@ -323,7 +328,8 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
     """
     Arguments:
 
-        trajectories (DataFrame): trajectory data with columns 'n' (trajectory number),
+        trajectories (DataFrame): trajectory or translocation data with
+            columns 'n' (trajectory number),
             spatial coordinates 'x' and 'y' (and optionaly 'z'), and time 't'.
 
         min_msd (float): minimum mean-square-displacement (usually set to the localization error).
@@ -400,9 +406,66 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
     return spt_data
 
 
+def trajectories_to_translocations(points, exclude_columns=['n']):
+    """
+    Appends delta columns (*'dx'*, *'dy'*, *'dt'*, etc) and removes
+    the last location of each trajectory.
+
+    See also `translocations_to_trajectories`.
+    """
+    exclude_columns = list(exclude_columns)
+    delta_cols = [ c for c in points.columns \
+            if c[0]=='d' and c[1:] not in exclude_columns and c[1:] in points.columns ]
+    paired_dest = points['n'].diff().values==0
+    paired_src = np.r_[paired_dest[1:], False]
+    points = points.copy()
+    cols_with_deltas = [ c[1:] for c in delta_cols ]
+    cols_to_diff = [ c for c in points.columns if c not in exclude_columns+cols_with_deltas+delta_cols ]
+    deltas = points[cols_to_diff].diff().shift(-1)
+    deltas = deltas[paired_src]
+    deltas.columns = [ 'd'+c for c in cols_to_diff ]
+    points = points.join(deltas)
+    points.dropna(inplace=True)
+    points.index = np.arange(points.shape[0])
+    return points
+
+def translocations_to_trajectories(points):
+    """
+    Reintroduces the last location of each trajectory, and discards
+    the delta columns.
+
+    See also `trajectories_to_translocations`.
+    """
+    delta_cols = [ c for c in points.columns \
+            if c[0]=='d' and c[1:] != 'n' and c[1:] in points.columns ]
+    cols_with_deltas = [ c[1:] for c in delta_cols ]
+    cols_to_keep = ['n'] + cols_with_deltas
+    trans_n = points['n'].values
+    traj_n = []
+    traj_xyt = []
+    r = 0
+    while r<points.shape[0]:
+        n = trans_n[r]
+        start = r
+        while r<points.shape[0] and trans_n[r]==n:
+            r += 1
+        stop = r
+        trans = points.iloc[start:stop]
+        traj = trans[cols_with_deltas].values
+        traj_end = traj[-1] + trans[delta_cols].values[-1]
+        traj_n.append(np.full((stop-start,1), n))
+        traj_xyt.append(traj)
+        traj_xyt.append(traj_end[np.newaxis,:])
+    n = pd.DataFrame(np.vstack(traj_n), columns=['n'])
+    xyt = pd.DataFrame(np.vstack(traj_xyt), columns=cols_with_deltas)
+    return n.join(xyt)
+
+
 __all__ = [
     'translocations',
     'iter_trajectories',
+    'trajectories_to_translocations',
+    'translocations_to_trajectories',
     'load_xyt',
     'load_mat',
     'crop',

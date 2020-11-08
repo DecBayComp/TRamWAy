@@ -97,13 +97,13 @@ class SupportRegion(BaseRegion):
             minima, maxima = zip(*[ self._support_regions.unit_region[u] \
                 for u in self._support_regions[self._sr_index] ])
             return np.min(np.stack(minima, axis=0), axis=0), np.max(np.stack(maxima, axis=0), axis=0)
-    def crop_images(self, **kwargs):
+    def crop_frames(self, **kwargs):
         """
         Iterates and crops the image frames, based on `bounding_box`.
 
         `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
         """
-        yield from BoundingBox.crop_images(self, **kwargs)
+        yield from BoundingBox.crop_frames(self, **kwargs)
 
 class FullRegion(BaseRegion):
     """
@@ -114,8 +114,8 @@ class FullRegion(BaseRegion):
     __slots__ = ()
     def crop(self, df=None):
         return self._spt_data.dataframe if df is None else df
-    def crop_images(self, images, pixel_size=None, loc_offset=None):
-        yield from images
+    def crop_frames(self, **kwargs):
+        yield from self._spt_data.as_frames(**kwargs)
 
 
 class DecentralizedROIManager(AnalyzerNode):

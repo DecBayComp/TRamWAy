@@ -4,7 +4,7 @@ import tempfile as tmp
 import sys
 import subprocess
 
-def browse(files=[], browser='Firefox'):
+def browse(files=[], browser='Firefox', colormap=None):
     if not files:
         import glob
         filepattern = '*.rwa'
@@ -25,8 +25,10 @@ from selenium import webdriver
 a = RWAnalyzer()
 a.spt_data.from_rwa_files(['{}'])
 a.env.script = '{}'
-a.browser.show_maps(webdriver=webdriver.{})
-""".format("', '".join(files), script.name, browser)
+{}a.browser.show_maps(webdriver=webdriver.{})
+""".format("', '".join(files), script.name,
+        '' if colormap is None else "a.browser.colormap = '{}'\n".format(colormap),
+        browser)
     script.write(source)
     script.flush()
     try:
@@ -43,6 +45,7 @@ def main():
         description='Browse TRamWAy-generated .rwa files')
     parser.add_argument('files', nargs='*', help='for example: *.rwa or */*.rwa')
     parser.add_argument('--browser', default='Firefox', choices=['Firefox','Chrome','Edge','Ie','Opera','Safari','WebKitGTK'])
+    parser.add_argument('--colormap', help="Matplotlib colormap name")
     print(browse(**parser.parse_args().__dict__))
 
 if __name__ == '__main__':
