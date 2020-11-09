@@ -1029,19 +1029,32 @@ class SlurmOverSSH(Slurm, RemoteHost):
                     self.logger.error(err.rstrip())
                 elif out:
                     # parse and print progress info
-                    out = out.splitlines()
-                    try:
-                        start, stop = out[0].split()[0].split('-')
-                    except ValueError:
-                        raise RuntimeError('unexpected squeue message: \n'+'\n'.join(out))
-                    stop = stop.split('%')[0]
-                    start, stop = int(start), int(stop)
+                    start, _out = None, []
+                    _continue = False
+                    for line in out.splitlines():
+                        parts = line.split()
+                        if '-' in parts[0]:
+                            if start is None:
+                                try:
+                                    start, stop = parts[0].split('-')
+                                except ValueError:
+                                    self.logger.debug('squeue output parsing failed: \n'+out)
+                                    _continue = True; break
+                                else:
+                                    stop = stop.split('%')[0]
+                                    start, stop = int(start), int(stop)
+                            else:
+                                self.logger.debug('squeue output parsing failed: \n'+out)
+                                _continue = True; break
+                        else:
+                           _out.append(parts)
+                    if _continue:
+                        continue
                     total = stop
                     pending = stop - start
                     running = 0
                     other = 0
-                    for out in out[1:]:
-                        out = out.split()
+                    for out in _out:
                         array_ix, status, time_used = int(out[0]), out[1], out[2]
                         reason = ' '.join(out[3:])
                         if status == 'R':

@@ -275,7 +275,7 @@ class Controller(object):
         f.background_fill_color = f.border_fill_color = None
         f.title.align = 'center'
         #f.visible = False
-        self.overlaying_markers = CheckboxGroup(disabled=True, labels=['Localizations','Trajectories'], active=[])
+        self.visibility_controls = CheckboxGroup(disabled=True, labels=['Localizations','Trajectories','Hide map'], active=[])
         def _update(attr, old, new):
             if 0 in old and 0 not in new:
                 self.set_localization_visibility(False)
@@ -285,18 +285,22 @@ class Controller(object):
                 self.set_trajectory_visibility(False)
             elif 1 not in old and 1 in new:
                 self.set_trajectory_visibility(True)
-        self.overlaying_markers.on_change('active', _update)
+            if 2 in old and 2 not in new:
+                self.set_map_visibility(True)
+            elif 2 not in old and 2 in new:
+                self.set_map_visibility(False)
+        self.visibility_controls.on_change('active', _update)
         self.map_kwargs = dict(unit='std')
-        return row(self.main_figure, self.colorbar_figure, self.overlaying_markers)
+        return row(self.main_figure, self.colorbar_figure, self.visibility_controls)
     def disable_space_view(self):
         self.main_figure.disabled = True
         self.colorbar_figure.disabled = True
-        self.overlaying_markers.disabled = True
+        self.visibility_controls.disabled = True
     def enable_space_view(self):
         #self.colorbar_figure.visible = True
         self.main_figure.disabled = False
         self.colorbar_figure.disabled = False
-        self.overlaying_markers.disabled = False
+        self.visibility_controls.disabled = False
     def disable_time_view(self):
         self.time_slider.disabled = True
     def enable_time_view(self):
@@ -310,18 +314,28 @@ class Controller(object):
             unit = dict(
                     diffusivity='$\mu\\rm{m}^2\\rm{s}^{-1}$',
                     potential='$k_{\\rm{B}}T$',
-                    force='$k_{\\rm{B}}T$',
+                    force='Log. amplitude',
                     ) # LaTeX not supported yet
             unit = dict(
                     diffusivity='µm²/s',
                     potential='kT',
-                    force='Amplitude (kT)',
+                    force='Log. amplitude',
                     )
             kwargs['unit'] = unit.get(feature, None)
+        if self.model.analyzer.browser.colormap is not None:
+            kwargs['colormap'] = self.model.analyzer.browser.colormap
         if self.main_figure.renderers:
             self.main_figure.renderers = []
+        try:
+            self.visibility_controls.active = [ pos for pos in self.visibility_controls.active if pos != 2 ]
+        except ValueError:
+            pass
         _cells = self.model.current_sampling
         _map = self.model.current_mapping[feature]
+        _vector_map = None
+        if _map.shape[1] == 2:
+            _vector_map = _map
+            _map = _map.pow(2).sum(1).apply(np.log) / 2
         if self.model.has_time_segments():
             _cells = _cells.tessellation.split_segments(_cells)
             _seg = self.time_slider.value
@@ -334,11 +348,12 @@ class Controller(object):
             _cells = _cells[_seg]
             _map = _map[_seg]
             kwargs['clim'] = self.model.clim[feature]
-        scalar_map_2d(_cells, _map,
+        self.map_glyphs = scalar_map_2d(_cells, _map,
                 figure=self.main_figure, colorbar_figure=self.colorbar_figure, **kwargs)
-        if _map.shape[1] == 2:
-            field_map_2d(self.model.current_sampling, _map,
-                    figure=self.main_figure, inferencemap=True)
+        if _vector_map is not None:
+            self.map_glyphs.append(
+                    field_map_2d(_cells, _vector_map,
+                            figure=self.main_figure, inferencemap=True))
         elif _map.shape[1] != 1:
             raise NotImplementedError('neither a scalar map nor a 2D-vector map')
     def draw_trajectories(self):
@@ -352,17 +367,20 @@ class Controller(object):
                 sampling = sampling.tessellation.split_segments(sampling)[seg]
         traj_handles = plot_trajectories(sampling.points,
                 figure=self.main_figure, **self.trajectories_kwargs)
-        self.trajectory_handles = traj_handles[0::2]
-        self.location_handles = traj_handles[1::2]
-        if 0 not in self.overlaying_markers.active:
+        self.trajectory_glyphs = traj_handles[0::2]
+        self.location_glyphs = traj_handles[1::2]
+        if 0 not in self.visibility_controls.active:
             self.set_localization_visibility(False)
-        if 1 not in self.overlaying_markers.active:
+        if 1 not in self.visibility_controls.active:
             self.set_trajectory_visibility(False)
     def set_localization_visibility(self, b):
-        for handle in self.location_handles:
+        for handle in self.location_glyphs:
             handle.visible = b
     def set_trajectory_visibility(self, b):
-        for handle in self.trajectory_handles:
+        for handle in self.trajectory_glyphs:
+            handle.visible = b
+    def set_map_visibility(self, b):
+        for handle in self.map_glyphs:
             handle.visible = b
     def enable_side_panel(self):
         if not self.show_side_panel:
@@ -382,6 +400,7 @@ class Controller(object):
         self.data_export_button = Button(disabled=True, label='Export data', button_type='success')
         def _update_buttons(attr, old, new):
             if new.endswith('.png') or new.endswith('.svg'):
+                self.unset_export_status('figure')
                 self.figure_export_button.disabled = False
             else:
                 self.figure_export_button.disabled = True

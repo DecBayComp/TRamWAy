@@ -58,27 +58,17 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
 
     #pip3.6 install --upgrade pip
     pip3.6 uninstall -qy tramway || true
-    pip3.6 install . -r requirements.txt
+    #pip3.6 install . -r requirements.txt
     pip3.6 install .[animate,roi,webui]
 
     pip3.6 install scikit-learn
     pip3.6 install paramiko
     pip3.6 install notebook
-
-    #apt-get install -y --no-install-recommends \
-    #    firefox firefox-geckodriver
+    pip3.6 install colorcet
 
     mkdir -p /pasteur
 
 %runscript
-
-    #cmd="tramway"
-    #python="python3.6"
-    #if [ -n "$1" -a "$1" = "-s" ]; then
-    #   cmd="${python} -s -m tramway"
-    #   shift
-    #fi
-    #exec $cmd $@
 
     exec jupyter notebook $@
 

@@ -219,6 +219,8 @@ class Pipeline(AnalyzerNode):
         except AttributeError:
             self.logger.error('no recovery procedure available')
 
+Attribute.register(Pipeline)
+
 
 __all__ = ['Pipeline']
 

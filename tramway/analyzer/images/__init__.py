@@ -56,6 +56,9 @@ class ImageParameters(object):
         self._pixel_size = pxsize
     @property
     def loc_offset(self):
+        """
+        Offset between coordinates and the image, in pixels.
+        """
         return self._loc_offset
     @loc_offset.setter
     def loc_offset(self, offset):
@@ -96,8 +99,22 @@ class _RawImage(AnalyzerNode, ImageParameters):
     def height(self):
         return self.stack.shape[1]
 
-    def as_frames(self, return_time=False):
-        for f in range(self.n_frames):
+    def as_frames(self, index=None, return_time=False):
+        """
+        Iterates over the image frames.
+
+        Arguments:
+
+            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+
+            return_time (bool): return time along with image frames, as first item.
+
+        Returns:
+
+            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
+
+        """
+        for f in indexer(index, range(self.n_frames)):
             frame = self.stack[f,:,:]
             if return_time:
                 t = (f+1)*self.dt
@@ -105,10 +122,49 @@ class _RawImage(AnalyzerNode, ImageParameters):
             else:
                 yield frame
 
+    def cropping_bounds(self, bounding_box):
+        lb, ub = [ b / self.pixel_size for b in bounding_box ]
+        lb = np.floor(lb) * self.pixel_size
+        ub = np.ceil(ub) * self.pixel_size
+        return lb, ub
+
+    def crop_frames(self, bounding_box, index=None, return_time=False):
+        """
+        Iterates and crops the image frames, similarly to `as_frames`.
+
+        Arguments:
+
+            bounding_box (tuple): pair of NumPy arrays (lower bound, upper bound).
+
+            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+
+            return_time (bool): return time along with cropped image frames, as first item.
+
+        Returns:
+
+            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
+
+        """
+        lb, ub = [ b / self.pixel_size - self.loc_offset for b in bounding_box ]
+        lb = np.floor(lb).astype(int)
+        ub = np.ceil(ub).astype(int)
+        if not np.all(lb <= ub):
+            raise ValueError('image cropping failed: lower bound > upper bound')
+        i_min = max(0, self.height-1-ub[1]) # range start (included)
+        i_max = min(self.height-lb[1], self.height) # range stop (excluded)
+        j_min = max(0, lb[0]) # range start (included)
+        j_max = min(ub[0]+1, self.width) # range stop (excluded)
+        if return_time:
+            for t, frame in self.as_frames(index, return_time):
+                yield t, frame[i_min:i_max, j_min:j_max]
+        else:
+            for frame in self.as_frames(index, return_time):
+                yield frame[i_min:i_max, j_min:j_max]
+
     def to_color_movie(self, output_file=None, fourcc='VP80', colormap='gray',
-            locations=None, trajectories=None, frames=None,
+            locations=None, trajectories=None, frames=None, origin=None,
             markersize=2, linecolor='many', linewidth=1,
-            zoom=None, playback_rate=None, light_intensity=1.):
+            magnification=None, playback_rate=None, light_intensity=1.):
         """
         Generates a movie of the images with overlaid locations or trajectories.
 
@@ -128,7 +184,13 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 encoded along with locations and trajectory terminations are independent rows.
 
             frames (sequence): iterable of time (*float*, in seconds) and frame (2D pixel array)
-                pairs; :meth:`as_frames` is called instead if undefined.
+                pairs; if `origin` defines time, `frames` can be a sequence of frames only;
+                :meth:`as_frames` is called instead if undefined.
+
+            origin (numpy.ndarray or pandas.Series): data lower bound if `frames` is defined;
+                implicit columns are 'x' and 'y'; to define time, `origin` must be a `Series`
+                with indices 'x', 'y' and 't';
+                `origin` is useful only for overlaying locations or trajectories.
 
             markersize (int): location marker size in pixels (side).
 
@@ -137,8 +199,8 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             linewidth (float): trajectory line width
 
-            zoom (int or str): the original image pixels can be represented as square-patches
-                of *zoom* video pixel side; if *str*:
+            magnification (int or str): the original image pixels can be represented as square-patches
+                of *magnification* video pixel side; if *str*:
                 '1x'= round(pixel_size/localization_precision),
                 '2x'= round(2*pixel_size/localization_precision);
                 '2x' is adequate for overlaid trajectories, even with the over-compressing
@@ -164,11 +226,6 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 raise ValueError('output_file is not defined')
 
         dt = self.dt
-        if frames is None:
-            width, height = self.width, self.height
-        else:
-            first_frame = frames[0][1]
-            height, width = first_frame.shape
         pxsize = self.pixel_size
         if pxsize is None:
             pxsize = 1.
@@ -179,20 +236,33 @@ class _RawImage(AnalyzerNode, ImageParameters):
             offset = np.asarray(self.loc_offset)
             if not offset.shape[1:]:
                 offset = offset[np.newaxis,:]
-        x_offset, y_offset = offset[0,0], offset[0,1]
+        #x_offset, y_offset = offset[0,0], offset[0,1]
 
-        if zoom is None:
-            zoom = 1
-        elif isinstance(zoom, str) and zoom.endswith('x'):
+        if origin is None:
+            xy0 = None
+            t0 = None
+        elif isinstance(origin, np.ndarray):
+            xy0 = origin.reshape((1,2)).astype(np.float)
+            t0 = None
+        else:#if isinstance(origin, pd.Series):
+            xy0 = origin[list('xy')].values[np.newaxis,:].astype(np.float)
             try:
-                zoom = float(zoom[:-1])
+                t0 = origin['t'].astype(np.float)
+            except KeyError:
+                t0 = None
+
+        if magnification is None:
+            magnification = 1
+        elif isinstance(magnification, str) and magnification.endswith('x'):
+            try:
+                magnification = float(magnification[:-1])
             except ValueError:
-                raise ValueError('cannot parse the zoom factor')
+                raise ValueError('cannot parse the magnification factor')
             try:
-                zoom *= self.pixel_size / self._eldest_parent.localization_precision
+                magnification *= self.pixel_size / self._eldest_parent.localization_precision
             except (AttributeError, TypeError):
-                raise ValueError('failed to adjust zoom; pixel_side or localization_precision not defined')
-            zoom = int(np.round(zoom))
+                raise ValueError('failed to adjust magnification; pixel_side or localization_precision not defined')
+            magnification = int(np.round(magnification))
 
         if playback_rate is None:
             playback_rate = 1.
@@ -204,8 +274,12 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
         marker_color = line_color = np.array([[1,0,0]], dtype=np.float) # red
         if locations is not None:
+            if callable(locations):
+                locations = locations()
             marker_size_delta = .5*float(markersize-1)
         if trajectories is not None:
+            if callable(trajectories):
+                trajectories = trajectories()
             if isinstance(linecolor, str):
                 if linecolor == 'many':
                     from tramway.plot.mesh import __colors__
@@ -218,42 +292,68 @@ class _RawImage(AnalyzerNode, ImageParameters):
             def append_n(n, ijk):
                 i, j, k = ijk
                 return i, j, k, np.full(k.shape, n)
-            trajectories_as_dict = { n: trajectories[list('xyt')][trajectories['n']==n]
-                    for n in np.unique(trajectories['n']) }
+            trajectories_as_dict = {}
+            #trajectories_as_dict = { n: trajectories[list('xyt')][trajectories['n']==n]
+            #        for n in np.unique(trajectories['n']) }
         dt_max_err = (.5*dt)**2
         def isclose(ts, t):
             _dt = ts-t
             return _dt*_dt < dt_max_err
 
-        vid = cv2.VideoWriter(os.path.expanduser(output_file),
-                cv2.VideoWriter_fourcc(*fourcc),
-                playback_rate/dt, (width*zoom, height*zoom), True)
-
-        vid_pxsize = pxsize / zoom
-        ii_max = height * zoom - 1
+        vid = None # will be initialized later
+        vid_pxsize = pxsize / magnification
+        vid_offset = offset / magnification
 
         if isinstance(colormap, str):
             colormap = cm.get_cmap(colormap)
         elif not callable(colormap):#isinstance(colormap, colors.ListedColormap):
             colormap = cm.viridis
 
+        if frames:
+            if not (callable(frames) or t0 is None):
+                def wrap(fs, t0, dt):
+                    for i, f in enumerate(fs):
+                        if isinstance(f, (tuple, list)):
+                            t, f = f
+                            if i == 0 and t != t0:
+                                raise ValueError('start time does not match with first frame time: {} != {}'.format(t0, t))
+                        else:
+                            t = t0 + i * dt
+                        yield t, f
+                frames = wrap(frames, t0, dt)
+        else:
+            frames = self.as_frames
+
         t_prev = -1
-        for t, frame in self.as_frames(return_time=True) if frames is None else frames:
+        for t, frame in frames(return_time=True) if callable(frames) else frames:
             if t <= t_prev:
-                raise RuntimeError('time does not strictly increase')
+                raise ValueError('time does not strictly increase')
             t_prev = t
+
+            if vid is None:
+                # complete the initialization
+                height, width = frame.shape
+                ii_max = height * magnification - 1
+                jj_max = width * magnification - 1
+
+                vid = cv2.VideoWriter(os.path.expanduser(output_file),
+                        cv2.VideoWriter_fourcc(*fourcc),
+                        playback_rate/dt, (width*magnification, height*magnification), True)
 
             if color_scale:
                 frame = frame // color_scale
 
             frame = colormap(frame)[:,:,:3]
 
-            if zoom:
-                frame = np.repeat(np.repeat(frame, zoom, axis=0), zoom, axis=1)
+            if magnification:
+                frame = np.repeat(np.repeat(frame, magnification, axis=0), magnification, axis=1)
 
             if locations is not None:
                 xy = locations[ isclose(locations['t'], t) ]
-                xy_f = (xy[list('xy')].values + offset) / vid_pxsize
+                if xy0 is None:
+                    xy_f = xy[list('xy')].values / vid_pxsize - vid_offset
+                else:
+                    xy_f = (xy[list('xy')].values - xy0) / vid_pxsize
                 for j,i in xy_f:
                     i = np.array([np.floor(i-marker_size_delta), np.ceil(i+marker_size_delta)], dtype=np.int)
                     j = np.array([np.floor(j-marker_size_delta), np.ceil(j+marker_size_delta)], dtype=np.int)
@@ -270,12 +370,17 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 # extract the corresponding coordinate series truncated at time t
                 trajs_f = []
                 for n in active_trajectories:
-                    #xy_n = trajectories[trajectories['n']==n]
-                    xyt_n = trajectories_as_dict[n]
+                    try:
+                        xyt_n = trajectories_as_dict[n]
+                    except KeyError:
+                        trajectories_as_dict[n] = xyt_n = trajectories[trajectories['n']==n]
                     xy_n = xyt_n[list('xy')][xyt_n['t']<t+.5*dt]
                     if len(xy_n)<2:
                         continue
-                    traj = (xy_n.values + offset) / vid_pxsize
+                    if xy0 is None:
+                        traj = xy_n.values / vid_pxsize - vid_offset
+                    else:
+                        traj = (xy_n.values - xy0) / vid_pxsize
                     if np.any(traj < 0): # this may occur with negative offsets
                         continue
                     traj = np.round(traj).astype(np.uint32)
@@ -289,9 +394,11 @@ class _RawImage(AnalyzerNode, ImageParameters):
                         ) for n, traj in trajs_f for p in range(traj.shape[0]-1) ])
                     ii = np.concatenate(ii)
                     jj = np.concatenate(jj)
-                    kk = np.concatenate(kk)[:,np.newaxis]
+                    ok = (0<=ii)&(ii<=ii_max)&(0<=jj)&(jj<=jj_max)
+                    ii, jj = ii[ok], jj[ok]
+                    kk = np.concatenate(kk)[ok][:,np.newaxis]
                     if 1<len(line_color):
-                        nn = np.concatenate(nn)
+                        nn = np.concatenate(nn)[ok]
                         lc = line_color[nn % len(line_color)]
                     frame[ii_max-ii,jj,:] = (1.-kk) * frame[ii_max-ii,jj,:] + kk * lc
 
@@ -417,7 +524,10 @@ class ImageFiles(ImageIterator):
     def __init__(self, filepattern, **kwargs):
         ImageIterator.__init__(self, **kwargs)
         self._files = []
-        self._filepattern = filepattern
+        if isinstance(filepattern, str):
+            self._filepattern = os.path.expanduser(filepattern)
+        else:
+            self._filepattern = [os.path.expanduser(pattern) for pattern in filepattern]
     @property
     def filepattern(self):
         return self._filepattern
@@ -458,7 +568,7 @@ class ImageFiles(ImageIterator):
 
 Images.register(ImageFiles)
 
-def TiffFiles(ImageFiles):
+class TiffFiles(ImageFiles):
     __slots__ = ()
     def list_files(self):
         ImageFiles.list_files(self, TiffFile)

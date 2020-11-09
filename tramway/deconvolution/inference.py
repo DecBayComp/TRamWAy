@@ -14,8 +14,6 @@
 
 # Import Libraries and model
 ## files management
-#import sys
-#sys.path.append("..")
 import argparse
 from   os.path import abspath
 import gc
@@ -31,7 +29,6 @@ try:
 except ImportError:
     raise ImportError('please install scikit-image>=0.14.2')
 from os.path import split
-from tifffile import imsave
 from skimage.feature import peak_local_max
 from skimage import data, img_as_float
 
@@ -39,7 +36,8 @@ from skimage import data, img_as_float
 try: # recent Keras
 	from tensorflow.keras.preprocessing.image import ImageDataGenerator
 	from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, Callback
-	from tensorflow.keras.models import Model
+	#from tensorflow.keras.models import Model
+	from .tf import Model
 	from tensorflow.keras.layers import Input, Activation, UpSampling2D, Convolution2D, Convolution2DTranspose, MaxPooling2D, BatchNormalization, Dropout, Lambda, concatenate
 	from tensorflow.keras import optimizers, losses
 	from tensorflow.keras.utils import multi_gpu_model
@@ -141,6 +139,8 @@ def get_position_from_predicted_one_image(high_res_prediction, liste, marge, k):
 	liste_loc      = liste[0]
 	(KK, LL)       = liste_loc.shape
 	point_high_res = np.zeros((KK,LL+1))
+	if KK<=0:
+		raise ValueError('no iteration; magnification might be too low')
 	for kk in range(KK):
 		ii        = liste_loc[kk,0]
 		jj        = liste_loc[kk,1]
@@ -210,7 +210,7 @@ def save_trimmed_original_image_magnified_for_testing_purposes(stack,magnificati
 	(K, M, N) = high_res.shape
 	image_high_res = high_res.astype('uint16')
 
-	imsave(path_split[0] + '/' + name_split[0] + '_magnified.tiff', image_high_res)
+	io.imsave(path_split[0] + '/' + name_split[0] + '_magnified.tiff', image_high_res)
 
 
 	return 1
@@ -336,7 +336,7 @@ def Inference(stack,magnification,  weights, mean_image, std_image, M_theo, N_th
 
 	##
 	liste_position = []
-	high_res_prediction = np.zeros((K_original, M_cut_high_res, N_cut_high_res))
+	#high_res_prediction = np.zeros((K_original, M_cut_high_res, N_cut_high_res))
 	#liste_high_res = []
 	for i in range(K_original):
 		if i%100==0:
@@ -350,13 +350,14 @@ def Inference(stack,magnification,  weights, mean_image, std_image, M_theo, N_th
 		position                            = get_position_from_predicted_one_image(high_res, liste_low_res, marge,i)
 		#position                            = get_position_from_predicted(np.expand_dims(high_res,axis=0), liste_low_res, marge,i)
 		liste_position.append(position)
-		high_res_prediction[i,:,:] = high_res
+		#high_res_prediction[i,:,:] = high_res
 		#liste_high_res.append(high_res)
 		del Image, Image_to_stack, K_stack, high_res, image_high_res,liste_low_res, position
 
 	#high_res_presdiction = np.stack(liste_high_res)
 	position = pd.concat(liste_position)
 	#del high_res_norm
+	high_res_presdiction = None
 
 	return high_res_prediction, position
 #########################################################################################
@@ -549,8 +550,8 @@ if __name__ == '__main__':
 	print_position_files(position,path_split[0],name_split[0], bool_header)
 
 	## just for talks output high resolution version of the raw data with the distribution of position
-	image                   = high_res_prediction.astype('uint16')
-	imsave(path_split[0] + '/' + 'predicted.tiff', image)
+	#image                   = high_res_prediction.astype('uint16')
+	#io.imsave(path_split[0] + '/' + 'predicted.tiff', image)
 
 
 

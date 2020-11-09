@@ -15,8 +15,7 @@
 from .abc import *
 from ..attribute import *
 from tramway.core.xyt import crop
-from tramway.helper.base import HelperBase
-import tramway.helper.roi as helper
+from . import collections as helper
 import warnings
 import numpy as np
 from collections.abc import Sequence, Set
@@ -66,6 +65,13 @@ class BoundingBox(IndividualROI):
     @property
     def bounding_box(self):
         return self._bounding_box
+    def crop_frames(self, **kwargs):
+        """
+        Iterates and crops the image frames.
+
+        `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
+        """
+        yield from self._spt_data.get_image().crop_frames(self.bounding_box, **kwargs)
 
 class SupportRegion(BaseRegion):
     """
@@ -91,6 +97,13 @@ class SupportRegion(BaseRegion):
             minima, maxima = zip(*[ self._support_regions.unit_region[u] \
                 for u in self._support_regions[self._sr_index] ])
             return np.min(np.stack(minima, axis=0), axis=0), np.max(np.stack(maxima, axis=0), axis=0)
+    def crop_frames(self, **kwargs):
+        """
+        Iterates and crops the image frames, based on `bounding_box`.
+
+        `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
+        """
+        yield from BoundingBox.crop_frames(self, **kwargs)
 
 class FullRegion(BaseRegion):
     """
@@ -101,6 +114,8 @@ class FullRegion(BaseRegion):
     __slots__ = ()
     def crop(self, df=None):
         return self._spt_data.dataframe if df is None else df
+    def crop_frames(self, **kwargs):
+        yield from self._spt_data.as_frames(**kwargs)
 
 
 class DecentralizedROIManager(AnalyzerNode):
@@ -393,10 +408,7 @@ class BoundingBoxes(SpecializedROI):
     __slots__ = ('_bounding_boxes',)
     def __init__(self, bb, label=None, group_overlapping_roi=False, **kwargs):
         SpecializedROI.__init__(self, **kwargs)
-        self._collections = helper.RoiCollections(
-                metadata=helper.Helper().add_metadata,
-                group_overlapping_roi=group_overlapping_roi,
-                verbose=False)
+        self._collections = helper.Collections(group_overlapping_roi)
         if label is None:
             label = ''
         self._collections[label] = bb
@@ -428,6 +440,22 @@ class BoundingBoxes(SpecializedROI):
                     for i, bb in indexer(index, self.bounding_boxes[label], return_index=True):
                         roi_label = self._collections[label].roi_label(i)
                         yield bear_child(i, BoundingBox, bb, roi_label, d )
+    @property
+    def index_format(self):
+        """
+        Format of the numeric part of the label.
+        """
+        return self._collections.numeric_format
+    @index_format.setter
+    def index_format(self, fmt):
+        self._collections.numeric_format = fmt
+    def set_num_digits(self, n):
+        """
+        Sets the number of digits in the numeric part of the label.
+        """
+        if not isinstance(n, int):
+            raise TypeError('num_digits is not an int')
+        self.index_format = n
 
 ROI.register(BoundingBoxes)
 

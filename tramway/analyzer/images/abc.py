@@ -16,7 +16,12 @@ from abc import *
 from ..attribute.abc import Attribute, abstractmethod
 
 class Images(Attribute):
-    pass
+    def as_frames(self, index=None, return_time=False):
+        """ see for example :meth:`~tramway.analyzer.images._RawImage.as_frames`. """
+        pass
+    def crop_frames(self, bounding_box, index=None, return_time=False):
+        """ see for example :meth:`~tramway.analyzer.images._RawImage.crop_frames`. """
+        pass
 
 class Image(metaclass=ABCMeta):
     pass

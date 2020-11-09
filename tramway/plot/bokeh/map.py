@@ -251,7 +251,7 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
 
 def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
         colorbar=True, colormap=None, unit=None, clabel=None, colorbar_figure=None,
-        xlim=None, ylim=None, **kwargs):
+        xlim=None, ylim=None, try_fix_corners=True, **kwargs):
     """
     Plot an interactive 2D scalar map as a colourful image.
 
@@ -290,6 +290,7 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
     if figure is None:
         assert False
         figure = plt.figure()
+    glyph_renderers = []
 
     ids = []
     polygons = []
@@ -393,12 +394,16 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
             "#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*color_map(scalar_map)
             ]
     patch_kwargs = dict(fill_color=colors, line_width=0)
-    figure.patches(*zip(*polygons), **patch_kwargs)
+    glyph_renderers.append(
+            figure.patches(*zip(*polygons), **patch_kwargs)
+        )
 
     if delaunay or isinstance(delaunay, dict):
         if not isinstance(delaunay, dict):
             delaunay = {}
-        plot_delaunay(cells, figure=figure, **delaunay)
+        glyph_renderers.append(
+                plot_delaunay(cells, figure=figure, **delaunay)
+            )
 
     figure.x_range = Range1d(*xlim)
     figure.y_range = Range1d(*ylim)
@@ -406,11 +411,33 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
     if colorbar:
         low = clim.get('vmin', vmin)
         high = clim.get('vmax', vmax)
-        color_map = 'Viridis256' if colormap is None else colormap
-        color_map = LinearColorMapper(palette=color_map, low=low, high=high)
+        if colormap is None:
+            color_map = 'Viridis256'
+        elif colormap.lower() in ('greys','inferno','magma','plasma','viridis','cividis','turbo'):
+            color_map = colormap[0].upper()+colormap[1:].lower()+'256'
+        else:
+            try:
+                import colorcet as cc
+            except ImportError:
+                color_map = colormap # let us try anyway...
+            else:
+                try:
+                    color_map = getattr(cc, colormap)
+                except AttributeError:
+                    color_map = colormap
+        try:
+            color_map = LinearColorMapper(palette=color_map, low=low, high=high)
+        except ValueError as e:
+            try:
+                import colorcet
+            except ImportError:
+                raise ValueError('colormap not found; try installing the colorcet package') from e
+            else:
+                raise
         color_bar = ColorBar(color_mapper=color_map, ticker=BasicTicker(),
                 border_line_color=None, margin=0)
         color_bar.background_fill_color = None
+        #glyph_renderers.append(color_bar)
         if unit is None:
             unit = clabel
         if colorbar_figure is None:
@@ -429,6 +456,7 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
             #print(colorbar_figure.center, colorbar_figure.plot_height, color_bar.width, color_bar.height, color_bar.margin, color_bar.padding)
 
     #plt.show(figure)
+    return glyph_renderers
 
 
 def plot_delaunay(cells, labels=None, color=None, style='-',
@@ -588,8 +616,11 @@ def field_map_2d(cells, values, angular_width=30.0,
         A = cells.cell_adjacency
     elif isinstance(cells, FiniteElements):
         A = cells.adjacency
-    elif isinstance(cells, Partition) and isinstance(cells.tessellation, Delaunay):
-        A = cells.tessellation.cell_adjacency
+    elif isinstance(cells, Partition):
+        if isinstance(cells.tessellation, Delaunay):
+            A = cells.tessellation.cell_adjacency
+        else:
+            raise TypeError('unsupported tessellation type: {}'.format(type(cells.tessellation)))
     else:
         raise TypeError('unsupported cell type: {}'.format(type(cells)))
     if inferencemap:
@@ -640,7 +671,7 @@ def field_map_2d(cells, values, angular_width=30.0,
 
     patch_kwargs = dict(fill_color=markercolor, fill_alpha=markeralpha,
             line_width=markerlinewidth, line_color=markeredgecolor)
-    figure.patches(*zip(*markers), **patch_kwargs)
+    return figure.patches(*zip(*markers), **patch_kwargs)
 
 
 
