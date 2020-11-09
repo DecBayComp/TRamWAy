@@ -123,12 +123,17 @@ class NonTrackingTracker(BaseTracker):
                         M, N, n_col_eff, n_row_eff, anomaly)
 
             assert isinstance(row, np.ndarray)
+            if row.size == 0:
+                currently_assigned = set()
+                continue
 
             if currently_assigned:
                 source = movie_per_frame[frame_index]
                 destination = movie_per_frame[frame_index+1]
                 row_to_col = np.full(len(source), -1, dtype=int)
                 row_to_col[row] = col
+                if row.size == 1:
+                    row, col = [row.tolist()], [col.tolist()]
                 newly_assigned = set(row)
                 new_assignment = np.zeros(len(destination), dtype=np.uint32)
                 growing_trajectory = currently_assigned & newly_assigned
@@ -147,6 +152,8 @@ class NonTrackingTracker(BaseTracker):
                 current_assignment = new_assignment
 
             else:
+                if row.size == 1:
+                    row, col = [row.tolist()], [col.tolist()]
                 source = movie_per_frame[frame_index][row]
                 destination = movie_per_frame[frame_index+1][col]
                 n = current_trajectory_index
