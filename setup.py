@@ -22,7 +22,7 @@ with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.5-beta3',
+    version = '0.5-nt',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -53,6 +53,7 @@ setup(
         'tramway.inference',
         'tramway.inference.bayes_factors',
         'tramway.deconvolution',
+        'tramway.track_non_track',
         'tramway.feature',
         'tramway.feature.single_traj',
         'tramway.plot',
@@ -75,7 +76,10 @@ setup(
         'tramway.analyzer.env',
         'tramway.analyzer.browser',
         'tramway.analyzer.pipeline',
-        'tramway.analyzer.images'],
+        'tramway.analyzer.images',
+        'tramway.analyzer.localizer',
+        'tramway.analyzer.tracker',
+        ],
     scripts = ['scripts/tramway', 'scripts/tramway-browse'],
     install_requires = install_requires,
     extras_require = extras_require,

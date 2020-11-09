@@ -39,6 +39,8 @@ from .env       import *
 from .pipeline  import *
 from .browser   import *
 from .images    import *
+from .localizer import *
+from .tracker   import *
 
 
 class BasicLogger(object):
@@ -93,15 +95,19 @@ class RWAnalyzer(object):
     of a standard processing chain, from SPT data loading/generation to
     inferring model parameters at microdomains.
 
-    The supported steps are defined in a declarative way with spatial attributes;
+    The supported steps are defined in a declarative way with special attributes;
     these steps and corresponding attributes are as follows:
 
+    * `images`: microscopy images
+    * `localizer`: single molecule localization
+    * `tracker`: single particle tracking
     * `spt_data`: SPT data loading or generation
     * `roi`: regions of interest
     * `time`: temporal segmentation of the tracking data
     * `tesseller`: spatial segmentation
     * `sampler`: assignment of SPT data points to microdomains
     * `mapper`: estimation of model parameters at each microdomains
+    * `browser`: inferred parameter map browsing
 
     Most attributes are self-morphing, i.e. they first are initializers and exhibit
     *from_...* methods (for example `from_dataframe` and `from_ascii_file`
@@ -188,7 +194,7 @@ class RWAnalyzer(object):
 
     """
     __slots__ = ( '_logger', '_spt_data', '_roi', '_time', '_tesseller', '_sampler', '_mapper',
-            '_env', '_pipeline', '_browser', '_images' )
+            '_env', '_pipeline', '_browser', '_images', '_localizer', '_tracker' )
 
     @property
     def logger(self):
@@ -206,7 +212,7 @@ class RWAnalyzer(object):
         """
         SPT data accessor.
 
-        See :class:`~spt_data.SPTDataInitializer`.
+        See :class:`~tramway.analyzer.spt_data.SPTDataInitializer`.
         """
         return self._spt_data
     def _set_spt_data(self, data):
@@ -217,7 +223,7 @@ class RWAnalyzer(object):
         """
         ROI accessor.
 
-        See :class:`~roi.ROIInitializer`.
+        See :class:`~tramway.analyzer.roi.ROIInitializer`.
         """
         return self._roi
     def _set_roi(self, roi):
@@ -228,7 +234,7 @@ class RWAnalyzer(object):
         """
         Time segmentation procedure.
 
-        See :class:`~time.TimeInitializer`.
+        See :class:`~tramway.analyzer.time.TimeInitializer`.
         """
         return self._time
     def _set_time(self, time):
@@ -239,7 +245,7 @@ class RWAnalyzer(object):
         """
         Tessellation procedure.
 
-        See :class:`~tesseller.TessellerInitializer`.
+        See :class:`~tramway.analyzer.tesseller.TessellerInitializer`.
         """
         return self._tesseller
     def _set_tesseller(self, tesseller):
@@ -250,7 +256,7 @@ class RWAnalyzer(object):
         """
         Sampling procedure.
 
-        See :class:`~sampler.SamplerInitializer`.
+        See :class:`~tramway.analyzer.sampler.SamplerInitializer`.
         """
         return self._sampler
     def _set_sampler(self, sampler):
@@ -261,7 +267,7 @@ class RWAnalyzer(object):
         """
         Inference procedure.
 
-        See :class:`~mapper.MapperInitializer`.
+        See :class:`~tramway.analyzer.mapper.MapperInitializer`.
         """
         return self._mapper
     def _set_mapper(self, mapper):
@@ -274,7 +280,7 @@ class RWAnalyzer(object):
 
         If not set, the pipeline will run locally in the current interpreter.
 
-        See :mod:`~env.environments`.
+        See :mod:`~tramway.analyzer.env.environments`.
         """
         return self._env
     def _set_env(self, env):
@@ -283,14 +289,36 @@ class RWAnalyzer(object):
 
     def _get_images(self):
         """
-        Single molecule microscopy image stacks.
+        Microscopy image stacks.
 
-        See :class:`~images.ImagesInitializer`.
+        See :class:`~tramway.analyzer.images.ImagesInitializer`.
         """
         return self._images
     def _set_images(self, images):
         self._images = images
     images = selfinitializing_property('images', _get_images, _set_images, Images)
+
+    def _get_localizer(self):
+        """
+        Single molecule localization procedure.
+
+        See :class:`~tramway.analyzer.localizer.LocalizerInitializer`.
+        """
+        return self._localizer
+    def _set_localizer(self, localizer):
+        self._localizer = localizer
+    localizer = selfinitializing_property('localizer', _get_localizer, _set_localizer, Localizer)
+
+    def _get_tracker(self):
+        """
+        Single particle tracking procedure.
+
+        See :class:`~tramway.analyzer.tracker.TrackerInitializer`.
+        """
+        return self._tracker
+    def _set_tracker(self, tracker):
+        self._tracker = tracker
+    tracker = selfinitializing_property('tracker', _get_tracker, _set_tracker, Tracker)
 
     def __init__(self):
         self._logger = \
@@ -300,7 +328,9 @@ class RWAnalyzer(object):
                 self._sampler = \
                 self._mapper = \
                 self._env = \
-                self._images = None
+                self._images = \
+                self._localizer = \
+                self._tracker = None
         self.spt_data  = SPTDataInitializer
         self.roi       = ROIInitializer
         self.time      = TimeInitializer
@@ -309,6 +339,8 @@ class RWAnalyzer(object):
         self.mapper    = MapperInitializer
         self.env       = EnvironmentInitializer
         self.images    = ImagesInitializer
+        self.localizer = LocalizerInitializer
+        self.tracker   = TrackerInitializer
         self._pipeline = Pipeline(self)
         self._browser  = Browser(self)
 
