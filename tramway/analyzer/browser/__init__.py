@@ -70,6 +70,8 @@ class Browser(AnalyzerNode):
         from tramway.plot.bokeh.analyzer import browse_maps
         browse_maps(self._eldest_parent, **kwargs)
 
+Attribute.register(Browser)
+
 
 __all__ = ['Browser']
 
