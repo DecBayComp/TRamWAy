@@ -9,24 +9,17 @@ from tramway.helper.simulation import *
 
 np.random.seed(123456789)
 
-try:
-    trajectory_file = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial0.txt'))[0]
-except IndexError:
-    _fd, trajectory_file = tempfile.mkstemp('_tutorial0.txt')
-    os.close(_fd)
-    _fd, rwa_file = tempfile.mkstemp('_tutorial0.rwa')
-    os.close(_fd)
-    _fd, trajectories_with_time_varying_properties = tempfile.mkstemp('_tutorial1.txt')
-    os.close(_fd)
-    _fd, analyses_with_time_varying_properties = tempfile.mkstemp('_tutorial1.rwa')
-    os.close(_fd)
-else:
-    rwa_file = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial0.rwa'))[0]
-    trajectories_with_time_varying_properties = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial1.txt'))[0]
-    analyses_with_time_varying_properties = glob.glob(os.path.join(tempfile.gettempdir(), '*_tutorial1.rwa'))[0]
+basic_tutorials_dir = os.path.dirname(__file__)
+trajectory_file = os.path.join(basic_tutorials_dir, 'data_tutorial0.txt')
+rwa_file = os.path.splitext(trajectory_file)[0]+'.rwa'
+trajectories_with_time_varying_properties = os.path.join(basic_tutorials_dir, 'data_tutorial1.txt')
+analyses_with_time_varying_properties = os.path.splitext(trajectories_with_time_varying_properties)[0]+'.rwa'
 
 def _exists(f):
-    return 0 < os.stat(f).st_size
+    try:
+        return 0 < os.stat(f).st_size
+    except FileNotFoundError:
+        return False
 
 
 def load_default_trajectories(time_varying_properties=False):
@@ -58,7 +51,7 @@ def load_default_trajectories(time_varying_properties=False):
                 trajectory_mean_count=500, lifetime_tau=.25,
                 full=False,# minor_step_count=999,
                 )
-            trajs.to_csv(trajectories_with_time_varying_properties, sep='\t', header=False)
+            trajs.to_csv(trajectories_with_time_varying_properties, sep='\t', header=True)
         return trajs
 
     else:
@@ -72,7 +65,7 @@ def load_default_trajectories(time_varying_properties=False):
                 amplitude_V=-4., mode_V='potential_linear',
                 )
             trajs = crop(trajs, [-1.,-1.,2,2]).dropna()
-            trajs.to_csv(trajectory_file, sep='\t', header=False)
+            trajs.to_csv(trajectory_file, sep='\t', header=True)
         return trajs
 
 
@@ -158,7 +151,22 @@ def load_default_tree(time_varying_properties=False):
     return load_rwa(rwa_file, lazy=True)
 
 
+def download_non_tracking_test_data():
+    test_data_dir = os.path.join(basic_tutorials_dir, '..', 'data-examples')
+    if not os.path.isdir(test_data_dir):
+        data_archive = 'http://dl.pasteur.fr/fop/ZrVgcQi5/data-examples.tar.bz2'
+        try:
+            from urllib.request import urlretrieve
+        except: # Python2
+            from urllib import urlretrieve
+        urlretrieve(data_archive, test_data_dir+'.tar.bz2')
+        import tarfile
+        with tarfile.open(test_data_dir+'.tar.bz2') as archive:
+            archive.extractall(os.path.dirname(test_data_dir))
+
+
 __all__ = ['trajectory_file', 'rwa_file',
         'trajectories_with_time_varying_properties', 'analyses_with_time_varying_properties',
-        'load_default_trajectories', 'load_default_partition', 'load_default_maps', 'load_default_tree']
+        'load_default_trajectories', 'load_default_partition', 'load_default_maps', 'load_default_tree',
+        'download_non_tracking_test_data']
 
