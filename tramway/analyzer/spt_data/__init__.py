@@ -298,6 +298,8 @@ class SPTDataInitializer(Initializer):
         self.specialize( RWGenerator, generator )
     def from_analysis_tree(self, analyses, copy=False):
         self.specialize( RWAnalyses, analyses, copy )
+    def from_tracker(self):
+        self.specialize( TrackerOutput )
 
 
 
@@ -476,7 +478,7 @@ class SPTDataFrames(SPTDataIterator):
         if not dfs:
             raise ValueError("no dataframes found")
         self._dataframes = tuple([ self._bear_child( SPTDataFrame, df ) for df in  dfs ])
-        if not all([ self.columns == df.columns for df in dfs ]):
+        if not all([ tuple(self.columns) == tuple(df.columns) for df in dfs ]):
             raise ValueError("not all the dataframes feature the same column names")
     @property
     def reified(self):
@@ -935,6 +937,12 @@ class RWGenerator(SPTDataFrame):
 class RWAnalyses(StandaloneSPTDataFrame):
     """
     `RWAnalyzer.spt_data` attribute for single analysis trees as stored in *.rwa* files.
+
+    .. note:
+
+        copying (initializing with ``copy=True``) copies only the SPT data
+        and NOT the subsequent analyses.
+
     """
     __slots__ = ()
     def __init__(self, analyses, copy=False, **kwargs):
@@ -943,4 +951,48 @@ class RWAnalyses(StandaloneSPTDataFrame):
         SPTDataFrame.__init__(self, dataframe, source, **kwargs)
         if not copy:
             self.analyses = analyses
+
+class MultipleRWAnalyses(SPTDataFrames):
+    """
+    `RWAnalyzer.spt_data` attribute for multiple analysis trees as stored in *.rwa* files.
+
+    .. note:
+
+        copying (initializing with ``copy=True``) copies only the SPT data
+        and NOT the subsequent analyses.
+
+    """
+    __slots__ = ()
+    def __init__(self, analyses, copy=False, **kwargs):
+        dataframes = [ a.data for a in analyses ]
+        SPTDataFrames.__init__(self, dataframes, **kwargs)
+        if copy:
+            for f, a in zip(self._dataframes, analyses):
+                f.source = a.metadata.get('datafile', None)
+        else:
+            for f, a in zip(self._dataframes, analyses):
+                f.analyses = a
+        
+
+class _FakeSPTData(pd.DataFrame):
+    __slots__ = ()
+    def __init__(self, *args, **kwargs):
+        pd.DataFrame.__init__(self, columns=list('nxyt'))
+
+class TrackerOutput(SPTDataFrames):
+    __slots__ = ()
+    def __init__(self, **kwargs):
+        SPTDataFrames.__init__(self, [_FakeSPTData()], **kwargs)
+    def add_tracked_data(self, trajectories, source=None):
+        df = self._bear_child( SPTDataFrame, trajectories, source )
+        siblings = self._dataframes[0]
+        df.dt = siblings.dt
+        df.localization_error = siblings.localization_error
+        if isinstance(siblings.dataframe, _FakeSPTData):
+            assert not self._dataframes[1:]
+            self._dataframes = [ df ]
+        else:
+            if tuple(df.columns) != tuple(siblings.columns):
+                raise ValueError("not all the dataframes feature the same column names")
+            self._dataframes.append( df )
 

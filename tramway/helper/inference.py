@@ -60,7 +60,7 @@ class Infer(Helper):
                     analysis = analysis[label]
                 if lazytype(analysis._data) is Maps:
                     self.input_maps = data = analysis.data
-        if self.input_file and output_file and (labels or labels is 0):
+        if self.input_file and output_file and (labels or labels == 0):
             self.analyses = extract_analyses(self.analyses, labels)
         return data
 
@@ -926,7 +926,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     if unit == 'std':
         unit = {'diffusivity': '$\mu\\rm{m}^2\\rm{s}^{-1}$',
                 'potential': '$k_{\\rm{B}}T$',
-                'force': '$k_{\\rm{B}}T$',
+                #'force': '$k_{\\rm{B}}T$', # depends on the model
+                'drift': '$\mu\\rm{m}\\rm{s}^{-1}$',
                }
 
     # identify time segments, if any
@@ -1122,7 +1123,12 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             #    _title = '{} ({})'.format(short_name, col)
             else:
                 _title = '{}'.format(col)
-            mplt.title(_title)
+            try:
+                axes = kwargs['axes']
+            except KeyError:
+                mplt.title(_title)
+            else:
+                axes.set_title(_title)
 
         if print_figs and not use_bokeh:
             if maps.shape[1] == 1:
