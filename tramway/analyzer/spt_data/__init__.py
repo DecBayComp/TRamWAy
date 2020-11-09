@@ -298,6 +298,8 @@ class SPTDataInitializer(Initializer):
         self.specialize( RWGenerator, generator )
     def from_analysis_tree(self, analyses, copy=False):
         self.specialize( RWAnalyses, analyses, copy )
+    def from_tracker(self):
+        self.specialize( TrackerOutput )
 
 
 
@@ -943,4 +945,14 @@ class RWAnalyses(StandaloneSPTDataFrame):
         SPTDataFrame.__init__(self, dataframe, source, **kwargs)
         if not copy:
             self.analyses = analyses
+
+class TrackerOutput(AnalyzerNode, SPTParameters):
+    __slots__ = ('_dt','_localization_error')
+    def __init__(self, **kwargs):
+        prms = SPTParameters.__parse__(kwargs)
+        AnalyzerNode.__init__(self, **kwargs)
+        self._dt = self._localization_error = None
+        SPTParameters.__init__(self, *prms)
+
+SPTData.register(TrackerOutput)
 
