@@ -19,14 +19,8 @@ from tramway.core import *
 import itertools
 
 
-class NonTrackingTracker(AnalyzerNode):
-    """ Non-tracking tracker.
-    """
-    __slots__ = ('_high_diffusivity','_large_length')
-    def __init__(self, **kwargs):
-        AnalyzerNode.__init__(self, **kwargs)
-        self._high_diffusivity = None
-        self._large_length = None
+class BaseTracker(AnalyzerNode):
+    __slots__ = ()
     @property
     def spt_data(self):
         if not self._eldest_parent.spt_data.initialized:
@@ -44,7 +38,36 @@ class NonTrackingTracker(AnalyzerNode):
     @localization_precision.setter
     def localization_precision(self, sigma):
         self.spt_data.localization_precision = sigma
-    ###
+
+
+class SingleParticleTracker(BaseTracker):
+    __slots__ = ()
+    def track(self, locations, register=False):
+        if isinstance(locations, str):
+            loc_file = locations
+            locations = load_xyt(loc_file, columns=list('xyt'))
+        else:
+            loc_file = None
+
+        trajectory_index = pd.DataFrame(np.full((len(locations),1), 1, dtype=int), columns=['n'])
+        trajectories = trajectory_index.join(locations)
+
+        if register:
+            self.spt_data.add_tracked_data(trajectories, loc_file)
+
+        return trajectories
+
+Tracker.register(SingleParticleTracker)
+
+
+class NonTrackingTracker(BaseTracker):
+    """ Non-tracking tracker.
+    """
+    __slots__ = ('_high_diffusivity','_large_length')
+    def __init__(self, **kwargs):
+        BaseTracker.__init__(self, **kwargs)
+        self._high_diffusivity = None
+        self._large_length = None
     @property
     def sigma(self):
         return self.localization_precision
@@ -65,10 +88,14 @@ class NonTrackingTracker(AnalyzerNode):
     def estimated_large_length(self, length):
         self._large_length = length
     ###
-    def track(self, locations):
+    def track(self, locations, register=False):
         images = self._eldest_parent.images
         if isinstance(locations, str):
-            locations = load_xyt(locations, columns=list('xyt'))
+            loc_file = locations
+            locations = load_xyt(loc_file, columns=list('xyt'))
+        else:
+            loc_file = None
+
         movie_per_frame, n_unique = convert_to_list(locations.values)
         dt_theo = self.dt
         t_init = self.dt * 1
@@ -141,8 +168,11 @@ class NonTrackingTracker(AnalyzerNode):
         trajectory_coordinates = np.vstack(list(itertools.chain(*trajectory_coordinates)))
         trajectories = pd.DataFrame(trajectory_indices, columns=['n']).join(
                 pd.DataFrame(trajectory_coordinates, columns=list('xyt')))
-        return trajectories
 
+        if register:
+            self.spt_data.add_tracked_data(trajectories, loc_file)
+
+        return trajectories
 
 Tracker.register(NonTrackingTracker)
 
@@ -154,6 +184,12 @@ class TrackerInitializer(Initializer):
 
     """
     __slots__ = ()
+    def from_single_particle(self):
+        """ Considers every single molecule localization datablocks
+        as single trajectories. 
+
+        See also :class:`SingleParticleTracker`."""
+        self.specialize( SingleParticleTracker )
     def from_non_tracking(self):
         """ *Non-tracking* tracker.
         
@@ -161,5 +197,5 @@ class TrackerInitializer(Initializer):
         self.specialize( NonTrackingTracker )
 
 
-__all__ = [ 'Tracker', 'TrackerInitializer', 'NonTrackingTracker' ]
+__all__ = [ 'Tracker', 'TrackerInitializer', 'SingleParticleTracker', 'NonTrackingTracker' ]
 

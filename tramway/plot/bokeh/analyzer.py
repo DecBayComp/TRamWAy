@@ -315,11 +315,13 @@ class Controller(object):
                     diffusivity='$\mu\\rm{m}^2\\rm{s}^{-1}$',
                     potential='$k_{\\rm{B}}T$',
                     force='Log. amplitude',
+                    drift='$\mu\\rm{m}\\rm{s}^{-1}$',
                     ) # LaTeX not supported yet
             unit = dict(
                     diffusivity='µm²/s',
                     potential='kT',
                     force='Log. amplitude',
+                    drift='µm/s',
                     )
             kwargs['unit'] = unit.get(feature, None)
         if self.model.analyzer.browser.colormap is not None:
