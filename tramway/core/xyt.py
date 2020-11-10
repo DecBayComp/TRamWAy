@@ -56,7 +56,10 @@ def translocations(df, sort=False):
 
 def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=False):
     """
-    Yields index slices, each corresponding to a different trajectory.
+    Yields the different trajectories in turn.
+
+    If ``asslice=True``, the indices corresponding to the trajectory are returned instead,
+    or as first output argument if ``asarray=True``, as a slice (first index, last index + 1).
     """
     if not isinstance(trajectories, pd.DataFrame):
         raise TypeError('trajectories is not a DataFrame')
@@ -88,6 +91,101 @@ def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=
             start = i
             stop = start + 1
             curr_traj_num = num
+
+def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None):
+    """
+    Yields series of row indices, each series corresponding to a different frame.
+    """
+    if not isinstance(points, pd.DataFrame):
+        raise TypeError('input data is not a DataFrame')
+    ts = points['t'].values
+    t = ts[0]
+    if 'n' in points:
+        # trajectories or translocations; locations are grouped by trajectory
+        if asslice:
+            raise ValueError('rows are not contiguous in time; cannot represent frames as row slices')
+        it = iter_trajectories(points, asslice=True)
+        exhausted = False
+        active_trajs = []
+        while True:
+            try:
+                traj_ids = next(it)
+            except StopIteration:
+                exhausted = True
+                next_traj = None
+                break
+            if np.isclose(ts[traj_ids[0]], t):
+                active_trajs.append(traj_ids)
+            else:
+                next_traj = traj_ids
+                break
+        if dt is None:
+            dt = np.median(np.diff(ts[traj_ids[0]:traj_ids[1]]))
+        while True:
+            frame = []
+            trajs = []
+            still_active = []
+            for traj in active_trajs:
+                traj_ts = ts[traj[0]:traj[1]]
+                row_ix = int(np.round((t-traj_ts[0])/dt))
+                if not np.isclose(traj_ts[row_ix], t):
+                    traj_dt = np.diff(traj_ts)
+                    ok = np.isclose(traj_dt , dt)
+                    if np.any(ok):
+                        raise ValueError('a trajectory is not contiguous in time:\n{}'.format(points[traj[0]:traj[1]]))
+                    else:
+                        raise ValueError('dt may not be properly set: {}'.format(dt))
+                frame.append(traj[0]+row_ix)
+                trajs.append(traj)
+                if t+dt/2<traj_ts[-1]:
+                    still_active.append(traj)
+            if frame:
+                if as_trajectory_slices:
+                    yield trajs
+                else:
+                    yield np.array(frame)
+            else:
+                raise RuntimeError('no trajectories found in frame')
+            #
+            active_trajs = still_active
+            if active_trajs:
+                t += dt
+            elif exhausted:
+                break
+            else:
+                t = ts[next_traj[0]]
+            #
+            if not exhausted and np.isclose(ts[next_traj[0]], t):
+                active_trajs.append(next_traj)
+                while True:
+                    try:
+                        traj_ids = next(it)
+                    except StopIteration:
+                        exhausted = True
+                        next_traj = None
+                        break
+                    if np.isclose(ts[traj_ids[0]], t):
+                        active_trajs.append(traj_ids)
+                    else:
+                        next_traj = traj_ids
+                        break
+    else:
+        if as_trajectory_slices:
+            raise ValueError('input data are not trajectories')
+        if asslice:
+            from_slice = lambda a,b: (a,b)
+        else:
+            from_slice = lambda a,b: np.arange(a,b)
+
+        i, t_i, j = 0, t, 1
+        for t_j in ts:
+            if np.issclose(t_j, t_i):
+                j += 1
+            else:
+                yield from_slice(i, j)
+                i, t_i = j, t_j
+        if i<j:
+            yield from_slice(i, j)
 
 
 def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
@@ -464,6 +562,7 @@ def translocations_to_trajectories(points):
 __all__ = [
     'translocations',
     'iter_trajectories',
+    'iter_frames',
     'trajectories_to_translocations',
     'translocations_to_trajectories',
     'load_xyt',

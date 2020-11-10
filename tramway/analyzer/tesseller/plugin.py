@@ -43,7 +43,7 @@ def tesseller_plugin(name):
 
     Will translate plugin names into `RWAnalyzer`-ready tessellers as
     defined in the *tessellers* module, if any. """
-    pass
+    raise NotImplementedError
     #if name in ('grid', 'hexagon', 'kmeans', 'gwr'):
 
 __all__ = ['TessellerPlugin', 'tesseller_plugin']

@@ -177,7 +177,7 @@ class NonTrackingTracker(BaseTracker):
                 pd.DataFrame(trajectory_coordinates, columns=list('xyt')))
 
         if register:
-            self.spt_data.add_tracked_data(trajectories, loc_file)
+            self.spt_data.add_tracked_data(trajectories, filepath=loc_file)
 
         return trajectories
 

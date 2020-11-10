@@ -16,7 +16,7 @@ from ..attribute import *
 from .abc import Tesseller
 from .proxy import TessellerProxy
 from .plugin import TessellerPlugin
-from . import stdalg as tessellers
+from . import proxied as tessellers
 from .post import cell_mergers
 
 

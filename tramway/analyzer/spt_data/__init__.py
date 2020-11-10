@@ -85,7 +85,7 @@ class SPTParameters(object):
         return self._eldest_parent.logger
 
 
-def normalize(p):
+def _normalize(p):
     return os.path.expanduser(os.path.normpath(p))
 
 
@@ -157,12 +157,12 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                     yield _out(i, f)
         else:
             if isinstance(source_filter, str):
-                sources = [normalize(source_filter)]
+                sources = [_normalize(source_filter)]
             elif isinstance(source_filter, Sequence):
                 visited = dict()
                 yielded = set()
                 for _p in source_filter:
-                    p = normalize(_p)
+                    p = _normalize(_p)
                     i, it = -1, iter(self)
                     try:
                         while True:
@@ -171,7 +171,7 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                             try:
                                 s = visited[i]
                             except KeyError:
-                                visited[i] = s = normalize(f.source)
+                                visited[i] = s = _normalize(f.source)
                             if s == p:
                                 if i in yielded:
                                     raise ValueError('duplicate source: {}'.format(_p))
@@ -182,9 +182,9 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                         raise ValueError('cannot find source: {}'.format(_p))
                 return
             elif isinstance(source_filter, Set):
-                sources = set([ normalize(p) for p in source_filter ])
+                sources = set([ _normalize(p) for p in source_filter ])
             for i, f in enumerate(self):
-                p = normalize(f.source)
+                p = _normalize(f.source)
                 if p in sources:
                     yield _out(i, f)
     def discard_static_trajectories(self, dataframe=None, min_msd=None, **kwargs):
@@ -926,12 +926,13 @@ class SPTMatFiles(RawSPTFiles):
         SPTFiles.list_files(self)
         self._files = [ self._bear_child( SPTMatFile, filepath ) for filepath in self._files ]
 
-SPTData.register(RWAFiles)
+SPTData.register(SPTMatFiles)
 
 
 class RWGenerator(SPTDataFrame):
     """ not implemented yet """
-    pass
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError
 
 
 class RWAnalyses(StandaloneSPTDataFrame):
@@ -942,6 +943,10 @@ class RWAnalyses(StandaloneSPTDataFrame):
 
         copying (initializing with ``copy=True``) copies only the SPT data
         and NOT the subsequent analyses.
+
+    .. warning:
+
+        not thouroughly tested.
 
     """
     __slots__ = ()
@@ -961,6 +966,10 @@ class MultipleRWAnalyses(SPTDataFrames):
         copying (initializing with ``copy=True``) copies only the SPT data
         and NOT the subsequent analyses.
 
+    .. warning:
+
+        not tested.
+
     """
     __slots__ = ()
     def __init__(self, analyses, copy=False, **kwargs):
@@ -975,16 +984,42 @@ class MultipleRWAnalyses(SPTDataFrames):
         
 
 class _FakeSPTData(pd.DataFrame):
+    """
+    Makes `SPTDataFrames` initialization possible with empty data.
+
+    To be wrapped in the `SPTDataFrame` object for storage of SPT parameters.
+
+    As soon as proper SPT datablocks are appended, the fake SPT datablock
+    should be removed and the previously defined SPT parameters copied into
+    the other datablocks.
+    """
     __slots__ = ()
     def __init__(self, *args, **kwargs):
         pd.DataFrame.__init__(self, columns=list('nxyt'))
+
+class LocalizationFile(SPTFile):
+    __slots__ = ()
+
+SPTDataItem.register(LocalizationFile)
 
 class TrackerOutput(SPTDataFrames):
     __slots__ = ()
     def __init__(self, **kwargs):
         SPTDataFrames.__init__(self, [_FakeSPTData()], **kwargs)
-    def add_tracked_data(self, trajectories, source=None):
-        df = self._bear_child( SPTDataFrame, trajectories, source )
+    def add_tracked_data(self, trajectories, source=None, filepath=None):
+        """
+        .. note:
+
+            In most cases `source` and `filepath` are supposed to represent
+            the same piece of information.
+            Here, `filepath` should be preferred over `source` if the localization
+            data come from a file.
+
+        """
+        if filepath:
+            df = self._bear_child( LocalizationFile, filepath, trajectories )
+        else:
+            df = self._bear_child( SPTDataFrame, trajectories, source )
         siblings = self._dataframes[0]
         df.dt = siblings.dt
         df.localization_error = siblings.localization_error
@@ -995,4 +1030,29 @@ class TrackerOutput(SPTDataFrames):
             if tuple(df.columns) != tuple(siblings.columns):
                 raise ValueError("not all the dataframes feature the same column names")
             self._dataframes.append( df )
+    # borrowed from `SPTFiles`
+    @property
+    def alias(self):
+        raise AttributeError('alias is write-only')
+    @alias.setter
+    def alias(self, name):
+        if callable(name):
+            for f in self._dataframes:
+                f.alias = name
+        else:
+            raise TypeError('global alias is not callable')
+    @property
+    def aliases(self):
+        return [ f.alias for f in self._dataframes ]
+    def filter_by_source(self, source_filter, return_index=False):
+        yield from SPTFiles.filter_by_source(self, source_filter, return_index=return_index)
+
+
+__all__ = [ 'SPTData', 'SPTDataItem', 'SPTParameters', 'StandaloneDataItem', 'SPTDataIterator',
+        'SPTDataInitializer', 'HasROI', '_SPTDataFrame', 'SPTDataFrame', 'StandaloneSPTDataFrame',
+        'SPTDataFrames', 'SPTFile', 'RawSPTFile', 'SPTFiles', 'RawSPTFiles',
+        '_SPTAsciiFile', 'SPTAsciiFile', 'StandaloneSPTAsciiFile', 'SPTAsciiFiles',
+        '_RWAFile', 'RWAFile', 'StandaloneRWAFile', 'RWAFiles',
+        '_SPTMatFile', 'SPTMatFile', 'StandaloneSPTMatFile', 'SPTMatFiles',
+        'RWAnalyses', 'MultipleRWAnalyses', 'RWGenerator', 'LocalizationFile', 'TrackerOutput']
 

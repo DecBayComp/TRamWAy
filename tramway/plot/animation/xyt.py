@@ -72,7 +72,7 @@ def animate_trajectories_2d(xyt, output_file=None,
         base_style = '-'
     else:
         base_style = marker_style + '-'
-    _style = {'LineWidth': line_width, 'MarkerSize': marker_size}
+    _style = dict(linewidth=line_width, markersize=marker_size)
 
     if color is None:
         def _color(n):
@@ -88,7 +88,7 @@ def animate_trajectories_2d(xyt, output_file=None,
         def _color(n):
             return color[np.mod(n, ncolors)]
     def style(n):
-        _style['Color'] = _color(n)
+        _style['color'] = _color(n)
         return _style
 
     if time_unit:
@@ -142,7 +142,7 @@ def animate_trajectories_2d(xyt, output_file=None,
                     if time_unit:
                         movie.axes.set_title(title_pattern.format(t))
                     if bounding_box is not None:
-                        movie.axes.update_datalim_bounds(bounding_box)
+                        movie.axes.dataLim.set(bounding_box)
                     #
                     movie.grab_frame()
                     #
