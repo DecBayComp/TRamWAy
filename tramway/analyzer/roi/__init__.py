@@ -45,6 +45,13 @@ class BaseRegion(AnalyzerNode):
         return self._spt_data.autosaving(*args, **kwargs)
     def discard_static_trajectories(self, df):
         return self._spt_data.discard_static_trajectories(df)
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        return self._mpl_impl(self)
 
 class IndividualROI(BaseRegion):
     """ for typing only """

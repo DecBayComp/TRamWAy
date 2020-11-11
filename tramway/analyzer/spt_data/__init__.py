@@ -443,6 +443,13 @@ class _SPTDataFrame(HasROI, SPTParameters):
             else:
                 self.logger.warning('no output filename defined')
         return self.analyses.autosaving(*args, **kwargs)
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        return self._mpl_impl(self)
 
 
 class SPTDataFrame(_SPTDataFrame):

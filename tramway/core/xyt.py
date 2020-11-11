@@ -92,7 +92,7 @@ def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=
             stop = start + 1
             curr_traj_num = num
 
-def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None):
+def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None, skip_empty_frames=True):
     """
     Yields series of row indices, each series corresponding to a different frame.
     """
@@ -121,6 +121,8 @@ def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None):
                 break
         if dt is None:
             dt = np.median(np.diff(ts[traj_ids[0]:traj_ids[1]]))
+        elif dt <= 0:
+            raise ValueError('dt is not strictly positive')
         while True:
             frame = []
             trajs = []
@@ -153,7 +155,13 @@ def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None):
             elif exhausted:
                 break
             else:
-                t = ts[next_traj[0]]
+                next_t = ts[next_traj[0]]
+                if not skip_empty_frames:
+                    t += dt
+                    while t<next_t:
+                        yield []
+                        t += dt
+                t = next_t
             #
             if not exhausted and np.isclose(ts[next_traj[0]], t):
                 active_trajs.append(next_traj)
@@ -172,10 +180,14 @@ def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None):
     else:
         if as_trajectory_slices:
             raise ValueError('input data are not trajectories')
+        if not skip_empty_frames and (dt is None or dt == 0):
+            raise ValueError('dt is undefined')
         if asslice:
             from_slice = lambda a,b: (a,b)
+            empty_slice = ()
         else:
             from_slice = lambda a,b: np.arange(a,b)
+            empty_slice = np.arange(0)
 
         i, t_i, j = 0, t, 1
         for t_j in ts:
@@ -183,6 +195,11 @@ def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None):
                 j += 1
             else:
                 yield from_slice(i, j)
+                if not skip_empty_frames:
+                    t_i += dt
+                    while not np.isclose(t_j, t_i):
+                        yield empty_slice
+                        t_i += dt
                 i, t_i = j, t_j
         if i<j:
             yield from_slice(i, j)
@@ -537,7 +554,6 @@ def translocations_to_trajectories(points):
     delta_cols = [ c for c in points.columns \
             if c[0]=='d' and c[1:] != 'n' and c[1:] in points.columns ]
     cols_with_deltas = [ c[1:] for c in delta_cols ]
-    cols_to_keep = ['n'] + cols_with_deltas
     trans_n = points['n'].values
     traj_n = []
     traj_xyt = []
@@ -551,7 +567,7 @@ def translocations_to_trajectories(points):
         trans = points.iloc[start:stop]
         traj = trans[cols_with_deltas].values
         traj_end = traj[-1] + trans[delta_cols].values[-1]
-        traj_n.append(np.full((stop-start,1), n))
+        traj_n.append(np.full((stop-start+1,1), n))
         traj_xyt.append(traj)
         traj_xyt.append(traj_end[np.newaxis,:])
     n = pd.DataFrame(np.vstack(traj_n), columns=['n'])
