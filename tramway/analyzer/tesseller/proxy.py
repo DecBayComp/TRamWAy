@@ -220,6 +220,14 @@ class TessellerProxy(AnalyzerNode):
         self._post_processing = merger
     post_processing = selfinitializing_property('post_processing', _get_post_processing, _set_post_processing, TessellationPostProcessing)
 
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        return self._mpl_impl(self)
+
     def __getattr__(self, attrname):
         """ beware: ignores `_init_kwargs` symbols;
         `__init__` arguments should be made available defining a proxy property with
@@ -239,7 +247,7 @@ class TessellerProxy(AnalyzerNode):
         try:
             AnalyzerNode.__setattr__(self, attrname, val)
         except AttributeError:
-            if attrname in ('cls','tesseller','post_processing'):
+            if attrname in ('cls','tesseller','post_processing','mpl'):
                 raise AttributeError(attrname+' is read-only')
             if attrname in self._tessellate_kwargs:
                 self._tessellate_kwargs[attrname] = val
