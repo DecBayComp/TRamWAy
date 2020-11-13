@@ -210,7 +210,7 @@ class SlidingWindow(AnalyzerNode, DT):
             spt_dataframe = spt_dataframe[self.tesseller.colnames]
         except AttributeError:
             pass
-        tess.tessellate(spt_dataframe)
+        tess.tessellate(spt_dataframe, time_only=tessellation is not None)
         return tess
     @property
     def tesseller(self):

@@ -69,6 +69,8 @@ class LineDealer(object):
             updated_glyphs.append(glyph)
             self.available_glyphs.append(glyph)
         for traj in trajs:
+            if len(traj)==1:
+                continue
             traj_ix = traj['n'].iloc[0]
             try:
                 glyph = self.active_glyphs[traj_ix]
@@ -78,6 +80,16 @@ class LineDealer(object):
                 else:
                     warnings.warn('not enough allocated glyphs; increase n')
                     continue
+            else:
+                # checks
+                if True:
+                    previous_data_len = len(glyph.get_xdata())
+                    current_data_len = len(traj)
+                    if current_data_len != previous_data_len+1:
+                        print('x_prev=',glyph.get_xdata(), 'y_prev=',glyph.get_ydata())
+                        print(traj)
+                        warnings.warn('frames are skipped')
+                #
             glyph.set_data(traj['x'].values, traj['y'].values)
             updated_glyphs.append(glyph)
         return tuple(updated_glyphs)
@@ -100,19 +112,21 @@ class LineDealer(object):
         
             callable: function that takes a list of index slices.
         """
-        t = [trajs['t'].iloc[0]] # wrapped in a mutable object (a list),
-                                 # so that it is available from within _animate
+        t0 = trajs['t'].min()
+        k = int(np.round(t0/dt))
+        k = [k] # wrapped in a mutable object (a list),
+                # so that it is available from within _animate
         def _animate(_traj_ids):
+            _t = k[0]*dt
             _trajs = []
             for _i,_j in _traj_ids:
                 _traj = trajs.iloc[_i:_j]
                 assert 0<_traj.shape[0]
-                _until_t = _traj['t']<t[0]+dt/2
-                if not np.any(_until_t):
-                    print('t', t[0], "trajectory['t']", _traj['t'].tolist())
-                    raise RuntimeError('synchronization error')
+                _until_t = _traj['t']<_t+dt/2
+                if not np.any(_until_t) or _traj['t'].iloc[-1]<_t-dt/2:
+                    raise RuntimeError('synchronization error\n\tt= {};\ttrajectory[\'t\']= {}'.format(_t, _traj['t'].tolist()))
                 _trajs.append(_traj[_until_t])
-            t[0] += dt
+            k[0] += 1
             return self.plot(_trajs)
         return _animate
 

@@ -8,6 +8,7 @@ import os
 import numpy as np
 import pandas as pd
 import time
+import warnings
 import traceback
 from bokeh.plotting import curdoc, figure
 from bokeh.models import Select, Slider, CheckboxGroup, TextInput, Button, Paragraph
@@ -335,14 +336,10 @@ class Controller(object):
         _cells = self.model.current_sampling
         _map = self.model.current_mapping[feature]
         _vector_map = None
-        if _map.shape[1] == 2:
-            _vector_map = _map
-            _map = _map.pow(2).sum(1).apply(np.log) / 2
         if self.model.has_time_segments():
             _cells = _cells.tessellation.split_segments(_cells)
             _seg = self.time_slider.value
             if _seg is None:
-                import warnings
                 warnings.warn('could not read time slider value', RuntimeWarning)
                 _seg = 0
             else:
@@ -350,6 +347,9 @@ class Controller(object):
             _cells = _cells[_seg]
             _map = _map[_seg]
             kwargs['clim'] = self.model.clim[feature]
+        if _map.shape[1] == 2:
+            _vector_map = _map
+            _map = _map.pow(2).sum(1).apply(np.log) / 2
         self.map_glyphs = scalar_map_2d(_cells, _map,
                 figure=self.main_figure, colorbar_figure=self.colorbar_figure, **kwargs)
         if _vector_map is not None:

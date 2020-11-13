@@ -32,9 +32,17 @@ class BaseRegion(AnalyzerNode):
         if callable(self._label):
             self._label = self._label()
         return self._label
-    @property
-    def analyses(self):
-        return self._spt_data.analyses[self.label]
+    def get_analyses(self, label=None):
+        if callable(label):
+            labels = label(self.label)
+        elif label is None:
+            labels = [self.label]
+        return [ self._spt_data.analyses[label] for label in labels ]
+    def get_sampling(self, label=None):
+        analyses = self.get_analyses(label)
+        if analyses[1:]:
+            raise ValueError('label is not specific enough; multiple samplings match')
+        return analyses[0].data
     def add_sampling(self, sampling, label=None, comment=None):
         if callable(label):
             label = label(self.label)
@@ -43,8 +51,8 @@ class BaseRegion(AnalyzerNode):
         return self._spt_data.add_sampling(sampling, label, comment)
     def autosaving(self, *args, **kwargs):
         return self._spt_data.autosaving(*args, **kwargs)
-    def discard_static_trajectories(self, df):
-        return self._spt_data.discard_static_trajectories(df)
+    def discard_static_trajectories(self, df, **kwargs):
+        return self._spt_data.discard_static_trajectories(df, **kwargs)
     @property
     def _mpl_impl(self):
         from .mpl import Mpl

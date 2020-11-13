@@ -74,6 +74,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
             select=merge, shape=(npts, ncells))
         if min_count:
             cell_mask = min_count <= cells.location_count
+            label = np.array(label) # copy
             label[np.logical_not(cell_mask[cells.cell_index])] = -1
             #label = cell_mask[cells.cell_index]
     else:#if isinstance(cells, Distributed):

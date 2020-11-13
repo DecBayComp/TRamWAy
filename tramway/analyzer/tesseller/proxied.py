@@ -13,6 +13,9 @@
 
 
 from .proxy import *
+# for overloading :meth:`tessellate`
+from ..artefact import analysis
+from copy import deepcopy
 
 
 from tramway.tessellation.grid import RegularMesh
@@ -145,6 +148,7 @@ class GWR(TessellerProxy):
                 verbose            = False,
                 alpha_risk         = 1e-15,
                 complete_delaunay  = True, # differs from default
+                topology           = None, # differs from default
                 )
         self._init_kwargs.update(dict(
                 min_distance = None,
@@ -172,6 +176,29 @@ class GWR(TessellerProxy):
     verbose            = proxy_property('verbose',  'tessellate')
     alpha_risk         = proxy_property('alpha_risk',   'tessellate')
     complete_delaunay  = proxy_property('complete_delaunay',    'tessellate')
+    topology           = proxy_property('topology', 'tessellate')
+
+    @analysis
+    def tessellate(self, spt_dataframe):
+        """ grows and returns the tessellation.
+        """
+        if not isinstance(self._tesseller, tuple):
+            self.calibrate(spt_dataframe)
+        tesseller = deepcopy(self.tesseller)
+        # modified part below
+        delta_columns = [ 'd'+col for col in self.colnames ]
+        if all([ col in spt_dataframe.columns for col in delta_columns ]):
+            data = (spt_dataframe[self.colnames], spt_dataframe[delta_columns])
+            if self.topology is None:
+                self.topology = 'displacement length'
+        else:
+            data = spt_dataframe[self.colnames]
+        tesseller.tessellate(data, **self._tessellate_kwargs)
+        # modified part above
+        if self.post_processing.initialized:
+            tesseller = self.post_processing.post_process(tesseller, spt_dataframe[self.colnames])
+        #
+        return tesseller
 
 
 __all__ = ['Squares', 'Hexagons', 'KMeans', 'GWR']

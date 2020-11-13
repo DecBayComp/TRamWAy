@@ -101,7 +101,7 @@ class TimeLattice(Tessellation):
         self.cell_centers = None
         self.cell_volume = None
 
-    def tessellate(self, points, **kwargs):
+    def tessellate(self, points, time_only=False, **kwargs):
         if self.time_edge in (None, (), []):
             if self.time_dimension is None:
                 self.time_edge = None
@@ -109,7 +109,7 @@ class TimeLattice(Tessellation):
                 self.time_edge = bool(self.time_dimension)
         elif self.time_dimension is None:
             self.time_dimension = bool(self.time_edge)
-        if self.spatial_mesh is not None:
+        if self.spatial_mesh is not None and not time_only:
             self.spatial_mesh.tessellate(points, **kwargs)
 
     def cell_index(self, points, *args, **kwargs):
