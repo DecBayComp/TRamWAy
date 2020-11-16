@@ -146,23 +146,35 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
         for f in self:
             f.localization_error = sigma2
     @property
-    def dt(self):
+    def frame_interval(self):
         it = iter(self)
-        dt = next(it).dt
+        dt = next(it).frame_interval
         while True:
             try:
-                _dt = next(it).dt
+                _dt = next(it).frame_interval
             except StopIteration:
                 break
             else:
                 _delta = dt - _dt
                 if 1e-12 < _delta*_delta:
-                    raise AttributeError('not all the data blocks share the same time step (dt)')
+                    raise AttributeError('not all the data blocks share the same frame interval (dt)')
         return dt
+    @frame_interval.setter
+    def frame_interval(self, dt):
+        for f in self:
+            f.frame_interval = dt
+    @property
+    def dt(self):
+        return self.frame_interval
     @dt.setter
     def dt(self, dt):
-        for f in self:
-            f.dt = dt
+        self.frame_interval = dt
+    @property
+    def time_step(self):
+        return self.frame_interval
+    @time_step.setter
+    def time_step(self, dt):
+        self.frame_interval = dt
     def as_dataframes(self, source=None, return_index=False):
         """returns an iterator.
         
@@ -1132,7 +1144,7 @@ class TrackerOutput(SPTDataFrames):
         else:
             df = self._bear_child( SPTDataFrame, trajectories, source )
         siblings = self._dataframes[0]
-        df.dt = siblings.dt
+        df.frame_interval = siblings.frame_interval
         df.localization_error = siblings.localization_error
         if isinstance(siblings.dataframe, _FakeSPTData):
             assert not self._dataframes[1:]

@@ -425,5 +425,6 @@ class RWAnalyzer(object):
 __all__ = ['RWAnalyzer',
         'tessellers', 'cell_mergers',
         'Analysis', 'commit_as_analysis',
-        'environments']
+        'environments',
+        'first', 'single']
 

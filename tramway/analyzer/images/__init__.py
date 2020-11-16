@@ -411,6 +411,14 @@ class _RawImage(AnalyzerNode, ImageParameters):
             vid.write(img_as_ubyte(frame)[:,:,::-1])
         vid.release()
 
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        return self._mpl_impl(self)
+
 
 class RawImage(_RawImage):
     __slots__ = ()

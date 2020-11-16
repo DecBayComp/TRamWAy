@@ -27,11 +27,23 @@ class BaseTracker(AnalyzerNode):
             self._eldest_parent.spt_data.from_tracker()
         return self._eldest_parent.spt_data
     @property
+    def frame_interval(self):
+        return self.spt_data.frame_interval
+    @frame_interval.setter
+    def frame_interval(self, dt):
+        self.spt_data.frame_interval = dt
+    @property
     def dt(self):
         return self.spt_data.dt
     @dt.setter
     def dt(self, dt):
         self.spt_data.dt = dt
+    @property
+    def localization_error(self):
+        return self.spt_data.localization_error
+    @localization_error.setter
+    def localization_error(self, err):
+        self.spt_data.localization_error = err
     @property
     def localization_precision(self):
         return self.spt_data.localization_precision
