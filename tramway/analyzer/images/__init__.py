@@ -65,11 +65,17 @@ class ImageParameters(object):
         self._loc_offset = offset
     # access to shared parameters
     @property
+    def frame_interval(self):
+        return self._eldest_parent.spt_data.frame_interval
+    @frame_interval.setter
+    def frame_interval(self, dt):
+        self._eldest_parent.spt_data.frame_interval = dt
+    @property
     def dt(self):
-        return self._eldest_parent.spt_data.dt
+        return self.frame_interval
     @dt.setter
     def dt(self, dt):
-        self._eldest_parent.spt_data.dt = dt
+        self.frame_interval = dt
     @property
     def logger(self):
         return self._eldest_parent.logger

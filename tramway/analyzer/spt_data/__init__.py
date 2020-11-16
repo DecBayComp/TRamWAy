@@ -28,8 +28,10 @@ import pandas as pd
 
 
 class SPTParameters(object):
-    """ children classes should define the `_dt` and `_localization_error` attributes
-        or implement the `dt` and `localization_error` properties.
+    """ Children classes should define the `_frame_interval`, `_localization_error`
+        and `_analyses` attributes or implement the `frame_interval` and
+        `localization_error` properties.
+
         Default values should be None."""
     __slots__ = ()
     def __init__(self, localization_precision=None, localization_error=None):
@@ -66,23 +68,50 @@ class SPTParameters(object):
             min_msd = self.localization_error
         return discard_static_trajectories(dataframe, min_msd, **kwargs)
     @property
-    def dt(self):
-        if self._dt is None:
+    def frame_interval(self):
+        if self._frame_interval is None:
             t = self.dataframe['t']
-            self._dt = np.median(t.diff())
-        return self._dt
-    @dt.setter
-    def dt(self, dt):
-        self._dt = dt
+            self._frame_interval = t.diff().median()
+        return self._frame_interval
+    @frame_interval.setter
+    def frame_interval(self, dt):
+        self._frame_interval = dt
     @property
     def time_step(self):
-        return self.dt
+        return self.frame_interval
     @time_step.setter
     def time_step(self, dt):
-        self.dt = dt
+        self.frame_interval = dt
+    @property
+    def dt(self):
+        return self.frame_interval
+    @dt.setter
+    def dt(self, dt):
+        self.frame_interval = dt
     @property
     def logger(self):
         return self._eldest_parent.logger
+    def set_analyses(self, tree):
+        self._analyses = tree
+        df = tree.data
+        if self._frame_interval is None:
+            try:
+                dt = df.frame_interval
+            except AttributeError:
+                pass
+            else:
+                self.frame_interval = dt
+        else:
+            df.frame_interval = self._frame_interval
+        if self._localization_error is None:
+            try:
+                s2 = df.localization_error
+            except AttributeError:
+                pass
+            else:
+                self.localization_error = s2
+        else:
+            df.localization_error = self._localization_error
 
 
 def _normalize(p):
@@ -332,14 +361,89 @@ class StandaloneDataItem(object):
 
 
 class _SPTDataFrame(HasROI, SPTParameters):
-    __slots__ = ('_source','_analyses','_dt','_localization_error')
+    __slots__ = ('_source','_analyses','_frame_interval_cache','_localization_error_cache')
     def __init__(self, df, source=None, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
         HasROI.__init__(self, **kwargs)
         self._source = source
+        self._frame_interval_cache = self._localization_error_cache = None
         self.analyses = Analyses(df, standard_metadata(), autosave=True)
-        self._dt = self._localization_error = None
         SPTParameters.__init__(self, *prms)
+    @property
+    def _frame_interval(self):
+        return self._frame_interval_cache
+    @_frame_interval.setter
+    def _frame_interval(self, dt):
+        self._frame_interval_cache = dt
+        if self._dataframe is not None:
+            self._dataframe.frame_interval = dt
+    @property
+    def _localization_error(self):
+        return self._localization_error_cache
+    @_localization_error.setter
+    def _localization_error(self, err):
+        self._localization_error_cache = err
+        if self._dataframe is not None:
+            self._dataframe.localization_error = err
+    def clear_cache(self):
+        self._frame_interval_cache = self._localization_error_cache = None
+        if self._dataframe is not None:
+            try:
+                self._frame_interval_cache = self._dataframe.frame_interval
+            except AttributeError:
+                pass
+            try:
+                self._localization_error_cache = self._dataframe.localization_error
+            except AttributeError:
+                pass
+    def check_cache(self, _raise=AttributeError):
+        """
+        Checks the parameter cache integrity.
+
+        If differences are found with the values in `self.dataframe`,
+        `check_cache` raises an exception of type `_raise`.
+
+        If `_raise` is ``None`` or ``False``, then `check_cache` returns a `bool` instead,
+        that is ``False`` if the cache is alright, ``True`` otherwise.
+        If `_raise` is ``True``, then `check_cache` returns ``True`` if the cache is alright,
+        ``False`` otherwise.
+        """
+        if _raise is None:
+            _raise = False
+        if isinstance(_raise, bool):
+            _return = _raise
+            _raise = None
+        elif isinstance(_raise, Exception):
+            _return = None
+        elif isinstance(_raise, type) and issubclass(_raise, Exception):
+            _return = None
+            _raise = _raise('cache integrity is compromised')
+        else:
+            raise TypeError('unsupported type for second argument: {}'.format(type(_raise)))
+        if self._dataframe is not None:
+            try:
+                ok = self._frame_interval_cache == self._dataframe.frame_interval
+            except AttributeError:
+                pass
+            else:
+                if not ok:
+                    if _return is None: # _raise is not None
+                        raise _raise from None
+                    else:
+                        return not _return
+            try:
+                ok = self._localization_error_cache == self._dataframe.localization_error
+            except AttributeError:
+                pass
+            else:
+                if not ok:
+                    if _return is None: # _raise is not None
+                        raise _raise from None
+                    else:
+                        return not _return
+        # the cache is alright
+        if _return is not None:
+            return _return
     def set_analyses(self, tree):
         assert bool(tree.metadata)
         if self.source is not None:
@@ -347,7 +451,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
         #if not isinstance(tree, AutosaveCapable):
         #    autosaver = Analyses(tree)
         #    tree = autosaver
-        self._analyses = tree
+        SPTParameters.set_analyses(self, tree)
     @property
     def analyses(self):
         return self._analyses
@@ -817,7 +921,7 @@ class _RWAFile(SPTFile):
     def __init__(self, filepath, **kwargs):
         SPTFile.__init__(self, filepath, None, **kwargs)
     def set_analyses(self, tree):
-        self._analyses = tree
+        SPTParameters.set_analyses(self, tree)
     def load(self):
         # ~ expansion is no longer necessary from rwa-python==0.8.4
         try:
@@ -878,7 +982,7 @@ class _SPTMatFile(RawSPTFile):
     def load(self):
         try:
             self._dataframe = load_mat(os.path.expanduser(self.filepath),
-                    columns=self._columns, dt=self._dt, coord_scale=self.coord_scale)
+                    columns=self._columns, dt=self._frame_interval, coord_scale=self.coord_scale)
         except OSError as e:
             raise OSError('{}\nwhile loading file: {}'.format(e, self.source)) from None
         self._trigger_discard_static_trajectories()
