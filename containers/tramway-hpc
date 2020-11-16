@@ -59,7 +59,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     #pip3.6 install --upgrade pip
     pip3.6 uninstall -qy tramway || true
     pip3.6 install . -r requirements.txt
-    pip3.6 install .[roi]
+    pip3.6 install .[roi,animate]
 
     pip3.6 install tqdm scikit-learn
     pip3.6 install paramiko # required on the submit side only
@@ -76,6 +76,4 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
        shift
     fi
     exec $cmd $@
-
-    #exec jupyter notebook $@
 

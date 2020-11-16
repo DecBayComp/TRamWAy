@@ -52,6 +52,35 @@ class Proxy(object):
             setattr(self._proxied, attrname, val)
 
 
+def join_arguments(args):
+    _args = []
+    args = iter(args)
+    while True:
+        try:
+            arg = next(args)
+        except StopIteration:
+            break
+        if arg.startswith('--'):
+            try:
+                key, val = arg[2:].split('=')
+            except ValueError:
+                return []
+            if val[0] == '"':
+                cont = []
+                while val[-1] != '"':
+                    try:
+                        val = next(args)
+                    except StopIteration:
+                        return []
+                    cont.append(val)
+                if cont:
+                    arg = ' '.join([arg]+cont)
+            _args.append(arg)
+        else:
+            return []
+    return _args
+
+
 class Env(AnalyzerNode):
     __slots__ = ('_interpreter','_script','_working_directory','_worker_count',
             '_pending_jobs','_selectors','_selector_classes','_temporary_files',
@@ -148,12 +177,13 @@ class Env(AnalyzerNode):
         return self.selectors['stage_index']
     def setup(self, *argv):
         assert argv
-        #if not argv:
-        #    return
+        # join arguments with spaces
+        args = join_arguments(argv[1:])
+        #
         valid_keys = set(('stage-index', 'source', 'region-index', 'segment-index', 'cell-index',
             'working-directory'))
         valid_arguments = {}
-        for arg in argv[1:]:
+        for arg in args:
             if arg.startswith('--'):
                 try:
                     key, val = arg[2:].split('=')
