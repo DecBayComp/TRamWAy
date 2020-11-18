@@ -30,29 +30,6 @@ from tramway.core.hdf5.store import load_rwa, save_rwa
 from tramway.core.analyses.base import append_leaf
 
 
-class Proxy(object):
-    __slots__ = ('_proxied',)
-    def __init__(self, proxied):
-        self._proxied = proxied
-    def __len__(self):
-        return self._proxied.__len__()
-    def __iter__(self):
-        return self._proxied.__iter__()
-    @property
-    def _parent(self):
-        return self._proxied._parent
-    @_parent.setter
-    def _parent(self, par):
-        self._proxied._parent = par
-    def __getattr__(self, attrname):
-        return getattr(self._proxied, attrname)
-    def __setattr__(self, attrname, val):
-        if attrname == '_proxied':
-            object.__setattr__(self, '_proxied', val)
-        else:
-            setattr(self._proxied, attrname, val)
-
-
 def join_arguments(args):
     _args = []
     args = iter(args)
@@ -230,7 +207,7 @@ class Env(AnalyzerNode):
             # worker side
             self.wd = valid_arguments.pop('working_directory', self.wd)
             self.selectors = valid_arguments
-            self.logger.debug('the following selectors apply to the current job:\n\t{}'.format(self.selectors))
+            #self.logger.debug('the following selectors apply to the current job:\n\t{}'.format(self.selectors))
             #
             if self.script is not None and self.script.endswith('.ipynb'):
                 self.script = self.script[:-5]+'py'
@@ -247,7 +224,7 @@ class Env(AnalyzerNode):
                         os.path.expanduser(source) for source in sources
                         ])
                 self.selectors['source'] = sources
-                self.logger.debug('selecting source: '+', '.join((sources,) if isinstance(sources, str) else sources))
+                #self.logger.debug('selecting source: '+', '.join((sources,) if isinstance(sources, str) else sources))
             #
             for f in self.spt_data_selector(self.analyzer.spt_data):
                 f.analyses.rwa_file = self.make_temporary_file(suffix='.rwa', output=True)
@@ -263,7 +240,7 @@ class Env(AnalyzerNode):
             self.make_working_directory()
             self.logger.info('working directory: '+self.wd)
     def spt_data_selector(self, spt_data_attr):
-        if isinstance(spt_data_attr, Initializer) or len(spt_data_attr)==1:
+        if isinstance(spt_data_attr, Initializer) or isinstance(spt_data_attr, Proxy):
             return spt_data_attr
         cls = type(spt_data_attr)
         try:
@@ -276,76 +253,62 @@ class Env(AnalyzerNode):
             if isinstance(sources, str):
                 sources = (sources,)
             #logger = self.logger
-            class selector_cls(Proxy):
-                __slots__ = ()
-                def __iter__(self):
-                    for f in cls.__iter__(self):
-                        if f.source in sources:
-                            #logger.debug('source {} selected'.format(f.source))
-                            yield f
+            try:
+                alias = all([ bool(f.alias) for f in self._eldest_parent.spt_data ])
+            except AttributeError:
+                alias = False
+            if alias:
+                aliases = sources # TODO: this can be checked
+                class selector_cls(Proxy):
+                    __slots__ = ()
+                    def __iter__(self):
+                        for f in self._proxied:
+                            if f.alias in aliases:
+                                #logger.debug('source {} selected'.format(f.source))
+                                yield f
+            else:
+                class selector_cls(Proxy):
+                    __slots__ = ()
+                    def __iter__(self):
+                        for f in self._proxied:
+                            if f.source in sources:
+                                #logger.debug('source {} selected'.format(f.source))
+                                yield f
             SPTData.register(selector_cls)
             self._selector_classes[cls] = selector_cls
         return selector_cls(spt_data_attr)
     def roi_selector(self, roi_attr):
-        if isinstance(roi_attr, Initializer):
+        if isinstance(roi_attr, Initializer) or isinstance(roi_attr, Proxy):
             return roi_attr
         cls = type(roi_attr)
         try:
             selector_cls = self._selector_classes[cls]
         except KeyError:
             try:
-                source = self.selectors['source']
-            except KeyError:
-                source = None
-                def _source(source_arg):
-                    return source_arg
-            else:
-                sources = set([source]) if isinstance(source, str) else set(source)
-                def _source(source_arg):
-                    if source_arg is None:
-                        return source
-                    if callable(source_arg):
-                        return lambda src: src in sources and source_arg(src)
-                    elif source_arg in sources:
-                        return source_arg # or lambda src: True
-                    else:
-                        return lambda src: False
-            try:
                 region = self.selectors['region_index']
             except KeyError:
-                if source is None:
-                    return roi_attr
-                def _region(index_arg):
-                    return index_arg
-            else:
-                regions = set([region]) if isinstance(region, int) else set(region)
-                def _region(index_arg):
-                    if index_arg is None:
-                        return region
-                    elif callable(index_arg):
-                        return lambda r: r in regions and index_arg(r)
-                    elif index_arg in regions:
-                        return index_arg # or lambda r: True
-                    else:
-                        return lambda r: False
-            logger = self.logger
+                return roi_attr
+            regions = set([region]) if isinstance(region, int) else set(region)
+            def _region(index_arg):
+                if index_arg is None:
+                    return region
+                elif callable(index_arg):
+                    return lambda r: r in regions and index_arg(r)
+                elif index_arg in regions:
+                    return index_arg # or lambda r: True
+                else:
+                    return lambda r: False
             class selector_cls(Proxy):
                 __slots__ = ()
                 def as_support_regions(self, index=None, source=None, return_index=False):
-                    yield from cls.as_support_regions(self, _region(index), _source(source), return_index)
-                    #for i,r in cls.as_support_regions(self, _region(index), _source(source), True):
-                    #    logger.debug('region {} selected'.format(i if r.label is None else i))
-                    #    if return_index:
-                    #        yield i,r
-                    #    else:
-                    #        yield r
+                    yield from self._proxied.as_support_regions(_region(index), source, return_index)
                 def as_individual_roi(self, *args, **kwargs):
                     raise NotImplementedError
             ROI.register(selector_cls)
             self._selector_classes[cls] = selector_cls
         return selector_cls(roi_attr)
     def time_selector(self, time_attr):
-        if isinstance(time_attr, Initializer):
+        if isinstance(time_attr, Initializer) or isinstance(time_attr, Proxy):
             return time_attr
         cls = type(time_attr)
         try:
@@ -367,7 +330,7 @@ class Env(AnalyzerNode):
             class selector_cls(Proxy):
                 __slots__ = ()
                 def as_time_segments(self, sampling, maps=None, index=None, return_index=False, return_times=True):
-                    yield from cls.as_time_segments(self, sampling, maps, _segment(index), return_index, return_times)
+                    yield from self._proxied.as_time_segments(sampling, maps, _segment(index), return_index, return_times)
             Time.register(selector_cls)
             self._selector_classes[cls] = selector_cls
         return selector_cls(time_attr)
@@ -467,7 +430,12 @@ class Env(AnalyzerNode):
             except KeyError:
                 analyses[source] = __analyses
             else:
-                append_leaf(_analyses, __analyses)
+                try:
+                    append_leaf(_analyses, __analyses)
+                except ValueError:
+                    print(_analyses)
+                    print(__analyses)
+                    raise
             loaded_files.append(output_file)
         end_result_files = []
         for source in analyses:
@@ -519,17 +487,14 @@ class Env(AnalyzerNode):
     def import_ipynb(self, notebook):
         cmd = 'jupyter nbconvert --to python "{}" --stdout'.format(notebook)
         self.logger.info('running: '+cmd)
-        p = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        p = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE,
+                encoding='utf-8')
         out, err = p.communicate()
         if out:
-            if not isinstance(out, str):
-                out = out.decode('utf-8')
             content = out.splitlines()
         else:
             content = None
         if err:
-            if not isinstance(err, str):
-                err = err.decode('utf-8')
             if err != '[NbConvertApp] Converting notebook {} to python\n'.format(notebook):
                 self.logger.error(err)
         return content
@@ -563,7 +528,7 @@ class LocalHost(Env):
                 self.wait_for_job_completion(1)
             self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
-                    stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                    stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
             self.running_jobs.append((j,p))
         self.pending_jobs = []
     def wait_for_job_completion(self, count=None):
@@ -717,7 +682,7 @@ class Slurm(Env):
         sbatch_script = self.make_sbatch_script()
         self.logger.info('running: {} {}'.format(sbatch, sbatch_script))
         p = subprocess.Popen([sbatch, sbatch_script],
-                stderr=subprocess.STDOUT)#, stdout=subprocess.PIPE)
+                stderr=subprocess.STDOUT, encoding='utf-8')#, stdout=subprocess.PIPE)
         out, err = p.communicate()
         if out:
             self.logger.info(out)
@@ -732,7 +697,7 @@ class Slurm(Env):
             while True:
                 time.sleep(self.refresh_interval)
                 p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.18i %.2t %.10M %R"'),
-                        stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                        stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
                 out, err = p.communicate()
                 if err:
                     self.logger.error(err)

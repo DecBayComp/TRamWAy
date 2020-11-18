@@ -210,3 +210,28 @@ def single(it, **kwargs):
         raise RuntimeError('not a singleton') from None
     return elem
 
+
+__all__.append('Proxy')
+class Proxy(object):
+    __slots__ = ('_proxied',)
+    def __init__(self, proxied):
+        self._proxied = proxied
+    def __len__(self):
+        return self._proxied.__len__()
+    def __iter__(self):
+        return self._proxied.__iter__()
+    @property
+    def _parent(self):
+        return self._proxied._parent
+    @_parent.setter
+    def _parent(self, par):
+        self._proxied._parent = par
+    def __getattr__(self, attrname):
+        return getattr(self._proxied, attrname)
+    def __setattr__(self, attrname, val):
+        if attrname == '_proxied':
+            object.__setattr__(self, '_proxied', val)
+        else:
+            setattr(self._proxied, attrname, val)
+
+

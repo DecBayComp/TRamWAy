@@ -20,7 +20,7 @@ import traceback
 
 class PipelineStage(object):
     __slots__ = ('_run','_granularity','_mutability','options')
-    def __init__(self, run, granularity='coarsest', requires_mutability=False, **options):
+    def __init__(self, run, granularity=None, requires_mutability=False, **options):
         self._run = run
         self._granularity = granularity
         self._mutability = requires_mutability
@@ -82,7 +82,7 @@ class Pipeline(AnalyzerNode):
         Empties the pipeline processing chain.
         """
         self._stage = []
-    def append_stage(self, stage, granularity='coarsest', requires_mutability=False, **options):
+    def append_stage(self, stage, granularity=None, requires_mutability=False, **options):
         """
         Appends a pipeline stage to the processing chain.
 
@@ -98,7 +98,7 @@ class Pipeline(AnalyzerNode):
                 *'time'* or equivalently *'segment'* or *'time segment'* (case-insensitive).
 
             requires_mutability (bool): callable object `stage` alters input argument `self`.
-                Stages with `mutable` set to ``True`` are always run as dependencies.
+                Stages with this argument set to ``True`` are always run as dependencies.
 
         """
         self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
@@ -127,6 +127,7 @@ class Pipeline(AnalyzerNode):
                             f.roi.self_update(self.env.roi_selector)
                     elif not isinstance(self.roi, Initializer):
                         self.analyzer.roi.self_update(self.env.roi_selector)
+                    # alter the iterators for time
                     if not isinstance(self.time, Initializer):
                         self.analyzer.time.self_update(self.env.time_selector)
                     self.logger.info('stage {:d} ready'.format(stage_index))
@@ -149,7 +150,7 @@ class Pipeline(AnalyzerNode):
                         granularity = '' if stage.granularity is None \
                                 else stage.granularity.lower().replace('-',' ').replace('_',' ')
                         if stage.requires_mutability:
-                            if granularity in ('coarsest','full dataset'):
+                            if not granularity or granularity in ('coarsest','full dataset'):
                                 # run locally
                                 self.logger.info('stage {:d} ready'.format(s))
                                 stage(self)
@@ -164,40 +165,37 @@ class Pipeline(AnalyzerNode):
                         if stack or permanent_stack:
                             s = sorted(permanent_stack+stack+[s])
                             stack = []
-                        if granularity in ('coarsest','full dataset'):
+                        if not granularity or granularity in ('coarsest','full dataset'):
                             self.env.make_job(stage_index=s)
-                        elif granularity.endswith('source') or granularity.startswith('spt data'):
-                            for f in self.spt_data:
-                                if f.source is None and 1<len(self.spt_data):
-                                    raise NotImplementedError('undefined source identifiers')
-                                if self.env.dispatch(source=f.source):
-                                    self.logger.info('source "{}" dispatched'.format(f.source))
-                                self.env.make_job(stage_index=s, source=f.source)
-                        elif granularity in ('roi','region of interest'):
-                            for f in self.spt_data:
-                                if f.source is None and 1<len(self.spt_data):
-                                    raise NotImplementedError('undefined source identifiers')
-                                if self.env.dispatch(source=f.source):
-                                    self.logger.info('source "{}" dispatched'.format(f.source))
-                                for i, _ in f.roi.as_support_regions(return_index=True):
-                                    self.env.make_job(stage_index=s, source=f.source, region_index=i)
-                        elif granularity in ('time', 'segment', 'time segment'):
-                            for f in self.spt_data:
-                                if f.source is None and 1<len(self.spt_data):
-                                    raise NotImplementedError('undefined source identifiers')
-                                if self.env.dispatch(source=f.source):
-                                    self.logger.info('source "{}" dispatched'.format(f.source))
-                                for i, r in f.roi.as_support_regions(return_index=True):
-                                    try:
-                                        w = r.get_sampling()
-                                    except ValueError:
-                                        raise NotImplementedError('cannot iterate on multiple sampling per ROI yet') from None
-                                    except KeyError:
-                                        raise NotImplementedError('cannot autoload the sampling stage; please load the sampling in a separate stage with requires_mutability=True') from None
-                                    for j, _ in self.time.as_time_segments(w, return_index=True, return_times=False):
-                                        self.env.make_job(stage_index=s, source=f.source, region_index=i, segment_index=j)
                         else:
-                            raise NotImplementedError
+                            try:
+                                alias = all([ bool(f.alias) for f in self._eldest_parent.spt_data ])
+                            except AttributeError:
+                                alias = False
+                            for f in self.spt_data:
+                                source = f.alias if alias else f.source
+                                if source is None:
+                                    if 1<len(self.spt_data):
+                                        raise NotImplementedError('undefined source identifiers')
+                                elif self.env.dispatch(source=source):
+                                    self.logger.info('source "{}" dispatched'.format(source))
+                                if granularity.endswith('source') or granularity.startswith('spt data'):
+                                    self.env.make_job(stage_index=s, source=source)
+                                elif granularity in ('roi','region of interest'):
+                                    for i, _ in f.roi.as_support_regions(return_index=True):
+                                        self.env.make_job(stage_index=s, source=source, region_index=i)
+                                elif granularity in ('time', 'segment', 'time segment'):
+                                    for i, r in f.roi.as_support_regions(return_index=True):
+                                        try:
+                                            w = r.get_sampling()
+                                        except ValueError:
+                                            raise NotImplementedError('cannot iterate on multiple sampling per ROI yet') from None
+                                        except KeyError:
+                                            raise NotImplementedError('cannot autoload the sampling stage; please load the sampling in a separate stage with requires_mutability=True') from None
+                                        for j, _ in self.time.as_time_segments(w, return_index=True, return_times=False):
+                                            self.env.make_job(stage_index=s, source=source, region_index=i, segment_index=j)
+                                else:
+                                    raise NotImplementedError
                         self.logger.info('jobs ready')
                         try:
                             self.env.submit_jobs()

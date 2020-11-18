@@ -282,7 +282,7 @@ class SlidingWindow(AnalyzerNode, DT):
                 labels.append(single_segment_label)
                 single_segment_output.append(analyses[single_segment_label].data)
         except KeyError:
-            self.logger.info('not all segments are available; combining aborted')
+            self._eldest_parent.logger.info('not all segments are available; combining aborted')
         else:
             assert single_segment_output
             from tramway.inference.base import Maps

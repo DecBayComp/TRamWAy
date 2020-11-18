@@ -258,6 +258,8 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
         if callable(new_self):
             f = new_self
             new_self = f(self)
+        if isinstance(self, Proxy) and not isinstance(new_self, Proxy):
+            new_self = type(self)(new_self)
         if new_self is not self:
             self._parent._spt_data = new_self
             new_self._parent = self._parent
@@ -270,6 +272,18 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                 for f in new_self:
                     roi_central._register_decentralized_roi(f)
     def reload_from_rwa_files(self, skip_missing=False):
+        """
+        Reloads the SPT data and analysis tree from the corresponding rwa files.
+
+        The rwa file that corresponds to an SPT file should be available at the
+        same path with the *.rwa* extension instead of the SPT file's extension.
+
+        .. note:
+
+            As this operation modifies the SPT data `source` and `filepath` attributes,
+            aliases should be favored when identifying or filtering SPT data items.
+
+        """
         self.self_update( RWAFiles.__reload__(self, skip_missing=skip_missing) )
 
 
@@ -369,6 +383,8 @@ class StandaloneDataItem(object):
         if callable(new_self):
             f = new_self
             new_self = f(self)
+        if isinstance(self, Proxy) and not isinstance(new_self, Proxy):
+            new_self = type(self)(new_self)
         if new_self is not self:
             self._parent._spt_data = new_self
             new_self._parent = self._parent
@@ -966,13 +982,14 @@ class _RWAFile(SPTFile):
         self._trigger_reset_origin()
     @classmethod
     def __reload__(cls, self, parent=None):
-        try:
-            filepath = self.analyses.rwa_file
-        except AttributeError:
-            raise TypeError('the analysis tree is not an autosave-capable tree') from None
-        if filepath is None:
-            self.logger.debug('no rwa file defined; trying default filename')
-            filepath = os.path.splitext(self.source)[0]+'.rwa'
+        #try:
+        #    filepath = self.analyses.rwa_file
+        #except AttributeError:
+        #    raise TypeError('the analysis tree is not an autosave-capable tree') from None
+        #if filepath is None:
+        #    self.logger.debug('no rwa file defined; trying default filename')
+        #    filepath = os.path.splitext(self.source)[0]+'.rwa'
+        filepath = os.path.splitext(self.source)[0]+'.rwa'
         if not os.path.isfile(os.path.expanduser(filepath)):
             raise FileNotFoundError(filepath)
         reloaded = cls(filepath, parent=self._parent if parent is None else parent)
@@ -981,6 +998,8 @@ class _RWAFile(SPTFile):
         reloaded._alias = self.alias
         reloaded._roi = copy.copy(self.roi)
         reloaded.roi._parent = reloaded
+        reloaded.analyses.rwa_file = self.analyses.rwa_file
+        reloaded.analyses.autosave = self.analyses.autosave
         return reloaded
 
 class RWAFile(_RWAFile):
