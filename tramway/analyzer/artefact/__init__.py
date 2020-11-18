@@ -79,7 +79,7 @@ class Analysis(object):
         artefact = cls(None, parent)
         artefact.label = label
         artefact._subtree = artefact.parent[label]
-        artefact.data = artefact.subtree.data
+        artefact._data = artefact.subtree.data
         return artefact
     @property
     def analyses(self):

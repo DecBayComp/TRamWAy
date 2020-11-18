@@ -266,7 +266,7 @@ class TestTesseller(Common):
             a.tesseller.reset() # let the calibration parameters vary from a roi to another
             sampling = a.sampler.sample(df)
             r.add_sampling(sampling)
-            tree_a = r.get_analyses()[0]
+            tree_a = r.get_sampling()._subtree
             tree_b = b.analyses[r.label].statefree()
             assert self.equal(tree_a, tree_b)
 

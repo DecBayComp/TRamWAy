@@ -94,7 +94,8 @@ class Pipeline(AnalyzerNode):
             granularity (str): smallest data item `stage` can independently process;
                 any of *'coarsest'* or equivalently *'full dataset'*,
                 *'source'* or equivalently *'spt data'*, *'data source'* or *'spt data source'*,
-                *'roi'* or equivalently *'region of interest'* (case-insensitive).
+                *'roi'* or equivalently *'region of interest'*,
+                *'time'* or equivalently *'segment'* or *'time segment'* (case-insensitive).
 
             requires_mutability (bool): callable object `stage` alters input argument `self`.
                 Stages with `mutable` set to ``True`` are always run as dependencies.
@@ -126,6 +127,8 @@ class Pipeline(AnalyzerNode):
                             f.roi.self_update(self.env.roi_selector)
                     elif not isinstance(self.roi, Initializer):
                         self.analyzer.roi.self_update(self.env.roi_selector)
+                    if not isinstance(self.time, Initializer):
+                        self.analyzer.time.self_update(self.env.time_selector)
                     self.logger.info('stage {:d} ready'.format(stage_index))
                     try:
                         stage(self)
@@ -178,6 +181,21 @@ class Pipeline(AnalyzerNode):
                                     self.logger.info('source "{}" dispatched'.format(f.source))
                                 for i, _ in f.roi.as_support_regions(return_index=True):
                                     self.env.make_job(stage_index=s, source=f.source, region_index=i)
+                        elif granularity in ('time', 'segment', 'time segment'):
+                            for f in self.spt_data:
+                                if f.source is None and 1<len(self.spt_data):
+                                    raise NotImplementedError('undefined source identifiers')
+                                if self.env.dispatch(source=f.source):
+                                    self.logger.info('source "{}" dispatched'.format(f.source))
+                                for i, r in f.roi.as_support_regions(return_index=True):
+                                    try:
+                                        w = r.get_sampling()
+                                    except ValueError:
+                                        raise NotImplementedError('cannot iterate on multiple sampling per ROI yet') from None
+                                    except KeyError:
+                                        raise NotImplementedError('cannot autoload the sampling stage; please load the sampling in a separate stage with requires_mutability=True') from None
+                                    for j, _ in self.time.as_time_segments(w, return_index=True, return_times=False):
+                                        self.env.make_job(stage_index=s, source=f.source, region_index=i, segment_index=j)
                         else:
                             raise NotImplementedError
                         self.logger.info('jobs ready')

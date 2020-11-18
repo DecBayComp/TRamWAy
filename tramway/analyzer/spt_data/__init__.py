@@ -19,12 +19,15 @@ from .abc import *
 from collections.abc import Sequence, Set
 import os.path
 from tramway.core.xyt import load_xyt, load_mat, discard_static_trajectories
+from tramway.core.analyses import base, lazy
 from tramway.core.analyses.auto import Analyses, AutosaveCapable
 from tramway.core.hdf5.store import load_rwa
+from rwa.lazy import islazy
 from tramway.core.exceptions import RWAFileException
 from math import sqrt
 import numpy as np
 import pandas as pd
+import copy
 
 
 class SPTParameters(object):
@@ -92,26 +95,30 @@ class SPTParameters(object):
     def logger(self):
         return self._eldest_parent.logger
     def set_analyses(self, tree):
+        if not isinstance(tree, AutosaveCapable):
+            autosaver = Analyses(tree, autosave=True)
+            tree = autosaver
         self._analyses = tree
-        df = tree.data
         if self._frame_interval is None:
+            df = tree.data
             try:
                 dt = df.frame_interval
             except AttributeError:
                 pass
             else:
                 self.frame_interval = dt
-        else:
-            df.frame_interval = self._frame_interval
+        #else:
+        #    df.frame_interval = self._frame_interval
         if self._localization_error is None:
+            df = tree.data
             try:
                 s2 = df.localization_error
             except AttributeError:
                 pass
             else:
                 self.localization_error = s2
-        else:
-            df.localization_error = self._localization_error
+        #else:
+        #    df.localization_error = self._localization_error
 
 
 def _normalize(p):
@@ -253,14 +260,17 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
             new_self = f(self)
         if new_self is not self:
             self._parent._spt_data = new_self
+            new_self._parent = self._parent
             try:
-                roi_central = next(iter(new_self)).roi._global
+                roi_central = next(iter(self)).roi._global
                 roi_central.reset()
             except AttributeError:
                 pass
             else:
                 for f in new_self:
                     roi_central._register_decentralized_roi(f)
+    def reload_from_rwa_files(self, skip_missing=False):
+        self.self_update( RWAFiles.__reload__(self, skip_missing=skip_missing) )
 
 
 class SPTDataInitializer(Initializer):
@@ -361,14 +371,19 @@ class StandaloneDataItem(object):
             new_self = f(self)
         if new_self is not self:
             self._parent._spt_data = new_self
+            new_self._parent = self._parent
             try:
-                roi_central = next(iter(new_self)).roi._global
+                roi_central = next(iter(self)).roi._global
                 roi_central.reset()
             except AttributeError:
                 pass
             else:
                 for f in new_self:
                     roi_central._register_decentralized_roi(f)
+    def reload_from_rwa_files(self, skip_missing=False):
+        if skip_missing:
+            self.logger.error('cannot omit the only rwa file; ignoring skip_missing')
+        self.self_update( StandaloneRWAFile.__reload__(self) )
 
 
 
@@ -387,7 +402,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
     @_frame_interval.setter
     def _frame_interval(self, dt):
         self._frame_interval_cache = dt
-        if self._dataframe is not None:
+        if not islazy(self._analyses._data) and self._dataframe is not None:
             self._dataframe.frame_interval = dt
     @property
     def _localization_error(self):
@@ -395,11 +410,16 @@ class _SPTDataFrame(HasROI, SPTParameters):
     @_localization_error.setter
     def _localization_error(self, err):
         self._localization_error_cache = err
-        if self._dataframe is not None:
+        if not islazy(self._dataframe) and self._dataframe is not None:
             self._dataframe.localization_error = err
+    def commit_cache(self):
+        if islazy(self._dataframe) or self._dataframe is None:
+            raise RuntimeError('the SPT data has not been loaded')
+        self.dataframe.frame_interval = self._frame_interval_cache
+        self.dataframe.localization_error = self._localization_error_cache
     def clear_cache(self):
         self._frame_interval_cache = self._localization_error_cache = None
-        if self._dataframe is not None:
+        if not islazy(self._dataframe) and self._dataframe is not None:
             try:
                 self._frame_interval_cache = self._dataframe.frame_interval
             except AttributeError:
@@ -432,7 +452,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
             _raise = _raise('cache integrity is compromised')
         else:
             raise TypeError('unsupported type for second argument: {}'.format(type(_raise)))
-        if self._dataframe is not None:
+        if not islazy(self._dataframe) and self._dataframe is not None:
             try:
                 ok = self._frame_interval_cache == self._dataframe.frame_interval
             except AttributeError:
@@ -460,9 +480,6 @@ class _SPTDataFrame(HasROI, SPTParameters):
         assert bool(tree.metadata)
         if self.source is not None:
             tree.metadata['datafile'] = self.source
-        #if not isinstance(tree, AutosaveCapable):
-        #    autosaver = Analyses(tree)
-        #    tree = autosaver
         SPTParameters.set_analyses(self, tree)
     @property
     def analyses(self):
@@ -475,7 +492,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
         return self.analyses.data
     @property
     def _dataframe(self):
-        return self._analyses.data
+        return self._analyses._data
     @_dataframe.setter
     def _dataframe(self, df):
         self._analyses._data = df
@@ -546,7 +563,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
     def add_sampling(self, sampling, label, comment=None):
         analyses = self.analyses
         label = analyses.autoindex(label)
-        subtree = Analyses(sampling, standard_metadata())
+        subtree = lazy.Analyses(sampling, standard_metadata())
         analyses.add(subtree, label, comment)
         return label
     def get_sampling(self, label):
@@ -556,6 +573,11 @@ class _SPTDataFrame(HasROI, SPTParameters):
         if not self.analyses.rwa_file:
             if self.source:
                 self.analyses.rwa_file = os.path.splitext(self.source)[0]+'.rwa'
+                if self.analyses.rwa_file == self.source:
+                    i = 0
+                    while os.path.isfile(os.path.expanduser(self.analyses.rwa_file)):
+                        i += 1
+                        self.analyses.rwa_file = '{}-{:d}.rwa'.format(os.path.splitext(self.source)[0],i)
             else:
                 self.logger.warning('no output filename defined')
         return self.analyses.autosaving(*args, **kwargs)
@@ -574,7 +596,7 @@ class SPTDataFrame(_SPTDataFrame):
 SPTDataItem.register(SPTDataFrame)
 
 
-class StandaloneSPTDataFrame(SPTDataFrame, StandaloneDataItem):
+class StandaloneSPTDataFrame(_SPTDataFrame, StandaloneDataItem):
     """
     `RWAnalyzer.spt_data` attribute for single dataframes.
     """
@@ -942,6 +964,24 @@ class _RWAFile(SPTFile):
             raise RWAFileException(self.filepath, e) from None
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
+    @classmethod
+    def __reload__(cls, self, parent=None):
+        try:
+            filepath = self.analyses.rwa_file
+        except AttributeError:
+            raise TypeError('the analysis tree is not an autosave-capable tree') from None
+        if filepath is None:
+            self.logger.debug('no rwa file defined; trying default filename')
+            filepath = os.path.splitext(self.source)[0]+'.rwa'
+        if not os.path.isfile(os.path.expanduser(filepath)):
+            raise FileNotFoundError(filepath)
+        reloaded = cls(filepath, parent=self._parent if parent is None else parent)
+        reloaded._frame_interval = self.frame_interval
+        reloaded._localization_error = self.localization_error
+        reloaded._alias = self.alias
+        reloaded._roi = copy.copy(self.roi)
+        reloaded.roi._parent = reloaded
+        return reloaded
 
 class RWAFile(_RWAFile):
     __slots__ = ()
@@ -953,6 +993,10 @@ class StandaloneRWAFile(_RWAFile, StandaloneDataItem):
     `RWAnalyzer.spt_data` attribute for single RWA files.
     """
     __slots__ = ()
+    def reload_from_rwa_files(self, skip_missing=False):
+        if skip_missing:
+            self.logger.error('cannot omit the only rwa file; ignoring skip_missing')
+        self.self_update( type(self).__reload__(self) )
 
 SPTData.register(StandaloneRWAFile)
 
@@ -965,6 +1009,24 @@ class RWAFiles(SPTFiles):
     def list_files(self):
         SPTFiles.list_files(self)
         self._files = [ self._bear_child( RWAFile, filepath ) for filepath in self._files ]
+    def reload_from_rwa_files(self, skip_missing=False):
+        self.self_update( type(self).__reload__(self, skip_missing=skip_missing) )
+    @classmethod
+    def __reload__(cls, self, parent=None, skip_missing=False):
+        reloaded = cls([], parent=self._parent if parent is None else parent)
+        reloaded.filepattern = None
+        if skip_missing:
+            reloaded._files = []
+            for f in self._files:
+                try:
+                    f = RWAFile.__reload__(f, parent=reloaded)
+                except FileNotFoundError:
+                    pass
+                else:
+                    reloaded._files.append(f)
+        else:
+            reloaded._files = [ RWAFile.__reload__(f, parent=reloaded) for f in self._files ]
+        return reloaded
 
 SPTData.register(RWAFiles)
 

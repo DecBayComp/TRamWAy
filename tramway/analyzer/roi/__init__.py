@@ -32,17 +32,22 @@ class BaseRegion(AnalyzerNode):
         if callable(self._label):
             self._label = self._label()
         return self._label
-    def get_analyses(self, label=None):
+    def get_sampling(self, label=None, unique=True):
         if callable(label):
-            labels = label(self.label)
+            label = label(self.label)
         elif label is None:
-            labels = [self.label]
-        return [ self._spt_data.analyses[label] for label in labels ]
-    def get_sampling(self, label=None):
-        analyses = self.get_analyses(label)
-        if analyses[1:]:
-            raise ValueError('label is not specific enough; multiple samplings match')
-        return analyses[0].data
+            label = self.label
+        if isinstance(label, str):
+            labels = [label]
+        else:
+            labels = list(label)
+        analyses = [ self._spt_data.get_sampling(label) for label in labels ]
+        if unique:
+            if analyses[1:]:
+                raise ValueError('label is not specific enough; multiple samplings match')
+            return analyses[0]
+        else:
+            return analyses
     def add_sampling(self, sampling, label=None, comment=None):
         if callable(label):
             label = label(self.label)
@@ -145,6 +150,9 @@ class DecentralizedROIManager(AnalyzerNode):
         if first_record is not None:
             self._register_decentralized_roi(first_record)
     def _register_decentralized_roi(self, has_roi):
+        if isinstance(has_roi.roi, ROIInitializer):
+            self._parent.logger.warning('cannot register an uninitialized ROI attribute')
+            return
         self._records.add(has_roi)
         has_roi.roi._global = self
     def _update_decentralized_roi(self, known_record, new_record):
@@ -229,6 +237,8 @@ class DecentralizedROIManager(AnalyzerNode):
                 if sfilter(rec.source):
                     for reg in rec.roi.as_support_regions(index, **kwargs):
                         yield reg
+    def __iter__(self):
+        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
 ROI.register(DecentralizedROIManager)
 
@@ -330,6 +340,8 @@ class ROIInitializer(Initializer):
         if collection is not None:
             warnings.warn('ignoring argument `collection`', helper.IgnoredInputWarning)
         return self.as_support_regions(index, source, **kwargs)
+    def __iter__(self):
+        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
 ROI.register(ROIInitializer)
 
@@ -361,6 +373,8 @@ class CommonROI(AnalyzerNode):
             warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             return
         yield from self._global.as_individual_roi(index, collection, spt_data.source, return_index)
+    def __iter__(self):
+        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
 
 class SpecializedROI(AnalyzerNode):
@@ -413,6 +427,8 @@ class SpecializedROI(AnalyzerNode):
                     if sfilter(d.source):
                         for r in indexer(index, self._collections.regions, **kwargs):
                             yield bear_child( SupportRegion, r, self._collections.regions, d )
+    def __iter__(self):
+        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
 class BoundingBoxes(SpecializedROI):
     """

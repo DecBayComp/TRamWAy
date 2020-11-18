@@ -16,6 +16,7 @@ from ..attribute import *
 from .abc import *
 from ..spt_data.abc import SPTData
 from ..roi.abc import ROI
+from ..time.abc import Time
 import os
 import sys
 import time
@@ -229,7 +230,7 @@ class Env(AnalyzerNode):
             # worker side
             self.wd = valid_arguments.pop('working_directory', self.wd)
             self.selectors = valid_arguments
-            #self.logger.debug(self.selectors)
+            self.logger.debug('the following selectors apply to the current job:\n\t{}'.format(self.selectors))
             #
             if self.script is not None and self.script.endswith('.ipynb'):
                 self.script = self.script[:-5]+'py'
@@ -317,7 +318,7 @@ class Env(AnalyzerNode):
                 def _region(index_arg):
                     return index_arg
             else:
-                regions = set([region]) if isinstance(region, int) else set(regions)
+                regions = set([region]) if isinstance(region, int) else set(region)
                 def _region(index_arg):
                     if index_arg is None:
                         return region
@@ -343,6 +344,33 @@ class Env(AnalyzerNode):
             ROI.register(selector_cls)
             self._selector_classes[cls] = selector_cls
         return selector_cls(roi_attr)
+    def time_selector(self, time_attr):
+        if isinstance(time_attr, Initializer):
+            return time_attr
+        cls = type(time_attr)
+        try:
+            segment = self.selectors['segment_index']
+        except KeyError:
+            return time_attr
+        else:
+            segments = set([segment]) if isinstance(segment, int) else set(segment)
+            def _segment(index_arg):
+                if index_arg is None:
+                    return segment
+                elif callable(index_arg):
+                    return lambda t: t in segments and index_arg(t)
+                elif index_arg in segments:
+                    return index_arg # or lambda t: True
+                else:
+                    return lambda t: False
+            logger = self.logger
+            class selector_cls(Proxy):
+                __slots__ = ()
+                def as_time_segments(self, sampling, maps=None, index=None, return_index=False, return_times=True):
+                    yield from cls.as_time_segments(self, sampling, maps, _segment(index), return_index, return_times)
+            Time.register(selector_cls)
+            self._selector_classes[cls] = selector_cls
+        return selector_cls(time_attr)
     @property
     def submit_side(self):
         return self.selectors is None
