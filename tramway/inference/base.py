@@ -38,7 +38,7 @@ class Local(Lazy):
     Attributes:
 
         index (int):
-            This cell's index as referenced in :class:`Distributed`.
+            This cell's index as referenced in :class:`FiniteElements`.
 
         data (collection of terminal elements or :class:`Local`):
             Elements, either terminal or not.
@@ -349,7 +349,7 @@ class Distributed(Local):
         """
         #return self.adjacency.shape[0] # or len(self.cells)
         if self._ccount is None:
-            self._ccount = sum([ cell.ccount if isinstance(cell, Distributed) else 1 \
+            self._ccount = sum([ cell.ccount if isinstance(cell, FiniteElements) else 1 \
                 for cell in self.cells.values() ])
         return self._ccount # not mutable (no need for __returnlazy__)
 
@@ -487,7 +487,7 @@ class Distributed(Local):
         new = copy(self)
         new.cells = {i: Cell(i, concat([cell.data for cell in dist.cells.values()]), \
                 dist.center, dist.span, hull=dist.hull) \
-            if isinstance(dist, Distributed) else dist \
+            if isinstance(dist, FiniteElements) else dist \
             for i, dist in self.cells.items() }
 
         return new
@@ -498,8 +498,8 @@ class Distributed(Local):
         Make groups of cells.
 
         This builds up an extra hierarchical level.
-        For example if `self` is a `Distributed` of `Cell`, then this returns a `Distributed`
-        of `Distributed` (the groups) of `Cell`.
+        For example if `self` is a `FiniteElements` of `Cell`, then this returns a `FiniteElements`
+        of `FiniteElements` (the groups) of `Cell`.
 
         Several grouping strategies are proposed.
 
@@ -527,7 +527,7 @@ class Distributed(Local):
 
         Returns:
 
-            Distributed:
+            FiniteElements:
                 a new object of the same type as `self` that contains other such
                 objects as cells.
 
@@ -671,12 +671,12 @@ class Distributed(Local):
 
     def run(self, function, *args, **kwargs):
         """
-        Apply a function to the groups (:class:`Distributed`) of terminal cells.
+        Apply a function to the groups (:class:`FiniteElements`) of terminal cells.
 
         The results are merged into a single :class:`~pandas.DataFrame` array,
         handling adjacency margins if any.
 
-        Although this method was designed for `Distributed` of `Distributed`, its usage is
+        Although this method was designed for `FiniteElements` of `FiniteElements`, its usage is
         advised to call any function that returns a DataFrame with cell indices as indices.
 
         Multiples processes may be spawned.
@@ -684,8 +684,8 @@ class Distributed(Local):
         Arguments:
 
             function (callable):
-                the function to be called on each terminal :class:`Distributed`.
-                Its first argument is the :class:`Distributed` object.
+                the function to be called on each terminal :class:`FiniteElements`.
+                Its first argument is the :class:`FiniteElements` object.
                 It should return maps as a :class:`~pandas.DataFrame` and optionally
                 posteriors as :class:`~pandas.Series` or :class:`~pandas.DataFrame`.
 
@@ -721,7 +721,7 @@ class Distributed(Local):
 
         returns = kwargs.pop('returns', None)
 
-        if all(isinstance(cell, Distributed) for cell in self.cells.values()):
+        if all(isinstance(cell, FiniteElements) for cell in self.cells.values()):
             # parallel for-loop over the subsets of cells
             # if `worker_count` is `None`, `Pool` will use `multiprocessing.cpu_count()`
             worker_count = kwargs.pop('worker_count', None)
@@ -960,7 +960,7 @@ class Cell(Local):
         Arguments:
 
             index (int):
-                this cell's index as granted in :class:`Distributed` 's `cells` dict.
+                this cell's index as granted in :class:`FiniteElements` 's `cells` dict.
 
             center (array-like):
                 cell center coordinates.
@@ -1620,11 +1620,11 @@ def get_translocations(points, index=None, coord_cols=None, trajectory_col=True,
     return initial_point, final_point, initial_cell, final_cell, get_point
 
 
-def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
+def distributed(cells, new_cell=None, new_group=FiniteElements, fuzzy=None,
         new_cell_kwargs={}, new_group_kwargs={}, fuzzy_kwargs={},
         new=None, include_empty_cells=False, verbose=False):
     """
-    Build a `Distributed`-like object from a :class:`~tramway.tessellation.base.CellStats` object.
+    Build a `FiniteElements`-like object from a :class:`~tramway.tessellation.base.CellStats` object.
 
     Cells with no (trans-)locations are discarded in addition to those with null or negative label.
 
@@ -1635,7 +1635,7 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
         new_cell (callable): cell constructor; default is :class:`Locations` or
             :class:`Translocations` depending on the data in `cells`.
 
-        new_group (callable): constructor for groups of cell; default is :class:`Distributed`.
+        new_group (callable): constructor for groups of cell; default is :class:`FiniteElements`.
 
         fuzzy (callable): (trans-)location-cell weighting function; the default for
             translocations considers the initial cell, no weight.
@@ -1923,14 +1923,14 @@ def distributed(cells, new_cell=None, new_group=Distributed, fuzzy=None,
 
 
 
-class DistributeMerge(Distributed):
+class DistributeMerge(FiniteElements):
 
     __slots__ = ('merged', )
 
     def __init__(self, cells, adjacency, min_location_count=None):
         if min_location_count is None:
             raise ValueError('`min_location_count` is not defined')
-        Distributed.__init__(self, cells, adjacency)
+        FiniteElements.__init__(self, cells, adjacency)
         count = np.array([ len(cells[i]) for i in cells ])
         index, = (count < min_location_count).nonzero()
         ordered_index = np.argsort(count[index])
@@ -2205,7 +2205,7 @@ def smooth_infer_init(cells, min_diffusivity=None, jeffreys_prior=None, **kwargs
 
     Arguments:
 
-        cells (Distributed): first input argument of the *infer* function.
+        cells (FiniteElements): first input argument of the *infer* function.
 
         min_diffusivity (float): minimum allowed diffusivity value.
 

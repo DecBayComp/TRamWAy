@@ -16,7 +16,7 @@ from ..attribute import *
 from ..artefact import analysis
 from .. import attribute
 from .abc import *
-from . import stdalg as mappers
+#from . import stdalg as mappers
 from tramway.inference import plugins
 from tramway.helper.inference import Infer
 
@@ -96,5 +96,16 @@ class MapperPlugin(AnalyzerNode):
     def time(self):
         return self._parent.time
 
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        return self._mpl_impl(self)
+
 Mapper.register(MapperPlugin)
+
+
+__all__ = [ 'Mapper', 'MapperInitializer', 'MapperPlugin' ]
 

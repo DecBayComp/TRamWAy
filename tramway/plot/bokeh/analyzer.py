@@ -349,7 +349,10 @@ class Controller(object):
             kwargs['clim'] = self.model.clim[feature]
         if _map.shape[1] == 2:
             _vector_map = _map
-            _map = _map.pow(2).sum(1).apply(np.log) / 2
+            if feature == 'force':
+                _map = _map.pow(2).sum(1).apply(np.log)*.5
+            else:
+                _map = _map.pow(2).sum(1).apply(np.sqrt)
         self.map_glyphs = scalar_map_2d(_cells, _map,
                 figure=self.main_figure, colorbar_figure=self.colorbar_figure, **kwargs)
         if _vector_map is not None:

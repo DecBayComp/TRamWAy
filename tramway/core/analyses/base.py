@@ -221,7 +221,7 @@ class Analyses(object):
 
             int or str: index or label.
         """
-        if pattern or pattern is 0:
+        if pattern or pattern is 0: # no, I did not mean "=="
             try:
                 pattern = int(pattern) # this also checks type
             except ValueError:
@@ -293,7 +293,8 @@ abc.Analyses.register(Analyses)
 
 def map_analyses(fun, analyses, label=False, comment=False, metadata=False, depth=False,
         allow_tuples=False):
-    with_label, with_comment, with_metadata, with_depth = label is 0 or label, comment, metadata, depth
+    with_label = label is 0 or label # no, I did not mean "=="
+    with_comment, with_metadata, with_depth = comment, metadata, depth
     def _fun(x, **kwargs):
         y = fun(x, **kwargs)
         if not allow_tuples and isinstance(y, tuple):
@@ -664,7 +665,8 @@ def append_leaf(analysis_tree, augmented_branch, overwrite=False):
                 analysis_tree.add(augmented_branch[label], label=label)
     else:
         if analysis_tree:
-            raise ValueError('the existing analysis tree has higher branches than the augmented branch')
+            return
+            #raise ValueError('the existing analysis tree has higher branches than the augmented branch')
         analysis_tree.data = augmented_branch.data
 
 

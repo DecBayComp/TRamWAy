@@ -251,7 +251,11 @@ class SlidingWindow(AnalyzerNode, DT):
             sampling = sampling.data
         it = sampling.tessellation.split_segments(sampling, return_times=return_times)
         if maps is not None:
-            maps = sampling.tessellation.split_segments(maps.maps)
+            try:
+                maps = maps.maps
+            except AttributeError:
+                pass
+            maps = sampling.tessellation.split_segments(maps)
             if return_times:
                 ts, partitions = zip(*it)
                 it = zip(ts, partitions, maps)

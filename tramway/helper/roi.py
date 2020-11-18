@@ -37,7 +37,7 @@ else:
 
 class SupportRegions(object):
     """
-    A support region can either be a region of interest or the union of regions of interest.
+    A support region can be either a region of interest or the union of regions of interest.
     Major processing steps such as tessellation and inference may operate
     on support regions so that a region of interest simply acts as a window.
 
@@ -228,7 +228,7 @@ class UnitRegions(SupportRegions):
 
 class GroupedRegions(SupportRegions):
     """
-    overlapping regions of interest are pooled together and form a unique support region.
+    Overlapping regions of interest are pooled together and form a unique support region.
 
     Pooling disregards which collection a ROI pertains to.
     """

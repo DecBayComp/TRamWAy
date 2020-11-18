@@ -12,7 +12,6 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.track_non_track.file_processing_loc import *
 from ..attribute import *
 from .abc import *
 from tramway.core import *
@@ -101,6 +100,7 @@ class NonTrackingTracker(BaseTracker):
         self._large_length = length
     ###
     def track(self, locations, register=False):
+        from tramway.tracking.track_non_track.file_processing_loc import *
         images = self._eldest_parent.images
         if isinstance(locations, str):
             loc_file = locations

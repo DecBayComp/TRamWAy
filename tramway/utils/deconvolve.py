@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import tramway.deconvolution.inference as deconv
+import tramway.localization.UNet.inference as deconv
 import os.path
 import numpy as np
 from skimage import io
@@ -84,7 +84,7 @@ def main():
     args   = parser.parse_args()
 
     if args.disable_fixes:
-        from tramway.deconvolution import tf
+        from tramway.localization.UNet import tf
         tf.__fix_tf_1_14_0_h5py_3_0_0__ = False
 
     deconvolve(args.stack, args.weights, args.mean_std, gpu=args.gpu,

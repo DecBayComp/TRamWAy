@@ -539,6 +539,12 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
 
         varname (str): record name.
 
+        dt (float): frame interval in seconds.
+
+        coord_scale (float): convertion factor for spatial coordinates.
+
+        pixel_size (float): deprecated; superseded by `coord_scale`.
+
     Returns:
 
         pandas.DataFrame: SPT data.

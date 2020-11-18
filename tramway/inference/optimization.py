@@ -48,7 +48,7 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
     if args is not None:
         if args is args_f:
             pass
-        elif args_f is ():
+        elif args_f == ():
             args_f = args
         else:
             raise ValueError('both `args` and `args_f` are defined')

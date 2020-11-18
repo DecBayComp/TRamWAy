@@ -1073,6 +1073,9 @@ class SlurmOverSSH(Slurm, RemoteHost):
                            _out.append(parts)
                     if _continue:
                         continue
+                    if start is None:
+                        self.logger.debug('squeue output parsing failed: \n'+out)
+                        continue
                     total = stop
                     pending = stop - start
                     running = 0

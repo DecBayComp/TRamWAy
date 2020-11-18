@@ -26,3 +26,12 @@ tramway.feature.curl module
     :show-inheritance:
 
 
+tramway.feature.single_traj subpackage
+--------------------------------------
+
+.. automodule:: tramway.feature.single_traj
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+

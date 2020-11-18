@@ -18,6 +18,8 @@ from .abc import *
 
 class UNetLocalizer(AnalyzerNode):
     """ Loads the weights of a U-Net network for image deconvolution.
+
+    Not implemented yet, as long as the `~tramway.deconvolution` package is broken.
     """
     __slots__ = ('_weights_locator',)
     def __init__(self, **kwargs):
@@ -31,6 +33,9 @@ class UNetLocalizer(AnalyzerNode):
     def weights_locator(self, url):
         self._weights_locator = url
     def localize(self, stack):
+        """
+        Not implemented yet, as long as the `~tramway.deconvolution` package is broken.
+        """
         raise NotImplementedError
 
 Localizer.register(UNetLocalizer)
