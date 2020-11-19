@@ -100,7 +100,7 @@ class NonTrackingTracker(BaseTracker):
         self._large_length = length
     ###
     def track(self, locations, register=False):
-        from tramway.tracking.track_non_track.file_processing_loc import *
+        import tramway.tracking.track_non_track.file_processing_loc as nt
         images = self._eldest_parent.images
         if isinstance(locations, str):
             loc_file = locations
@@ -108,7 +108,7 @@ class NonTrackingTracker(BaseTracker):
         else:
             loc_file = None
 
-        movie_per_frame, n_unique = convert_to_list(locations.values)
+        movie_per_frame, n_unique = nt.convert_to_list(locations.values)
         dt_theo = self.dt
         t_init = self.dt * 1
         if images.initialized:
@@ -127,11 +127,11 @@ class NonTrackingTracker(BaseTracker):
 
         for frame_index in range(n_unique-1):
 
-            C = get_cost_function(frame_index, movie_per_frame)
+            C = nt.get_cost_function(frame_index, movie_per_frame)
             C_eff,_,_,_,row_eff,col_eff,M,N,n_row_eff,n_col_eff,anomaly = \
-                    correct_cost_function(C, length_high)
+                    nt.correct_cost_function(C, length_high)
             _, row, col = \
-                    get_assigment_matrix_from_reduced_cost(C_eff, row_eff, col_eff,
+                    nt.get_assigment_matrix_from_reduced_cost(C_eff, row_eff, col_eff,
                         M, N, n_col_eff, n_row_eff, anomaly)
 
             assert isinstance(row, np.ndarray)

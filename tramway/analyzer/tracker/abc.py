@@ -15,6 +15,7 @@
 from ..attribute.abc import Attribute, abstractmethod
 
 class Tracker(Attribute):
+    @abstractmethod
     def track(self, locations):
         pass
 

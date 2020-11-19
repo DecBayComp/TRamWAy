@@ -372,7 +372,7 @@ def export_to_vmesh_file(cells, maps, vmesh_file, cluster_file=None, auto=False,
         for r, s in zip(data0, data1):
             i, n, r = r
             s = [ 'NA' if np.isnan(x) or np.isinf(x) else x for x in s ]
-            fmt1 = '\t{' + '}\t{'.join('' if x is 'NA' else ':f' for x in s) + '}'
+            fmt1 = '\t{' + '}\t{'.join('' if x == 'NA' else ':f' for x in s) + '}'
             f.write((fmt0+fmt1).format(i, n, *(r.tolist() + s)))
 
 

@@ -7,7 +7,7 @@ import gc
 import os
 
 from scipy.optimize      import linear_sum_assignment
-from file_processing_loc import *
+from .file_processing_loc import *
 
 
 ####################################################################

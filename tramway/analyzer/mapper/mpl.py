@@ -109,12 +109,12 @@ class Mpl(AnalyzerNode):
 
             fig (matplotlib.figure.Figure): figure.
 
-            maps (Analysis or Maps): map series.
+            maps (~tramway.analyzer.Analysis or Maps): map series.
 
             feature (str): parameter to be drawn.
 
-            sampling (Analysis or Partition): spatial bins and time segments;
-                optional only if *maps* is an :class:`Analysis`.
+            sampling (~tramway.analyzer.Analysis or Partition): spatial bins and time segments;
+                optional only if *maps* is an :class:`~tramway.analyzer.Analysis`.
 
             axes (matplotlib.axes.Axes): figure axes.
 

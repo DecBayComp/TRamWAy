@@ -277,7 +277,7 @@ class ROIInitializer(Initializer):
         Arguments:
 
             bb (sequence): collection of bounding boxes, each bounding boxes being
-                a pair of lower and upper bounds (*numpy.ndarray*s)
+                a pair of lower and upper bounds (*numpy.ndarray* s)
 
             label (str): unique label for the collection
 

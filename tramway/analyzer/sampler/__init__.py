@@ -139,7 +139,7 @@ class SphericalSampler(BaseSampler):
     @property
     def radius(self):
         """ upper bound or (lower bound, upper bound) pair on the distance
-        from a cell/microdomain center (*float* or pair of *float*s).
+        from a cell/microdomain center (*float* or pair of *float* s).
         """
         return self._radius
     @radius.setter
@@ -158,7 +158,7 @@ class Knn(BaseSampler):
     @property
     def knn(self):
         """ upper bound or (lower bound, upper bound) pair on the number of data points
-        away from the cell/microdomain center (*float* or pair of *float*s).
+        away from the cell/microdomain center (*float* or pair of *float* s).
         """
         return self._knn
     @knn.setter
@@ -177,7 +177,7 @@ class TimeKnn(BaseSampler):
     @property
     def knn(self):
         """ upper bound or (lower bound, upper bound) pair on the number of data points
-        as pooled shrinking/widening the time window (*float* or pair of *float*s).
+        as pooled shrinking/widening the time window (*float* or pair of *float* s).
         """
         return self._knn
     @knn.setter

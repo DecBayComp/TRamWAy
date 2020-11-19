@@ -92,7 +92,7 @@ class BasicLogger(object):
 
 class RWAnalyzer(object):
     """
-    A `RWAnalyzer` object gathers the paremeters of all the processing steps
+    A `RWAnalyzer` object gathers the parameters of all the processing steps
     of a standard processing chain, from SPT data loading/generation to
     inferring model parameters at microdomains.
 
@@ -104,11 +104,10 @@ class RWAnalyzer(object):
     * `tracker`: single particle tracking
     * `spt_data`: SPT data loading or generation
     * `roi`: regions of interest
-    * `time`: temporal segmentation of the tracking data
     * `tesseller`: spatial segmentation
+    * `time`: temporal segmentation of the tracking data
     * `sampler`: assignment of SPT data points to microdomains
     * `mapper`: estimation of model parameters at each microdomains
-    * `browser`: inferred parameter map browsing
 
     Most attributes are self-morphing, i.e. they first are initializers and exhibit
     *from_...* methods (for example `from_dataframe` and `from_ascii_file`
@@ -116,9 +115,9 @@ class RWAnalyzer(object):
     into a new attribute and exhibit specific attributes depending on the chosen
     initializer.
 
-    Specialized attributes themselves can exhibit self-morphing attributes.
+    Specialized attributes can also exhibit self-morphing attributes.
     For example, regions of interest can be defined globally using the main
-    `roi` attribute, or on a per-SPT-dataset basis:
+    `roi` attribute, or on a per-SPT-datafile basis:
 
     .. code-block:: python
 
@@ -146,8 +145,8 @@ class RWAnalyzer(object):
         for roi in a.roi.as_support_regions():
             roi_spt_data = roi.crop()
 
-    See the documentation of the `roi` attribute for more information about
-    the various iterators available.
+    See the documentation for the `roi` attribute for more information about
+    the available iterators.
 
     While the `spt_data` and `roi` attributes act as data providers,
     the `time`, `tesseller`, `sampler` and `mapper` attributes do not feature
@@ -162,6 +161,8 @@ class RWAnalyzer(object):
             roi_spt_data = roi.crop()
             tessellation = a.tesseller.tessellate(roi_spt_data)
 
+    Similarly, the `images` attribute defines data location, while the `localizer`
+    and `tracker` attributes define processing steps on these data.
 
     Other attributes drive the execution of the processing chain.
     The `run` method launches the processing chain, which is operated by the
@@ -170,7 +171,11 @@ class RWAnalyzer(object):
     Various parallelization schemes are available, and the platform-specific
     implementation of these schemes are provided by the `env` attribute.
 
-    Last but not least, the `RWAnalyzer` allows to plot the inferred parameter maps
+    Last but not least, the `RWAnalyzer` features plotting utilities.
+    Some of them are available through the *mpl* sub-attribute of some
+    main *RWAnalyzer* attributes
+    (for exemple *images.mpl*, *spt_data.mpl*, *tesseller.mpl*, *mapper.mpl*).
+    In addition, the `browser` attribute can plot the inferred parameter maps
     from a Jupyter notebook, or calling the ``bokeh serve`` command:
 
     .. code-block:: python
