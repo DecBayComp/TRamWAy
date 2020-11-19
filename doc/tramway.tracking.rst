@@ -12,7 +12,6 @@ tramway.tracking.track_non_track subpackage
 
 .. automodule:: tramway.tracking.track_non_track
     :members:
-    :undoc-members:
     :show-inheritance:
 
 

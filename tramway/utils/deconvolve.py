@@ -33,6 +33,8 @@ def deconvolve(image_stack_file, weight_file, mean_std_file=None,
         high_res_image_file=None, save_magnified_image=False,
         magnification=10, threshold=0, min_distance_peak=2, margin=3,
         header=True, abs_threshold=1., M=64, N=None, n=2, gpu=1):
+    """
+    """
 
     if N is None:
         N = M

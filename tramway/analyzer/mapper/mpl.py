@@ -93,6 +93,7 @@ class PatchCollection(object):
 
 
 class Mpl(AnalyzerNode):
+    """  """
     __slots__ = ()
     @property
     def plotter(self):

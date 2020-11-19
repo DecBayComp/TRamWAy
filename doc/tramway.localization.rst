@@ -12,7 +12,6 @@ tramway.localization.UNet subpackage
 
 .. automodule:: tramway.localization.UNet
     :members:
-    :undoc-members:
     :show-inheritance:
 
 

@@ -39,12 +39,24 @@ class TessellerPlugin(TessellerProxy):
 
 
 def tesseller_plugin(name):
-    """ not implemented yet.
-
-    Will translate plugin names into `RWAnalyzer`-ready tessellers as
-    defined in the *tessellers* module, if any. """
-    raise NotImplementedError
-    #if name in ('grid', 'hexagon', 'kmeans', 'gwr'):
+    """
+    Translate plugin names into `RWAnalyzer`-ready tessellers as
+    defined in the *tessellers* module, if available,
+    else returns a generic `TessellerPlugin` initializer.
+    """
+    import proxied
+    if name == 'grid':
+        return proxied.Squares
+    elif name == 'hexagon':
+        return proxied.Hexagons
+    elif name == 'kmeans':
+        return proxied.KMeans
+    elif name in ('gwr', 'gas'):
+        return proxied.GWR
+    else:
+        def init(**kwargs):
+            return TessellerPlugin(name, **kwargs)
+        return init
 
 __all__ = ['TessellerPlugin', 'tesseller_plugin']
 
