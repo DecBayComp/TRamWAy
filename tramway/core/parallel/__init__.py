@@ -428,9 +428,20 @@ class Scheduler(object):
         """
         if isinstance(self.workers, Worker):
             # no multi-processing
+            if self.timeout:
+                import stopit
+                context = stopit.ThreadingTimeout(self.timeout)
+            else:
+                class DummyContextManager(object):
+                    def __enter__(self):
+                        return self
+                    def __exit(self, *args):
+                        pass
+                context = DummyContextManager
             ret = True
             try:
-                self.workers.run()
+                with context():
+                    self.workers.run()
             except NormalTermination:
                 pass
             except (SystemExit, KeyboardInterrupt):

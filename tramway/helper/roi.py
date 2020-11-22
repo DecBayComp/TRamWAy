@@ -152,12 +152,23 @@ class UnitRegions(SupportRegions):
     def __iter__(self):
         yield from range(len(self))
     def __getitem__(self, r):
+        _r = r
         for coll in self.unit_region:
             rs = self.unit_region[coll]
-            if r<len(rs):
-                return rs[r]
+            if _r<len(rs):
+                return rs[_r]
             else:
-                r -= len(rs)
+                _r -= len(rs)
+        raise IndexError('out of bounds: {}'.format(r))
+    def __setitem__(self, r, bounds):
+        _r = r
+        for coll in self.unit_region:
+            rs = self.unit_region[coll]
+            if _r<len(rs):
+                rs[_r] = bounds
+                return
+            else:
+                _r -= len(rs)
         raise IndexError('out of bounds: {}'.format(r))
     def region_label(self, r):
         if not isinstance(r, int):
@@ -196,6 +207,20 @@ class UnitRegions(SupportRegions):
             else:
                 r += len(self.unit_region[label])
         raise KeyError("no such roi collection: '{}'".format(collection))
+    def region_to_units(self, r):
+        """
+        Returns a `dict` with a single key and single-element list value.
+
+        For compatibility with : class:`GroupedRegions`.
+        """
+        _r = r
+        for coll in self.unit_region:
+            rs = self.unit_region[coll]
+            if _r<len(rs):
+                return { coll: [rs[_r]] }
+            else:
+                _r -= len(rs)
+        raise IndexError('out of bounds: {}'.format(r))
     #def collection_range(self, collection_label):
     #    m = 0
     #    for label in self.unit_region:

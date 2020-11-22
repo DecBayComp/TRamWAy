@@ -19,9 +19,16 @@ from . import collections as helper
 import warnings
 import numpy as np
 from collections.abc import Sequence, Set
+from tramway.tessellation.base import Partition
+from rwa.lazy import lazytype
 
 
 class BaseRegion(AnalyzerNode):
+    """
+    This class should not be directly instanciated.
+    It brings the basic functionalities to all the available representations
+    of regions of interest, merely labelling, analysis registration and time cropping.
+    """
     __slots__ = ('_spt_data','_label')
     def __init__(self, spt_data, label=None, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
@@ -32,7 +39,7 @@ class BaseRegion(AnalyzerNode):
         if callable(self._label):
             self._label = self._label()
         return self._label
-    def get_sampling(self, label=None, unique=True):
+    def get_sampling(self, label=None, unique=True, _type=Partition):
         if callable(label):
             label = label(self.label)
         elif label is None:
@@ -42,6 +49,8 @@ class BaseRegion(AnalyzerNode):
         else:
             labels = list(label)
         analyses = [ self._spt_data.get_sampling(label) for label in labels ]
+        if _type:
+            analyses = [ a for a in analyses if isinstance(lazytype(a._data), _type) ]
         if unique:
             if analyses[1:]:
                 raise ValueError('label is not specific enough; multiple samplings match')
@@ -81,7 +90,8 @@ class BoundingBox(IndividualROI):
         _min,_max = self._bounding_box
         if df is None:
             df = self._spt_data.dataframe
-        return crop(df, np.r_[_min, _max-_min])
+        df = crop(df, np.r_[_min, _max-_min])
+        return df
     @property
     def bounding_box(self):
         return self._bounding_box
@@ -108,7 +118,8 @@ class SupportRegion(BaseRegion):
     def crop(self, df=None):
         if df is None:
             df = self._spt_data.dataframe
-        return self._support_regions.crop(self._sr_index, df)
+        df = self._support_regions.crop(self._sr_index, df)
+        return df
     @property
     def bounding_box(self):
         if isinstance(self._support_regions, helper.UnitRegions):
@@ -133,8 +144,18 @@ class FullRegion(BaseRegion):
     """
     __slots__ = ()
     def crop(self, df=None):
-        return self._spt_data.dataframe if df is None else df
+        if df is None:
+            df = self._spt_data.dataframe
+        return df
     def crop_frames(self, **kwargs):
+        """
+        .. note:
+
+            Time cropping is not supported yet.
+
+        """
+        if self.time_support is not None:
+            self._eldest_parent.logger.warning('time cropping is not supported yet')
         yield from self._spt_data.as_frames(**kwargs)
 
 
@@ -189,8 +210,7 @@ class DecentralizedROIManager(AnalyzerNode):
         """
         if source is None:
             for rec in self._records:
-                for roi in rec.roi.as_individual_roi(index, collection, **kwargs):
-                    yield roi
+                yield from rec.roi.as_individual_roi(index, collection, **kwargs)
         else:
             if callable(source):
                 sfilter = source
@@ -198,8 +218,7 @@ class DecentralizedROIManager(AnalyzerNode):
                 sfilter = lambda s: s==source
             for rec in self._records:
                 if sfilter(rec.source):
-                    for roi in rec.roi.as_individual_roi(index, collection, **kwargs):
-                        yield roi
+                    yield from rec.roi.as_individual_roi(index, collection, **kwargs)
     def as_support_regions(self, index=None, source=None, **kwargs):
         """ returns a generator to loop over all the support regions.
 
@@ -226,8 +245,7 @@ class DecentralizedROIManager(AnalyzerNode):
         """
         if source is None:
             for rec in self._records:
-                for reg in rec.roi.as_support_regions(index, **kwargs):
-                    yield reg
+                yield from rec.roi.as_support_regions(index, **kwargs)
         else:
             if callable(source):
                 sfilter = source
@@ -235,8 +253,7 @@ class DecentralizedROIManager(AnalyzerNode):
                 sfilter = lambda s: s==source
             for rec in self._records:
                 if sfilter(rec.source):
-                    for reg in rec.roi.as_support_regions(index, **kwargs):
-                        yield reg
+                    yield from rec.roi.as_support_regions(index, **kwargs)
     def __iter__(self):
         raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
@@ -512,6 +529,11 @@ class HasROI(AnalyzerNode):
     def compatible_source(self, source):
         """
         returns ``True`` if filter *source* matches with `self.source`.
+
+        .. note:
+
+            does not check against the alias.
+
         """
         if source is None:
             return True

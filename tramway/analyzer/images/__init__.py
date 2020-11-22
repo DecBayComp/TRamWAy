@@ -150,7 +150,16 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
 
+        .. note:
+
+            Time bounds are not supported yet.
+
         """
+        lb, ub = bounding_box
+        if 2<lb.size:
+            self.logger.warning('time supports are not supported yet')
+            lb, ub = lb[:2], ub[:2]
+            bounding_box = (lb, ub)
         lb, ub = [ b / self.pixel_size - self.loc_offset for b in bounding_box ]
         lb = np.floor(lb).astype(int)
         ub = np.ceil(ub).astype(int)

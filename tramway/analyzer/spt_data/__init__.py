@@ -418,7 +418,7 @@ class _SPTDataFrame(HasROI, SPTParameters):
     @_frame_interval.setter
     def _frame_interval(self, dt):
         self._frame_interval_cache = dt
-        if not islazy(self._analyses._data) and self._dataframe is not None:
+        if not islazy(self._dataframe) and self._dataframe is not None:
             self._dataframe.frame_interval = dt
     @property
     def _localization_error(self):

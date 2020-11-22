@@ -488,7 +488,7 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
     if min_msd is None:
         min_msd = localization_error
     trajs = []
-    for start,stop in iter_trajectories(trajectories, trajnum_colname, asslice=True):
+    for start,stop in iter_trajectories(trajectories, trajnum_colname, asslice=True, order='start'):
         traj = trajectories.iloc[start:stop]
         delta_cols = [ col for col in trajectories.columns if col.startswith('d') and col[1:] in trajectories.columns ]
         columns_with_deltas = [ col[1:] for col in delta_cols ]
