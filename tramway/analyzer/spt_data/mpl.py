@@ -16,7 +16,8 @@ from ..attribute import AnalyzerNode
 import warnings
 from collections import deque
 import numpy as np
-from tramway.core.xyt import iter_frames
+import pandas as pd
+from tramway.core.xyt import iter_frames, iter_trajectories
 from tramway.plot.mesh import __colors__
 from matplotlib import animation
 
@@ -134,7 +135,7 @@ class LineDealer(object):
 class Mpl(AnalyzerNode):
     __slots__ = ()
     @property
-    def plotter(self):
+    def animate_cls(self):
         return LineDealer
     def animate(self, fig, trajs=None, axes=None, xlim='auto', ylim=None, aspect='equal', **kwargs):
         """
@@ -200,10 +201,127 @@ class Mpl(AnalyzerNode):
             axes.set_aspect(aspect)
         #
         dt = self._parent.dt
-        lines = self.plotter(axes, **line_kwargs)
+        lines = self.animate_cls(axes, **line_kwargs)
         return animation.FuncAnimation(fig, lines.animate(trajs, dt), init_func=lines.init_func,
                 frames=iter_frames(trajs, dt=dt, as_trajectory_slices=True, skip_empty_frames=False),
                 **anim_kwargs)
+
+    def plot(self, data=None, axes=None, aspect='equal', **kwargs):
+        """
+        Keyworded arguments are parsed based on prefixes:
+
+        * arguments starting with '*loc_*' apply to locations drawn as points;
+          `KeyError` is raised on line-styling arguments;
+        * arguments starting with '*trj_*' apply to trajectories drawn as lines;
+          if line style is `None` or line width is `0` or color is `None`,
+          trajectories are not drawn, not even as points;
+        * arguments starting with '*roi_*' apply to regions of interest drawn as
+          polygons; if line style is `None` or line width is `0` or color is `None`,
+          roi are not drawn, not even as points;
+
+        All 3 types of elements are drawn with `matplotlib.axes.Axes.plot`.
+
+        By default, trajectories are not drawn and locations are.
+        If styling arguments are passed for trajectories, trajectories are drawn
+        and locations are not.
+        To draw both locations and trajectories as different glyphs, at least one
+        styling argument should be passed for each type of elements.
+
+        Missing elements, for example when no roi are defined, never raise an
+        exception even with explicit styling arguments that would legally apply;
+        these elements are simply not drawn.
+
+        """
+        loc_kwargs, trj_kwargs, roi_kwargs = {}, {}, {}
+
+        for kw in kwargs:
+            if kw.startswith('loc_'):
+                loc_kwargs[kw[4:]] = kwargs[kw]
+            elif kw.startswith('trj_'):
+                trj_kwargs[kw[4:]] = kwargs[kw]
+            elif kw.startswith('roi_'):
+                roi_kwargs[kw[4:]] = kwargs[kw]
+            else:
+                self._eldest_parent.logger.warning("ignoring argument: '{}'".format(kw))
+
+        for kw in loc_kwargs:
+            if kw.startswith('line'):
+                raise KeyError("line styling argument ('{}') are not allowed for locations".format(kw))
+
+        draw_loc = draw_trj = draw_roi = True
+
+        exclusions = ['color', 'marker', 'markersize']
+        while draw_loc and exclusions:
+            exclusion = exclusions.pop()
+            draw_loc = bool(loc_kwargs.get(exclusion, True))
+
+        exclusions = ['color', 'linestyle', 'linewidth']
+        while draw_trj and exclusions:
+            exclusion = exclusions.pop()
+            draw_trj = bool(trj_kwargs.get(exclusion, True))
+
+        exclusions = ['color', 'linestyle', 'linewidth']
+        while draw_roi and exclusions:
+            exclusion = exclusions.pop()
+            draw_roi = bool(roi_kwargs.get(exclusion, True))
+
+        if draw_loc and not trj_kwargs:
+            draw_trj = False
+        elif draw_trj and not loc_kwargs:
+            draw_loc = False
+
+        if axes is None:
+            import matplotlib.pyplot as plt
+            axes = plt
+
+        loc_glyphs = trj_glyphs = roi_glyphs = None
+
+        if draw_loc:
+            if data is None:
+                data = self._parent.dataframe
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                kwargs = dict(linestyle='none', marker='.', markersize=4, alpha=.2, color='r')
+                kwargs.update(loc_kwargs)
+                loc_glyphs, = axes.plot(data['x'], data['y'], **kwargs)
+
+        if draw_trj:
+            if data is None:
+                data = self._parent.dataframe
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                nan = np.full(1, np.nan, dtype=data.dtypes['x'])
+                x, y = [], []
+                for trj in iter_trajectories(data[list('nxyt')], asslice=False, asarray=True, order='start'):
+                    x.append(trj[:,0])
+                    y.append(trj[:,1])
+                    x.append(nan)
+                    y.append(nan)
+                x = np.concatenate(x[:-1])
+                y = np.concatenate(y[:-1])
+                kwargs = dict(linestyle='-', marker=None, color='r')
+                kwargs.update(trj_kwargs)
+                trj_glyphs, = axes.plot(x, y, **kwargs)
+
+        if draw_roi:
+            x, y = [], []
+            from tramway.analyzer.roi import FullRegion, BoundingBox
+            for r in self._parent.roi.as_individual_roi():
+                if isinstance(r, FullRegion):
+                    break # or, equivalently, continue
+                assert isinstance(r, BoundingBox)
+                _min, _max = r.bounding_box
+                x.append(np.r_[_min[0],_min[0],_max[0],_max[0],_min[0],np.nan])
+                y.append(np.r_[_min[1],_max[1],_max[1],_min[1],_min[1],np.nan])
+            if x:
+                x = np.concatenate(x)
+                y = np.concatenate(y)
+                kwargs = dict(linestyle='-', marker=None, color='g')
+                kwargs.update(roi_kwargs)
+                roi_glyphs, = axes.plot(x, y, **kwargs)
+
+        if aspect is not None:
+            axes.set_aspect(aspect)
+
+        return dict(loc=loc_glyphs, trj=trj_glyphs, roi=roi_glyphs)
 
 
 __all__ = ['LineDealer', 'Mpl']

@@ -95,30 +95,43 @@ class SPTParameters(object):
     def logger(self):
         return self._eldest_parent.logger
     def set_analyses(self, tree):
-        if not isinstance(tree, AutosaveCapable):
+        if isinstance(tree, AutosaveCapable):
+            self._analyses = tree
+            tree = tree.analyses.statefree()
+        else:
             autosaver = Analyses(tree, autosave=True)
-            tree = autosaver
-        self._analyses = tree
-        if self._frame_interval is None:
+            self._analyses = autosaver
+        #
+        err_cache = self._localization_error_cache
+        dt_cache = self._frame_interval_cache
+        if islazy(tree._data):
+            peek = tree._data.store.peek
+            try:
+                err = peek('localization_error')
+            except KeyError:
+                err = None
+            try:
+                dt = peek('frame_interval')
+            except KeyError:
+                dt = None
+        else:
             df = tree.data
             try:
                 dt = df.frame_interval
             except AttributeError:
-                pass
-            else:
-                self.frame_interval = dt
-        #else:
-        #    df.frame_interval = self._frame_interval
-        if self._localization_error is None:
-            df = tree.data
+                dt = None
             try:
-                s2 = df.localization_error
+                err = df.localization_error
             except AttributeError:
-                pass
-            else:
-                self.localization_error = s2
-        #else:
-        #    df.localization_error = self._localization_error
+                err = None
+        if err is not None:
+            if not (err_cache is None or err_cache == err):
+                self.logger.warning("localization error does not match with record: {} != {}".format(err_cache, err))
+            self._localization_error_cache = err
+        if dt is not None:
+            if not (dt_cache is None or dt_cache == dt):
+                self.logger.warning("frame interval does not match with record: {} != {}".format(dt_cache, dt))
+            self._frame_interval_cache = dt
 
 
 def _normalize(p):
@@ -575,6 +588,8 @@ class _SPTDataFrame(HasROI, SPTParameters):
             analyses = self.analyses.analyses.statefree()
         except AttributeError:
             analyses = self.analyses
+        if 'compress' not in kwargs:
+            kwargs['compress'] = False
         save_rwa(filepath, analyses, **kwargs)
     def add_sampling(self, sampling, label, comment=None):
         analyses = self.analyses
@@ -703,9 +718,9 @@ class SPTFile(_SPTDataFrame):
         else:
             self._alias = name
     def get_analyses(self):
-        if self._analyses.data is None:
+        if self._analyses._data is None:
             self.load()
-            assert self._analyses.data is not None
+            assert self._analyses._data is not None
         return self._analyses
     @property
     def analyses(self):
@@ -975,7 +990,9 @@ class _RWAFile(SPTFile):
     def load(self):
         # ~ expansion is no longer necessary from rwa-python==0.8.4
         try:
-            self.analyses = load_rwa(os.path.expanduser(self.filepath), lazy=True)
+            tree = load_rwa(os.path.expanduser(self.filepath), lazy=True)
+            assert islazy(tree._data)
+            self.analyses = tree
         except KeyError as e:
             raise RWAFileException(self.filepath, e) from None
         self._trigger_discard_static_trajectories()

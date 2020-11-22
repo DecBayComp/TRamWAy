@@ -2,6 +2,10 @@
 import tramway.helper.roi as helper
 from tramway.helper.roi import IgnoredInputWarning, UnitRegions
 
+"""
+This transition module wraps some functionalities from the :mod:`tramway.helper.roi` module.
+"""
+
 def add_metadata(self, analysis, pkg_version=[]):
     return helper.Helper().add_metadata(analysis, pkg_version)
 

@@ -1122,13 +1122,13 @@ class SlurmOverSSH(Slurm, RemoteHost):
                     except ValueError:
                         pass
                     else:
-                        stage_index = line[opt+16:].split()[0]
+                        stage_index = line[opt+15:].split()[0]
                         stage_index = [ int(s) for s in stage_index.split(',') ]
                         break
                 elif job_id:
-                    assert line.startswith('running: sbatch ')
-                    script = line[16:].rstrip()
-                    wd = '/'.join(wd.split('/')[:-1])
+                    assert line.startswith('running: ') and 'sbatch ' in line
+                    script = line.split('sbatch ')[-1].rstrip()
+                    wd = '/'.join(script.split('/')[:-1])
                 elif line.startswith('Submitted batch job '):
                     job_id = line[20:].rstrip()
         if stage_index:
@@ -1137,7 +1137,7 @@ class SlurmOverSSH(Slurm, RemoteHost):
             self.delete_temporary_data() # undo wd creation during setup
             self.working_directory = wd
             self.job_id = job_id
-            self.logger.info('trying to complete stage(s): '+', '.join(stage_index))
+            self.logger.info('trying to complete stage(s): '+', '.join([str(i) for i in stage_index]))
             self.wait_for_job_completion()
             self.collect_results(stage_index=stage_index)
         else:

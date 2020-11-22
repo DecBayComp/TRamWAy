@@ -67,7 +67,7 @@ def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=
         raise TypeError('trajectories is not a DataFrame')
 
     if asarray or not asslice:
-        other_cols = [ col != trajnum_colname for col in trajectories.columns ]
+        other_cols = [ col for col in trajectories.columns if col != trajnum_colname ]
     if asarray:
         dat = trajectories[other_cols].values
     if asslice:

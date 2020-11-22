@@ -48,12 +48,14 @@ class BaseRegion(AnalyzerNode):
             labels = [label]
         else:
             labels = list(label)
-        analyses = [ self._spt_data.get_sampling(label) for label in labels ]
+        analyses = [ self._spt_data.get_sampling(_label) for _label in labels ]
         if _type:
-            analyses = [ a for a in analyses if isinstance(lazytype(a._data), _type) ]
+            analyses = [ a for a in analyses if issubclass(lazytype(a._data), _type) ]
         if unique:
             if analyses[1:]:
                 raise ValueError('label is not specific enough; multiple samplings match')
+            elif not analyses:
+                raise KeyError("could not find label '{}'".format(label))
             return analyses[0]
         else:
             return analyses

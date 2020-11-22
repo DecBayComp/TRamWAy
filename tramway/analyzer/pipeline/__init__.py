@@ -231,9 +231,11 @@ class Pipeline(AnalyzerNode):
         See also the *resume* method of the `env` attribute, if available.
         """
         try:
-            self.env.resume(**kwargs)
+            proc = self.env.resume
         except AttributeError:
             self.logger.error('no recovery procedure available')
+        else:
+            proc(**kwargs)
 
 Attribute.register(Pipeline)
 
