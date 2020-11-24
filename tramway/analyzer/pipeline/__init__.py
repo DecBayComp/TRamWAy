@@ -19,6 +19,9 @@ import traceback
 
 
 class PipelineStage(object):
+    """
+    Wrapper for callables to be run on calling :meth:`Pipeline.run`.
+    """
     __slots__ = ('_run','_granularity','_mutability','options')
     def __init__(self, run, granularity=None, requires_mutability=False, **options):
         self._run = run
@@ -27,12 +30,21 @@ class PipelineStage(object):
         self.options = options
     @property
     def granularity(self):
+        """
+        *str*: see :meth:`Pipeline.append_stage`
+        """
         return self._granularity
     @property
     def requires_mutability(self):
+        """
+        *bool*: see :meth:`Pipeline.append_stage`
+        """
         return self._mutability
     @property
     def name(self):
+        """
+        *str*: callable's name
+        """
         return self._run.__name__
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
@@ -216,6 +228,9 @@ class Pipeline(AnalyzerNode):
                 stage(self)
 
     def add_collectible(self, filepath):
+        """
+        Registers a file as to be collected after stage completion.
+        """
         self.env.collectibles.add(filepath)
 
     def resume(self, **kwargs):

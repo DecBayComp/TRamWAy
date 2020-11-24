@@ -60,6 +60,11 @@ def join_arguments(args):
 
 
 class Env(AnalyzerNode):
+    """
+    Implements parts of classes suitable for the `RWAnalyzer.env` main attribute.
+
+    See :class:`LocalHost` or :class:`SlurmOverSSH` for examples of concrete classes.
+    """
     __slots__ = ('_interpreter','_script','_working_directory','_worker_count',
             '_pending_jobs','_selectors','_selector_classes','_temporary_files',
             '_collectibles','debug')
@@ -77,9 +82,15 @@ class Env(AnalyzerNode):
         self.debug = False
     @property
     def logger(self):
+        """
+        Parent analyzer's logger
+        """
         return self._parent.logger
     @property
     def working_directory(self):
+        """
+        *str*: Path of the working directory on the worker side
+        """
         return self._working_directory
     @working_directory.setter
     def working_directory(self, wd):
@@ -87,20 +98,30 @@ class Env(AnalyzerNode):
     @property
     def wd(self):
         return self.working_directory
+    wd.__doc__ = working_directory.__doc__
     @wd.setter
     def wd(self, wd):
         self.working_directory = wd
     @property
     def wd_is_available(self):
+        """
+        *bool*: `True` if the working directory is ready on the worker side
+        """
         return True
     @property
     def interpreter(self):
+        """
+        *str*: Interpreter command on the worker side
+        """
         return self._interpreter
     @interpreter.setter
     def interpreter(self, cmd):
         self._interpreter = cmd
     @property
     def script(self):
+        """
+        *str*: Path to the local script to be executed; meaningful on the submit side only
+        """
         return self._script
     @script.setter
     def script(self, file):
@@ -110,6 +131,9 @@ class Env(AnalyzerNode):
             self._script = os.path.abspath(os.path.expanduser(file))
     @property
     def worker_count(self):
+        """
+        *int*: Desired number of workers
+        """
         return self._worker_count
     @worker_count.setter
     def worker_count(self, wc):
@@ -117,23 +141,33 @@ class Env(AnalyzerNode):
     @property
     def wc(self):
         return self.worker_count
+    wc.__doc__ = worker_count.__doc__
     @wc.setter
     def wc(self, wc):
         self.worker_count = wc
     @property
     def pending_jobs(self):
+        """
+        *list* of *str*: Specification of the jobs to be submitted
+        """
         return self._pending_jobs
     @pending_jobs.setter
     def pending_jobs(self, jobs):
         self._pending_jobs = jobs
     @property
     def selectors(self):
+        """
+        *dict*: Wrapper classes for main `RWAnalyzer` attributes
+        """
         return self._selectors
     @selectors.setter
     def selectors(self, sel):
         self._selectors = sel
     @property
     def temporary_files(self):
+        """
+        *list* of *str*: Temporary files generated on the local side
+        """
         return self._temporary_files
     @property
     def analyzer(self):
@@ -148,12 +182,23 @@ class Env(AnalyzerNode):
         else:
             self._collectibles = set()
     def pending_collectibles(self):
+        """
+        *set* of *str*: Names or paths of files to be retrieved from the worker side to the submit side
+        """
         return self.collectibles
     @property
     def current_stage(self):
+        """
+        *int* or *list* of *int*: Index of the current stage; meaningful on the submit side only
+        """
         assert self.worker_side
         return self.selectors['stage_index']
     def setup(self, *argv):
+        """
+        Determines which side is running and alters iterators of the main `RWAnalyzer` attributes.
+
+        Takes command-line arguments (``sys.argv``).
+        """
         assert argv
         # join arguments with spaces
         args = join_arguments(argv[1:])
@@ -240,6 +285,9 @@ class Env(AnalyzerNode):
             self.make_working_directory()
             self.logger.info('working directory: '+self.wd)
     def spt_data_selector(self, spt_data_attr):
+        """
+        Wraps the `RWAnalyzer.spt_data` attribute.
+        """
         if isinstance(spt_data_attr, Initializer) or isinstance(spt_data_attr, Proxy):
             return spt_data_attr
         cls = type(spt_data_attr)
@@ -278,6 +326,9 @@ class Env(AnalyzerNode):
             self._selector_classes[cls] = selector_cls
         return selector_cls(spt_data_attr)
     def roi_selector(self, roi_attr):
+        """
+        Wraps the `RWAnalyzer.roi` attribute and/or the individual `SPTDataItem.roi` attributes.
+        """
         if isinstance(roi_attr, Initializer) or isinstance(roi_attr, Proxy):
             return roi_attr
         cls = type(roi_attr)
@@ -308,6 +359,9 @@ class Env(AnalyzerNode):
             self._selector_classes[cls] = selector_cls
         return selector_cls(roi_attr)
     def time_selector(self, time_attr):
+        """
+        Wraps the `RWAnalyzer.time` attribute.
+        """
         if isinstance(time_attr, Initializer) or isinstance(time_attr, Proxy):
             return time_attr
         cls = type(time_attr)
@@ -336,11 +390,19 @@ class Env(AnalyzerNode):
         return selector_cls(time_attr)
     @property
     def submit_side(self):
+        """
+        *bool*: `True` if currently running on the submit side
+        """
         return self.selectors is None
     @property
     def worker_side(self):
+        """
+        *bool*: `True` if currently running on the worker side
+        """
         return self.selectors is not None
     def make_working_directory(self):
+        """
+        """
         assert self.submit_side
         self.wd = self.make_temporary_file(directory=True)
     def make_temporary_file(self, output=False, directory=False, **kwargs):
@@ -351,7 +413,7 @@ class Env(AnalyzerNode):
 
             directory (bool): make a temporary directory.
 
-        More keyword arguments can be passed to :fun:`tempfile.mkstemp`.
+        More keyword arguments can be passed to :func:`tempfile.mkstemp`.
         See for example *suffix*.
         """
         if self.wd_is_available:
@@ -367,6 +429,9 @@ class Env(AnalyzerNode):
             self._temporary_files.append(tmpfile)
         return tmpfile
     def dispatch(self, **kwargs):
+        """
+        Prepares the worker side. To be called from the submit side only.
+        """
         if not kwargs:
             self.prepare_script()
             return True
@@ -374,6 +439,9 @@ class Env(AnalyzerNode):
         #self.delete_temporary_data()
         pass
     def delete_temporary_data(self):
+        """
+        Deletes all the temporary data, on both the submit and worker sides.
+        """
         for file in self._temporary_files[::-1]:
             if os.path.isdir(file):
                 try:
@@ -387,6 +455,20 @@ class Env(AnalyzerNode):
                     self.logger.debug('temporary file removal failed with the following error:\n'+traceback.format_exc())
         self._temporary_files = []
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
+        """
+        Registers a new pending job.
+
+        Arguments:
+
+            stage_index (int or list of int): stage index(ices)
+
+            source (str): SPT datablock identifier (source path or alias)
+
+            region_index (int): index of the support region (see also `RWAnalyzer.roi`)
+
+            segment_index (int): index of the time segment
+
+        """
         assert self.submit_side
         command_options = ['--working-directory="{}"'.format(self.wd)]
         if isinstance(stage_index, list):
@@ -402,7 +484,12 @@ class Env(AnalyzerNode):
         self.pending_jobs.append(tuple(command_options))
     @classmethod
     def _combine_analyses(cls, wd, logger, *args):
-        analyses = {}
+        """
+        Loads the generated rwa files, combines them and returns the list of the combined files.
+
+        To be run on the worker side, where the collectible files are available.
+        """
+        analyses, original_files = {}, {}
         output_files = glob.glob(os.path.join(wd, '*.rwa'))
         loaded_files = []
         while output_files:
@@ -412,7 +499,8 @@ class Env(AnalyzerNode):
                 continue
             logger.info('reading file: {}...'.format(output_file))
             try:
-                __analyses = load_rwa(output_file, lazy=True)
+                __analyses = load_rwa(output_file,
+                        lazy=True, force_load_spt_data=False)
             except:
                 logger.critical(traceback.format_exc())
                 #raise
@@ -429,6 +517,7 @@ class Env(AnalyzerNode):
                 _analyses = analyses[source]
             except KeyError:
                 analyses[source] = __analyses
+                original_files[source] = [output_file]
             else:
                 try:
                     append_leaf(_analyses, __analyses)
@@ -436,18 +525,54 @@ class Env(AnalyzerNode):
                     print(_analyses)
                     print(__analyses)
                     raise
+                else:
+                    original_files[source].append(output_file)
             loaded_files.append(output_file)
         end_result_files = []
         for source in analyses:
             rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
             logger.info('writing file: {}...'.format(rwa_file))
-            save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True)
+            if original_files[source][1:]:
+                try:
+                    save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True, compress=False)
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except:# FileNotFoundError:
+                    logger.warning('writing file failed: {}'.format(rwa_file))
+                    local_rwa_file = rwa_file
+                    fd, remote_rwa_file = tempfile.mkstemp(dir=wd, suffix='.rwa')
+                    os.close(fd)
+                    logger.info('writing file: {}...'.format(remote_rwa_file))
+                    save_rwa(remote_rwa_file, analyses[source], force=True, compress=False)
+                    rwa_file = (remote_rwa_file, local_rwa_file)
+            else:
+                analyses[source]._data.store.close() # close the file descriptor
+                original_file = original_files[source][0]
+                # copy original_file to rwa_file
+                try:
+                    with open(rwa_file, 'wb') as o:
+                        with open(original_file, 'rb') as i:
+                            o.write(i.read())
+                except OSError:
+                    remote_rwa_file = original_file
+                    local_rwa_file = rwa_file
+                    rwa_file = (remote_rwa_file, local_rwa_file)
             end_result_files.append(rwa_file)
+        #
+        to_keep = [ f[0] if isinstance(f,tuple) else f for f in end_result_files ]
         for output_file in loaded_files:
-            if output_file not in end_result_files:
+            if output_file not in to_keep:
                 os.unlink(output_file)
+        #
         return end_result_files
     def collect_results(self, stage_index=None):
+        """
+        Calls `_combine_analyses` for the current working directory and stage index,
+        and retrieves the combined files from the worker side to the submit side,
+        if they are different hosts.
+
+        Returns ``True`` if files are collected/retrieved.
+        """
         return bool(self._combine_analyses(self.wd, self.logger, stage_index))
     def prepare_script(self, script=None):
         main_script = script is None
@@ -468,12 +593,24 @@ class Env(AnalyzerNode):
         # flush
         with open(tmpfile, 'w') as f:
             for line in filtered_content:
-                f.write(line+'\n')
+                f.write(line)
         if main_script:
             self.script = tmpfile
         else:
             return tmpfile
     def filter_script_content(self, content):
+        """
+        Processes the script content for its dispatch onto the worker side.
+
+        Arguments:
+
+            content (list of str): lines with the `'\\n'` character at the end of each line
+
+        Returns:
+
+            list of str: modified lines
+
+        """
         filtered_content = []
         for line in content:
             if line.startswith('get_ipython('):
@@ -485,13 +622,25 @@ class Env(AnalyzerNode):
             filtered_content.append(line)
         return filtered_content
     def import_ipynb(self, notebook):
+        """
+        Extracts the code content of a IPython notebook.
+
+        Arguments:
+
+            notebook (str): path of the *.ipynb* notebook file
+
+        Returns:
+
+            list of str: extracted lines
+
+        """
         cmd = 'jupyter nbconvert --to python "{}" --stdout'.format(notebook)
         self.logger.info('running: '+cmd)
         p = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE,
                 encoding='utf-8')
         out, err = p.communicate()
         if out:
-            content = out.splitlines()
+            content = out.splitlines(True)
         else:
             content = None
         if err:
@@ -499,11 +648,15 @@ class Env(AnalyzerNode):
                 self.logger.error(err)
         return content
     def interrupt_jobs(self):
+        """
+        Interrupts the running jobs.
+        """
         pass
 
 
 class LocalHost(Env):
     """
+    Runs jobs in local **python** processes.
     """
     __slots__ = ('running_jobs',)
     def __init__(self, **kwargs):
@@ -678,6 +831,8 @@ class Slurm(Env):
                 self.logger.debug(f.read())
         return sbatch_script
     def submit_jobs(self):
+        # this code below does not actually run as the :meth:`submit_jobs` method is overwritten
+        # in :class:`SlurmOverSSH`
         sbatch = 'sbatch'
         sbatch_script = self.make_sbatch_script()
         self.logger.info('running: {} {}'.format(sbatch, sbatch_script))
@@ -761,12 +916,20 @@ class RemoteHost(object):
         self._remote_dependencies = None
     @property
     def ssh(self):
+        """
+        SSH communication interface.
+
+        See also :class:`~tramway.analyzer.env.ssh.Client`.
+        """
         if self._ssh is None:
             from tramway.analyzer.env import ssh
             self._ssh = ssh.Client()
         return self._ssh
     @property
     def remote_data_location(self):
+        """
+        Data location on the remote host (worker side).
+        """
         return self._remote_data_location
     @remote_data_location.setter
     def remote_data_location(self, path):
@@ -781,6 +944,9 @@ class RemoteHost(object):
             self._remote_data_location = path
     @property
     def local_data_location(self):
+        """
+        Data location on the local host (submit side).
+        """
         return self._local_data_location
     @local_data_location.setter
     def local_data_location(self, path):
@@ -794,9 +960,21 @@ class RemoteHost(object):
             self._local_data_location = path
     @property
     def directory_mapping(self):
+        """
+        Directory mapping with local paths as keys
+        and the corresponding remote paths as values.
+
+        .. warning::
+
+            never tested!
+
+        """
         return self._directory_mapping
     @property
     def remote_dependencies(self):
+        """
+        Command to be run before batch submission.
+        """
         return self._remote_dependencies
     @remote_dependencies.setter
     def remote_dependencies(self, deps):
@@ -823,12 +1001,20 @@ class RemoteHost(object):
         home = os.path.expanduser('~')
         collectibles = []
         for path in paths:
+            mapping = isinstance(path, tuple)
+            if mapping:
+                src_path, path = path
             path = os.path.normpath(path)
             if os.path.isabs(path) and path.startswith(home):
                 path = '~'+path[len(home):]
+            if mapping:
+                path = '{{{0}=>{1}}}'.format(src_path, path)
             collectibles.append(path)
         return collectibles
     def format_collectibles(self, paths=None):
+        """
+        Calls `_format_collectibles` with the list of registered collectibles.
+        """
         if paths is None:
             paths = self.collectibles
         return self._format_collectibles(paths)
@@ -858,6 +1044,10 @@ class RemoteHost(object):
             return True
     @classmethod
     def _collectible_prefix(cls, stage_index=None):
+        """
+        Computes the starting substring of the log message that reports
+        the list of collectibles.
+        """
         if stage_index is None:
             prefix = 'OUTPUT_FILES='
         elif isinstance(stage_index, (tuple, list)):
@@ -866,11 +1056,18 @@ class RemoteHost(object):
             prefix = 'OUTPUT_FILES[{}]='.format(stage_index)
         return prefix
     def collectible_prefix(self, stage_index=None):
+        """
+        Calls `_collectible_prefix` for the current stage(s).
+        """
         if stage_index is None:
             # attribute `current_stage` is expected to defined in the concrete parent class
             stage_index = self.current_stage
         return self._collectible_prefix(stage_index)
     def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env'):
+        """
+        Downloads the reported collectibles from the remote host (worker side)
+        to the local host (submit side).
+        """
         _prefix = self.collectible_prefix(stage_index)
         code = """\
 from tramway.analyzer import environments, BasicLogger
@@ -887,7 +1084,7 @@ files  = environments.RemoteHost._format_collectibles(files)
 
 print('{}'+';'.join(files))\
 """.format(self.wd, stage_index, _log_pattern, _parent_cls, _prefix)
-        local_script = self.make_temporary_file(suffix='.sh', text=True)
+        local_script = self.make_temporary_file(suffix='.py', text=True)
         with open(local_script, 'w') as f:
             f.write(code)
         remote_script = '/'.join((self.wd, os.path.basename(local_script)))
@@ -907,7 +1104,7 @@ print('{}'+';'.join(files))\
             try:
                 line = out.pop() # starting from last line
             except IndexError: # empty list
-                raise RuntimeError('missing output: {}...'.format(_prefix))
+                raise RuntimeError('missing output: {}...'.format(_prefix)) from None
             if line.startswith(_prefix):
                 end_result_files = line[len(_prefix):].split(';')
                 break
@@ -915,15 +1112,18 @@ print('{}'+';'.join(files))\
         for end_result_file in end_result_files:
             if not end_result_file:
                 continue
-            end_result_file = os.path.normpath(end_result_file)
-            self.logger.info('retrieving file: '+end_result_file)
-            dest = end_result_file
+            if end_result_file[0]=='{' and '=>' in end_result_file and end_result_file[-1]=='}':
+                src, dest = end_result_file[1:-1].split('=>',1)
+            else:
+                src = dest = end_result_file
+            dest = os.path.normpath(dest)
+            self.logger.info('retrieving file: '+dest)
             for local, remote in self.directory_mapping.items():
                 if dest.startswith(remote):
                     dest = local+dest[len(remote):]
                     break
             try:
-                self.ssh.get(end_result_file, dest)
+                self.ssh.get(src, dest)
             except FileNotFoundError: # the target file might be empty
                 self.logger.warning('failed')
             else:
@@ -931,6 +1131,9 @@ print('{}'+';'.join(files))\
         return any_transfer
     @classmethod
     def _collectibles_from_log_files(cls, wd, log_pattern, stage_index=None):
+        """
+        Reads the collectible names reported in the log files.
+        """
         collectibles = []
         _prefix = cls._collectible_prefix(stage_index)
         home = os.path.expanduser('~')
@@ -980,7 +1183,9 @@ print('{}'+';'.join(files))\
         # 
         return filtered_content
     def delete_temporary_data(self):
-        # delete worker-side working directory
+        """
+        Deletes the worker-side working directory.
+        """
         out, err = self.ssh.exec('rm -rf '+self.wd)
         if err:
             self.logger.error(err)
@@ -1069,19 +1274,25 @@ class SlurmOverSSH(Slurm, RemoteHost):
                             else:
                                 self.logger.debug('squeue output parsing failed: \n'+out)
                                 _continue = True; break
+                        elif '%' in parts[0]:
+                            start = stop = int(parts[0].split('%')[0])
                         else:
                            _out.append(parts)
                     if _continue:
                         continue
                     if start is None:
-                        self.logger.debug('squeue output parsing failed: \n'+out)
-                        continue
-                    total = stop
-                    pending = stop - start
+                        total = pending = None
+                    else:
+                        total = stop
+                        pending = stop - start
                     running = 0
                     other = 0
                     for out in _out:
-                        array_ix, status, time_used = int(out[0]), out[1], out[2]
+                        try:
+                            array_ix, status, time_used = int(out[0]), out[1], out[2]
+                        except ValueError:
+                            self.logger.debug('squeue output parsing failed on line: '+' '.join(out))
+                            continue
                         reason = ' '.join(out[3:])
                         if status == 'R':
                             running += 1
@@ -1089,7 +1300,9 @@ class SlurmOverSSH(Slurm, RemoteHost):
                             other += 1
                         #self.logger.debug(task: {:d}   status: {}   time used: {}   reason: {}'.format(array_ix, status, time_used, reason))
                     self.logger.info('tasks:\t{} done,\t{} running,\t{} pending{}'.format(
-                        total-pending-running-other, running, pending,
+                        '(unknown)' if total is None else total-pending-running-other,
+                        '(unknown)' if running is None else running,
+                        '(unknown)' if pending is None else pending,
                         ',\t{} in abnormal state'.format(other) if other else ''))
                 else:
                     # complete
@@ -1100,6 +1313,7 @@ class SlurmOverSSH(Slurm, RemoteHost):
             raise
     def collect_results(self, stage_index=None):
         RemoteHost.collect_results(self, '*.out', stage_index)
+    collect_results.__doc__ = RemoteHost.collect_results.__doc__
     def delete_temporary_data(self):
         RemoteHost.delete_temporary_data(self)
         Slurm.delete_temporary_data(self)

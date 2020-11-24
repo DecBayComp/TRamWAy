@@ -217,7 +217,7 @@ class UnitRegions(SupportRegions):
         for coll in self.unit_region:
             rs = self.unit_region[coll]
             if _r<len(rs):
-                return { coll: [rs[_r]] }
+                return { coll: [_r] }
             else:
                 _r -= len(rs)
         raise IndexError('out of bounds: {}'.format(r))

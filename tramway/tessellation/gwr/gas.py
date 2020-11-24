@@ -246,12 +246,14 @@ class Gas(Graph):
             try:
                 dist_min = sqrt(dist2_min)
             except ValueError:
-                if -1e-12 < dist2_min:
+                precision = int(np.dtype(dist2_min.dtype).str[-1])
+                if (precision==8 and -1e-12 < dist2_min) or (precision==4 and -1e-3 < dist_min):
                     dist_min = 0
                     import warnings
                     warnings.warn('Rounding error: negative distance', RuntimeWarning)
                 else:
-                    raise ValueError('Negative distance')
+                    print('square distance=', dist2_min, '   num. type=', dist2_min.dtype)
+                    raise ValueError('Negative distance') from None
             nearest, second_nearest = index_to_node(i[:2])
             errors.append(dist_min)
             # test activity and habituation against thresholds
@@ -259,6 +261,9 @@ class Gas(Graph):
             habituation = self.habituation(nearest)
             w = self.get_weight(nearest)
             activity_threshold = self.local_insertion_threshold(eta, w, *r)
+            if isinstance(activity_threshold, tuple):
+                assert not self.knn
+                raise ValueError('insertion_threshold is defined as (lower, upper) bounds whereas knn is {}'.format(self.knn))
             if activity_threshold < activity and \
                 habituation < self.habituation_threshold:
                 # insert a new node and connect it with the two nearest nodes

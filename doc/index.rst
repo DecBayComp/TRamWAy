@@ -18,6 +18,7 @@ Features
 --------
 
 .. * :ref:`deconvolution <deconvolution>` of stacks of images
+
 * tracking of localization data
 * spatial :ref:`tessellation <tessellation>` and temporal segmentation
 * :ref:`inference <inference>` of diffusivity, drift, force and potential energy

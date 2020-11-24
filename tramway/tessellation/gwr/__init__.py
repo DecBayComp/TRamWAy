@@ -83,6 +83,14 @@ class GasMesh(Voronoi):
                 if self.min_probability:
                     self.gas.knn = int(round(self.min_probability * \
                         points.shape[0]))
+                    if self.gas.knn == 0:
+                        if self.min_probability<=1e-8:
+                            warn('rounding min_probability down to 0', RuntimeWarning)
+                            self.min_probability = 0
+                            self.gas.knn = 20
+                        else:
+                            warn('min_probability is too low for the amount of available data', RuntimeWarning)
+                            self.gas.knn = 1
                 else:
                     self.gas.knn = 20
             self.gas.trust = trust

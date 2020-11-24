@@ -232,7 +232,7 @@ class Mpl(AnalyzerNode):
         these elements are simply not drawn.
 
         """
-        loc_kwargs, trj_kwargs, roi_kwargs = {}, {}, {}
+        loc_kwargs, trj_kwargs, roi_kwargs, sup_kwargs = {}, {}, {}, {}
 
         for kw in kwargs:
             if kw.startswith('loc_'):
@@ -241,6 +241,8 @@ class Mpl(AnalyzerNode):
                 trj_kwargs[kw[4:]] = kwargs[kw]
             elif kw.startswith('roi_'):
                 roi_kwargs[kw[4:]] = kwargs[kw]
+            elif kw.startswith('sup_'):
+                sup_kwargs[kw[4:]] = kwargs[kw]
             else:
                 self._eldest_parent.logger.warning("ignoring argument: '{}'".format(kw))
 
@@ -249,6 +251,7 @@ class Mpl(AnalyzerNode):
                 raise KeyError("line styling argument ('{}') are not allowed for locations".format(kw))
 
         draw_loc = draw_trj = draw_roi = True
+        draw_sup = bool(sup_kwargs)
 
         exclusions = ['color', 'marker', 'markersize']
         while draw_loc and exclusions:
@@ -265,6 +268,11 @@ class Mpl(AnalyzerNode):
             exclusion = exclusions.pop()
             draw_roi = bool(roi_kwargs.get(exclusion, True))
 
+        exclusions = ['color', 'linestyle', 'linewidth']
+        while draw_sup and exclusions:
+            exclusion = exclusions.pop()
+            draw_sup = bool(sup_kwargs.get(exclusion, True))
+
         if draw_loc and not trj_kwargs:
             draw_trj = False
         elif draw_trj and not loc_kwargs:
@@ -274,7 +282,7 @@ class Mpl(AnalyzerNode):
             import matplotlib.pyplot as plt
             axes = plt
 
-        loc_glyphs = trj_glyphs = roi_glyphs = None
+        loc_glyphs = trj_glyphs = roi_glyphs = sup_glyphs = None
 
         if draw_loc:
             if data is None:
@@ -301,6 +309,22 @@ class Mpl(AnalyzerNode):
                 kwargs.update(trj_kwargs)
                 trj_glyphs, = axes.plot(x, y, **kwargs)
 
+        if draw_sup:
+            x, y = [], []
+            from tramway.analyzer.roi import FullRegion
+            for r in self._parent.roi.as_support_regions():
+                if isinstance(r, FullRegion):
+                    break # or, equivalently, continue
+                _min, _max = r.bounding_box
+                x.append(np.r_[_min[0],_min[0],_max[0],_max[0],_min[0],np.nan])
+                y.append(np.r_[_min[1],_max[1],_max[1],_min[1],_min[1],np.nan])
+            if x:
+                x = np.concatenate(x)
+                y = np.concatenate(y)
+                kwargs = dict(linestyle='-', linewidth=1, marker=None, color='b')
+                kwargs.update(sup_kwargs)
+                sup_glyphs, = axes.plot(x, y, **kwargs)
+
         if draw_roi:
             x, y = [], []
             from tramway.analyzer.roi import FullRegion, BoundingBox
@@ -321,7 +345,7 @@ class Mpl(AnalyzerNode):
         if aspect is not None:
             axes.set_aspect(aspect)
 
-        return dict(loc=loc_glyphs, trj=trj_glyphs, roi=roi_glyphs)
+        return dict(loc=loc_glyphs, trj=trj_glyphs, roi=roi_glyphs, sup=sup_glyphs)
 
 
 __all__ = ['LineDealer', 'Mpl']
