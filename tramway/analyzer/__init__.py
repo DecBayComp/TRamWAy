@@ -46,7 +46,7 @@ from .tracker   import *
 
 class BasicLogger(object):
     """
-    emulates the most basic functionalities of `logging.Logger`
+    Emulates the most basic functionalities of :class:`logging.Logger`
     without the need for additional configuration.
     """
     __slots__ = ('_level',)
@@ -221,8 +221,10 @@ class RWAnalyzer(object):
 
     def _get_spt_data(self):
         """
-        *~tramway.analyzer.spt_data.SPTData*: SPT data accessor;
-            see :class:`~tramway.analyzer.spt_data.SPTDataInitializer`.
+        SPT data accessor.
+
+        See :class:`~tramway.analyzer.spt_data.SPTDataInitializer`
+        and :class:`~tramway.analyzer.spt_data.SPTData`.
         """
         return self._spt_data
     def _set_spt_data(self, data):
@@ -233,7 +235,8 @@ class RWAnalyzer(object):
         """
         ROI accessor.
 
-        See :class:`~tramway.analyzer.roi.ROIInitializer`.
+        See :class:`~tramway.analyzer.roi.ROIInitializer`
+        and :class:`~tramway.analyzer.roi.ROI`.
         """
         return self._roi
     def _set_roi(self, roi):
@@ -244,7 +247,8 @@ class RWAnalyzer(object):
         """
         Time segmentation procedure.
 
-        See :class:`~tramway.analyzer.time.TimeInitializer`.
+        See :class:`~tramway.analyzer.time.TimeInitializer`
+        and :class:`~tramway.analyzer.time.Time`.
         """
         return self._time
     def _set_time(self, time):
@@ -255,7 +259,8 @@ class RWAnalyzer(object):
         """
         Tessellation procedure.
 
-        See :class:`~tramway.analyzer.tesseller.TessellerInitializer`.
+        See :class:`~tramway.analyzer.tesseller.TessellerInitializer`
+        and :class:`~tramway.analyzer.tesseller.Tesseller`.
         """
         return self._tesseller
     def _set_tesseller(self, tesseller):
@@ -266,7 +271,8 @@ class RWAnalyzer(object):
         """
         Sampling procedure.
 
-        See :class:`~tramway.analyzer.sampler.SamplerInitializer`.
+        See :class:`~tramway.analyzer.sampler.SamplerInitializer`
+        and :class:`~tramway.analyzer.sampler.Sampler`.
         """
         return self._sampler
     def _set_sampler(self, sampler):
@@ -277,7 +283,8 @@ class RWAnalyzer(object):
         """
         Inference procedure.
 
-        See :class:`~tramway.analyzer.mapper.MapperInitializer`.
+        See :class:`~tramway.analyzer.mapper.MapperInitializer`
+        and :class:`~tramway.analyzer.mapper.Mapper`.
         """
         return self._mapper
     def _set_mapper(self, mapper):
@@ -301,7 +308,8 @@ class RWAnalyzer(object):
         """
         Microscopy image stacks.
 
-        See :class:`~tramway.analyzer.images.ImagesInitializer`.
+        See :class:`~tramway.analyzer.images.ImagesInitializer`
+        and :class:`~tramway.analyzer.images.Images`.
         """
         return self._images
     def _set_images(self, images):
@@ -312,7 +320,8 @@ class RWAnalyzer(object):
         """
         Single molecule localization procedure.
 
-        See :class:`~tramway.analyzer.localizer.LocalizerInitializer`.
+        See :class:`~tramway.analyzer.localizer.LocalizerInitializer`
+        and :class:`~tramway.analyzer.localizer.Localizer`.
         """
         return self._localizer
     def _set_localizer(self, localizer):
@@ -323,7 +332,8 @@ class RWAnalyzer(object):
         """
         Single particle tracking procedure.
 
-        See :class:`~tramway.analyzer.tracker.TrackerInitializer`.
+        See :class:`~tramway.analyzer.tracker.TrackerInitializer`
+        and :class:`~tramway.analyzer.tracker.Tracker`.
         """
         return self._tracker
     def _set_tracker(self, tracker):
@@ -359,30 +369,30 @@ class RWAnalyzer(object):
         """
         Parallelization scheme.
 
-        See `env`.
+        See :class:`~tramway.analyzer.pipeline.Pipeline`.
         """
         return self._pipeline
 
     def run(self):
         """
-        launches the pipeline.
+        Launches the pipeline.
         """
         return self.pipeline.run()
 
     def add_collectible(self, collectible):
         """
-        designates a file generated at the worker side to be transferred back to the submit side.
+        Designates a file generated on the worker side to be transferred back to the submit side.
 
-        See :meth:`Pipeline.add_collectible`
+        See :meth:`Pipeline.add_collectible`.
         """
         self.pipeline.add_collectible(collectible)
 
     @property
     def browser(self):
         """
-        Visualize data artefacts.
+        Data visualization and export.
 
-        See also :class:`Browser`.
+        See :class:`~tramway.analyzer.browser.Browser`.
         """
         return self._browser
 

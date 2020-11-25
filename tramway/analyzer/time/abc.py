@@ -21,24 +21,33 @@ class Time(Attribute):
     """
     @abstractmethod
     def segment(self, spt_dataframe, tessellation=None):
+        """
+        Segments the SPT data, combines the segmentation with a spatial tessellation if any,
+        and returns a :class:`~tramway.tessellation.time.TimeLattice` object.
+        """
         pass
     @abstractmethod
     def as_time_segments(self, sampling, maps=None, index=None, return_index=False, return_times=True):
-        """
-        slices `sampling` and `maps` and returns an iterator of multiple elements in the following order:
+        """ Generator function; yields single-segment sampling and map objects.
 
-        * segment index (*int*), if `return_index` is ``True``,
-        * segment start and stop times *(float, float)*, if `return_times` is ``True`` (default),
+        Slices `sampling` and `maps` and yields tuples with elements in the following order:
+
+        * segment index (*int*), if `return_index` is :const:`True`,
+        * segment start and stop times *(float, float)*, if `return_times` is :const:`True` (default),
         * segment :class:`~tramway.tessellation.base.Partition` object, from `sampling`,
         * segment maps (:class:`pandas.DataFrame`) from `maps`, if `maps` is defined.
 
-        `index` is a selector on the segment index, either as an *int* or a *sequence* of *int*s,
-        or a boolean *callable* that takes a segment index (*int*) as input argument.
+        `index` is a selector on the segment index, either as an *int*, a *set* of *int*,
+        a *sequence* of *int*, or a *callable* that takes a segment index (*int*) as input argument
+        and returns a *bool*.
         """
         pass
     @property
     @abstractmethod
     def dt(self):
+        """
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.dt`
+        """
         pass
     @dt.setter
     @abstractmethod

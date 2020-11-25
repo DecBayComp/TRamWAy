@@ -21,10 +21,11 @@ import numpy as np
 
 class ImagesInitializer(Initializer):
     """
-    initial value for the `RWAnalyzer.images` attribute.
+    Initial value for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.images` attribute.
 
     `from_...` methods alters the parent attribute which specializes
-    into an initialized :class:`.abc.Images` object.
+    into an initialized :class:`Images` object.
     """
     __slots__ = ()
     def from_tiff_file(self, filepath):
@@ -50,6 +51,9 @@ class ImageParameters(object):
         self._pixel_size = self._loc_offset = None
     @property
     def pixel_size(self):
+        """
+        *float*: Pixel size in :math:`\mu m`
+        """
         return self._pixel_size
     @pixel_size.setter
     def pixel_size(self, pxsize):
@@ -57,7 +61,7 @@ class ImageParameters(object):
     @property
     def loc_offset(self):
         """
-        Offset between coordinates and the image, in pixels.
+        *float*: Offset between coordinates and the image, in pixels
         """
         return self._loc_offset
     @loc_offset.setter
@@ -66,12 +70,18 @@ class ImageParameters(object):
     # access to shared parameters
     @property
     def frame_interval(self):
+        """
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.frame_interval`
+        """
         return self._eldest_parent.spt_data.frame_interval
     @frame_interval.setter
     def frame_interval(self, dt):
         self._eldest_parent.spt_data.frame_interval = dt
     @property
     def dt(self):
+        """
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.dt`
+        """
         return self.frame_interval
     @dt.setter
     def dt(self, dt):
@@ -107,17 +117,14 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
     def as_frames(self, index=None, return_time=False):
         """
-        Iterates over the image frames.
+        Generator function; iterates over the image frames and yields
+        NumPy 2D arrays, or pairs of (*float*, NumPy 2D array).
 
         Arguments:
 
-            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+            index (int, Set, Sequence or callable): frame filter; see also :func:`indexer`.
 
             return_time (bool): return time along with image frames, as first item.
-
-        Returns:
-
-            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
 
         """
         for f in indexer(index, range(self.n_frames)):
@@ -136,7 +143,8 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
     def crop_frames(self, bounding_box, index=None, return_time=False):
         """
-        Iterates and crops the image frames, similarly to `as_frames`.
+        Generator function; iterates and crops the image frames, similarly to
+        :meth:`as_frames`.
 
         Arguments:
 
@@ -146,11 +154,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             return_time (bool): return time along with cropped image frames, as first item.
 
-        Returns:
-
-            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
-
-        .. note:
+        .. note::
 
             Time bounds are not supported yet.
 
@@ -210,7 +214,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
             markersize (int): location marker size in pixels (side).
 
             linecolor (str or 3-column float array): color for trajectories;
-                value ``None`` defaults to red.
+                value :const:`None` defaults to red.
 
             linewidth (float): trajectory line width
 
@@ -468,9 +472,9 @@ class StandaloneImage(object):
         yield self
 
 class ImageIterator(AnalyzerNode, ImageParameters):
-    """ partial implementation for multiple SPT data items.
+    """ Partial :class:`Images` implementation for multiple SPT data items.
 
-    Children classes must implement the `__iter__` method."""
+    Children classes must implement the :meth:`__iter__` method."""
     __slots__ = ()
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
@@ -599,5 +603,8 @@ class TiffFiles(ImageFiles):
 def all_unique(values):
     return np.unique(values).size == values.size
 
-__all__ = ['Image', 'Images', 'ImagesInitializer', 'ImageParameters', 'RawImage', 'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile', 'RawImages', 'ImageFiles', 'TiffFiles']
+
+__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', 'RawImage',
+        'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile',
+        'RawImages', 'ImageFiles', 'TiffFiles']
 

@@ -13,7 +13,7 @@
 
 
 from ..attribute import *
-from .abc import Tesseller
+from .abc import *
 from .proxy import TessellerProxy
 from .plugin import TessellerPlugin
 from . import proxied as tessellers
@@ -22,22 +22,24 @@ from .post import cell_mergers
 
 class TessellerInitializer(Initializer):
     """
-    initializer class for the `RWAnalyzer.tesseller` main analyzer attribute.
+    Initializer class for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.tesseller` main attribute.
 
-    The `RWAnalyzer.tesseller` attribute self-modifies on calling *from_...* methods.
+    The :attr:`~tramway.analyzer.RWAnalyzer.tesseller` attribute
+    self-modifies on calling any of the *from_...* methods.
 
-    The easiest way to define a tesseller is to set the `tesseller` attribute with
-    one of the tesseller classes provided by the *tessellers* module:
+    The easiest way to define a tesseller is to set the
+    :attr:`~tramway.analyzer.RWAnalyzer.tesseller` attribute with
+    any of the tesseller classes provided by the :mod:`tessellers` module:
 
-    .. code-block: python
+    .. code-block:: python
 
         from tramway.analyzer import *
 
         a = RWAnalyzer()
         a.tesseller = tessellers.KMeans
 
-    Note that *tessellers* is made available by importing :mod:`tramway.analyzer`
-    just like :class:`~tramway.analyzer.RWAnalyzer`.
+    Note that :mod:`tessellers` is made available by importing :mod:`tramway.analyzer`.
 
     """
     __slots__ = ()
@@ -58,5 +60,5 @@ class TessellerInitializer(Initializer):
 
 
 __all__ = ['Tesseller', 'TessellerInitializer', 'TessellerProxy', 'TessellerPlugin', 'tessellers',
-        'cell_mergers']
+        'TessellationPostProcessing', 'cell_mergers']
 

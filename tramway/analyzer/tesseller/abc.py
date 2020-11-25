@@ -27,6 +27,9 @@ class Tesseller(Attribute):
     @property
     @abstractmethod
     def resolution(self):
+        """
+        *float*: Desired spatial resolution in :math:`\mu m`
+        """
         pass
     @resolution.setter
     @abstractmethod
@@ -34,6 +37,10 @@ class Tesseller(Attribute):
         pass
 
 class TessellationPostProcessing(Attribute):
+    """
+    Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.tesseller.post`
+    attribute of a :class:`Tesseller` object.
+    """
     @abstractmethod
     def post_process(self, tessellation, spt_dataframe):
         pass

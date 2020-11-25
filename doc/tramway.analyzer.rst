@@ -6,6 +6,7 @@ tramway.analyzer package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.artefact package
@@ -33,6 +34,7 @@ tramway.analyzer.images package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.images.mpl module
@@ -49,6 +51,7 @@ tramway.analyzer.localizer package
 .. automodule:: tramway.analyzer.localizer
     :members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.tracker package
@@ -58,6 +61,7 @@ tramway.analyzer.tracker package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.spt_data package
@@ -67,6 +71,7 @@ tramway.analyzer.spt_data package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.spt_data.mpl module
@@ -84,6 +89,7 @@ tramway.analyzer.roi package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.tesseller package
@@ -93,6 +99,7 @@ tramway.analyzer.tesseller package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.tesseller.proxy module
@@ -160,6 +167,7 @@ tramway.analyzer.time package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.sampler package
@@ -169,6 +177,7 @@ tramway.analyzer.sampler package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.mapper package
@@ -178,6 +187,7 @@ tramway.analyzer.mapper package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.mapper.mpl module
@@ -204,6 +214,7 @@ tramway.analyzer.env package
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 
 tramway.analyzer.env.environments module

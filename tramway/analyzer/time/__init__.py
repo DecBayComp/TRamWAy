@@ -20,11 +20,12 @@ import tramway.tessellation.window as window
 
 class DT(object):
     """
-    implements the default behavior of methods common to the initializer and the
+    Implements the default behavior of methods common to the initializer and the
     specialized attributes.
 
-    It features the `dt` attribute and its alias `time_step`, and the `as_time_segments`
-    slicer.
+    It gives access to the frame interval (the :attr:`dt` and :attr:`time_step`
+    attributes are aliases of :attr:`frame_interval`),
+    and features the :meth:`as_time_segments` slicer.
 
     The default implementation suits the initializer's behavior,
     i.e. a single all-in time segment.
@@ -32,29 +33,18 @@ class DT(object):
     __slots__ = ()
     def enable_regularization(self):
         """
-        this method is called before running the inference plugins that define
+        This method is called before running the inference plugins that define
         *time_prior* parameters.
         """
         raise AttributeError('no time segmentation defined; cannot regularize in time')
     def n_time_segments(self, sampling):
         """
-        returns the number of time segments that `sampling` includes,
+        Returns the number of time segments (*int*) that `sampling` includes,
         under the hypothesis that `sampling` was generated following
         this segments definition (*self*).
         """
         return 1
     def as_time_segments(self, sampling, maps=None, index=None, return_index=False, return_times=True):
-        """
-        slices `sampling` and `maps` and returns an iterator of multiple elements in the following order:
-
-        * segment index (*int*), if `return_index` is ``True``,
-        * segment start and stop times *(float, float)*, if `return_times` is ``True`` (default),
-        * segment :class:`~tramway.tessellation.base.Partition` object, from `sampling`,
-        * segment maps (:class:`pandas.DataFrame`) from `maps`, if `maps` is defined.
-
-        `index` is a selector on the segment index, either as an *int* or a *sequence* of *int*s,
-        or a boolean *callable* that takes a segment index (*int*) as input argument.
-        """
         if not (index is None or index == 0):
             raise ValueError('no time segments defined')
         if isinstance(sampling, Analysis):
@@ -87,13 +77,14 @@ class DT(object):
                     yield 0, sampling, maps
                 else:
                     yield sampling, maps
+    as_time_segments.__doc__ = Time.as_time_segments.__doc__
     @property
     def spt_data(self):
         return self._parent.spt_data
     @property
     def dt(self):
         """
-        imaging frame duration (or inter-frame time interval), in seconds (*float*).
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.dt`
         """
         return self.spt_data.dt
     @dt.setter
@@ -101,17 +92,30 @@ class DT(object):
         self.spt_data.dt = dt
     @property
     def time_step(self):
-        """ alias for `dt` """
+        """
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.time_step`
+        """
         return self.spt_data.time_step
     @time_step.setter
     def time_step(self, dt):
         self.spt_data.time_step = dt
+    @property
+    def frame_interval(self):
+        """
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.frame_interval`
+        """
+        return self.spt_data.frame_interval
+    @frame_interval.setter
+    def frame_interval(self, dt):
+        self.spt_data.frame_interval = dt
 
 class TimeInitializer(Initializer, DT):
     """
-    initializer class for the `RWAnalyzer.time` main analyzer attribute.
+    Initializer :class:`Time` class for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.time` main attribute.
 
-    The `RWAnalyzer.time` attribute self-modifies on calling *from_...* methods.
+    The :attr:`~tramway.analyzer.RWAnalyzer.time` attribute self-modifies on
+    calling *from_...* methods.
     """
     __slots__ = ()
     def __init__(self, *args, **kwargs):
@@ -133,7 +137,7 @@ class TimeInitializer(Initializer, DT):
 
 class SlidingWindow(AnalyzerNode, DT):
     """
-    Specialization of the `RWAnalyzer.time` attribute.
+    Specialization for the :attr:`~tramway.analyzer.RWAnalyzer.time` attribute.
 
     Defines the :meth:`segment` method that segments the SPT data into time segments
     and combines with the spatial tessellation.
@@ -150,37 +154,39 @@ class SlidingWindow(AnalyzerNode, DT):
         self._regularize_in_time = False
     @property
     def duration(self):
-        """ window duration in seconds (*float*). """
+        """ *float*: Window duration in seconds """
         return self._duration
     @duration.setter
     def duration(self, d):
         self._duration = None if d is None else float(d)
     @property
     def shift(self):
-        """ time shift between successive time segments, in seconds (*float*). """
+        """ *float*: Time shift between successive time segments, in seconds """
         return self.duration if self._shift is None else self._shift
     @shift.setter
     def shift(self, s):
         self._shift = None if s is None else float(s)
     @property
     def window_duration(self):
-        """ alias for `duration`. """
+        """ *float*: Alias for :attr:`duration` """
         return self.duration
     @window_duration.setter
     def window_duration(self, d):
         self.duration = d
     @property
     def window_shift(self):
-        """ alias for `shift`. """
+        """ *float*: Alias for :attr:`shift` """
         return self.shift
     @window_shift.setter
     def window_shift(self, s):
         self.shift = s
     @property
     def start_time(self):
-        """ start time for running the sliding window.
-        By default, the window starts from the first data point in the input data
-        (usually the ROI-cropped data, NOT the entire SPT dataset). """
+        """
+        *float*: Start time for running the sliding window.
+            By default, the window starts from the first data point in the input data
+            (usually the ROI-cropped data, NOT the entire SPT dataset).
+        """
         if self._start_time == 'sync':
             return self.spt_data.bounds.loc['min','t']
         return self._start_time
@@ -191,7 +197,8 @@ class SlidingWindow(AnalyzerNode, DT):
         """ aligns the start times of all the ROI to the same minimum time.
 
         Beware this may load all the SPT data files.
-        Setting the *bounds* attribute of the `RWAnalyzer.spt_data` main attribute
+        Setting the :attr:`~tramway.analyzer.spt_data.SPTData.bounds` attribute
+        of the :attr:`~tramway.analyzer.RWAnalyzer.spt_data` main attribute
         discards the need for screening the SPT data."""
         self._start_time = self.spt_data.bounds.loc['min','t']
     @property
@@ -202,10 +209,6 @@ class SlidingWindow(AnalyzerNode, DT):
         return kwargs
     @analysis
     def segment(self, spt_dataframe, tessellation=None):
-        """
-        segments the SPT data, combines the segmentation with a spatial tessellation if any,
-        and returns a `Partition` object.
-        """
         tess = window.SlidingWindow(**self.time_window_kwargs)
         tess.spatial_mesh = tessellation
         try:
@@ -214,6 +217,7 @@ class SlidingWindow(AnalyzerNode, DT):
             pass
         tess.tessellate(spt_dataframe, time_only=True)
         return tess
+    segment.__doc__ = Time.segment.__doc__
     @property
     def tesseller(self):
         return self._parent.tesseller
@@ -221,22 +225,11 @@ class SlidingWindow(AnalyzerNode, DT):
         self._regularize_in_time = True
     @property
     def regularize_in_time(self):
-        """ boolean property; ``True`` if time regularization is enabled. """
+        """ *bool*: :const:`True` if time regularization is enabled """
         return self._regularize_in_time
     def n_time_segments(self, sampling):
         return len(sampling.tessellation.time_lattice)
     def as_time_segments(self, sampling, maps=None, index=None, return_index=False, return_times=True):
-        """
-        slices `sampling` and `maps` and returns an iterator of multiple elements in the following order:
-
-        * segment index (*int*), if `return_index` is ``True``,
-        * segment start and stop times *(float, float)*, if `return_times` is ``True`` (default),
-        * segment :class:`~tramway.tessellation.base.Partition` object, from `sampling`,
-        * segment maps (:class:`pandas.DataFrame`) from `maps`, if `maps` is defined.
-
-        `index` is a selector on the segment index, either as an *int* or a *sequence* of *int*s,
-        or a boolean *callable* that takes a segment index (*int*) as input argument.
-        """
         if return_index:
             if return_times or maps is not None:
                 def _indexer(*args):
@@ -269,6 +262,9 @@ class SlidingWindow(AnalyzerNode, DT):
     def self_update(self, op):
         self._parent._time = op(self)
     def segment_label(self, map_label, times, sampling):
+        """
+        Makes a label combining the input label as prefix and time-related suffix.
+        """
         if isinstance(sampling, Analysis):
             sampling = sampling.data
         if isinstance(times, int):
@@ -324,5 +320,5 @@ class SlidingWindow(AnalyzerNode, DT):
 Time.register(SlidingWindow)
 
 
-__all__ = ['TimeInitializer', 'Time', 'SlidingWindow']
+__all__ = ['Time', 'DT', 'TimeInitializer', 'SlidingWindow']
 

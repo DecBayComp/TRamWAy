@@ -187,27 +187,23 @@ class DecentralizedROIManager(AnalyzerNode):
         raise NotImplementedError('why for?')
         self._parent._roi = op(self)
     def as_individual_roi(self, index=None, collection=None, source=None, **kwargs):
-        """ returns a generator to loop over all the individual roi.
+        """ Generator function; loops over all the individual roi.
 
-        Filtering is delegated to the individual *.spt_data.roi* attributes.
+        Filtering is delegated to the individual *SPTDataItem.roi* attributes.
 
         A *callable* filter takes a single key (*int* for indices, *str* for labels and paths)
         and returns a *bool*.
         
         Arguments:
             
-            index (*int*, *sequence* of *int*s, or *callable*):
+            index (*int*, *set* of *int*, *sequence* of *int*, or *callable*):
                 individual ROI index filter; indices apply within a collection
                 
-            collection (*str*, *sequence* of *str*s, or *callable*):
+            collection (*str*, *set* of *str*, *sequence* of *str*, or *callable*):
                 collection label filter
             
-            source (*str*, *sequence* of *str*s, or *callable*):
+            source (*str*, *set* of *str*, *sequence* of *str*, or *callable*):
                 SPT data source filter
-                
-        Returns:
-            
-            generator: iterator for individual ROI
             
         """
         if source is None:
@@ -222,28 +218,24 @@ class DecentralizedROIManager(AnalyzerNode):
                 if sfilter(rec.source):
                     yield from rec.roi.as_individual_roi(index, collection, **kwargs)
     def as_support_regions(self, index=None, source=None, **kwargs):
-        """ returns a generator to loop over all the support regions.
+        """ Generator function; loops over all the support regions.
 
         Support regions are equivalent to individual ROI if *group_overlapping_roi*
-        was set to ``False``.
+        was set to :const:`False`.
 
-        Filtering is delegated to the individual *.spt_data.roi* attributes.
+        Filtering is delegated to the individual *SPTDataItem.roi* attributes.
 
         A *callable* filter takes a single key (*int* for indices, *str* for paths)
         and returns a *bool*.
         
         Arguments:
             
-            index (*int*, *sequence* of *int*s, or *callable*):
+            index (*int*, *set* of *int*, *sequence* of *int*, or *callable*):
                 support region index filter
             
-            source (*str*, *sequence* of *str*s, or *callable*):
+            source (*str*, *set* of *str*, *sequence* of *str*, or *callable*):
                 SPT data source filter
                 
-        Returns:
-            
-            generator: iterator for support regions
-            
         """
         if source is None:
             for rec in self._records:
@@ -264,10 +256,11 @@ ROI.register(DecentralizedROIManager)
 
 class ROIInitializer(Initializer):
     """
-    initial value for the `RWAnalyzer.roi` attribute.
+    Initial value for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute.
 
     `from_...` methods alters the parent attribute which specializes
-    into an initialized :class:`.abc.ROI` object.
+    into an initialized :class:`ROI` object.
     """
     __slots__ = ()
     def specialize(self, cls, *args, **kwargs):
@@ -296,13 +289,13 @@ class ROIInitializer(Initializer):
         Arguments:
 
             bb (sequence): collection of bounding boxes, each bounding boxes being
-                a pair of lower and upper bounds (*numpy.ndarray* s)
+                a pair of lower and upper bounds (*numpy.ndarray*)
 
             label (str): unique label for the collection
 
-            group_overlapping_roi (bool): if ``False``, `as_support_regions` will
-               behave similarly to `as_individual_roi`, otherwise support regions
-               are unions of overlapping ROI
+            group_overlapping_roi (bool): if :const:`False`, :meth:`as_support_regions`
+                will behave similarly to :meth:`as_individual_roi`, otherwise support
+                regions are unions of overlapping ROI
 
         See also :class:`BoundingBoxes`.
         """
@@ -311,16 +304,16 @@ class ROIInitializer(Initializer):
         """
         Defines ROI as centers for squares/cubes of uniform size.
 
-        See also `from_bounding_boxes`.
+        See also :meth:`from_bounding_boxes`.
         """
         bb = [ (center-.5*side, center+.5*side) for center in centers ]
         self.from_bounding_boxes(bb, label, group_overlapping_roi)
     ## in the case no ROI are defined
     def as_support_regions(self, index=None, source=None, return_index=False):
-        """ returns a generator to loop over all the support regions.
+        """ Generator function; loops over all the support regions.
         
-        A `ROIInitializer` does not define any ROI,
-        as a consequence a single `FullRegion` object is generated."""
+        A :class:`ROIInitializer` does not define any ROI,
+        as a consequence a single :class:`FullRegion` object is yielded."""
         if not null_index(index):
             raise ValueError('no ROI defined; cannot seek for the ith ROI')
         if return_index:
@@ -352,10 +345,10 @@ class ROIInitializer(Initializer):
                     if sfilter(d.source):
                         yield bear_child( FullRegion, d )
     def as_individual_roi(self, index=None, collection=None, source=None, **kwargs):
-        """ returns a generator to loop over all the individual roi.
+        """ Generator function; loops over all the individual ROI.
         
-        A `ROIInitializer` does not define any ROI,
-        as a consequence a single `FullRegion` object is generated."""
+        A :class:`ROIInitializer` does not define any ROI,
+        as a consequence a single :class:`FullRegion` object is yielded."""
         if collection is not None:
             warnings.warn('ignoring argument `collection`', helper.IgnoredInputWarning)
         return self.as_support_regions(index, source, **kwargs)
@@ -367,12 +360,12 @@ ROI.register(ROIInitializer)
 
 class CommonROI(AnalyzerNode):
     """
-    Mirrors the global `RWAnalyzer.roi` attribute.
+    Mirrors the global :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute.
 
-    The individual `.spt_data.roi` attributes become `CommonROI` objects
-    as soon as the global `.roi` attribute is specialized,
-    so that `as_support_regions` and `as_individual_roi` iterators delegate
-    to the global attribute.
+    The individual *SPTDataItem.roi* attributes become :class:`CommonROI` objects
+    as soon as the global :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute is
+    specialized, so that :meth:`as_support_regions` and :meth:`as_individual_roi`
+    iterators delegate to the global attribute.
     """
     __slots__ = ('_global',)
     def __init__(self, roi, parent=None):
@@ -398,7 +391,7 @@ class CommonROI(AnalyzerNode):
 
 class SpecializedROI(AnalyzerNode):
     """
-    Base class for initialized *roi* attributes.
+    Basis for initialized :class:`ROI` classes.
     """
     __slots__ = ('_global','_collections')
     def __init__(self, **kwargs):
@@ -446,6 +439,7 @@ class SpecializedROI(AnalyzerNode):
                     if sfilter(d.source):
                         for r in indexer(index, self._collections.regions, **kwargs):
                             yield bear_child( SupportRegion, r, self._collections.regions, d )
+    as_support_regions.__doc__ = ROI.as_support_regions.__doc__
     def __iter__(self):
         raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
@@ -490,10 +484,11 @@ class BoundingBoxes(SpecializedROI):
                     for i, bb in indexer(index, self.bounding_boxes[label], return_index=True):
                         roi_label = self._collections[label].roi_label(i)
                         yield bear_child(i, BoundingBox, bb, roi_label, d )
+    as_individual_roi.__doc__ = ROI.as_individual_roi.__doc__
     @property
     def index_format(self):
         """
-        Format of the numeric part of the label.
+        *str*: Format of the numeric part of the label
         """
         return self._collections.numeric_format
     @index_format.setter
@@ -516,6 +511,9 @@ class HasROI(AnalyzerNode):
     Maintains a self-modifying *roi* attribute."""
     __slots__ = ('_roi',)
     def _get_roi(self):
+        """
+        *ROI*: Regions of interest for the parent data block
+        """
         return self._roi
     def _set_roi(self, roi):
         self._roi = roi
@@ -530,9 +528,9 @@ class HasROI(AnalyzerNode):
         self._roi = roi(self._set_roi, parent=self)
     def compatible_source(self, source):
         """
-        returns ``True`` if filter *source* matches with `self.source`.
+        returns :const:`True` if filter *source* matches with `self.source`.
 
-        .. note:
+        .. note::
 
             does not check against the alias.
 
@@ -547,4 +545,9 @@ class HasROI(AnalyzerNode):
             return spt_data.source in source
         else:
             raise NotImplementedError
+
+
+__all__ = [ 'ROI', 'ROIInitializer', 'SpecializedROI', 'BoundingBoxes', 'DecentralizedROIManager',
+        'BaseRegion', 'FullRegion', 'IndividualROI', 'BoundingBox', 'SupportRegion',
+        'CommonROI', 'HasROI' ]
 

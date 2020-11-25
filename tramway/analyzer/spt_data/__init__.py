@@ -55,11 +55,10 @@ def compute_dtypes(df, precision):
 
 
 class SPTParameters(object):
-    """ Children classes should define the `_frame_interval`, `_localization_error`
-        and `_analyses` attributes or implement the `frame_interval` and
-        `localization_error` properties.
+    """ Children classes should define the `_frame_interval` and `_localization_error`
+        attributes, or implement the `frame_interval` and `localization_error` properties.
 
-        Default values should be None."""
+        Default values should be :const:`None`."""
     __slots__ = ()
     def __init__(self, localization_precision=None, localization_error=None):
         if localization_precision is None:
@@ -107,10 +106,10 @@ class SPTParameters(object):
             t = self.dataframe['t']
             self._frame_interval = t.diff().median()
         return self._frame_interval
-    frame_interval.__doc__ = SPTData.frame_interval.__doc__
     @frame_interval.setter
     def frame_interval(self, dt):
         self._frame_interval = dt
+    frame_interval.__doc__ = SPTData.frame_interval.__doc__
     @property
     def time_step(self):
         """
@@ -123,10 +122,10 @@ class SPTParameters(object):
     @property
     def dt(self):
         return self.frame_interval
-    dt.__doc__ = time_step.__doc__
     @dt.setter
     def dt(self, dt):
         self.frame_interval = dt
+    dt.__doc__ = time_step.__doc__
     @property
     def logger(self):
         """
@@ -327,10 +326,11 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
 
 class SPTDataInitializer(Initializer):
     """
-    Initial value for the `RWAnalyzer.spt_data` attribute.
+    Initial value for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.spt_data` attribute.
 
     `from_...` methods alters the parent attribute which specializes
-    into an initialized :class:`.abc.SPTData` object.
+    into an initialized :class:`SPTData` object.
     """
     __slots__ = ()
     def from_ascii_file(self, filepath):
@@ -339,7 +339,9 @@ class SPTDataInitializer(Initializer):
 
         Note that data loading is NOT performed while calling this method.
         Loading is postponed until the data is actually required.
-        This lets additional arguments to be provided to the spt_data attribute.
+        This lets additional arguments to be provided to the
+        :class:`~tramway.analyzer.RWAnalyzer` :attr:`~tramway.analyzer.RWAnalyzer.spt_data`
+        attribute before the data are loaded.
         """
         self.specialize( StandaloneSPTAsciiFile, filepath )
     def from_ascii_files(self, filepattern):
@@ -353,7 +355,9 @@ class SPTDataInitializer(Initializer):
 
         Note that data loading is NOT performed while calling this method.
         Loading is postponed until the data is actually required.
-        This lets additional arguments to be provided to the spt_data attribute.
+        This lets additional arguments to be provided to the
+        :class:`~tramway.analyzer.RWAnalyzer` :attr:`~tramway.analyzer.RWAnalyzer.spt_data`
+        attribute before the data are loaded.
         """
         self.specialize( SPTAsciiFiles, filepattern )
     def from_dataframe(self, df):
@@ -364,9 +368,7 @@ class SPTDataInitializer(Initializer):
         """
         Sets a MatLab V7 file as the source of SPT data.
 
-        Note that data loading is NOT performed while calling this method.
-        Loading is postponed until the data is actually required.
-        This lets additional arguments to be provided to the spt_data attribute.
+        Similarly to :meth:`from_ascii_file`, data loading is lazy.
         """
         self.specialize( StandaloneSPTMatFile, filepath )
     def from_mat_files(self, filepattern):
@@ -378,19 +380,17 @@ class SPTDataInitializer(Initializer):
 
         The parts of the filename that match the placeholder are used as keys.
 
-        Note that data loading is NOT performed while calling this method.
-        Loading is postponed until the data is actually required.
-        This lets additional arguments to be provided to the spt_data attribute.
+        Similarly to :meth:`from_ascii_files`, data loading is lazy.
         """
         self.specialize( SPTMatFiles, filepattern )
     def from_rwa_file(self, filepath):
         """
-        Similar to `from_ascii_file`, for *.rwa* files.
+        Similar to :meth:`from_ascii_file`, for *.rwa* files.
         """
         self.specialize( StandaloneRWAFile, filepath )
     def from_rwa_files(self, filepattern):
         """
-        Similar to `from_ascii_files`, for *.rwa* files.
+        Similar to :meth:`from_ascii_files`, for *.rwa* files.
         """
         self.specialize( RWAFiles, filepattern )
     def from_rw_generator(self, generator):
@@ -402,7 +402,8 @@ class SPTDataInitializer(Initializer):
         self.specialize( RWAnalyses, analyses, copy )
     def from_tracker(self):
         """ This initializer method does not need to be called;
-        The `RWAnalyzer.tracker` attributes does this automatically.
+        The :class:`~tramway.analyzer.RWAnalyzer`
+        :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute does this automatically.
         """
         self.specialize( TrackerOutput )
 
@@ -411,7 +412,7 @@ class SPTDataInitializer(Initializer):
 class StandaloneDataItem(object):
     """
     Partial implementation for single data item
-    :class:`~tramway.analyzer.spt_data.abc.SPTData` attribute.
+    :class:`~tramway.analyzer.spt_data.SPTData` attribute.
     """
     __slots__ = ()
     def __len__(self):
@@ -470,7 +471,7 @@ class HasAnalysisTree(HasROI):
             self._dataframe.localization_error = err
     def commit_cache(self):
         """
-        Pushes the cached parameters into the `dataframe` object.
+        Pushes the cached parameters into the :attr:`dataframe` object.
         """
         if islazy(self._dataframe) or self._dataframe is None:
             raise RuntimeError('the SPT data has not been loaded')
@@ -478,7 +479,7 @@ class HasAnalysisTree(HasROI):
         self.dataframe.localization_error = self._localization_error_cache
     def clear_cache(self):
         """
-        Clears the cached values and reads from the `dataframe` object.
+        Clears the cached values and reads from the :attr:`dataframe` object.
         """
         self._frame_interval_cache = self._localization_error_cache = None
         if not islazy(self._dataframe) and self._dataframe is not None:
@@ -494,13 +495,14 @@ class HasAnalysisTree(HasROI):
         """
         Checks the parameter cache integrity.
 
-        If differences are found with the values in `self.dataframe`,
-        `check_cache` raises an exception of type `_raise`.
+        If differences are found with the values in :attr:`dataframe`,
+        :meth:`check_cache` raises an exception of type `_raise`.
 
-        If `_raise` is ``None`` or ``False``, then `check_cache` returns a `bool` instead,
-        that is ``False`` if the cache is alright, ``True`` otherwise.
-        If `_raise` is ``True``, then `check_cache` returns ``True`` if the cache is alright,
-        ``False`` otherwise.
+        If `_raise` is :const:`None` or :const:`False`, then :meth:`check_cache` returns
+        a :class:`bool` instead, that is :const:`False` if the cache is alright,
+        :const:`True` otherwise.
+        If `_raise` is :const:`True`, then :neth:`check_cache` returns :const:`True` if
+        the cache is alright, :const:`False` otherwise.
         """
         if _raise is None:
             _raise = False
@@ -595,7 +597,7 @@ class HasAnalysisTree(HasROI):
 
 class _SPTDataFrame(HasAnalysisTree, SPTParameters):
     """
-    Basis for all concrete :class:`~.abc.SPTDataItem` classes.
+    Basis for all concrete :class:`SPTDataItem` classes.
     """
     __slots__ = ('_source',)
     def __init__(self, df, source=None, **kwargs):
@@ -658,7 +660,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
 
             header (bool): print column names on the first line.
 
-        Additional keyword arguments are passed to `pandas.DataFrame.to_csv`.
+        Additional keyword arguments are passed to :meth:`pandas.DataFrame.to_csv`.
         See for example `float_format`.
         """
         df = self.dataframe
@@ -719,6 +721,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         return Mpl
     @property
     def mpl(self):
+        """Matplotlib utilities"""
         return self._mpl_impl(self)
 
 
@@ -730,7 +733,7 @@ SPTDataItem.register(SPTDataFrame)
 
 class StandaloneSPTDataFrame(_SPTDataFrame, StandaloneDataItem):
     """
-    `RWAnalyzer.spt_data` attribute for single dataframes.
+    :class:`SPTData` attribute for single dataframes.
     """
     __slots__ = ()
 
@@ -739,7 +742,7 @@ SPTData.register(StandaloneSPTDataFrame)
 
 class SPTDataFrames(SPTDataIterator):
     """
-    `RWAnalyzer.spt_data` attribute for multiple dataframes.
+    :class:`SPTData` attribute for multiple dataframes.
     """
     __slots__ = ('_dataframes',)
     def __init__(self, dfs, **kwargs):
@@ -788,6 +791,9 @@ SPTData.register(SPTDataFrames)
 
 
 class SPTFile(_SPTDataFrame):
+    """
+    Basis for :class:`SPTDataItem` classes for data in a file.
+    """
     __slots__ = ('_filepath','_alias','_reset_origin','_discard_static_trajectories')
     def __init__(self, filepath, dataframe=None, **kwargs):
         _SPTDataFrame.__init__(self, dataframe, filepath, **kwargs)
@@ -865,26 +871,19 @@ class SPTFile(_SPTDataFrame):
             self._discard_static_trajectories = kwargs if kwargs else True
     def get_image(self, match=None):
         """
-        Looks for the corresponding localization microscopy image in the `~RWAnalyzer.images` attribute.
+        Looks for the corresponding localization microscopy image in the
+        :attr:`~tramway.analyzer.RWAnalyzer.images` attribute.
 
         The search is based on the object's alias.
         The first item that contains the alias in its filename is returned as a match.
 
-        If the `alias` attribute is not set or images do not have a defined `filepath`,
-        an `AttributeError` exception is raised.
+        If the :attr:`alias` attribute is not set or images do not have a defined `filepath`,
+        an :class:`AttributeError` exception is raised.
 
-        The optional argument *match* is a 2-argument callable with the following signature:
-
-        Arguments:
-
-            alias (str): alias of these SPT data.
-
-            filepath (str): filepath to a stack of images.
-
-        Returns
-
-            bool: ``True`` if *filepath* matches with *alias*.
-
+        The optional argument *match* is a 2-argument *callable* that
+        takes the alias (*str*) of *self* and the filepath (*str*) of an
+        :class:`~tramway.analyzer.images.Image` stack of images, and returns
+        :const:`True` if the filepath and alias match.
         """
         if match is None:
             match = lambda alias, filepath: alias in os.path.basename(filepath)
@@ -902,6 +901,10 @@ class SPTFile(_SPTDataFrame):
 
 
 class RawSPTFile(SPTFile):
+    """
+    Basis for :class:`SPTDataItem` classes for raw data in a file,
+    possibly with non-standard column names or data units.
+    """
     __slots__ = ('_columns',)
     def __init__(self, filepath, dataframe=None, **kwargs):
         SPTFile.__init__(self, filepath, dataframe, **kwargs)
@@ -1110,7 +1113,7 @@ class RawSPTFiles(SPTFiles):
 
 class SPTAsciiFiles(RawSPTFiles):
     """
-    `RWAnalyzer.spt_data` attribute for multiple SPT text files.
+    :class:`SPTData` class for multiple SPT text files.
     """
     __slots__ = ()
     def list_files(self):
@@ -1166,7 +1169,7 @@ SPTDataItem.register(RWAFile)
 
 class StandaloneRWAFile(_RWAFile, StandaloneDataItem):
     """
-    `RWAnalyzer.spt_data` attribute for single RWA files.
+    :class:`SPTata` class for single RWA files.
     """
     __slots__ = ()
     def reload_from_rwa_files(self, skip_missing=False):
@@ -1179,7 +1182,7 @@ SPTData.register(StandaloneRWAFile)
 
 class RWAFiles(SPTFiles):
     """
-    `RWAnalyzer.spt_data` attribute for multiple RWA files.
+    :class:`SPTData` class for multiple RWA files.
     """
     __slots__ = ()
     def list_files(self):
@@ -1245,7 +1248,7 @@ SPTDataItem.register(SPTMatFile)
 
 class StandaloneSPTMatFile(_SPTMatFile, StandaloneDataItem):
     """
-    `RWAnalyzer.spt_data` attribute for single MatLab v7 data files.
+    :class:`SPTData` class for single MatLab v7 data files.
     """
     __slots__ = ()
 
@@ -1254,7 +1257,7 @@ SPTData.register(StandaloneSPTMatFile)
 
 class SPTMatFiles(RawSPTFiles):
     """
-    `RWAnalyzer.spt_data` attribute for multiple MatLab v7 data files.
+    :class:`SPTData` class for multiple MatLab v7 data files.
     """
     __slots__ = ()
     @property
@@ -1298,14 +1301,14 @@ class RWGenerator(SPTDataFrame):
 
 class RWAnalyses(StandaloneSPTDataFrame):
     """
-    `RWAnalyzer.spt_data` attribute for single analysis trees as stored in *.rwa* files.
+    :class:`SPTData` class for single analysis trees as stored in *.rwa* files.
 
-    .. note:
+    .. note::
 
         copying (initializing with ``copy=True``) copies only the SPT data
         and NOT the subsequent analyses.
 
-    .. warning:
+    .. warning::
 
         not thouroughly tested.
 
@@ -1320,14 +1323,14 @@ class RWAnalyses(StandaloneSPTDataFrame):
 
 class MultipleRWAnalyses(SPTDataFrames):
     """
-    `RWAnalyzer.spt_data` attribute for multiple analysis trees as stored in *.rwa* files.
+    :class:`SPTData` class for multiple analysis trees as stored in *.rwa* files.
 
-    .. note:
+    .. note::
 
         copying (initializing with ``copy=True``) copies only the SPT data
         and NOT the subsequent analyses.
 
-    .. warning:
+    .. warning::
 
         not tested.
 
@@ -1346,9 +1349,9 @@ class MultipleRWAnalyses(SPTDataFrames):
 
 class _FakeSPTData(pd.DataFrame):
     """
-    Makes `SPTDataFrames` initialization possible with empty data.
+    Makes :class:`SPTDataFrames` initialization possible with empty data.
 
-    To be wrapped in the `SPTDataFrame` object for storage of SPT parameters.
+    To be wrapped in the :class:`SPTDataFrame` object for storage of SPT parameters.
 
     As soon as proper SPT datablocks are appended, the fake SPT datablock
     should be removed and the previously defined SPT parameters copied into
@@ -1365,15 +1368,15 @@ SPTDataItem.register(LocalizationFile)
 
 class TrackerOutput(SPTDataFrames):
     """
-    `RWAnalyzer.spt_data` attribute for SPT data yielded by the
-    `RWAnalyzer.tracker` attribute.
+    :class:`SPTData` class for SPT data yielded by the
+    :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute.
     """
     __slots__ = ()
     def __init__(self, **kwargs):
         SPTDataFrames.__init__(self, [_FakeSPTData()], **kwargs)
     def add_tracked_data(self, trajectories, source=None, filepath=None):
         """
-        .. note:
+        .. note::
 
             In most cases `source` and `filepath` are supposed to represent
             the same piece of information.
@@ -1420,5 +1423,6 @@ __all__ = [ 'SPTData', 'SPTDataItem', 'SPTParameters', 'StandaloneDataItem', 'SP
         '_SPTAsciiFile', 'SPTAsciiFile', 'StandaloneSPTAsciiFile', 'SPTAsciiFiles',
         '_RWAFile', 'RWAFile', 'StandaloneRWAFile', 'RWAFiles',
         '_SPTMatFile', 'SPTMatFile', 'StandaloneSPTMatFile', 'SPTMatFiles',
-        'RWAnalyses', 'MultipleRWAnalyses', 'RWGenerator', 'LocalizationFile', 'TrackerOutput']
+        'RWAnalyses', 'MultipleRWAnalyses', 'RWGenerator', 'LocalizationFile', 'TrackerOutput',
+        'compute_dtypes']
 

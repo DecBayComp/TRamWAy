@@ -197,10 +197,11 @@ Tracker.register(NonTrackingTracker)
 
 
 class TrackerInitializer(Initializer):
-    """ initializer class for the `RWAnalyzer.tracker` main analyzer attribute.
+    """ Initializer class for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.tracker` main attribute.
 
-    The `RWAnalyzer.tacker` attribute self-modifies on calling *from_...* methods.
-
+    The :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute self-modifies
+    on calling *from_...* methods.
     """
     __slots__ = ()
     def from_single_particle(self):

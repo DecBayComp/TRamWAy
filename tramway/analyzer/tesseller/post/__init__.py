@@ -17,22 +17,22 @@ from . import merger as cell_mergers
 
 class TessellationPostProcessingInitializer(Initializer):
     """
-    initializer class for attribute `RWAnalyzer.tesseller.post`.
+    Initializer class for attribute `RWAnalyzer.tesseller.post`.
 
     For now, a single use case is available:
 
-    .. code-block: python
+    .. code-block:: python
 
         a = RWAnalyzer()
         # initialize attribute `tesseller`
         a.tesseller = tessellers.KMeans
         # .. so that attribute `post` is exposed
-        a.tesseller.post = cell_mergers.ByTranslocationCount()
+        a.tesseller.post = cell_mergers.ByTranslocationCount
         # .. and now `tesseller.post` is initialized
         a.tesseller.post.count_threshold = 20
 
-    Note that *cell_mergers* is exported by the :mod:`tramway.analyzer` module
-    just like *tessellers*.
+    Note that :mod:`~tramway.analzyer.cell_mergers` is exported by the
+    :mod:`tramway.analyzer` module, just like :mod:`~tramway.analyzer.tessellers`.
 
     See also :class:`~tramway.analyzer.tesseller.post.merger.ByTranslocationCount`.
     """

@@ -23,10 +23,13 @@ class CellMerger(AnalyzerNode):
 
 class ByTranslocationCount(CellMerger):
     """
-    merges the cells/microdomains that exhibit a number of translocations
+    Merges the cells/microdomains that exhibit a number of translocations
     below some threshold.
 
-    note: for now, all locations are counted instead of translocations only.
+    .. note::
+
+        For now, all locations are counted instead of translocations only.
+
     """
     __slots__ = ('_count_threshold', '_update_centroids')
     def __init__(self, **kwargs):

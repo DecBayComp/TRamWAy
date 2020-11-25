@@ -37,5 +37,6 @@ class Image(metaclass=ABCMeta):
     """
     pass
 
-__all__ = ['Image', 'Images']
+
+__all__ = ['Images', 'Image']
 
