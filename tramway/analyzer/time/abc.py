@@ -15,6 +15,10 @@
 from ..attribute.abc import Attribute, abstractmethod
 
 class Time(Attribute):
+    """
+    Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.time` attribute
+    of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    """
     @abstractmethod
     def segment(self, spt_dataframe, tessellation=None):
         pass

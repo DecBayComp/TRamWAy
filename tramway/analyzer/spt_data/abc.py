@@ -16,6 +16,10 @@ from abc import *
 from ..attribute.abc import Attribute, abstractmethod
 
 class SPTData(Attribute):
+    """
+    Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.spt_data` attribute
+    of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    """
     @property
     @abstractmethod
     def columns(self):
@@ -56,11 +60,12 @@ class SPTData(Attribute):
         pass
     @abstractmethod
     def __iter__(self):
-        """ Returns an iterator on the :class:`~.abc.SPTDataItem` objects as natively stored. """
+        """ Returns an iterator on the :class:`~tramway.analyzer.spt_data.abc.SPTDataItem`
+        objects as natively stored. """
         pass
     @abstractmethod
     def as_dataframes(self, source=None):
-        """ Returns an iterator that yields :class:`pandas.DataFrame` objects.
+        """ Generator function; yields :class:`pandas.DataFrame` objects.
         
         `source` can be a source name (filepath) or a boolean function
         that takes a source string as input argument."""
@@ -86,6 +91,9 @@ class SPTData(Attribute):
 
 
 class SPTDataItem(metaclass=ABCMeta):
+    """
+    Abstract base class for SPT data blocks an :class:`SPTData` object contains.
+    """
     @property
     @abstractmethod
     def dataframe(self):

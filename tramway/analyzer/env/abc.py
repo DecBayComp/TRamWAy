@@ -15,6 +15,10 @@
 from ..attribute.abc import Attribute, abstractmethod
 
 class Environment(Attribute):
+    """
+    Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.env` attribute
+    of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    """
     @property
     @abstractmethod
     def script(self):

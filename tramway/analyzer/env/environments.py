@@ -483,7 +483,7 @@ class Env(AnalyzerNode):
             command_options.append('--segment-index={:d}'.format(segment_index))
         self.pending_jobs.append(tuple(command_options))
     @classmethod
-    def _combine_analyses(cls, wd, logger, *args):
+    def _combine_analyses(cls, wd, data_location, logger, *args):
         """
         Loads the generated rwa files, combines them and returns the list of the combined files.
 
@@ -531,6 +531,8 @@ class Env(AnalyzerNode):
         end_result_files = []
         for source in analyses:
             rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
+            if not os.path.isabs(os.path.expanduser(rwa_file)) and data_location:
+                rwa_file = os.path.join(data_location, rwa_file)
             logger.info('writing file: {}...'.format(rwa_file))
             if original_files[source][1:]:
                 try:
@@ -567,13 +569,14 @@ class Env(AnalyzerNode):
         return end_result_files
     def collect_results(self, stage_index=None):
         """
-        Calls `_combine_analyses` for the current working directory and stage index,
+        Calls `_combine_analyses` for the remote data location and the current working
+        directory and stage index,
         and retrieves the combined files from the worker side to the submit side,
         if they are different hosts.
 
         Returns ``True`` if files are collected/retrieved.
         """
-        return bool(self._combine_analyses(self.wd, self.logger, stage_index))
+        return bool(self._combine_analyses(self.wd, None, self.logger, stage_index))
     def prepare_script(self, script=None):
         main_script = script is None
         if main_script:
@@ -908,6 +911,7 @@ class RemoteHost(object):
                 cls.delete_temporary_data(self)
 
     """
+    __slots__ = ()
     def __init__(self):
         self._ssh = None
         self._local_data_location = None
@@ -929,6 +933,9 @@ class RemoteHost(object):
     def remote_data_location(self):
         """
         Data location on the remote host (worker side).
+
+        If defined, the current directory will be changed to this location
+        on the remote host.
         """
         return self._remote_data_location
     @remote_data_location.setter
@@ -1069,21 +1076,23 @@ class RemoteHost(object):
         to the local host (submit side).
         """
         _prefix = self.collectible_prefix(stage_index)
+        data_loc = self.remote_data_location if self.remote_data_location else ''
         code = """\
 from tramway.analyzer import environments, BasicLogger
 
 wd = '{}'
+data_location = '{}'
 logger = BasicLogger()
 stage = {!r}
 log_pattern = '{}'
 
-files  = environments.{}._combine_analyses(wd, logger, stage)
+files  = environments.{}._combine_analyses(wd, data_location, logger, stage)
 files += environments.RemoteHost._collectibles_from_log_files(wd, log_pattern, stage)
 
 files  = environments.RemoteHost._format_collectibles(files)
 
 print('{}'+';'.join(files))\
-""".format(self.wd, stage_index, _log_pattern, _parent_cls, _prefix)
+""".format(self.wd, data_loc, stage_index, _log_pattern, _parent_cls, _prefix)
         local_script = self.make_temporary_file(suffix='.py', text=True)
         with open(local_script, 'w') as f:
             f.write(code)
@@ -1156,6 +1165,10 @@ print('{}'+';'.join(files))\
         return collectibles
     def filter_script_content(self, content):
         filtered_content = []
+        if self.remote_data_location:
+            filtered_content.append('import os\n')
+            filtered_content.append("os.chdir(os.path.expanduser('{}'))\n".format(self.remote_data_location))
+            filtered_content.append('\n')
         for line in content:
             pattern = '.spt_data.from_'
             if self.remote_data_location and pattern in line:

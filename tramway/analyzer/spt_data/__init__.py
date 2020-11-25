@@ -78,6 +78,7 @@ class SPTParameters(object):
     @property
     def localization_error(self):
         return self._localization_error
+    localization_error.__doc__ = SPTData.localization_error.__doc__
     @localization_error.setter
     def localization_error(self, err):
         if err is None:
@@ -85,6 +86,11 @@ class SPTParameters(object):
         self._localization_error = err
     @property
     def localization_precision(self):
+        """
+        *float*: Localization precision in :math:`\mu m s^{-1}`;
+            `localization_error` :math:`\sigma^2` is affected by
+            `localization_precision` :math:`\sigma` and vice versa
+        """
         return sqrt(self.localization_error)
     @localization_precision.setter
     def localization_precision(self, pr):
@@ -94,12 +100,14 @@ class SPTParameters(object):
         if min_msd is None:
             min_msd = self.localization_error
         return discard_static_trajectories(dataframe, min_msd, **kwargs)
+    discard_static_trajectories.__doc__ = SPTData.discard_static_trajectories.__doc__
     @property
     def frame_interval(self):
         if self._frame_interval is None:
             t = self.dataframe['t']
             self._frame_interval = t.diff().median()
         return self._frame_interval
+    frame_interval.__doc__ = SPTData.frame_interval.__doc__
     @frame_interval.setter
     def frame_interval(self, dt):
         self._frame_interval = dt
@@ -145,9 +153,9 @@ def _normalize(p):
 
 
 class SPTDataIterator(AnalyzerNode, SPTParameters):
-    """ Partial implementation for multi-item :class:`~.abc.SPTData`.
+    """ Partial implementation for multi-item :class:`~tramway.analyzer.spt_data.abc.SPTData`.
 
-    Children classes must implement the `__iter__` method. """
+    Children classes must implement the :meth:`__iter__` method. """
     __slots__ = ('_bounds',)
     def __init__(self, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
@@ -202,13 +210,20 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
     def time_step(self, dt):
         self.frame_interval = dt
     def as_dataframes(self, source=None, return_index=False):
-        """Returns an iterator.
+        """ Generator function; yields *pandas.DataFrame* objects.
         
         `source` can be a source name (filepath) or a boolean function
         that takes a source string as input argument."""
         for f in self.filter_by_source(source, return_index):
             yield f.dataframe
     def filter_by_source(self, source_filter, return_index=False):
+        """ Generator function; similar to :meth:`__iter__`;
+        yields :class:`SPTDataItem` objects.
+
+        *source* can be a single `str` value, or a set of `str` values,
+        or a sequence of `str` values (the order is followed),
+        or a `callable` that takes a `str` value and returns a `bool` value.
+        """
         if return_index:
             _out = lambda i, f: i, f
         else:
@@ -271,6 +286,7 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                     self._bounds.loc['min'] = np.minimum(self._bounds.loc['min'], _bounds.loc['min'])
                     self._bounds.loc['max'] = np.minimum(self._bounds.loc['max'], _bounds.loc['max'])
         return self._bounds
+    bounds.__doc__ = SPTData.bounds.__doc__
     def self_update(self, new_self):
         """
         """
@@ -379,20 +395,23 @@ class SPTDataInitializer(Initializer):
         self.specialize( RWAFiles, filepattern )
     def from_rw_generator(self, generator):
         """
-        A generator is an object that features a `generate` method
-        which input arguments are exposed as attributes.
+        A random walk generator features a `generate` method.
         """
         self.specialize( RWGenerator, generator )
     def from_analysis_tree(self, analyses, copy=False):
         self.specialize( RWAnalyses, analyses, copy )
     def from_tracker(self):
+        """ This initializer method does not need to be called;
+        The `RWAnalyzer.tracker` attributes does this automatically.
+        """
         self.specialize( TrackerOutput )
 
 
 
 class StandaloneDataItem(object):
     """
-    Partial implementation for single data item `RWAnalyzer.spt_data` attribute.
+    Partial implementation for single data item
+    :class:`~tramway.analyzer.spt_data.abc.SPTData` attribute.
     """
     __slots__ = ()
     def __len__(self):

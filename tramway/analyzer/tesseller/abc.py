@@ -17,6 +17,10 @@ from ..attribute.abc import Attribute, abstractmethod
 from ..attribute import AnalyzerNode, Initializer
 
 class Tesseller(Attribute):
+    """
+    Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.tesseller` attribute
+    of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    """
     @abstractmethod
     def tessellate(self, spt_dataframe):
         pass

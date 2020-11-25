@@ -99,25 +99,27 @@ class RWAnalyzer(object):
     The supported steps are defined in a declarative way with special attributes;
     these steps and corresponding attributes are as follows:
 
-    * `images`: microscopy images
-    * `localizer`: single molecule localization
-    * `tracker`: single particle tracking
-    * `spt_data`: SPT data loading or generation
-    * `roi`: regions of interest
-    * `tesseller`: spatial segmentation
-    * `time`: temporal segmentation of the tracking data
-    * `sampler`: assignment of SPT data points to microdomains
-    * `mapper`: estimation of model parameters at each microdomains
+    * :attr:`images`: microscopy images
+    * :attr:`localizer`: single molecule localization
+    * :attr:`tracker`: single particle tracking
+    * :attr:`spt_data`: SPT data loading or generation
+    * :attr:`roi`: regions of interest
+    * :attr:`tesseller`: spatial segmentation
+    * :attr:`time`: temporal segmentation of the tracking data
+    * :attr:`sampler`: assignment of SPT data points to microdomains
+    * :attr:`mapper`: estimation of model parameters at each microdomains
 
     Most attributes are self-morphing, i.e. they first are initializers and exhibit
-    *from_...* methods (for example `from_dataframe` and `from_ascii_file`
-    for `spt_data`) and then, once any such initializer method is called, they specialize
-    into a new attribute and exhibit specific attributes depending on the chosen
-    initializer.
+    *from_...* methods (for example
+    :meth:`~tramway.analyzer.spt_data.SPTDataInitializer.from_dataframe` and
+    :meth:`~tramway.analyzer.spt_data.SPTDataInitializer.from_ascii_file` for
+    :attr:`spt_data`) and then, once any such initializer method is called,
+    they specialize into a new attribute and exhibit specific attributes depending
+    on the chosen initializer.
 
     Specialized attributes can also exhibit self-morphing attributes.
     For example, regions of interest can be defined globally using the main
-    `roi` attribute, or on a per-SPT-datafile basis:
+    :attr:`roi` attribute, or on a per-SPT-datafile basis:
 
     .. code-block:: python
 
@@ -136,8 +138,8 @@ class RWAnalyzer(object):
 
     In the above example, per-dataset ROI definition is useful when multiple
     datasets are loaded and the ROI may differ between datasets.
-    The main `roi` attribute is still convenient as it allows to iterate
-    over all the defined ROI, omitting the `spt_data` loop (continues any of
+    The main :attr:`roi` attribute is still convenient as it allows to iterate
+    over all the defined ROI, omitting the :attr:`spt_data` loop (continues any of
     the code blocks above):
 
     .. code-block:: python
@@ -145,13 +147,13 @@ class RWAnalyzer(object):
         for roi in a.roi.as_support_regions():
             roi_spt_data = roi.crop()
 
-    See the documentation for the `roi` attribute for more information about
+    See the documentation for the :attr:`roi` attribute for more information about
     the available iterators.
 
-    While the `spt_data` and `roi` attributes act as data providers,
-    the `time`, `tesseller`, `sampler` and `mapper` attributes do not feature
-    direct access to the data and require the SPT data to be passed as input
-    argument to their main processing methods.
+    While the :attr:`spt_data` and :attr:`roi` attributes act as data providers,
+    the :attr:`time`, :attr:`tesseller`, :attr:`sampler` and :attr:`mapper` attributes
+    do not feature direct access to the data and require the SPT data to be passed as
+    input argument to their main processing methods.
     For example:
 
     .. code-block:: python
@@ -161,21 +163,22 @@ class RWAnalyzer(object):
             roi_spt_data = roi.crop()
             tessellation = a.tesseller.tessellate(roi_spt_data)
 
-    Similarly, the `images` attribute defines data location, while the `localizer`
-    and `tracker` attributes define processing steps on these data.
+    Similarly, the :attr:`images` attribute defines data location,
+    while the :attr:`localizer` and :attr:`tracker` attributes define processing steps
+    on these data.
 
     Other attributes drive the execution of the processing chain.
-    The `run` method launches the processing chain, which is operated by the
-    `pipeline` attribute.
+    The :meth:`run` method launches the processing chain, which is operated by the
+    :attr:`pipeline` attribute.
     
     Various parallelization schemes are available, and the platform-specific
-    implementation of these schemes are provided by the `env` attribute.
+    implementation of these schemes are provided by the :attr:`env` attribute.
 
-    Last but not least, the `RWAnalyzer` features plotting utilities.
+    Last but not least, the :class:`RWAnalyzer` features plotting utilities.
     Some of them are available through the *mpl* sub-attribute of some
     main *RWAnalyzer* attributes
-    (for exemple *images.mpl*, *spt_data.mpl*, *tesseller.mpl*, *mapper.mpl*).
-    In addition, the `browser` attribute can plot the inferred parameter maps
+    (for example *images.mpl*, *spt_data.mpl*, *tesseller.mpl*, *mapper.mpl*).
+    In addition, the :attr:`browser` attribute can plot the inferred parameter maps
     from a Jupyter notebook, or calling the ``bokeh serve`` command:
 
     .. code-block:: python
@@ -187,7 +190,7 @@ class RWAnalyzer(object):
         # load the rwa files available in the current directory:
         a.spt_data.from_rwa_files('*.rwa')
 
-        # help the analyzer to localize this piece of code:
+        # help the analyzer locate this piece of code:
         try:
             a.script = __file__
         except NameError: # in a notebook
@@ -204,6 +207,8 @@ class RWAnalyzer(object):
 
     @property
     def logger(self):
+        """
+        """
         if self._logger is None:
             self._logger = BasicLogger()
             #import logging
@@ -216,9 +221,8 @@ class RWAnalyzer(object):
 
     def _get_spt_data(self):
         """
-        SPT data accessor.
-
-        See :class:`~tramway.analyzer.spt_data.SPTDataInitializer`.
+        *~tramway.analyzer.spt_data.SPTData*: SPT data accessor;
+            see :class:`~tramway.analyzer.spt_data.SPTDataInitializer`.
         """
         return self._spt_data
     def _set_spt_data(self, data):

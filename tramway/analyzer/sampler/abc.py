@@ -15,6 +15,10 @@
 from ..attribute.abc import Attribute, abstractmethod
 
 class Sampler(Attribute):
+    """
+    Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.sampler` attribute
+    of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    """
     @abstractmethod
     def sample(self, spt_dataframe, segmentation=None):
         pass
