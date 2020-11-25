@@ -201,7 +201,7 @@ class TrackerInitializer(Initializer):
     :attr:`~tramway.analyzer.RWAnalyzer.tracker` main attribute.
 
     The :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute self-modifies
-    on calling *from_...* methods.
+    on calling any of the *from_...* methods.
     """
     __slots__ = ()
     def from_single_particle(self):

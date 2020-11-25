@@ -49,7 +49,8 @@ class TessellerInitializer(Initializer):
         """
         Argument:
 
-            cls (callable): no-argument callable object (usually a class)
+            cls (callable):
+                no-argument callable object (usually a class)
                 that returns a :class:`Tesseller` object.
 
         """

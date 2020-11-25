@@ -33,7 +33,8 @@ class ROI(Attribute):
         .. note::
 
             Iterating over the individual ROI may be useful for visualization;
-            favor :meth:`as_support_regions` for data processing.
+            favor :meth:`~tramway.analyzer.roi.ROI.as_support_regions` for
+            data processing.
 
         """
         pass

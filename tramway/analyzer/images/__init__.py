@@ -61,7 +61,7 @@ class ImageParameters(object):
     @property
     def loc_offset(self):
         """
-        *float*: Offset between coordinates and the image, in pixels
+        *numpy.ndarray*: Offset between coordinates and the image, in pixels
         """
         return self._loc_offset
     @loc_offset.setter
@@ -604,7 +604,7 @@ def all_unique(values):
     return np.unique(values).size == values.size
 
 
-__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', 'RawImage',
+__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', '_RawImage', 'RawImage',
         'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile',
         'RawImages', 'ImageFiles', 'TiffFiles']
 

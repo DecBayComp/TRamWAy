@@ -3,12 +3,13 @@ from ..attribute import *
 
 class Browser(AnalyzerNode):
     """
-    `~tramway.analyzer.RWAnalyzer.browser` attribute of an :class:`~tramway.analyzer.RWAnalyzer`.
+    :attr:`~tramway.analyzer.RWAnalyzer.browser` attribute of an
+    :class:`~tramway.analyzer.RWAnalyzer` object.
 
     Rendering is based on *bokeh* and is performed in a web browser tab.
     An optional side panel with experimental export features is shown if
-    argument ``side_panel=True`` is passed to `show_maps` or argument ``webdriver``
-    is defined:
+    argument ``side_panel=True`` is passed to :meth:`show_maps` or argument
+    `webdriver` is defined:
 
     .. code-block:: python
 
@@ -55,7 +56,7 @@ class Browser(AnalyzerNode):
     __slots__ = ('_colormap',)
     @property
     def colormap(self):
-        """ Colormap for inferred parameter maps.
+        """ *str*: Colormap for inferred parameter maps.
 
         See also :func:`~tramway.plot.bokeh.map.scalar_map_2d`."""
         return self._colormap
@@ -66,7 +67,7 @@ class Browser(AnalyzerNode):
         AnalyzerNode.__init__(self, parent=analyzer)
         self._colormap = None
     def show_maps(self, **kwargs):
-        """ see also :func:`~tramway.plot.bokeh.analyzer.browse_maps`. """
+        """ See also :func:`~tramway.plot.bokeh.analyzer.browse_maps`. """
         from tramway.plot.bokeh.analyzer import browse_maps
         browse_maps(self._eldest_parent, **kwargs)
 

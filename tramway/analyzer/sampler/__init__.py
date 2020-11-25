@@ -72,13 +72,16 @@ class VoronoiSampler(BaseSampler):
 
 
 class SamplerInitializer(Initializer):
-    """ initializer class for the `RWAnalyzer.sampler` main analyzer attribute.
+    """ Initializer class for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.sampler` main attribute.
 
-    The `RWAnalyzer.sampler` attribute self-modifies on calling *from_...* methods.
+    The :attr:`~tramway.analyzer.RWAnalyzer.sampler` attribute self-modifies
+    on calling any of the *from_...* methods.
 
-    The not-initialized `sampler` attribute behaves like:
+    The default not-initialized :attr:`~tramway.analyzer.RWAnalyzer.sampler`
+    attribute behaves like:
 
-    .. code-block: python
+    .. code-block:: python
 
         a = RWAnalyzer()
         a.sampler.from_voronoi()
@@ -138,8 +141,10 @@ class SphericalSampler(BaseSampler):
         self._radius = radius
     @property
     def radius(self):
-        """ upper bound or (lower bound, upper bound) pair on the distance
-        from a cell/microdomain center (*float* or pair of *float* s).
+        """
+        *float* or *(float, float)*:
+            Upper bound or (lower bound, upper bound) pair on the distance
+            from a cell/microdomain center
         """
         return self._radius
     @radius.setter
@@ -157,8 +162,10 @@ class Knn(BaseSampler):
         self._knn = knn
     @property
     def knn(self):
-        """ upper bound or (lower bound, upper bound) pair on the number of data points
-        away from the cell/microdomain center (*float* or pair of *float* s).
+        """ 
+        *int* or *(int, int)*: 
+            Upper bound or (lower bound, upper bound) pair on
+            the number of data points away from the cell/microdomain center
         """
         return self._knn
     @knn.setter
@@ -176,8 +183,10 @@ class TimeKnn(BaseSampler):
         self._knn = knn
     @property
     def knn(self):
-        """ upper bound or (lower bound, upper bound) pair on the number of data points
-        as pooled shrinking/widening the time window (*float* or pair of *float* s).
+        """
+        *int* or *(int, int)*:
+            Upper bound or (lower bound, upper bound) pair on the number of data points
+            as pooled shrinking/widening the time window
         """
         return self._knn
     @knn.setter

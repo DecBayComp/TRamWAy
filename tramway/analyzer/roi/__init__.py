@@ -26,8 +26,8 @@ from rwa.lazy import lazytype
 class BaseRegion(AnalyzerNode):
     """
     This class should not be directly instanciated.
-    It brings the basic functionalities to all the available representations
-    of regions of interest, merely labelling, analysis registration and time cropping.
+    It brings basic functionalities to all the available representations
+    of regions of interest, merely labelling and analysis registration.
     """
     __slots__ = ('_spt_data','_label')
     def __init__(self, spt_data, label=None, **kwargs):
@@ -101,13 +101,14 @@ class BoundingBox(IndividualROI):
         """
         Iterates and crops the image frames.
 
-        `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
+        `kwargs` are passed to the :class:`~tramway.analyzer.images.Images`
+        :meth:`~tramway.analyzer.images.Images.crop_frames` method.
         """
         yield from self._spt_data.get_image().crop_frames(self.bounding_box, **kwargs)
 
 class SupportRegion(BaseRegion):
     """
-    union of overlapping ROI.
+    Union of overlapping ROI.
     """
     __slots__ = ('_sr_index','_support_regions')
     def __init__(self, r, regions, spt_data, **kwargs):
@@ -132,7 +133,7 @@ class SupportRegion(BaseRegion):
             return np.min(np.stack(minima, axis=0), axis=0), np.max(np.stack(maxima, axis=0), axis=0)
     def crop_frames(self, **kwargs):
         """
-        Iterates and crops the image frames, based on `bounding_box`.
+        Iterates and crops the image frames, based on :attr:`bounding_box`.
 
         `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
         """
@@ -151,7 +152,7 @@ class FullRegion(BaseRegion):
         return df
     def crop_frames(self, **kwargs):
         """
-        .. note:
+        .. note::
 
             Time cropping is not supported yet.
 
@@ -312,7 +313,7 @@ class ROIInitializer(Initializer):
     def as_support_regions(self, index=None, source=None, return_index=False):
         """ Generator function; loops over all the support regions.
         
-        A :class:`ROIInitializer` does not define any ROI,
+        A :class:`ROIInitializer` attribute object does not define any ROI,
         as a consequence a single :class:`FullRegion` object is yielded."""
         if not null_index(index):
             raise ValueError('no ROI defined; cannot seek for the ith ROI')

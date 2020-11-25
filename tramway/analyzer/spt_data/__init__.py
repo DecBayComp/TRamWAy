@@ -77,12 +77,12 @@ class SPTParameters(object):
     @property
     def localization_error(self):
         return self._localization_error
-    localization_error.__doc__ = SPTData.localization_error.__doc__
     @localization_error.setter
     def localization_error(self, err):
         if err is None:
             err = 0.
         self._localization_error = err
+    localization_error.__doc__ = SPTData.localization_error.__doc__
     @property
     def localization_precision(self):
         """
@@ -152,7 +152,7 @@ def _normalize(p):
 
 
 class SPTDataIterator(AnalyzerNode, SPTParameters):
-    """ Partial implementation for multi-item :class:`~tramway.analyzer.spt_data.abc.SPTData`.
+    """ Partial implementation for multi-item :class:`SPTData`.
 
     Children classes must implement the :meth:`__iter__` method. """
     __slots__ = ('_bounds',)
@@ -501,7 +501,7 @@ class HasAnalysisTree(HasROI):
         If `_raise` is :const:`None` or :const:`False`, then :meth:`check_cache` returns
         a :class:`bool` instead, that is :const:`False` if the cache is alright,
         :const:`True` otherwise.
-        If `_raise` is :const:`True`, then :neth:`check_cache` returns :const:`True` if
+        If `_raise` is :const:`True`, then :meth:`check_cache` returns :const:`True` if
         the cache is alright, :const:`False` otherwise.
         """
         if _raise is None:
