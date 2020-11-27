@@ -18,6 +18,7 @@ from tramway.core.xyt import crop
 from . import collections as helper
 import warnings
 import numpy as np
+import pandas as pd
 from collections.abc import Sequence, Set
 from tramway.tessellation.base import Partition
 from rwa.lazy import lazytype
@@ -141,7 +142,7 @@ class SupportRegion(BaseRegion):
 
 class FullRegion(BaseRegion):
     """
-    wraps the full dataset; does not actually crop.
+    Wraps the full dataset; does not actually crop.
 
     A `FullRegion` can be both an individual ROI and a support region.
     """
@@ -224,7 +225,8 @@ class DecentralizedROIManager(AnalyzerNode):
         Support regions are equivalent to individual ROI if *group_overlapping_roi*
         was set to :const:`False`.
 
-        Filtering is delegated to the individual *SPTDataItem.roi* attributes.
+        Filtering is delegated to the individual SPT data block
+        :attr:`.spt_data.SPTDataItem.roi` attributes.
 
         A *callable* filter takes a single key (*int* for indices, *str* for paths)
         and returns a *bool*.
@@ -266,16 +268,24 @@ class ROIInitializer(Initializer):
     __slots__ = ()
     def specialize(self, cls, *args, **kwargs):
         Initializer.specialize(self, cls, *args, **kwargs)
-        if self._parent is self._eldest_parent and not issubclass(cls, DecentralizedROIManager):
-            # replace all individual-SPT-item-level roi initializers by mirrors
-            spt_data, roi = self._parent.spt_data, self._parent.roi
-            if not spt_data.initialized:
-                raise RuntimeError('cannot define ROI as long as the `spt_data` attribute is not initialized')
-            for f in spt_data:
-                assert isinstance(f, HasROI)
-                if f.roi.initialized:
-                    raise RuntimeError('ROI already defined at the individual SPT data item level')
-                f.roi._from_common_roi(roi)
+        if self._parent is self._eldest_parent:
+            if issubclass(cls, DecentralizedROIManager):
+                if cls is not DecentralizedROIManager:
+                    # post-register decentralized roi again if necessary
+                    spt_data, roi = self._parent.spt_data, self._parent.roi
+                    for f in spt_data:
+                        if isinstance(f, HasROI) and f.roi.initialized:
+                            roi._register_decentralized_roi(f)
+            else:
+                # replace all individual-SPT-item-level roi initializers by mirrors
+                spt_data, roi = self._parent.spt_data, self._parent.roi
+                if not spt_data.initialized:
+                    raise RuntimeError('cannot define ROI as long as the `spt_data` attribute is not initialized')
+                for f in spt_data:
+                    assert isinstance(f, HasROI)
+                    if f.roi.initialized:
+                        raise RuntimeError('ROI already defined at the individual SPT data item level')
+                    f.roi._from_common_roi(roi)
     ## initializers
     def _from_common_roi(self, roi):
         # special `specialize`
@@ -309,6 +319,64 @@ class ROIInitializer(Initializer):
         """
         bb = [ (center-.5*side, center+.5*side) for center in centers ]
         self.from_bounding_boxes(bb, label, group_overlapping_roi)
+    def from_ascii_file(self, filepath, size=None,
+            label=None, group_overlapping_roi=False):
+        """
+        Reads the ROI centers or bounds from a text file.
+
+        .. note::
+
+            This initializer can only be called from the decentralized
+            :attr:`~HasROI.roi` attribute of an
+            :class:`~.spt_data.SPTDataItem` item of the
+            :class:`~tramway.analyzer.RWAnalyzer`
+            :attr:`~tramway.analyzer.RWAnalyzer.spt_data` main attribute.
+
+        """
+        if isinstance(self._parent, HasROI):
+            self.specialize( ROIAsciiFile, filepath, size, label, group_overlapping_roi )
+        else:
+            raise AttributeError('from_ascii_file called for the main roi attribute')
+    def from_ascii_files(self, suffix='roi', extension='.txt', size=None,
+            label=None, group_overlapping_roi=False):
+        """
+        Reads the ROI centers or bounds from text files -- one file per item in
+        :attr:`~tramway.analyzer.RWAnalyzer.spt_data`.
+
+        The file paths are inferred from the SPT data source files (`source` attribute).
+        Files are looked for in the same directories as the corresponding SPT data file,
+        and are expected to be named with the same basename, plus a suffix and the *.txt*
+        extension.
+
+        A hyphen or underscore character is automatically appended left of the suffix if
+        necessary.
+
+        If the `source` attribute of the :class:`~tramway.analyzer.spt_data.SPTDataItem`
+        items, a :class:`ValueError` exception is raised.
+
+        .. note::
+
+            Calling this initializer method from a satellite `roi` attribute
+            (nested in an :class:`~.spt_data.SPTDataItem` data block)
+            is equivalent to calling the same initializer from the
+            :class:`~tramway.analyzer.RWAnalyzer`
+            :attr:`~tramway.analyzer.RWAnalyzer.roi` main attribute.
+
+        """
+        self._eldest_parent.roi.specialize( ROIAsciiFiles, suffix, extension,
+                size, label, group_overlapping_roi )
+    def from_dedicated_rwa_record(self, label=None, version=None, _impl=None):
+        if isinstance(self._parent, HasROI):
+            if version is None:
+                self._parent.logger.info('set version=1 to ensure constant behavior in the future')
+                version = 1
+            elif version != 1:
+                raise ValueError('version {} not supported'.format(version))
+            self.specialize( v1_ROIRecord, label, _impl )
+        else:
+            self.from_dedicated_rwa_records(label, version, _impl=_impl)
+    def from_dedicated_rwa_records(self, label=None, version=None, _impl=None):
+        self._eldest_parent.roi.specialize( ROIRecords, label, version, _impl )
     ## in the case no ROI are defined
     def as_support_regions(self, index=None, source=None, return_index=False):
         """ Generator function; loops over all the support regions.
@@ -443,6 +511,24 @@ class SpecializedROI(AnalyzerNode):
     as_support_regions.__doc__ = ROI.as_support_regions.__doc__
     def __iter__(self):
         raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+    def get_support_region(self, index, collection=None):
+        """
+        Returns the :class:`SupportRegion` object corresponding to an individual ROI.
+
+        .. note::
+
+            When using individual ROI indices and the parallelization capability of
+            :attr:`~tramway.analyzer.RWAnalyzer.pipeline`,
+            beware that :meth:`~ROI.as_individual_roi` is not controlled by the proper
+            filters, unlike :meth:`~ROI.as_support_regions`, in all the possible
+            implementations.
+            :meth:`get_support_region` may still be called on workers assigned to
+            processing other regions and consequently raise a :class:`RuntimeError`
+            exception.
+
+        """
+        return single(self.as_support_regions(index=self._collections.regions.unit_to_region(index, collection)))
+
 
 class BoundingBoxes(SpecializedROI):
     """
@@ -506,6 +592,176 @@ class BoundingBoxes(SpecializedROI):
 ROI.register(BoundingBoxes)
 
 
+class ROIAsciiFile(BoundingBoxes):
+    __slots__ = ('_path', '_size')
+    def __init__(self, path, size=None, label=None,
+            group_overlapping_roi=False, **kwargs):
+        SpecializedROI.__init__(self, **kwargs) # not BoundingBoxes.__init__
+        self._collections = helper.Collections(group_overlapping_roi)
+        if label is None:
+            label = ''
+        self._bounding_boxes = {label: None}
+        self._path = path
+        self._size = size
+    @property
+    def reified(self):
+        """ *bool*: :const:`True` if the files have been loaded """
+        return not all([ bb is None for bb in self._bounding_boxes.values() ])
+    @property
+    def filepath(self):
+        return self._path
+    @property
+    def bounding_boxes(self):
+        # this is enough to make `as_individual_roi` properly work
+        if not self.reified:
+            self.load()
+        return self._bounding_boxes
+    def as_support_regions(self, *args, **kwargs):
+        if not self.reified:
+            self.load()
+        yield from BoundingBoxes.as_support_regions(self, *args, **kwargs)
+    def load(self):
+        roi = pd.read_csv(self.filepath, sep='\t')
+        center_cols = [ col for col in 'xyzt' if col in roi.columns ]
+        bound_cols = [ col for col in 'xyzt' if col+' min' in roi.columns and col+' max' in roi.columns ]
+        if 't' in center_cols:
+            raise ValueError('cannot interprete a ROI center time')
+        if bound_cols:
+            if center_cols:
+                if 't' in bound_cols and not any([ col in bound_cols for col in 'xyz' ]):
+                    # only case allowed
+                    coords = [ col in center_cols for col in 'xyz' ]
+                    if coords:
+                        lower_bounds = (roi[coords] - .5 * self._size).join(roi[['t min']]).values
+                        upper_bounds = (roi[coords] + .5 * self._size).join(roi[['t max']]).values
+                    else:
+                        lower_bounds = roi[['t min']].values
+                        upper_bounds = roi[['t max']].values
+                        if self._size is not None:
+                            self._eldest_parent.logger.debug('ROI size is defined but no spatial coordinates were found')
+                else:
+                    raise ValueError('center and bound information both available at the same time')
+            else:
+                coords = [ col in bound_cols for col in 'xyz' ]
+                # ordering from bound_cols matters
+                lower_bounds = roi[[ col+' min' for col in bound_cols ]].values
+                upper_bounds = roi[[ col+' max' for col in bound_cols ]].values
+                if self._size is not None:
+                    self._eldest_parent.logger.debug('ROI size does not apply to bounds-defined regions')
+        else:
+            coords = center_cols
+            lower_bounds = roi[coords].values - .5 * self._size
+            upper_bounds = roi[coords].values + .5 * self._size
+        # last check
+        if 'x' in coords:
+            if 'y' not in coords:
+                raise ValueError('x coordinate found but could not find y coordinate')
+        elif 'y' in coords:
+            raise ValueError('y coordinate found but could not find x coordinate')
+        #
+        bounds = list(zip(lower_bounds, upper_bounds))
+        #
+        for label in self._bounding_boxes:
+            if self._bounding_boxes[label] is None:
+                self._collections[label] = bounds
+                self._bounding_boxes[label] = bounds
+                #break?
+
+ROI.register(ROIAsciiFile)
+
+
+class ROIAsciiFiles(DecentralizedROIManager):
+    __slots__ = ('_suffix',)
+    def __init__(self, suffix='roi', extension='.txt', side=None, label=None,
+            group_overlapping_roi=False, **kwargs):
+        DecentralizedROIManager.__init__(self, **kwargs)
+        if not isinstance(suffix, str):
+            raise TypeError('suffix is not an str')
+        self._suffix = suffix+extension
+        # TODO: initialize the decentralized ROI so that _list_files is triggered later
+        self._list_files(side, label, group_overlapping_roi)
+    def _list_files(self, *args):
+        import os.path
+        first = True
+        for f in self._parent.spt_data:
+            if f.source is None or not os.path.isfile(f.source):
+                self._parent.logger.warning('cannot identify or find SPT data source: {}'.format(f.source))
+                continue
+            filepath, _ = os.path.splitext(f.source)
+            if first:
+                found = False
+                for join_with in ('', '-', '_'):
+                    candidate_filepath = join_with.join((filepath, self._suffix))
+                    if os.path.isfile(candidate_filepath):
+                        found = True
+                        filepath = candidate_filepath
+                        self._suffix = join_with + self._suffix
+                        break
+                if not found:
+                    raise FileNotFoundError('{}{}{}'.format(
+                            os.path.basename(filepath),
+                            '' if self._suffix[0] in '-_' else '[-_]',
+                            self._suffix,
+                        ))
+                first = False
+            else:
+                filepath += self._suffix
+            #
+            f.roi.from_ascii_file(filepath, *args)
+
+ROI.register(ROIAsciiFiles)
+
+
+class v1_ROIRecord(BoundingBoxes):
+    __slots__ = ('_helper',)
+    def __init__(self, label=None, _impl=None, **kwargs):
+        SpecializedROI.__init__(self, **kwargs) # not BoundingBoxes.__init__
+        if _impl is None:
+            _impl = helper.helper.RoiHelper
+        analyses = self._parent.analyses
+        self._helper = _impl(analyses.analyses.statefree(), autosave=False, verbose=False)
+        if label is None:
+            label = ''
+        self._bounding_boxes = {label: None}
+    @property
+    def _collections(self):
+        return self._helper.collections
+    @_collections.setter
+    def _collections(self, roi):
+        if roi is not None:
+            raise AttributeError("can't set attribute")
+    @property
+    def reified(self):
+        """ *bool*: :const:`True` if the files have been loaded """
+        return not all([ bb is None for bb in self._bounding_boxes.values() ])
+    @property
+    def bounding_boxes(self):
+        # this is enough to make `as_individual_roi` properly work
+        if not self.reified:
+            self.load()
+        return self._bounding_boxes
+    def as_support_regions(self, *args, **kwargs):
+        if not self.reified:
+            self.load()
+        yield from BoundingBoxes.as_support_regions(self, *args, **kwargs)
+    def load(self):
+        for coll_label, meta_label in self._helper.get_meta_labels().items():
+            self._bounding_boxes[coll_label] = \
+                    self._helper.collections[coll_label] = \
+                            self._helper.get_bounding_boxes(meta_label=meta_label)
+
+
+class ROIRecords(DecentralizedROIManager):
+    __slots__ = ()
+    def __init__(self, label=None, version=None, _impl=None, **kwargs):
+        DecentralizedROIManager.__init__(self, **kwargs)
+        if version is None:
+            self._parent.logger.info('set version=1 to ensure constant behavior in the future')
+            version = 1
+        for f in self._parent.spt_data:
+            f.roi.from_dedicated_rwa_record(label, version, _impl=_impl)
+
+
 class HasROI(AnalyzerNode):
     """ Class to be inherited from by SPT data item classes.
     
@@ -529,11 +785,11 @@ class HasROI(AnalyzerNode):
         self._roi = roi(self._set_roi, parent=self)
     def compatible_source(self, source):
         """
-        returns :const:`True` if filter *source* matches with `self.source`.
+        Returns :const:`True` if filter *source* matches with `self.source`.
 
         .. note::
 
-            does not check against the alias.
+            Does not check against the alias.
 
         """
         if source is None:
@@ -550,5 +806,5 @@ class HasROI(AnalyzerNode):
 
 __all__ = [ 'ROI', 'ROIInitializer', 'SpecializedROI', 'BoundingBoxes', 'DecentralizedROIManager',
         'BaseRegion', 'FullRegion', 'IndividualROI', 'BoundingBox', 'SupportRegion',
-        'CommonROI', 'HasROI' ]
+        'CommonROI', 'HasROI', 'ROIAsciiFile', 'ROIAsciiFiles', 'v1_ROIRecord', 'ROIRecords' ]
 

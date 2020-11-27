@@ -23,12 +23,12 @@ class Images(Attribute):
     def as_frames(self, index=None, return_time=False):
         """ Generator function; yields frames as arrays.
 
-        See for example :meth:`~tramway.analyzer.images._RawImage.as_frames`. """
+        See for example :meth:`~tramway.analyzer.images.RawImage.as_frames`. """
         pass
     def crop_frames(self, bounding_box, index=None, return_time=False):
         """ Generator function similar to :meth:`as_frames`, with ROI cropping.
 
-        See for example :meth:`~tramway.analyzer.images._RawImage.crop_frames`. """
+        See for example :meth:`~tramway.analyzer.images.RawImage.crop_frames`. """
         pass
 
 class Image(metaclass=ABCMeta):

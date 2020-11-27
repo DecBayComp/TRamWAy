@@ -13,6 +13,7 @@
 
 
 from ..attribute import AnalyzerNode
+from ..artefact import Analysis
 import warnings
 from tramway.tessellation.base import Partition, Voronoi
 from tramway.tessellation.time import TimeLattice
@@ -38,6 +39,8 @@ class Mpl(AnalyzerNode):
             location_options.update(_options)
             kwargs, _kwargs = dict(aspect='equal', show=False), kwargs
             kwargs.update(_kwargs)
+        if isinstance(tessellation, Analysis):
+            tessellation = tessellation.data
         if isinstance(tessellation, Partition):
             sampling = tessellation
             tessellation = sampling.tessellation

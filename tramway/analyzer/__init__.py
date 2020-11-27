@@ -357,11 +357,11 @@ class RWAnalyzer(object):
         self.tesseller = TessellerInitializer
         self.sampler   = SamplerInitializer
         self.mapper    = MapperInitializer
-        self.env       = EnvironmentInitializer
         self.images    = ImagesInitializer
         self.localizer = LocalizerInitializer
         self.tracker   = TrackerInitializer
         self._pipeline = Pipeline(self)
+        self.env       = EnvironmentInitializer
         self._browser  = Browser(self)
 
     @property
@@ -376,6 +376,8 @@ class RWAnalyzer(object):
     def run(self):
         """
         Launches the pipeline.
+
+        Alias for :attr:`~RWAnalyzer.pipeline` :meth:`~.pipeline.Pipeline.run`.
         """
         return self.pipeline.run()
 
@@ -383,7 +385,7 @@ class RWAnalyzer(object):
         """
         Designates a file generated on the worker side to be transferred back to the submit side.
 
-        See :meth:`Pipeline.add_collectible`.
+        Alias for :attr:`~RWAnalyzer.pipeline` :meth:`~.pipeline.Pipeline.add_collectible`.
         """
         self.pipeline.add_collectible(collectible)
 
@@ -392,7 +394,7 @@ class RWAnalyzer(object):
         """
         Data visualization and export.
 
-        See :class:`~tramway.analyzer.browser.Browser`.
+        See :class:`~.browser.Browser`.
         """
         return self._browser
 
@@ -404,6 +406,8 @@ class RWAnalyzer(object):
         Designating a script is required for parallelizing computations,
         or visualizing maps without explicitly calling the ``bokeh serve`` command
         (e.g. from a Jupyter notebook).
+
+        Alias for :attr:`env` :attr:`~.env.environments.Env.script`.
         """
         return self.env.script
     @script.setter

@@ -185,6 +185,24 @@ class Mpl(AnalyzerNode):
         return animation.FuncAnimation(fig, patches.animate, init_func=patches.init_func,
                 frames=_iter(sampling, maps, return_times=False), **anim_kwargs)
 
+    def plot(self, maps, feature, sampling=None, axes=None, aspect='equal', **kwargs):
+        """
+        Calls :func:`~tramway.helper.inference.map_plot`.
+
+        May be reworked in the future to remove the :mod:`~tramway.helper` dependency.
+        """
+        from tramway.helper.inference import map_plot
+        if isinstance(maps, Analysis):
+            if sampling is None:
+                sampling = maps.get_parent()
+            maps = maps.data
+        if isinstance(sampling, Analysis):
+            sampling = sampling.data
+        if 'title' not in kwargs:
+            kwargs['title'] = None
+        kwargs['aspect'] = aspect
+        map_plot(maps, sampling, feature=feature, axes=axes, **kwargs)
+
 
 __all__ = ['PatchCollection', 'Mpl']
 
