@@ -13,11 +13,11 @@
 
 """
 This package is no longer maintained and is superseded by the *mpl*
-functionalities of `~tramway.analyzer.RWAnalyzer`.
+functionalities of :class:`~tramway.analyzer.RWAnalyzer`.
 
-See for example `~tramway.analyzer.images._RawImage.to_color_movie`,
-`~tramway.analyzer.spt_data.mpl.Mpl.animate` and
-`~tramway.analyzer.mapper.mpl.Mpl.animate`.
+See for example :meth:`~tramway.analyzer.images._RawImage.to_color_movie`,
+:meth:`~tramway.analyzer.spt_data.mpl.Mpl.animate` and
+:meth:`~tramway.analyzer.mapper.mpl.Mpl.animate`.
 """
 
 try:

@@ -226,7 +226,7 @@ class DecentralizedROIManager(AnalyzerNode):
         was set to :const:`False`.
 
         Filtering is delegated to the individual SPT data block
-        :attr:`.spt_data.SPTDataItem.roi` attributes.
+        :attr:`..spt_data.SPTDataItem.roi` attributes.
 
         A *callable* filter takes a single key (*int* for indices, *str* for paths)
         and returns a *bool*.
@@ -328,7 +328,7 @@ class ROIInitializer(Initializer):
 
             This initializer can only be called from the decentralized
             :attr:`~HasROI.roi` attribute of an
-            :class:`~.spt_data.SPTDataItem` item of the
+            :class:`~..spt_data.SPTDataItem` item of the
             :class:`~tramway.analyzer.RWAnalyzer`
             :attr:`~tramway.analyzer.RWAnalyzer.spt_data` main attribute.
 
@@ -357,7 +357,7 @@ class ROIInitializer(Initializer):
         .. note::
 
             Calling this initializer method from a satellite `roi` attribute
-            (nested in an :class:`~.spt_data.SPTDataItem` data block)
+            (nested in an :class:`~..spt_data.SPTDataItem` data block)
             is equivalent to calling the same initializer from the
             :class:`~tramway.analyzer.RWAnalyzer`
             :attr:`~tramway.analyzer.RWAnalyzer.roi` main attribute.

@@ -31,19 +31,19 @@ class PipelineStage(object):
     @property
     def granularity(self):
         """
-        *str*: see :meth:`Pipeline.append_stage`
+        *str*: See :meth:`Pipeline.append_stage`
         """
         return self._granularity
     @property
     def requires_mutability(self):
         """
-        *bool*: see :meth:`Pipeline.append_stage`
+        *bool*: See :meth:`Pipeline.append_stage`
         """
         return self._mutability
     @property
     def name(self):
         """
-        *str*: callable's name
+        *str*: Callable's name
         """
         return self._run.__name__
     def __call__(self, *args, **kwargs):
@@ -52,11 +52,10 @@ class PipelineStage(object):
 
 class Pipeline(AnalyzerNode):
     """
-    `pipeline` attribute of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    :attr:`~tramway.analyzer.RWAnalyzer.pipeline` attribute of an
+    :class:`~tramway.analyzer.RWAnalyzer` object.
 
-    The main methods are `append_stage` and `run`.
-    Note that the `run` method is called by :meth:`~tramway.analyzer.RWAnalyzer.run`
-    of :class:`~tramway.analyzer.RWAnalyzer`.
+    The main methods are :meth:`append_stage` and :meth:`run`.
     """
     __slots__ = ('_stage',)
     def __init__(self, *args, **kwargs):
@@ -110,7 +109,7 @@ class Pipeline(AnalyzerNode):
                 *'time'* or equivalently *'segment'* or *'time segment'* (case-insensitive).
 
             requires_mutability (bool): callable object `stage` alters input argument `self`.
-                Stages with this argument set to ``True`` are always run as dependencies.
+                Stages with this argument set to :const:`True` are always run as dependencies.
 
         """
         self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
@@ -240,10 +239,11 @@ class Pipeline(AnalyzerNode):
         Works as a replacement for the :meth:`run` method to recover
         after connection loss.
 
-        Recovery procedures featured by the `env` backend may fail or recover
-        some of the generated files only.
+        Recovery procedures featured by the :attr:`~tramway.analyzer.RWAnalyzer.env`
+        backend may fail or recover some of the generated files only.
 
-        See also the *resume* method of the `env` attribute, if available.
+        See also the :meth:`~..env.SlurmOverSSH.resume` method of the
+        :attr:`~tramway.analyzer.RWAnalyzer.env` attribute, if available.
         """
         try:
             proc = self.env.resume

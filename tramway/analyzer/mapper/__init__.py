@@ -102,6 +102,7 @@ class MapperPlugin(AnalyzerNode):
         return Mpl
     @property
     def mpl(self):
+        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
         return self._mpl_impl(self)
 
 Mapper.register(MapperPlugin)

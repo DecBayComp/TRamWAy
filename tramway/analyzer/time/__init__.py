@@ -272,7 +272,7 @@ class SlidingWindow(AnalyzerNode, DT):
             times = sampling.tessellation.time_lattice[segment_index]
         format_time = lambda t: '{:.3f}'.format(t).rstrip('0').rstrip('.')
         return '{} -- t={}-{}s'.format(map_label, *[ format_time(t) for t in times ])
-    def combine_segments(self, combined_output_label, combined_sampling, commit=True):
+    def combine_segments(self, combined_output_label, combined_sampling, commit=True, permisse=False):
         analyses = combined_sampling.subtree
         sampling = combined_sampling.data
         try:
@@ -282,40 +282,48 @@ class SlidingWindow(AnalyzerNode, DT):
                 labels.append(single_segment_label)
                 single_segment_output.append(analyses[single_segment_label].data)
         except KeyError:
-            self._eldest_parent.logger.info('not all segments are available; combining aborted')
-        else:
-            assert single_segment_output
-            from tramway.inference.base import Maps
-            ok = [ isinstance(m, Maps) for m in single_segment_output ]
-            if all(ok):
-                pass
-            elif any(ok):
-                raise TypeError('cannot combine heterogeneous types')
+            if single_segment_output:
+                if permissive:
+                    self._eldest_parent.logger.warning('not all segments are available; combining aborted')
+                else:
+                    raise KeyError('not all segments are available; combining aborted')
             else:
-                raise TypeError('cannot combine values of type: {}'.format(type(single_segment_output[0])))
-            ncells = sampling.tessellation.spatial_mesh.number_of_cells
-            import copy
-            import pandas as pd
-            it = iter(single_segment_output)
-            maps = copy.deepcopy(next(it))
-            maps.runtime = None
-            maps.posteriors = None
-            df, s = [maps.maps], 0
-            while True:
-                try:
-                    m = next(it)
-                except StopIteration:
-                    break
-                s += 1
-                m = m.maps.copy()
-                m.index += s*ncells
-                df.append(m)
-            maps.maps = pd.concat(df)
-            if commit:
-                for label in labels:
-                    del analyses[label]
-                analyses[combined_output_label] = maps
-            return maps
+                if permissive:
+                    return None
+                else:
+                    raise KeyError("no '{}' segments found".format(combined_output_label)) from None
+        assert single_segment_output
+        from tramway.inference.base import Maps
+        ok = [ isinstance(m, Maps) for m in single_segment_output ]
+        if all(ok):
+            pass
+        elif any(ok):
+            raise TypeError('cannot combine heterogeneous types')
+        else:
+            raise TypeError('cannot combine values of type: {}'.format(type(single_segment_output[0])))
+        ncells = sampling.tessellation.spatial_mesh.number_of_cells
+        import copy
+        import pandas as pd
+        it = iter(single_segment_output)
+        maps = copy.deepcopy(next(it))
+        maps.runtime = None
+        maps.posteriors = None
+        df, s = [maps.maps], 0
+        while True:
+            try:
+                m = next(it)
+            except StopIteration:
+                break
+            s += 1
+            m = m.maps.copy()
+            m.index += s*ncells
+            df.append(m)
+        maps.maps = pd.concat(df)
+        if commit:
+            for label in labels:
+                del analyses[label]
+            analyses[combined_output_label] = maps
+        return maps
 
 Time.register(SlidingWindow)
 

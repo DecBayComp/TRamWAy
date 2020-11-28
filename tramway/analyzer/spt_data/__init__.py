@@ -702,16 +702,17 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         return label
     def get_sampling(self, label):
         return Analysis.get_analysis(self.analyses, label)
-    def autosaving(self, *args, **kwargs):
+    def autosaving(self, *args, overwrite=True, **kwargs):
         assert isinstance(self.analyses, AutosaveCapable)
         if not self.analyses.rwa_file:
             if self.source:
                 self.analyses.rwa_file = os.path.splitext(self.source)[0]+'.rwa'
                 if self.analyses.rwa_file == self.source:
-                    i = 0
-                    while os.path.isfile(os.path.expanduser(self.analyses.rwa_file)):
-                        i += 1
-                        self.analyses.rwa_file = '{}-{:d}.rwa'.format(os.path.splitext(self.source)[0],i)
+                    if not overwrite:
+                        i = 0
+                        while os.path.isfile(os.path.expanduser(self.analyses.rwa_file)):
+                            i += 1
+                            self.analyses.rwa_file = '{}-{:d}.rwa'.format(os.path.splitext(self.source)[0],i)
             else:
                 self.logger.warning('no output filename defined')
         return self.analyses.autosaving(*args, **kwargs)
@@ -721,7 +722,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         return Mpl
     @property
     def mpl(self):
-        """Matplotlib utilities"""
+        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
         return self._mpl_impl(self)
 
 

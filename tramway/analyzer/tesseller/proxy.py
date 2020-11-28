@@ -226,6 +226,7 @@ class TessellerProxy(AnalyzerNode):
         return Mpl
     @property
     def mpl(self):
+        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
         return self._mpl_impl(self)
 
     def __getattr__(self, attrname):

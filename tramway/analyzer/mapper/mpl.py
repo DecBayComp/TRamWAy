@@ -43,7 +43,7 @@ class PatchCollection(object):
             bounding_box (DataFrame): map bounding box;
                 required if *mesh* is not `Partition`.
             
-        Extra keyword arguments are passed to `scalar_map_2d`.
+        Extra keyword arguments are passed to :func:`~tramway.plot.map.scalar_map_2d`.
         """
         if not isinstance(mesh, Partition):
             mesh = Partition(pd.DataFrame([], columns=list('nxyt')),

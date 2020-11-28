@@ -430,6 +430,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
         return Mpl
     @property
     def mpl(self):
+        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
         return self._mpl_impl(self)
 
 
@@ -604,7 +605,7 @@ def all_unique(values):
     return np.unique(values).size == values.size
 
 
-__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', '_RawImage', 'RawImage',
+__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', 'RawImage',
         'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile',
         'RawImages', 'ImageFiles', 'TiffFiles']
 

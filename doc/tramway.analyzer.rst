@@ -35,6 +35,7 @@ tramway.analyzer.images package
     :undoc-members:
     :show-inheritance:
     :member-order: bysource
+    :private-members: _RawImage
 
 
 tramway.analyzer.images.mpl module

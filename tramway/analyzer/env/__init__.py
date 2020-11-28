@@ -18,6 +18,23 @@ from . import environments
 
 
 class EnvironmentInitializer(Initializer):
+    """
+    Can be left not-initialized.
+
+    For local multi-processing:
+
+    .. code:: python
+
+        a.env = environments.LocalHost
+
+    For *sbatch* job scheduling on an SSH-reachable server:
+
+    .. code:: python
+
+        a.env = environments.SlurmOverSSH
+
+    See :class:`~.environments.LocalHost` and :class:`~.environments.SlurmOverSSH`.
+    """
     __slots__ = ('_script',)
     def __init__(self, attribute_setter, parent=None):
         Initializer.__init__(self, attribute_setter, parent=parent)
@@ -29,6 +46,10 @@ class EnvironmentInitializer(Initializer):
             raise TypeError('env is not an Environment')
     @property
     def script(self):
+        """
+        *str*: Path to the local script; this compatibility attribute
+            is actually used by the :attr:`~tramway.analyzer.RWAnalyzer.browser`
+        """
         #return None
         return self._script
     @script.setter
@@ -37,6 +58,7 @@ class EnvironmentInitializer(Initializer):
         self._script = filename
     @property
     def collectibles(self):
+        """ set: Compatilibity attribute; not used """
         return set()
 
 
