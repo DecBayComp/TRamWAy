@@ -969,7 +969,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
         independent_components=False, newton=True, verbose=False, diagnosis=None,
-        returns=(), max_runtime=None, **kwargs):
+        returns=(), max_runtime=None, update_timeout=None, **kwargs):
     """
     Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
@@ -1135,7 +1135,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             ls_failure_rate=ls_failure_rate, fix_ls=fix_ls, fix_ls_trigger=fix_ls_trigger,
             verbose=verbose, logger=logger, diagnosis=diagnosis,
             returns={'f', 'df', 'projg', 'err', 'ncalls', 'diagnosis'} if returns == 'all' else returns,
-            max_runtime=max_runtime,
+            max_runtime=max_runtime, update_timeout=update_timeout,
             **kwargs)
     sched.logger = logger
 
@@ -1200,10 +1200,11 @@ class SBFGSScheduler(parallel.Scheduler):
             name=None, args=(), kwargs={}, daemon=None,
             max_iter=None, ftol=None, gtol=None, low_df_rate=None, low_dg_rate=None,
             ls_failure_rate=None, fix_ls=None, fix_ls_trigger=None, returns={},
-            max_runtime=None, **_kwargs):
+            max_runtime=None, update_timeout=None, **_kwargs):
         __global__.gtol = gtol
         parallel.Scheduler.__init__(self, __global__, C, worker_count=worker_count, iter_max=max_iter,
-                name=name, args=args, kwargs=kwargs, daemon=daemon, max_runtime=max_runtime, **_kwargs)
+                name=name, args=args, kwargs=kwargs, daemon=daemon, max_runtime=max_runtime,
+                task_timeout=update_timeout, **_kwargs)
         self.component = component
         self.ftol = ftol
         self.gtol = gtol

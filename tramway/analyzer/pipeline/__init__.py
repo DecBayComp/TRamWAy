@@ -212,10 +212,16 @@ class Pipeline(AnalyzerNode):
                             self.env.submit_jobs()
                             self.logger.info('jobs submitted')
                             self.env.wait_for_job_completion()
-                        except KeyboardInterrupt:
+                        except KeyboardInterrupt as e:
                             self.logger.critical('interrupting jobs...')
-                            if not self.env.interrupt_jobs():
-                                raise
+                            try:
+                                ret = self.env.interrupt_jobs()
+                            except KeyboardInterrupt:
+                                self.logger.debug('interrupt_jobs() did not return')
+                                raise e from None
+                            else:
+                                if not ret:
+                                    raise
                         self.logger.info('jobs complete')
                         if self.env.collect_results(stage_index=s):
                             self.logger.info('results collected')

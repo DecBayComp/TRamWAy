@@ -196,7 +196,10 @@ def make_regions(cells, index, reverse_index, size=1):
     A = cells.adjacency
     regions = []
     for i in index:
-        j = set([i.tolist()])
+        if isinstance(i, int):
+            j = set([i])
+        else:
+            j = set([i.tolist()])
         j_inner = set()
         for k in range(size):
             j_outer = j - j_inner
@@ -536,6 +539,7 @@ def infer_stochastic_DV(cells,
             return dv.region(i)
         if 'gradient_covariate' not in sbfgs_kwargs:
             sbfgs_kwargs['gradient_covariate'] = col2rows
+        sbfgs_kwargs['worker_count'] = 0
 
     if os.name == 'nt':
         if sbfgs_kwargs.get('worker_count', None):

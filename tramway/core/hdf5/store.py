@@ -87,7 +87,7 @@ class RWAStore(HDF5Store):
             import pandas
             if issubclass(lazytype(obj), pandas.DataFrame):
                 if self.force_load_special or not (self.lazy if lazy is None else lazy):
-                    obj = lazyvalue(obj)
+                    obj = lazyvalue(obj, deep=True)
                 self.__special__['data0'] = obj
         return obj
 
@@ -154,9 +154,7 @@ def load_rwa(path, verbose=None, lazy=False, force_load_spt_data=None):
                 print('cannot load file: {}'.format(path))
             raise
         finally:
-            if lazy:
-                assert islazy(analyses._data)
-            else:
+            if not lazy:
                 hdf.close()
     except EnvironmentError as e:
         if hasattr(e, 'errno') and e.errno == errno.ENOENT:

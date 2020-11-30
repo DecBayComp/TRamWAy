@@ -272,7 +272,7 @@ class SlidingWindow(AnalyzerNode, DT):
             times = sampling.tessellation.time_lattice[segment_index]
         format_time = lambda t: '{:.3f}'.format(t).rstrip('0').rstrip('.')
         return '{} -- t={}-{}s'.format(map_label, *[ format_time(t) for t in times ])
-    def combine_segments(self, combined_output_label, combined_sampling, commit=True, permisse=False):
+    def combine_segments(self, combined_output_label, combined_sampling, commit=True, permissive=False):
         analyses = combined_sampling.subtree
         sampling = combined_sampling.data
         try:

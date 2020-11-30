@@ -1209,6 +1209,12 @@ print('{}'+';'.join(files))\
 class SlurmOverSSH(Slurm, RemoteHost):
     """
     Calls *sbatch* through an SSH connection to a Slurm server.
+
+    .. note::
+
+        All filepaths should be absolute or relative to the $HOME directory.
+        This applies especially to all file-based initializers.
+
     """
     __slots__ = __remote_host_attrs__
     def __init__(self, **kwargs):

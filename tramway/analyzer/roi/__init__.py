@@ -40,6 +40,9 @@ class BaseRegion(AnalyzerNode):
         if callable(self._label):
             self._label = self._label()
         return self._label
+    @property
+    def source(self):
+        return self._spt_data.source
     def get_sampling(self, label=None, unique=True, _type=Partition):
         if callable(label):
             label = label(self.label)
@@ -338,7 +341,7 @@ class ROIInitializer(Initializer):
         else:
             raise AttributeError('from_ascii_file called for the main roi attribute')
     def from_ascii_files(self, suffix='roi', extension='.txt', size=None,
-            label=None, group_overlapping_roi=False):
+            label=None, group_overlapping_roi=False, skip_missing=False):
         """
         Reads the ROI centers or bounds from text files -- one file per item in
         :attr:`~tramway.analyzer.RWAnalyzer.spt_data`.
@@ -364,7 +367,7 @@ class ROIInitializer(Initializer):
 
         """
         self._eldest_parent.roi.specialize( ROIAsciiFiles, suffix, extension,
-                size, label, group_overlapping_roi )
+                size, label, group_overlapping_roi, skip_missing )
     def from_dedicated_rwa_record(self, label=None, version=None, _impl=None):
         if isinstance(self._parent, HasROI):
             if version is None:
@@ -673,14 +676,15 @@ ROI.register(ROIAsciiFile)
 class ROIAsciiFiles(DecentralizedROIManager):
     __slots__ = ('_suffix',)
     def __init__(self, suffix='roi', extension='.txt', side=None, label=None,
-            group_overlapping_roi=False, **kwargs):
+            group_overlapping_roi=False, skip_missing=False, **kwargs):
         DecentralizedROIManager.__init__(self, **kwargs)
         if not isinstance(suffix, str):
             raise TypeError('suffix is not an str')
         self._suffix = suffix+extension
         # TODO: initialize the decentralized ROI so that _list_files is triggered later
-        self._list_files(side, label, group_overlapping_roi)
+        self._list_files(side, label, group_overlapping_roi, skip_missing)
     def _list_files(self, *args):
+        args, skip_missing = args[:-1], args[-1]
         import os.path
         first = True
         for f in self._parent.spt_data:
@@ -692,12 +696,15 @@ class ROIAsciiFiles(DecentralizedROIManager):
                 found = False
                 for join_with in ('', '-', '_'):
                     candidate_filepath = join_with.join((filepath, self._suffix))
-                    if os.path.isfile(candidate_filepath):
+                    if os.path.isfile(os.path.expanduser(candidate_filepath)):
                         found = True
                         filepath = candidate_filepath
                         self._suffix = join_with + self._suffix
                         break
                 if not found:
+                    if skip_missing:
+                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        continue
                     raise FileNotFoundError('{}{}{}'.format(
                             os.path.basename(filepath),
                             '' if self._suffix[0] in '-_' else '[-_]',
@@ -705,9 +712,22 @@ class ROIAsciiFiles(DecentralizedROIManager):
                         ))
                 first = False
             else:
-                filepath += self._suffix
+                filepath = filepath + self._suffix
+                if not os.path.isfile(os.path.expanduser(filepath)):
+                    if skip_missing:
+                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        continue
+                    raise FileNotFoundError('{}{}{}'.format(
+                            os.path.basename(filepath),
+                            '' if self._suffix[0] in '-_' else '[-_]',
+                            self._suffix,
+                        ))
+
             #
             f.roi.from_ascii_file(filepath, *args)
+        #
+        if first:
+            raise FileNotFoundError('not any roi file found')
 
 ROI.register(ROIAsciiFiles)
 

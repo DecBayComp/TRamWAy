@@ -13,7 +13,8 @@
 
 
 from tramway.core.exceptions import MisplacedAttributeWarning
-from warnings   import warn
+from warnings import warn
+import logging
 
 def report_misplaced_attribute(attr_name, proper_parent_name):
     warn('`{}` is an attribute of the initialized `{}` attribute; this warning message can safely be silenced'.format(attr_name, proper_parent_name), MisplacedAttributeWarning)
@@ -210,10 +211,11 @@ class RWAnalyzer(object):
         """
         """
         if self._logger is None:
-            self._logger = BasicLogger()
-            #import logging
-            #self._logger = logging.getLogger(__name__)
-            #self._logger.setLevel(logging.DEBUG)
+            #self._logger = BasicLogger()
+            import logging
+            self._logger = logging.getLogger(__name__)
+            self._logger.setLevel(logging.DEBUG)
+            self._logger.addHandler(logging.StreamHandler())
         return self._logger
     @logger.setter
     def logger(self, logger):
