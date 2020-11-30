@@ -103,10 +103,12 @@ class Pipeline(AnalyzerNode):
                 as unique input argument.
 
             granularity (str): smallest data item `stage` can independently process;
-                any of *'coarsest'* or equivalently *'full dataset'*,
-                *'source'* or equivalently *'spt data'*, *'data source'* or *'spt data source'*,
-                *'roi'* or equivalently *'region of interest'*,
-                *'time'* or equivalently *'segment'* or *'time segment'* (case-insensitive).
+                any of :const:`'coarsest'` or equivalently :const:`'full dataset'`,
+                :const:`'source'` or equivalently :const:`'spt data'`, :const:`'data source'`
+                or :const:`'spt data source'`, :const:`'roi'` or equivalently
+                :const:`'region of interest'`,
+                :const:`'time'` or equivalently :const:`'segment'` or :const:`'time segment'`
+                (case-insensitive).
 
             requires_mutability (bool): callable object `stage` alters input argument `self`.
                 Stages with this argument set to :const:`True` are always run as dependencies.
@@ -248,7 +250,7 @@ class Pipeline(AnalyzerNode):
         Recovery procedures featured by the :attr:`~tramway.analyzer.RWAnalyzer.env`
         backend may fail or recover some of the generated files only.
 
-        See also the :meth:`~..env.SlurmOverSSH.resume` method of the
+        See also the :meth:`~tramway.analyzer.env.SlurmOverSSH.resume` method of the
         :attr:`~tramway.analyzer.RWAnalyzer.env` attribute, if available.
         """
         try:

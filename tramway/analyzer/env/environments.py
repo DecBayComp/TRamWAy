@@ -61,7 +61,8 @@ def join_arguments(args):
 
 class Env(AnalyzerNode):
     """
-    Implements parts of classes suitable for the `RWAnalyzer.env` main attribute.
+    Implements parts of classes suitable for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.env` main attribute.
 
     See :class:`LocalHost` or :class:`SlurmOverSSH` for examples of concrete classes.
     """
@@ -105,7 +106,7 @@ class Env(AnalyzerNode):
     @property
     def wd_is_available(self):
         """
-        *bool*: `True` if the working directory is ready on the worker side
+        *bool*: :const:`True` if the working directory is ready on the worker side
         """
         return True
     @property
@@ -157,7 +158,7 @@ class Env(AnalyzerNode):
     @property
     def selectors(self):
         """
-        *dict*: Wrapper classes for main `RWAnalyzer` attributes
+        *dict*: Wrapper classes for main :class`~tramway.analyzer.RWAnalyzer` attributes
         """
         return self._selectors
     @selectors.setter
@@ -195,7 +196,8 @@ class Env(AnalyzerNode):
         return self.selectors['stage_index']
     def setup(self, *argv):
         """
-        Determines which side is running and alters iterators of the main `RWAnalyzer` attributes.
+        Determines which side is running and alters iterators of the main
+        :class:`~tramway.analyzer.RWAnalyzer` attributes.
 
         Takes command-line arguments (``sys.argv``).
         """
@@ -286,7 +288,7 @@ class Env(AnalyzerNode):
             self.logger.info('working directory: '+self.wd)
     def spt_data_selector(self, spt_data_attr):
         """
-        Wraps the `RWAnalyzer.spt_data` attribute.
+        Wraps the :attr:`~tramway.analyzer.RWAnalyzer.spt_data` attribute.
         """
         if isinstance(spt_data_attr, Initializer) or isinstance(spt_data_attr, Proxy):
             return spt_data_attr
@@ -327,7 +329,8 @@ class Env(AnalyzerNode):
         return selector_cls(spt_data_attr)
     def roi_selector(self, roi_attr):
         """
-        Wraps the `RWAnalyzer.roi` attribute and/or the individual `SPTDataItem.roi` attributes.
+        Wraps the :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute and/or the individual
+        :attr:`..spt_data.SPTDataItem.roi` attributes.
         """
         if isinstance(roi_attr, Initializer) or isinstance(roi_attr, Proxy):
             return roi_attr
@@ -360,7 +363,7 @@ class Env(AnalyzerNode):
         return selector_cls(roi_attr)
     def time_selector(self, time_attr):
         """
-        Wraps the `RWAnalyzer.time` attribute.
+        Wraps the :attr:`..RWAnalyzer.time` attribute.
         """
         if isinstance(time_attr, Initializer) or isinstance(time_attr, Proxy):
             return time_attr
@@ -391,13 +394,13 @@ class Env(AnalyzerNode):
     @property
     def submit_side(self):
         """
-        *bool*: `True` if currently running on the submit side
+        *bool*: :const:`True` if currently running on the submit side
         """
         return self.selectors is None
     @property
     def worker_side(self):
         """
-        *bool*: `True` if currently running on the worker side
+        *bool*: :const:`True` if currently running on the worker side
         """
         return self.selectors is not None
     def make_working_directory(self):
@@ -460,11 +463,12 @@ class Env(AnalyzerNode):
 
         Arguments:
 
-            stage_index (int or list of int): stage index(ices)
+            stage_index (*int* or *list* of *int*): stage index(ices)
 
             source (str): SPT datablock identifier (source path or alias)
 
-            region_index (int): index of the support region (see also `RWAnalyzer.roi`)
+            region_index (int): index of the support region
+                (see also :meth:`~tramway.analyzer.roi.ROI.as_support_regions`)
 
             segment_index (int): index of the time segment
 
@@ -569,12 +573,12 @@ class Env(AnalyzerNode):
         return end_result_files
     def collect_results(self, stage_index=None):
         """
-        Calls `_combine_analyses` for the remote data location and the current working
-        directory and stage index,
+        Calls :meth:`_combine_analyses` for the remote data location and the
+        current working directory and stage index,
         and retrieves the combined files from the worker side to the submit side,
         if they are different hosts.
 
-        Returns ``True`` if files are collected/retrieved.
+        Returns :const:`True` if files are collected/retrieved.
         """
         return bool(self._combine_analyses(self.wd, None, self.logger, stage_index))
     def prepare_script(self, script=None):
@@ -602,16 +606,16 @@ class Env(AnalyzerNode):
         else:
             return tmpfile
     def filter_script_content(self, content):
-        """
+        r"""
         Processes the script content for its dispatch onto the worker side.
 
         Arguments:
 
-            content (list of str): lines with the `'\\n'` character at the end of each line
+            content (*list* of *str*): lines with the :const:`'\\n'` character at the end of each line
 
         Returns:
 
-            list of str: modified lines
+            *list* of *str*: modified lines
 
         """
         filtered_content = []
@@ -634,7 +638,7 @@ class Env(AnalyzerNode):
 
         Returns:
 
-            list of str: extracted lines
+            *list* of *str*: extracted lines
 
         """
         cmd = 'jupyter nbconvert --to python "{}" --stdout'.format(notebook)
@@ -882,7 +886,7 @@ class RemoteHost(object):
 
     minimum base implementation:
 
-    .. code-block: python
+    .. code-block:: python
 
         assert issubclass(cls, Env)
 
@@ -1064,7 +1068,7 @@ class RemoteHost(object):
         return prefix
     def collectible_prefix(self, stage_index=None):
         """
-        Calls `_collectible_prefix` for the current stage(s).
+        Calls :meth:`_collectible_prefix` for the current stage(s).
         """
         if stage_index is None:
             # attribute `current_stage` is expected to defined in the concrete parent class
@@ -1385,7 +1389,7 @@ class Tars(SlurmOverSSH):
     Designed for server *tars.pasteur.fr*.
 
     By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
-    See also https://github.com/DecBayComp/TRamWAy/blob/slurmoverssh/containers/available_images.rst.
+    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/slurmoverssh/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
@@ -1422,7 +1426,7 @@ class GPULab(SlurmOverSSH):
     Designed for server *adm.inception.hubbioit.pasteur.fr*.
 
     By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
-    See also https://github.com/DecBayComp/TRamWAy/blob/slurmoverssh/containers/available_images.rst.
+    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/slurmoverssh/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)

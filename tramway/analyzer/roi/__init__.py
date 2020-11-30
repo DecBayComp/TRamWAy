@@ -139,7 +139,8 @@ class SupportRegion(BaseRegion):
         """
         Iterates and crops the image frames, based on :attr:`bounding_box`.
 
-        `kwargs` are passed to images' :meth:`~tramway.analyzer.images.abc.Images.crop_frames` method.
+        `kwargs` are passed to the :class:`~tramway.analyzer.images.Images`
+        :meth:`~tramway.analyzer.images.Images.crop_frames` method.
         """
         yield from BoundingBox.crop_frames(self, **kwargs)
 
@@ -229,7 +230,7 @@ class DecentralizedROIManager(AnalyzerNode):
         was set to :const:`False`.
 
         Filtering is delegated to the individual SPT data block
-        :attr:`..spt_data.SPTDataItem.roi` attributes.
+        :attr:`~tramway.analyzer.spt_data.SPTDataItem.roi` attributes.
 
         A *callable* filter takes a single key (*int* for indices, *str* for paths)
         and returns a *bool*.
@@ -265,7 +266,7 @@ class ROIInitializer(Initializer):
     Initial value for the :class:`~tramway.analyzer.RWAnalyzer`
     :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute.
 
-    `from_...` methods alters the parent attribute which specializes
+    *from_...* methods alters the parent attribute which specializes
     into an initialized :class:`ROI` object.
     """
     __slots__ = ()
@@ -331,7 +332,7 @@ class ROIInitializer(Initializer):
 
             This initializer can only be called from the decentralized
             :attr:`~HasROI.roi` attribute of an
-            :class:`~..spt_data.SPTDataItem` item of the
+            :class:`~tramway.analyzer.spt_data.SPTDataItem` item of the
             :class:`~tramway.analyzer.RWAnalyzer`
             :attr:`~tramway.analyzer.RWAnalyzer.spt_data` main attribute.
 
@@ -360,7 +361,7 @@ class ROIInitializer(Initializer):
         .. note::
 
             Calling this initializer method from a satellite `roi` attribute
-            (nested in an :class:`~..spt_data.SPTDataItem` data block)
+            (nested in an :class:`~tramway.analyzer.spt_data.SPTDataItem` data block)
             is equivalent to calling the same initializer from the
             :class:`~tramway.analyzer.RWAnalyzer`
             :attr:`~tramway.analyzer.RWAnalyzer.roi` main attribute.
@@ -785,7 +786,7 @@ class ROIRecords(DecentralizedROIManager):
 class HasROI(AnalyzerNode):
     """ Class to be inherited from by SPT data item classes.
     
-    Maintains a self-modifying *roi* attribute."""
+    Maintains a self-modifying :attr:`roi` attribute."""
     __slots__ = ('_roi',)
     def _get_roi(self):
         """

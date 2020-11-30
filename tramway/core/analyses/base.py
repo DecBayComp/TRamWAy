@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -578,12 +578,33 @@ coerce_labels = coerce_labels_and_metadata
 
 
 def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None,
-        metadata=False):
+        metadata=False, annotations={}):
+    if isinstance(annotations, dict):
+        root_annotation = annotations.get('', None)
+    elif callable(annotations):
+        root_annotation = annotations
+    elif annotations:
+        root_annotation = annotations.pop(0)
     if format_standalone_root is None:
         if metadata:
-            format_standalone_root = lambda r: '<Analyses {}> {}'.format(*r.split('\n'))
+            if root_annotation is None:
+                format_standalone_root = lambda r: '<Analyses {}>\n{}'.format(*r.split('\n',1))
+            elif callable(root_annotation):
+                def _format_standalone_root(r):
+                    _type, _metadata = r.split('\n',1)
+                    _annotation = root_annotation('', _type)
+                    if _annotation:
+                        return '<Analyses {}>\t<- {}\n{}'.format(_type, _annotation, _metadata)
+                    else:
+                        return '<Analyses {}>\n{}'.format(*r.split('\n',1))
+                format_standalone_root = _format_standalone_root
+            else:
+                format_standalone_root = lambda r: '<Analyses {1}>\t<- {0}\n{2}'.format(root_annotation, *r.split('\n',1))
         else:
-            format_standalone_root = lambda r: '<Analyses {}>'.format(r)
+            if root_annotation is None:
+                format_standalone_root = lambda r: '<Analyses {}>'.format(r)
+            else:
+                format_standalone_root = lambda r: '<Analyses {}>\t<- {}'.format(r, root_annotation)
     def _format(data, label=None, comment=None, metadata=None, depth=0):
         _prefix = global_prefix + prefix * depth
         s = [_prefix]
@@ -591,7 +612,9 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
         if label is None:
             assert comment is None
             if node:
-                s.append(str(node(data)))
+                _node = node(data)
+                desc = str(_node)
+                s.append(desc)
             else:
                 return None
         else:
@@ -604,7 +627,17 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
             t.append(label)
             if node:
                 s.append(' {}')
-                t.append(node(data))
+                desc = _node = node(data)
+                t.append(desc)
+            if isinstance(annotations, dict):
+                annotation = annotations.get(label, None)
+            elif callable(annotations):
+                annotation = annotations(label, _node)
+            elif annotations:
+                annotation = annotations.pop(0)
+            if annotation is not None:
+                s.append('\t<- {}')
+                t.append(annotation)
             if comment:
                 assert isinstance(comment, str)
                 _comment = comment.split('\n')
@@ -668,6 +701,7 @@ def append_leaf(analysis_tree, augmented_branch, overwrite=False):
             return
             #raise ValueError('the existing analysis tree has higher branches than the augmented branch')
         analysis_tree.data = augmented_branch.data
+
 
 
 __all__ = [

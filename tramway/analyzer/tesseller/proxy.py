@@ -26,9 +26,9 @@ def proxy_property(propname, level='default', doc=None):
     Property factory function similar to builtin *property*,
     dedicated to the :class:`TessellerProxy` class.
 
-    For *'tessellate'* level properties, the default level is safe.
+    For :const:`'tessellate'` level properties, the default level is safe.
 
-    For *'__init__'* level properties, the level must be specified.
+    For :const:`'__init__'` level properties, the level must be specified.
 
     For standard attributes, it is safer to make the level explicit,
     so that some conflicts may be detected earlier (e.g. at module loading).
@@ -69,18 +69,19 @@ class TessellerProxy(AnalyzerNode):
     Attributes are managed with the following rules:
 
     * if an attribute is set using a proxy property,
-      the value is flagged as 'explicit' and overrides any default value;
-    * the arguments in `_init_kwargs` are passed to the wrapped tesseller's `__init__`;
-      these arguments are intended to prevent `__init__` from crashing if the later requires
+      the value is flagged as :const:`'explicit'` and overrides any default value;
+    * the arguments in :attr:`_init_kwargs` are passed to the wrapped tesseller's :meth:`__init__`;
+      these arguments are intended to prevent :meth:`__init__` from crashing if the later requires
       some arguments to be defined; non-explicit values are likely to be overriden and
-      both explicit and non-explicit values may be altered by `__init__`;
-    * the arguments in `_tessellate_kwargs` are passed to the wrapped tesseller's `tessellate` method;
-      all available arguments should be defined in the proxy's `__init__`, with default values;
+      both explicit and non-explicit values may be altered by :meth:`__init__`;
+    * the arguments in :attr:`_tessellate_kwargs` are passed to the wrapped tesseller's
+      :meth:`tessellate` method; all available arguments should be defined in the proxy's
+      :meth:`__init__`, with default values;
     * the wrapped tesseller's attributes can be accessed using proxy properties;
-      as a consequence, any key in `_explicit_kwargs`, that is not in `_init_kwargs`
-      or `_tessellate_kwargs`, is considered as an actual attribute;
-    * an argument should not be defined both in `_init_kwargs` and `_tessellate_kwargs`;
-    * explicit `__init__` arguments take precedence over standard attributes;
+      as a consequence, any key in :attr:`_explicit_kwargs`, that is not in :attr:`_init_kwargs`
+      or :attr:`_tessellate_kwargs`, is considered as an actual attribute;
+    * an argument should not be defined both in :attr:`_init_kwargs` and :attr:`_tessellate_kwargs`;
+    * explicit :meth:`__init__` arguments take precedence over standard attributes;
 
     """
     __slots__ = ('_tesseller', '_init_kwargs', '_tessellate_kwargs', '_explicit_kwargs', 'alg_name',
@@ -173,7 +174,7 @@ class TessellerProxy(AnalyzerNode):
         self._tesseller = (self.tesseller, helper.colnames)
     @analysis
     def tessellate(self, spt_dataframe):
-        """ grows and returns the tessellation.
+        """ Grows and returns the tessellation.
         """
         if not isinstance(self._tesseller, tuple):
             self.calibrate(spt_dataframe)
@@ -226,20 +227,20 @@ class TessellerProxy(AnalyzerNode):
         return Mpl
     @property
     def mpl(self):
-        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
+        """ tramway.analyzer.tesseller.mpl.Mpl: Matplotlib utilities """
         return self._mpl_impl(self)
 
     def __getattr__(self, attrname):
-        """ beware: ignores `_init_kwargs` symbols;
-        `__init__` arguments should be made available defining a proxy property with
-        the *'__init__'* flag."""
+        """ Beware that it ignores :attr:`_init_kwargs` symbols;
+        :meth:`__init__` arguments should be made available defining a proxy property with
+        the :const:`'__init__'` flag."""
         try:
             val = self._tessellate_kwargs[attrname]
         except KeyError:
             val = getattr(self.tesseller, attrname)
         return val
     def __setattr__(self, attrname, val):
-        """ beware: ignores `_init_kwargs` symbols """
+        """ Beware that it ignores :attr:`_init_kwargs` symbols """
         # special setters for self-initializing properties
         if attrname == 'post_processing' and isinstance(self.post_processing, Initializer):
             self.post_processing.from_callable(val)

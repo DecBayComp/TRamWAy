@@ -55,8 +55,8 @@ def compute_dtypes(df, precision):
 
 
 class SPTParameters(object):
-    """ Children classes should define the `_frame_interval` and `_localization_error`
-        attributes, or implement the `frame_interval` and `localization_error` properties.
+    """ Children classes should define the :attr:`_frame_interval` and :attr:`_localization_error`
+        attributes, or implement the :attr:`frame_interval` and :attr:`localization_error` properties.
 
         Default values should be :const:`None`."""
     __slots__ = ()
@@ -87,8 +87,8 @@ class SPTParameters(object):
     def localization_precision(self):
         """
         *float*: Localization precision in :math:`\mu m s^{-1}`;
-            `localization_error` :math:`\sigma^2` is affected by
-            `localization_precision` :math:`\sigma` and vice versa
+            :attr:`localization_error` :math:`\sigma^2` is affected by
+            :attr:`localization_precision` :math:`\sigma` and vice versa
         """
         return sqrt(self.localization_error)
     @localization_precision.setter
@@ -113,7 +113,7 @@ class SPTParameters(object):
     @property
     def time_step(self):
         """
-        *float*: Alias for the `frame_interval` property
+        *float*: Alias for the :attr:`frame_interval` property
         """
         return self.frame_interval
     @time_step.setter
@@ -138,7 +138,7 @@ class SPTParameters(object):
 
         Arguments:
 
-            precision (dict or str): any of '*half*', '*single*', '*double*',
+            precision (*dict* or *str*): any of :const:`'half'`, :const:`'single'`, :const:`'double'`,
                 or a dictionnary of dtypes with column names as keys,
                 as admitted by :meth:`pandas.DataFrame.astype`.
 
@@ -209,7 +209,7 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
     def time_step(self, dt):
         self.frame_interval = dt
     def as_dataframes(self, source=None, return_index=False):
-        """ Generator function; yields *pandas.DataFrame* objects.
+        """ Generator function; yields :class:`pandas.DataFrame` objects.
         
         `source` can be a source name (filepath) or a boolean function
         that takes a source string as input argument."""
@@ -329,7 +329,7 @@ class SPTDataInitializer(Initializer):
     Initial value for the :class:`~tramway.analyzer.RWAnalyzer`
     :attr:`~tramway.analyzer.RWAnalyzer.spt_data` attribute.
 
-    `from_...` methods alters the parent attribute which specializes
+    *from_...* methods alters the parent attribute which specializes
     into an initialized :class:`SPTData` object.
     """
     __slots__ = ()
@@ -348,7 +348,7 @@ class SPTDataInitializer(Initializer):
         """
         Sets text files, which paths match with a pattern, as the source of SPT data.
 
-        `filepattern` is a standard filepath with the '*' placeholder.
+        `filepattern` is a standard filepath with the :const:`'*'` placeholder.
         For example:  `'dataset/*.txt'`
 
         The parts of the filename that match the placeholder are used as keys.
@@ -375,7 +375,7 @@ class SPTDataInitializer(Initializer):
         """
         Sets MatLab V7 files, which paths match with a pattern, as the source of SPT data.
 
-        `filepattern` is a standard filepath with the '*' placeholder.
+        `filepattern` is a standard filepath with the :const:`'*'` placeholder.
         For example:  `'datasets/*.txt'`
 
         The parts of the filename that match the placeholder are used as keys.
@@ -395,7 +395,7 @@ class SPTDataInitializer(Initializer):
         self.specialize( RWAFiles, filepattern )
     def from_rw_generator(self, generator):
         """
-        A random walk generator features a `generate` method.
+        A random walk generator features a :meth:`generate` method.
         """
         self.specialize( RWGenerator, generator )
     def from_analysis_tree(self, analyses, copy=False):
@@ -636,16 +636,6 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         _bounds = pd.DataFrame( _bounds, columns=_min.index, index=['min','max'])
         return _bounds
     def set_precision(self, precision):
-        """
-        Sets the numerical precision of the raw data.
-
-        Arguments:
-
-            precision (dict or str): any of '*half*', '*single*', '*double*',
-                or a dictionnary of dtypes with column names as keys,
-                as admitted by :meth:`pandas.DataFrame.astype`.
-
-        """
         dtypes = compute_dtypes(self.dataframe, precision)
         self._dataframe = self.dataframe.astype(dtypes)
     def to_ascii_file(self, filepath, columns=None, header=True, **kwargs):
@@ -656,7 +646,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
 
             filepath (str): output filepath.
 
-            columns (sequence of str): columns to be exported.
+            columns (sequence of *str*): columns to be exported.
 
             header (bool): print column names on the first line.
 
@@ -722,7 +712,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         return Mpl
     @property
     def mpl(self):
-        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
+        """ tramway.analyzer.spt_data.mpl.Mpl: Matplotlib utilities """
         return self._mpl_impl(self)
 
 
@@ -804,7 +794,7 @@ class SPTFile(_SPTDataFrame):
     @property
     def filepath(self):
         """
-        *str*: Alias for the `source` property
+        *str*: Alias for the :attr:`source` property
         """
         return self._source
     @filepath.setter
@@ -822,7 +812,7 @@ class SPTFile(_SPTDataFrame):
     @property
     def alias(self):
         """
-        *str*: Identifier, shorter than `source`
+        *str*: Identifier, shorter than :attr:`source`
         """
         return self._alias
     @alias.setter
@@ -985,13 +975,13 @@ class SPTFiles(SPTDataFrames):
     @property
     def partially_reified(self):
         """
-        *bool*: ``True`` if any file has been loaded
+        *bool*: :const:`True` if any file has been loaded
         """
         return self._files and any([ f.reified for f in self._files ])
     @property
     def fully_reified(self):
         """
-        *bool*: ``True`` if all the files have been loaded
+        *bool*: :const:`True` if all the files have been loaded
         """
         return self._files and all([ f.reified for f in self._files ])
     @property

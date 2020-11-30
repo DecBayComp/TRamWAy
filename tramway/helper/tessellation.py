@@ -1609,9 +1609,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             else:
                 tplt.plot_points(cells, min_count=min_location_count, **locations)
         if aspect is not None:
-            try:
-                ax = kwargs['axes']
-            except KeyError:
+            ax = kwargs.get('axes', None)
+            if ax is None:
                 ax = fig.gca()
             ax.set_aspect(aspect)
         if voronoi is None:

@@ -59,6 +59,15 @@ class TessellerInitializer(Initializer):
         else:
             self.specialize( TessellerProxy, cls )
 
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        """ tramway.analyzer.tesseller.mpl.Mpl: Matplotlib utilities """
+        return self._mpl_impl(self)
+
 
 __all__ = ['Tesseller', 'TessellerInitializer', 'TessellerProxy', 'TessellerPlugin', 'tessellers',
         'TessellationPostProcessing', 'cell_mergers']

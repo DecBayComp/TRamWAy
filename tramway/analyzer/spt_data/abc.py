@@ -50,10 +50,10 @@ class SPTData(Attribute):
     def discard_static_trajectories(self, dataframe=None, min_msd=None):
         """ The minimum mean-square-displacement is set to the localization error per default. 
         
-        If an input dataframe is given, then `discard_static_trajectories` returns the processed
+        If an input dataframe is given, then :meth:`discard_static_trajectories` returns the processed
         dataframe and `self` does not maintain any copy of it.
         
-        Otherwise, `discard_static_trajectories` applies inplace to the internal dataframe
+        Otherwise, :meth:`discard_static_trajectories` applies inplace to the internal dataframe
         and does not return any dataframe.
         Note that it may set a flag instead of actually processing the internal dataframe,
         for the parcimonious processing in regions of interest only."""

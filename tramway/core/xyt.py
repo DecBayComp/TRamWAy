@@ -461,8 +461,9 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
     Arguments:
 
         trajectories (DataFrame): trajectory or translocation data with
-            columns 'n' (trajectory number),
-            spatial coordinates 'x' and 'y' (and optionaly 'z'), and time 't';
+            columns :const:`'n'` (trajectory number),
+            spatial coordinates :const:`'x'` and :const:`'y'` (and optionaly
+            :const:`'z'`), and time :const:`'t'`;
             delta columns, if available (translocations), are used instead
             for calculating the displacement length.
 
@@ -470,12 +471,12 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
 
         trajnum_colname (str): column name for the trajectory number.
 
-        full_trajectory (float or bool): if True, the trajectories with static
-            translocations are entirely discarded;
+        full_trajectory (float or bool): if :const:`True`, the trajectories with
+            static translocations are entirely discarded;
             if False, only the static translocations are discarded, and the
             corresponding trajectories are discarded only if they end up being
             single points;
-            if a `float` value, trajectories with `full_trajectory`*100% static
+            if a `float` value, trajectories with `full_trajectory` x 100% static
             translocations or more are discarded.
 
         localization_error (float): alias for `min_msd`; for backward compatibility.

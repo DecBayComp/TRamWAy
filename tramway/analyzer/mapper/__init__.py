@@ -28,6 +28,15 @@ class MapperInitializer(Initializer):
     def from_callable(self, cls):
         self.specialize( StdMapper, cls )
 
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
+        return self._mpl_impl(self)
+
 
 class MapperPlugin(AnalyzerNode):
     __slots__ = ('_name','_module','_setup','_mapper','_kwargs')
@@ -106,7 +115,7 @@ class MapperPlugin(AnalyzerNode):
         return Mpl
     @property
     def mpl(self):
-        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
+        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
         return self._mpl_impl(self)
 
 Mapper.register(MapperPlugin)

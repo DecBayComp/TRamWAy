@@ -93,7 +93,7 @@ class BasicLogger(object):
 
 class RWAnalyzer(object):
     """
-    A `RWAnalyzer` object gathers the parameters of all the processing steps
+    A :class:`RWAnalyzer` object gathers the parameters of all the processing steps
     of a standard processing chain, from SPT data loading/generation to
     inferring model parameters at microdomains.
 
@@ -177,8 +177,9 @@ class RWAnalyzer(object):
 
     Last but not least, the :class:`RWAnalyzer` features plotting utilities.
     Some of them are available through the *mpl* sub-attribute of some
-    main *RWAnalyzer* attributes
-    (for example *images.mpl*, *spt_data.mpl*, *tesseller.mpl*, *mapper.mpl*).
+    main :class:`RWAnalyzer` attributes
+    (for example :attr:`~.images._RawImages.mpl`, :attr:`~.spt_data.SPTDataInitializer.mpl`,
+    :attr:`~.tesseller.TessellerInitializer.mpl`, :attr:`~.mapper.MapperInitializer.mpl`).
     In addition, the :attr:`browser` attribute can plot the inferred parameter maps
     from a Jupyter notebook, or calling the ``bokeh serve`` command:
 

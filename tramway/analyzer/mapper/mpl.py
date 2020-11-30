@@ -125,7 +125,7 @@ class Mpl(AnalyzerNode):
             matplotlib.animation.FuncAnimation: animation object.
 
         Extra input arguments are passed to :class:`~matplotlib.animation.FuncAnimation`
-        or :class:`PatchCollection` (and `scalar_map_2d`).
+        or :class:`PatchCollection` (and :func:`~tramway.plot.map.scalar_map_2d`).
         """
         if axes is None:
             axes = fig.gca()

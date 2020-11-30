@@ -16,6 +16,8 @@ from ..attribute import *
 from .abc import *
 from tramway.core import *
 import itertools
+import numpy as np
+import pandas as pd
 
 
 class BaseTracker(AnalyzerNode):
@@ -119,6 +121,11 @@ class NonTrackingTracker(BaseTracker):
         sigma = self.localization_precision
         D_high = self.estimated_high_diffusivity
         length_high = self.estimated_large_length
+
+        if sigma is None:
+            raise AttributeError('attribute localization_precision is not set')
+        if D_high is None:
+            raise AttributeError('attribute estimated_high_diffusivity is not set')
 
         trajectories = {}
 
