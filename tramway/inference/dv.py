@@ -269,7 +269,8 @@ def dv_neg_posterior1(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
         priors += 2. * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
 
     result = raw_posterior + priors
-    posteriors.append([raw_posterior, result])
+    if posteriors is not None:
+        posteriors.append([raw_posterior, result])
 
     if verbose:
         print('objective: {}\t time: {}ms'.format(result, int(round((time.time() - t) * 1e3))))

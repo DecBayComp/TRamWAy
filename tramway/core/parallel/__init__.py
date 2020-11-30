@@ -448,7 +448,7 @@ class Scheduler(object):
         if isinstance(self.workers, Worker):
             # no multi-processing
             context = None
-            if self.timeout or self.timeout:
+            if self.timeout:
                 try:
                     import stopit
                 except ImportError:

@@ -35,7 +35,7 @@ class Time(Attribute):
         * segment index (*int*), if `return_index` is :const:`True`,
         * segment start and stop times *(float, float)*, if `return_times` is :const:`True` (default),
         * segment :class:`~tramway.tessellation.base.Partition` object, from `sampling`,
-        * segment maps (:class:`pandas.DataFrame`) from `maps`, if `maps` is defined.
+        * segment maps (*pandas.DataFrame*) from `maps`, if `maps` is defined.
 
         `index` is a selector on the segment index, either as an *int*, a *set* of *int*,
         a *sequence* of *int*, or a *callable* that takes a segment index (*int*) as input argument

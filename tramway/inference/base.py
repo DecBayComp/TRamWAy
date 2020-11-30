@@ -755,7 +755,8 @@ class Distributed(Local):
                             ys = zip(*ys)
                             result = tuple([
                                 pd.concat(_ys, axis=0).sort_index()
-                                for _ys in ys ])
+                                for _ys in ys
+                                if _ys and isinstance(_ys[0], pd.DataFrame) ])
                         else:
                             result = pd.concat(ys, axis=0).sort_index()
                     else:

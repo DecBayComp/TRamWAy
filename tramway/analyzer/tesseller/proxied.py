@@ -314,8 +314,6 @@ class GWR(TessellerProxy):
 
     @analysis
     def tessellate(self, spt_dataframe):
-        """ grows and returns the tessellation.
-        """
         if not isinstance(self._tesseller, tuple):
             self.calibrate(spt_dataframe)
         tesseller = deepcopy(self.tesseller)

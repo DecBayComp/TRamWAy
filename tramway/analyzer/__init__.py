@@ -177,8 +177,8 @@ class RWAnalyzer(object):
 
     Last but not least, the :class:`RWAnalyzer` features plotting utilities.
     Some of them are available through the *mpl* sub-attribute of some
-    main :class:`RWAnalyzer` attributes
-    (for example :attr:`~.images._RawImages.mpl`, :attr:`~.spt_data.SPTDataInitializer.mpl`,
+    main :class:`RWAnalyzer` attributes or items
+    (for example :attr:`~.images._RawImage.mpl`, :attr:`~.spt_data._SPTDataFrame.mpl`,
     :attr:`~.tesseller.TessellerInitializer.mpl`, :attr:`~.mapper.MapperInitializer.mpl`).
     In addition, the :attr:`browser` attribute can plot the inferred parameter maps
     from a Jupyter notebook, or calling the ``bokeh serve`` command:

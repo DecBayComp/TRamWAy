@@ -17,7 +17,8 @@ from . import merger as cell_mergers
 
 class TessellationPostProcessingInitializer(Initializer):
     """
-    Initializer class for attribute `RWAnalyzer.tesseller.post`.
+    Initializer class for attribute :attr:`~tramway.analyzer.RWAnalyzer.tesseller`
+    :attr:`..proxy.TessellerProxy.post`.
 
     For now, a single use case is available:
 
