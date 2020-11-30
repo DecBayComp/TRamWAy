@@ -21,7 +21,6 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 import time
 from .gradient import *
-from .dv import DV, dv_neg_posterior1
 from .stochastic_dv import LocalDV, make_regions
 from .optimization import sparse_grad
 
@@ -113,11 +112,31 @@ def local_dv_neg_posterior(j, x, dv, cells, sigma2, jeffreys_prior,
 
     return result
 
-def dv_neg_posterior_grad(m, col2rows):
-    def _grad(x, *args):
-        grads = [ sparse_grad(local_dv_neg_posterior, x, col2rows, None, args) for i in range(m) ]
-        return np.stack(grads, axis=1).ravel()
-    return _grad
+def _local_dv_neg_posterior(*args, **kwargs):
+    try:
+        return local_dv_neg_posterior(*args, **kwargs)
+    except ValueError:
+        return 0.
+
+def dv_neg_posterior_grad(m, dv):
+    def col2rows(j):
+        i = j % m
+        return dv.region(i)
+    def grad(x, *args):
+        _grad, _ = sparse_grad(_local_dv_neg_posterior, x, col2rows, None, args)
+        if _grad is None:
+            return np.full_like(x, np.nan)
+        else:
+            return _grad
+    return grad
+
+def dv_neg_posterior(m):
+    def fun(x, *args):
+        try:
+            return sum( local_dv_neg_posterior(j, x, *args) for j in range(m) )
+        except ValueError:
+            return np.inf
+    return fun
 
 def infer_fast_grad_DV(cells, diffusivity_prior=None, potential_prior=None, \
     jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
@@ -188,17 +207,14 @@ def infer_fast_grad_DV(cells, diffusivity_prior=None, potential_prior=None, \
     else:
         _kwargs = {}
 
-    fun = dv_neg_posterior1
+    m = len(index)
+    fun = dv_neg_posterior(m)
     # posterior function input arguments
     args = (dv, cells, localization_error, jeffreys_prior, dt_mean,
             index, reverse_index, grad_kwargs)
 
     dv.regions = make_regions(cells, index, reverse_index)
-    m = len(index)
-    def col2rows(j):
-        i = j % m
-        return dv.region(i)
-    grad = dv_neg_posterior_grad(m, col2rows)
+    grad = dv_neg_posterior_grad(m, dv)
 
     # get the initial posterior value so that it is subtracted from the further evaluations
     y0 = fun(dv.combined, *(args + (0., False, None)))
@@ -208,8 +224,9 @@ def infer_fast_grad_DV(cells, diffusivity_prior=None, potential_prior=None, \
     args = args + (y0, 1 < verbose, posteriors)
 
     # run the optimization routine
-    result = minimize(fun, dv.combined, args=args, bounds=bounds,
-            jac=grad, **_kwargs)
+    result = minimize(fun, dv.combined, args=args,
+            method='L-BFGS-B' if bounds else 'BFGS',
+            bounds=bounds, jac=grad, **_kwargs)
     if not (result.success or verbose):
         warn('{}'.format(result.message), OptimizationWarning)
 
@@ -247,7 +264,7 @@ def infer_fast_grad_DV(cells, diffusivity_prior=None, potential_prior=None, \
         #DVF.to_csv('results.csv', sep='\t')
 
     # format the posteriors
-    posteriors = pd.DataFrame(np.array(posteriors), columns=['fit', 'total'])
+    #posteriors = pd.DataFrame(np.array(posteriors), columns=['fit', 'total'])
 
-    return DVF, posteriors
+    return DVF#, posteriors
 

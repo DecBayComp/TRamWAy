@@ -24,7 +24,7 @@ class ImagesInitializer(Initializer):
     Initial value for the :class:`~tramway.analyzer.RWAnalyzer`
     :attr:`~tramway.analyzer.RWAnalyzer.images` attribute.
 
-    `from_...` methods alters the parent attribute which specializes
+    *from_...* methods alters the parent attribute which specializes
     into an initialized :class:`Images` object.
     """
     __slots__ = ()
@@ -122,7 +122,8 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
         Arguments:
 
-            index (int, Set, Sequence or callable): frame filter; see also :func:`indexer`.
+            index (*int*, *Set*, *Sequence* or *callable*):
+                frame filter; see also :func:`indexer`.
 
             return_time (bool): return time along with image frames, as first item.
 
@@ -150,7 +151,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             bounding_box (tuple): pair of NumPy arrays (lower bound, upper bound).
 
-            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+            index (*int*, *Set*, *Sequence* or *callable*): frame filter; see also `indexer`.
 
             return_time (bool): return time along with cropped image frames, as first item.
 
@@ -193,12 +194,14 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             fourcc (str): 4-character code string.
 
-            colormap (str or matplotlib.colors.ListedColormap): Matplotlib colormap;
+            colormap (*str* or *matplotlib.colors.ListedColormap*): Matplotlib colormap;
                 see also https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html.
 
-            locations (pandas.DataFrame): particle locations with columns 'x', 'y' and 't'.
+            locations (pandas.DataFrame): particle locations with columns :const:`'x'`,
+                :const:`'y'` and :const:`'t'`.
 
-            trajectories (pandas.DataFrame): trajectories with columns 'n', 'x', 'y' and 't';
+            trajectories (pandas.DataFrame): trajectories with columns :const:`'n'`,
+                :const:`'x'`, :const:`'y'` and :const:`'t'`;
                 note this differs from translocations in that displacements are not
                 encoded along with locations and trajectory terminations are independent rows.
 
@@ -206,24 +209,25 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 pairs; if `origin` defines time, `frames` can be a sequence of frames only;
                 :meth:`as_frames` is called instead if undefined.
 
-            origin (numpy.ndarray or pandas.Series): data lower bound if `frames` is defined;
-                implicit columns are 'x' and 'y'; to define time, `origin` must be a `Series`
-                with indices 'x', 'y' and 't';
+            origin (*numpy.ndarray* or *pandas.Series*): data lower bound if `frames` is defined;
+                implicit columns are :const:`'x'` and :const:`'y'`;
+                to define time, `origin` must be a `Series`
+                with indices :const:`'x'`, :const:`'y'` and :const:`'t'`;
                 `origin` is useful only for overlaying locations or trajectories.
 
             markersize (int): location marker size in pixels (side).
 
-            linecolor (str or 3-column float array): color for trajectories;
+            linecolor (*str* or 3-column float array): color for trajectories;
                 value :const:`None` defaults to red.
 
             linewidth (float): trajectory line width
 
-            magnification (int or str): the original image pixels can be represented as square-patches
-                of *magnification* video pixel side; if *str*:
-                '1x'= round(pixel_size/localization_precision),
-                '2x'= round(2*pixel_size/localization_precision);
-                '2x' is adequate for overlaid trajectories, even with the over-compressing
-                'MJPG' encoder.
+            magnification (*int* or *str*): the original image pixels can be represented as
+                square-patches of `magnification` video pixel side; if *str*:
+                :const:`'1x'`= round(pixel_size/localization_precision),
+                :const:`'2x'`= round(2*pixel_size/localization_precision);
+                :const:`'2x'` is adequate for overlaid trajectories, even with the over-compressing
+                :const:`'MJPG'` encoder.
 
             playback_rate (float): default playback rate;
                 1 is real-time, 0.5 is half the normal speed.
@@ -430,7 +434,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
         return Mpl
     @property
     def mpl(self):
-        """ Mpl: Matplotlib utilities; see :class:`.mpl.Mpl` """
+        """ tramway.analyzer.images.mpl.Mpl: Matplotlib utilities """
         return self._mpl_impl(self)
 
 
@@ -607,5 +611,5 @@ def all_unique(values):
 
 __all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', 'RawImage',
         'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile',
-        'RawImages', 'ImageFiles', 'TiffFiles']
+        'RawImages', 'ImageFiles', 'TiffFiles', '_RawImage']
 
