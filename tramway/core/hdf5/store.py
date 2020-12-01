@@ -82,7 +82,7 @@ class RWAStore(HDF5Store):
                     if obj._points is None:
                         raise AttributeError
                 except AttributeError:
-                    obj._points = self.__special__['data0']
+                    obj._points = lazyvalue(self.__special__['data0'], deep=True)
         else:
             import pandas
             if issubclass(lazytype(obj), pandas.DataFrame):

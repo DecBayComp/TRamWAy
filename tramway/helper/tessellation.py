@@ -1406,7 +1406,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             labels = input_label
         else:
             labels, label = label, None
-        if not (labels or labels is 0): # no, I did not mean "=="
+        if not valid_label(labels):
             labels = ()
         elif not isinstance(labels, (tuple, list)):
             labels = (labels, )

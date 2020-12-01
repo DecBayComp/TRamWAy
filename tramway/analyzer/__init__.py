@@ -417,6 +417,15 @@ class RWAnalyzer(object):
     def script(self, filename):
         self.env.script = filename
 
+    def __del__(self):
+        self.logger.debug('RWAnalyzer.__del__ has been called')
+        if self.spt_data.initialized:
+            for f in self.spt_data:
+                try:
+                    f.analyses.terminate()
+                except AttributeError:
+                    pass
+
     def __setattr__(self, attrname, obj):
         if attrname[0] == '_' or (isinstance(obj, type) and issubclass(obj, Initializer)) or\
                 attrname in ('script',):

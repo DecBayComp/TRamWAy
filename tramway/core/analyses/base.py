@@ -221,7 +221,7 @@ class Analyses(object):
 
             int or str: index or label.
         """
-        if pattern or pattern is 0: # no, I did not mean "=="
+        if valid_label(pattern):
             try:
                 pattern = int(pattern) # this also checks type
             except ValueError:
@@ -291,9 +291,12 @@ class Analyses(object):
 abc.Analyses.register(Analyses)
 
 
+valid_label = lambda label: label or (isinstance(label, int) and label == 0)
+
+
 def map_analyses(fun, analyses, label=False, comment=False, metadata=False, depth=False,
         allow_tuples=False):
-    with_label = label is 0 or label # no, I did not mean "=="
+    with_label = label or valid_label(label)
     with_comment, with_metadata, with_depth = comment, metadata, depth
     def _fun(x, **kwargs):
         y = fun(x, **kwargs)
@@ -671,6 +674,31 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
             return itertools.chain([_node], *[_flatten(c) for c in _children])
     entries = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, metadata=metadata, depth=True)))
     if entries[1:]:
+        if root_annotation:
+            r = entries[0]
+            if metadata:
+                _type, _metadata = r.split('\n',1)
+            else:
+                _type = r
+            if callable(root_annotation):
+                _annotation = root_annotation('', _type)
+            else:
+                _annotation = root_annotation
+            if _annotation:
+                it = iter(entries[1:])
+                _min_offset = None
+                while _min_offset is None:
+                    try:
+                        s = next(it)
+                        _min_offset = s.index('<-')
+                    except ValueError:
+                        pass
+                _ntabs = s.count('\t', 0, _min_offset)
+                _tab = lambda s: ' '*(_min_offset-_ntabs-len(s))+'\t'*_ntabs
+                if metadata:
+                    entries[0] = '{}{}<- {}\n{}'.format(_type, _tab(_type), _annotation, _metadata)
+                else:
+                    entries[0] = '{}{}<- {}'.format(r, _tab(r), _annotation)
         return '\n'.join(entries)
     else:
         return format_standalone_root(entries[0])
@@ -717,5 +745,6 @@ __all__ = [
     'coerce_labels',
     'format_analyses',
     'append_leaf',
+    'valid_label',
     ]
 

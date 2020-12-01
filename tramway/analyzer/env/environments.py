@@ -363,7 +363,7 @@ class Env(AnalyzerNode):
         return selector_cls(roi_attr)
     def time_selector(self, time_attr):
         """
-        Wraps the :attr:`..RWAnalyzer.time` attribute.
+        Wraps the :attr:`~tramway.analyzer.RWAnalyzer.time` attribute.
         """
         if isinstance(time_attr, Initializer) or isinstance(time_attr, Proxy):
             return time_attr
@@ -1267,6 +1267,11 @@ class SlurmOverSSH(Slurm, RemoteHost):
             self.logger.error(err.rstrip())
         self.pending_jobs = []
     def wait_for_job_completion(self):
+        self.logger.info('''\
+notice: job failures are not reported before the stage is complete;
+        check the .err log files generated in the remote working directory
+        and manually interrupt the pipeline if all the jobs seem to fail\
+''')
         try:
             cmd = 'squeue -j {} -h -o "%K %t %M %R"'.format(self.job_id)
             while True:

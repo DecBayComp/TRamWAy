@@ -757,6 +757,8 @@ class Distributed(Local):
                                 pd.concat(_ys, axis=0).sort_index()
                                 for _ys in ys
                                 if _ys and isinstance(_ys[0], pd.DataFrame) ])
+                            if not result[1:]:
+                                result, = result
                         else:
                             result = pd.concat(ys, axis=0).sort_index()
                     else:

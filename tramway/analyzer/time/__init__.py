@@ -16,6 +16,8 @@ from ..attribute import *
 from ..artefact import analysis, Analysis
 from .abc import Time
 import tramway.tessellation.window as window
+import numpy as np
+import pandas as pd
 
 
 class DT(object):
@@ -303,7 +305,6 @@ class SlidingWindow(AnalyzerNode, DT):
             raise TypeError('cannot combine values of type: {}'.format(type(single_segment_output[0])))
         ncells = sampling.tessellation.spatial_mesh.number_of_cells
         import copy
-        import pandas as pd
         it = iter(single_segment_output)
         maps = copy.deepcopy(next(it))
         maps.runtime = None

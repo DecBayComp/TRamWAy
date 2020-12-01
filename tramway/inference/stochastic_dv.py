@@ -351,6 +351,7 @@ def infer_stochastic_DV(cells,
     diffusion_prior=None, diffusion_spatial_prior=None, diffusion_time_prior=None,
     prior_delay=None, return_struct=False, posterior_max_count=None,# deprecated
     diffusivity_prior=None, potential_prior=None, time_prior=None,
+    allow_negative_potential=False,
     **kwargs):
     """
     Arguments:
@@ -396,6 +397,9 @@ def infer_stochastic_DV(cells,
             required to compute the 'diagnoses' debug variable.
 
         prior_delay/return_struct/posterior_max_count: all deprecated.
+
+        allow_negative_potential (bool): do not offset the whole potential map towards
+            all-positive values.
 
         ...
 
@@ -605,8 +609,8 @@ def infer_stochastic_DV(cells,
     # extract the different types of parameters
     dv.update(result.x)
     D, V = dv.D, dv.V
-    if np.isscalar(V0) and V0 == 0:
-        Vmin = np.min(V)
+    if np.isscalar(V0) and V0 == 0 and not allow_negative_potential:
+        Vmin = np.nanmin(V)
         if Vmin < 0:
             V -= Vmin
     DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index,

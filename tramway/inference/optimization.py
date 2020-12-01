@@ -1997,7 +1997,7 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
     if not regul:
         penalty = 0.
     total_grad, partial_grad = [], {}
-    any_ok = False
+    any_ok, failures = False, []
     a = np.zeros((H.size, H.size), dtype=float)
     for j in active_j:
         if callable(active_i):
@@ -2027,9 +2027,9 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
                 except (KeyboardInterrupt, SystemExit):
                     raise
                 except:
-                    raise
+                    #raise
                     #traceback.print_exc()
-                    continue
+                    break
                 if u == 0:
                     continue
                 fac = CON2
@@ -2044,7 +2044,7 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
                 if SAFE * err <= abs(a[u,u] - a[u-1,u-1]):
                     break
             if total_grad_j is None:
-                module_logger.warning('sparse_grad failed at column {}'.format(j))
+                failures.append(j)
                 total_grad_j = 0.
             else:
                 any_ok = True
@@ -2053,9 +2053,12 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
         finally:
             x[j] = xj # restore
     if any_ok:
+        if failures:
+            module_logger.warning('sparse_grad failed at column(s): {}'.format(', '.join([ str(i) for i in failures ])))
         total_grad = np.array(total_grad)
         return total_grad, partial_grad
     else:
+        module_logger.warning('sparse_grad failed at all the columns')
         return None, None
 
 minimize_sparse_bfgs = minimize_sparse_bfgs1

@@ -301,7 +301,8 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
         from tramway.core.hdf5.store import load_rwa
         if output_file is None:
             output_file = input_file
-        analyses = load_rwa(input_file, lazy=True)
+        analyses = load_rwa(input_file, lazy=True,
+                force_load_spt_data=False)
         analyses = cls(analyses, rwa_file=output_file, **kwargs)
     def save(self, out_of_context=False):
         if not (out_of_context or self.active):

@@ -31,17 +31,28 @@ class PatchCollection(object):
 
     Vector maps are not supported yet.
     """
-    __slots__ = ('glyphs','bin_indices')
-    def __init__(self, ax, mesh, bounding_box=None, **kwargs):
+    __slots__ = ('glyphs','bin_indices','point_glyphs','time_label','format_time_label')
+    def __init__(self, ax, mesh, bounding_box=None, overlay_locations=False,
+            time_label_fmt='t= %t-%ts', time_label_loc=(.01, 1.01), **kwargs):
         """
         Arguments:
         
             ax (Axes): matplotlib axes.
             
-            mesh (Voronoi or Partition): space bins.
+            mesh (*Voronoi* or *Partition*): space bins.
 
             bounding_box (DataFrame): map bounding box;
                 required if *mesh* is not `Partition`.
+
+            overlay_locations (*bool* or *dict*): styling options
+                for overlaid locations.
+
+            time_label_fmt (str): format string for the time label;
+                the pattern :const:`%t` represent time
+                and can appear twice;
+                if it appears twice, each are a different time bound;
+                if once, it is replaced by the middle time point
+                between the bounds.
             
         Extra keyword arguments are passed to :func:`~tramway.plot.map.scalar_map_2d`.
         """
@@ -53,27 +64,67 @@ class PatchCollection(object):
         self.glyphs, self.bin_indices = scalar_map_2d(
                 mesh, pd.Series(np.zeros(mesh.number_of_cells, dtype=np.float)),
                 axes=ax, return_patches=True, **kwargs)
-    def plot(self, map):
+        if overlay_locations not in (None, False):
+            point_style = dict(marker='.', markersize=4, linestyle='none', color='r', alpha=.2)
+            if isinstance(overlay_locations, dict):
+                point_style.update(overlay_locations)
+            self.point_glyphs, = ax.plot([], [], **point_style)
+        else:
+            self.point_glyphs = None
+        if time_label_fmt:
+            c = time_label_fmt.count('%t')
+            fmt= time_label_fmt.replace('%t','{}')
+            format_time = lambda t: '{:.3f}'.format(t).rstrip('0').rstrip('.')
+            if c == 2:
+                self.format_time_label = lambda ts: fmt.format(*[ format_time(t) for t in ts ])
+            elif c == 1:
+                self.format_time_label = lambda ts: fmt.format(format_time(np.mean(ts)))
+            x, y = time_label_loc
+            self.time_label = ax.text(x, y, '', transform=ax.transAxes)
+        else:
+            self.time_label = None
+    def plot(self, map, times=None, locations=None):
         """
         Updates the color of the patches.
         
         Arguments:
         
             map (Series): parameter values.
+
+            times (tuple): time segment bounds, in seconds.
+
+            locations (DataFrame): segment locations.
             
         Returns:
         
             tuple: sequence of updated glyphs.
         """
-        values = np.full(self.bin_indices.max()+1, np.nan, dtype=np.float)
+        values = np.full(max(map.index.max(), self.bin_indices.max())+1, np.nan, dtype=np.float)
         values[map.index] = map.values
         self.glyphs.set_array(values[self.bin_indices])
-        return (self.glyphs,)
+        ret = [self.glyphs]
+        if self.point_glyphs and locations is not None:
+            self.point_glyphs.set_data(locations['x'].values, locations['y'].values)
+            ret.append(self.point_glyphs)
+        if self.time_label and times is not None:
+            label = self.format_time_label(times)
+            self.time_label.set_text(label)
+            ret.append(self.time_label)
+        return tuple(ret)
     def init_func(self):
         """
         To be passed as argument `init_func` to `FuncAnimation`.
         """
-        return (self.glyphs,)
+        if self.point_glyphs:
+            if self.time_label:
+                return self.glyphs, self.point_glyphs, self.time_label
+            else:
+                return self.glyphs, self.point_glyphs
+        else:
+            if self.time_label:
+                return self.glyphs, self.time_label
+            else:
+                return self.glyphs,
     def animate(self, map):
         """
         To be passed as second positional argument to `FuncAnimation`.
@@ -88,8 +139,12 @@ class PatchCollection(object):
             callable: list of glyphs to update.
         """
         if isinstance(map, tuple):
-            map = map[-1]
-        return self.plot(map)
+            ts, sampling, map = map
+            df = sampling.points
+        else:
+            df = None
+            ts = None
+        return self.plot(map, times=ts, locations=df)
 
 
 class Mpl(AnalyzerNode):
@@ -98,7 +153,8 @@ class Mpl(AnalyzerNode):
     @property
     def plotter(self):
         return PatchCollection
-    def animate(self, fig, maps, feature, sampling=None, axes=None, aspect='equal', **kwargs):
+    def animate(self, fig, maps, feature, sampling=None, overlay_locations=False,
+            axes=None, aspect='equal', **kwargs):
         """
         Animates the time-segmented inference parameters.
 
@@ -109,16 +165,20 @@ class Mpl(AnalyzerNode):
 
             fig (matplotlib.figure.Figure): figure.
 
-            maps (~tramway.analyzer.Analysis or Maps): map series.
+            maps (~tramway.analyzer.Analysis or *Maps*): map series.
 
             feature (str): parameter to be drawn.
 
-            sampling (~tramway.analyzer.Analysis or Partition): spatial bins and time segments;
+            sampling (~tramway.analyzer.Analysis or *Partition*):
+                spatial bins and time segments;
                 optional only if *maps* is an :class:`~tramway.analyzer.Analysis`.
+
+            overlay_locations (*bool* or *dict*):
+                styling options for the overlaid locations.
 
             axes (matplotlib.axes.Axes): figure axes.
 
-            aspect (str or None): aspect ratio.
+            aspect (*str* or None): aspect ratio.
 
         Returns:
 
@@ -178,12 +238,13 @@ class Mpl(AnalyzerNode):
             if unit is not None:
                 map_kwargs['unit'] = unit
         map_kwargs.update(kwargs)
+        map_kwargs['overlay_locations'] = overlay_locations
         #
         _iter = self._eldest_parent.time.as_time_segments
         patches = self.plotter(axes, sampling.tessellation.spatial_mesh, sampling.bounding_box,
                 **map_kwargs)
         return animation.FuncAnimation(fig, patches.animate, init_func=patches.init_func,
-                frames=_iter(sampling, maps, return_times=False), **anim_kwargs)
+                frames=_iter(sampling, maps, return_times=True), **anim_kwargs)
 
     def plot(self, maps, feature, sampling=None, axes=None, aspect='equal', **kwargs):
         """
