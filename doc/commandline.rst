@@ -3,6 +3,10 @@
 Command-line starter
 ====================
 
+.. note:
+
+    The *tramway* command is no longer maintained and offers very limited functionalities.
+
 Input data
 ----------
 

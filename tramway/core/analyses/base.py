@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2020, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -221,7 +221,7 @@ class Analyses(object):
 
             int or str: index or label.
         """
-        if pattern or pattern is 0:
+        if valid_label(pattern):
             try:
                 pattern = int(pattern) # this also checks type
             except ValueError:
@@ -291,9 +291,13 @@ class Analyses(object):
 abc.Analyses.register(Analyses)
 
 
+valid_label = lambda label: label or (isinstance(label, int) and label == 0)
+
+
 def map_analyses(fun, analyses, label=False, comment=False, metadata=False, depth=False,
         allow_tuples=False):
-    with_label, with_comment, with_metadata, with_depth = label is 0 or label, comment, metadata, depth
+    with_label = label or valid_label(label)
+    with_comment, with_metadata, with_depth = comment, metadata, depth
     def _fun(x, **kwargs):
         y = fun(x, **kwargs)
         if not allow_tuples and isinstance(y, tuple):
@@ -577,12 +581,33 @@ coerce_labels = coerce_labels_and_metadata
 
 
 def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None,
-        metadata=False):
+        metadata=False, annotations={}):
+    if isinstance(annotations, dict):
+        root_annotation = annotations.get('', None)
+    elif callable(annotations):
+        root_annotation = annotations
+    elif annotations:
+        root_annotation = annotations.pop(0)
     if format_standalone_root is None:
         if metadata:
-            format_standalone_root = lambda r: '<Analyses {}> {}'.format(*r.split('\n'))
+            if root_annotation is None:
+                format_standalone_root = lambda r: '<Analyses {}>\n{}'.format(*r.split('\n',1))
+            elif callable(root_annotation):
+                def _format_standalone_root(r):
+                    _type, _metadata = r.split('\n',1)
+                    _annotation = root_annotation('', _type)
+                    if _annotation:
+                        return '<Analyses {}>\t<- {}\n{}'.format(_type, _annotation, _metadata)
+                    else:
+                        return '<Analyses {}>\n{}'.format(*r.split('\n',1))
+                format_standalone_root = _format_standalone_root
+            else:
+                format_standalone_root = lambda r: '<Analyses {1}>\t<- {0}\n{2}'.format(root_annotation, *r.split('\n',1))
         else:
-            format_standalone_root = lambda r: '<Analyses {}>'.format(r)
+            if root_annotation is None:
+                format_standalone_root = lambda r: '<Analyses {}>'.format(r)
+            else:
+                format_standalone_root = lambda r: '<Analyses {}>\t<- {}'.format(r, root_annotation)
     def _format(data, label=None, comment=None, metadata=None, depth=0):
         _prefix = global_prefix + prefix * depth
         s = [_prefix]
@@ -590,7 +615,9 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
         if label is None:
             assert comment is None
             if node:
-                s.append(str(node(data)))
+                _node = node(data)
+                desc = str(_node)
+                s.append(desc)
             else:
                 return None
         else:
@@ -603,7 +630,17 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
             t.append(label)
             if node:
                 s.append(' {}')
-                t.append(node(data))
+                desc = _node = node(data)
+                t.append(desc)
+            if isinstance(annotations, dict):
+                annotation = annotations.get(label, None)
+            elif callable(annotations):
+                annotation = annotations(label, _node)
+            elif annotations:
+                annotation = annotations.pop(0)
+            if annotation is not None:
+                s.append('\t<- {}')
+                t.append(annotation)
             if comment:
                 assert isinstance(comment, str)
                 _comment = comment.split('\n')
@@ -637,6 +674,31 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
             return itertools.chain([_node], *[_flatten(c) for c in _children])
     entries = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, metadata=metadata, depth=True)))
     if entries[1:]:
+        if root_annotation:
+            r = entries[0]
+            if metadata:
+                _type, _metadata = r.split('\n',1)
+            else:
+                _type = r
+            if callable(root_annotation):
+                _annotation = root_annotation('', _type)
+            else:
+                _annotation = root_annotation
+            if _annotation:
+                it = iter(entries[1:])
+                _min_offset = None
+                while _min_offset is None:
+                    try:
+                        s = next(it)
+                        _min_offset = s.index('<-')
+                    except ValueError:
+                        pass
+                _ntabs = s.count('\t', 0, _min_offset)
+                _tab = lambda s: ' '*(_min_offset-_ntabs-len(s))+'\t'*_ntabs
+                if metadata:
+                    entries[0] = '{}{}<- {}\n{}'.format(_type, _tab(_type), _annotation, _metadata)
+                else:
+                    entries[0] = '{}{}<- {}'.format(r, _tab(r), _annotation)
         return '\n'.join(entries)
     else:
         return format_standalone_root(entries[0])
@@ -664,8 +726,10 @@ def append_leaf(analysis_tree, augmented_branch, overwrite=False):
                 analysis_tree.add(augmented_branch[label], label=label)
     else:
         if analysis_tree:
-            raise ValueError('the existing analysis tree has higher branches than the augmented branch')
+            return
+            #raise ValueError('the existing analysis tree has higher branches than the augmented branch')
         analysis_tree.data = augmented_branch.data
+
 
 
 __all__ = [
@@ -681,5 +745,6 @@ __all__ = [
     'coerce_labels',
     'format_analyses',
     'append_leaf',
+    'valid_label',
     ]
 

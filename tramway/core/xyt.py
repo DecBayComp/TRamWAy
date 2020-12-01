@@ -54,15 +54,20 @@ def translocations(df, sort=False):
     return jump#np.sqrt(np.sum(jump * jump, axis=1))
 
 
-def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=False):
+def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=False, order=None):
     """
-    Yields index slices, each corresponding to a different trajectory.
+    Yields the different trajectories in turn.
+
+    If ``asslice=True``, the indices corresponding to the trajectory are returned instead,
+    or as first output argument if ``asarray=True``, as a slice (first index, last index + 1).
+
+    `order` can be *'start'* to ensure that trajectories are yielded by ascending start time.
     """
     if not isinstance(trajectories, pd.DataFrame):
         raise TypeError('trajectories is not a DataFrame')
 
     if asarray or not asslice:
-        other_cols = [ col != trajnum_colname for col in trajectories.columns ]
+        other_cols = [ col for col in trajectories.columns if col != trajnum_colname ]
     if asarray:
         dat = trajectories[other_cols].values
     if asslice:
@@ -76,18 +81,145 @@ def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=
         else:
             from_slice = lambda a,b: trajectories.iloc[a:b]
 
-    curr_traj_num = trajectories[trajnum_colname].iat[0] - 1
-    for i, num in enumerate(trajectories[trajnum_colname]):
-        if num == curr_traj_num:
-            stop += 1
-        elif num < curr_traj_num:
-            raise IndexError('trajectories are not ascendingly sorted')
+    if order is None:
+
+        curr_traj_num = trajectories[trajnum_colname].iat[0] - 1
+        for i, num in enumerate(trajectories[trajnum_colname]):
+            if num == curr_traj_num:
+                stop += 1
+            elif num < curr_traj_num:
+                raise IndexError('trajectories are not ascendingly sorted')
+            else:
+                if 0<i:
+                    yield from_slice(start, stop)
+                start = i
+                stop = start + 1
+                curr_traj_num = num
+
+    elif order == 'start':
+
+        new_n = 0<np.diff(trajectories['n'].values)
+        new_n, = np.nonzero(new_n)
+        traj_ids = np.stack((np.r_[0,new_n+1], np.r_[new_n+1,len(trajectories)]), axis=1)
+        traj_ts = trajectories['t'].iloc[traj_ids[:,0]].values
+        traj_ids = traj_ids[np.argsort(traj_ts)]
+        for i,j in traj_ids:
+            yield from_slice(i,j)
+
+
+def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None, skip_empty_frames=True):
+    """
+    Yields series of row indices, each series corresponding to a different frame.
+    """
+    if not isinstance(points, pd.DataFrame):
+        raise TypeError('input data is not a DataFrame')
+    ts = points['t'].values
+    t = ts.min()
+    if not np.isclose(t, ts[0]):
+        raise ValueError('first location or trajectory starts later than t0')
+    if 'n' in points:
+        # trajectories or translocations; locations are grouped by trajectory
+        if asslice:
+            raise ValueError('rows are not contiguous in time; cannot represent frames as row slices')
+        it = iter_trajectories(points, asslice=True, order='start')
+        exhausted = False
+        active_trajs = []
+        while True:
+            try:
+                traj_ids = next(it)
+            except StopIteration:
+                exhausted = True
+                next_traj = None
+                break
+            if np.isclose(ts[traj_ids[0]], t):
+                active_trajs.append(traj_ids)
+            else:
+                next_traj = traj_ids
+                break
+        if dt is None:
+            dt = np.median(np.diff(ts[traj_ids[0]:traj_ids[1]]))
+        elif dt <= 0:
+            raise ValueError('dt is not strictly positive')
+        while True:
+            frame = []
+            trajs = []
+            still_active = []
+            for traj in active_trajs:
+                traj_ts = ts[traj[0]:traj[1]]
+                row_ix = int(np.round((t-traj_ts[0])/dt))
+                if not np.isclose(traj_ts[row_ix], t):
+                    traj_dt = np.diff(traj_ts)
+                    ok = np.isclose(traj_dt , dt)
+                    if np.any(ok):
+                        raise ValueError('a trajectory is not contiguous in time:\n{}'.format(points[traj[0]:traj[1]]))
+                    else:
+                        raise ValueError('dt may not be properly set: {}'.format(dt))
+                frame.append(traj[0]+row_ix)
+                trajs.append(traj)
+                if t+dt/2<traj_ts[-1]:
+                    still_active.append(traj)
+            if frame:
+                if as_trajectory_slices:
+                    yield trajs
+                else:
+                    yield np.array(frame)
+            else:
+                raise RuntimeError('no trajectories found in frame')
+            #
+            active_trajs = still_active
+            if active_trajs:
+                t += dt
+            elif exhausted:
+                break
+            else:
+                next_t = ts[next_traj[0]]
+                if not skip_empty_frames:
+                    t += dt
+                    while t<next_t-dt/2:
+                        yield []
+                        t += dt
+                t = next_t
+            #
+            if not exhausted and np.isclose(ts[next_traj[0]], t):
+                active_trajs.append(next_traj)
+                while True:
+                    try:
+                        traj_ids = next(it)
+                    except StopIteration:
+                        exhausted = True
+                        next_traj = None
+                        break
+                    if np.isclose(ts[traj_ids[0]], t):
+                        active_trajs.append(traj_ids)
+                    else:
+                        next_traj = traj_ids
+                        break
+    else:
+        if as_trajectory_slices:
+            raise ValueError('input data are not trajectories')
+        if not skip_empty_frames and (dt is None or dt == 0):
+            raise ValueError('dt is undefined')
+        if asslice:
+            from_slice = lambda a,b: (a,b)
+            empty_slice = ()
         else:
-            if 0<i:
-                yield from_slice(start, stop)
-            start = i
-            stop = start + 1
-            curr_traj_num = num
+            from_slice = lambda a,b: np.arange(a,b)
+            empty_slice = np.arange(0)
+
+        i, t_i, j = 0, t, 1
+        for t_j in ts:
+            if np.issclose(t_j, t_i):
+                j += 1
+            else:
+                yield from_slice(i, j)
+                if not skip_empty_frames:
+                    t_i += dt
+                    while not np.isclose(t_j, t_i):
+                        yield empty_slice
+                        t_i += dt
+                i, t_i = j, t_j
+        if i<j:
+            yield from_slice(i, j)
 
 
 def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
@@ -329,17 +461,23 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
     Arguments:
 
         trajectories (DataFrame): trajectory or translocation data with
-            columns 'n' (trajectory number),
-            spatial coordinates 'x' and 'y' (and optionaly 'z'), and time 't'.
+            columns :const:`'n'` (trajectory number),
+            spatial coordinates :const:`'x'` and :const:`'y'` (and optionaly
+            :const:`'z'`), and time :const:`'t'`;
+            delta columns, if available (translocations), are used instead
+            for calculating the displacement length.
 
         min_msd (float): minimum mean-square-displacement (usually set to the localization error).
 
         trajnum_colname (str): column name for the trajectory number.
 
-        full_trajectory (bool): if True, the trajectories with static translocations
-            are entirely discarded; if False, only the static translocations are
-            discarded, and the corresponding trajectories are discarded only if they
-            end up being single points.
+        full_trajectory (float or bool): if :const:`True`, the trajectories with
+            static translocations are entirely discarded;
+            if False, only the static translocations are discarded, and the
+            corresponding trajectories are discarded only if they end up being
+            single points;
+            if a `float` value, trajectories with `full_trajectory` x 100% static
+            translocations or more are discarded.
 
         localization_error (float): alias for `min_msd`; for backward compatibility.
 
@@ -351,21 +489,42 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
     if min_msd is None:
         min_msd = localization_error
     trajs = []
-    for start,stop in iter_trajectories(trajectories, trajnum_colname, asslice=True):
+    for start,stop in iter_trajectories(trajectories, trajnum_colname, asslice=True, order='start'):
         traj = trajectories.iloc[start:stop]
-        r = traj[[ col for col in trajectories.columns if col in 'xyz' ]].values
-        dr = np.diff(r, axis=0)
+        delta_cols = [ col for col in trajectories.columns if col.startswith('d') and col[1:] in trajectories.columns ]
+        columns_with_deltas = [ col[1:] for col in delta_cols ]
+        if columns_with_deltas:
+            dr = traj[[ 'd'+col for col in trajectories.columns if col in 'xyz' ]].values
+        else:
+            r = traj[[ col for col in trajectories.columns if col in 'xyz' ]].values
+            dr = np.diff(r, axis=0)
         js = np.mean(dr * dr, axis=1)
-        static = np.r_[False, js < min_msd]
+        if columns_with_deltas:
+            js[np.isnan(js)] = -1
+            static = js < min_msd
+        else:
+            static = np.r_[False, js < min_msd]
         if verbose and np.any(static):
             print('trajectory {:.0f} exhibits static translocations'.format(traj[trajnum_colname].iat[0]))
-        if full_trajectory and np.any(static):
-            # discard the entire trajectory
-            continue
-        traj = traj.iloc[~static]
-        if 1<len(traj):
+        if full_trajectory:
+            if isinstance(full_trajectory, bool):
+                if np.any(static):
+                    # discard the entire trajectory
+                    continue
+            else:
+                threshold_ratio = full_trajectory
+                if columns_with_delta:
+                    ratio = np.sum(static)/static.size
+                else:
+                    ratio = (np.sum(static)-1)/(static.size-1)
+                if threshold_ratio <= ratio:
+                    # discard the entire trajectory
+                    continue
+        else:
+            traj = traj.loc[~static]
+        if (columns_with_deltas and 0<len(traj)) or 1<len(traj):
             trajs.append(traj)
-    return pd.DataFrame(np.vstack([ traj.values for traj in trajs ]), columns=trajectories.columns)
+    return pd.concat(trajs, ignore_index=True) # preserve column types
 
 
 def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pixel_size=None):
@@ -380,6 +539,12 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
             default is ['t', 'x', 'y'].
 
         varname (str): record name.
+
+        dt (float): frame interval in seconds.
+
+        coord_scale (float): convertion factor for spatial coordinates.
+
+        pixel_size (float): deprecated; superseded by `coord_scale`.
 
     Returns:
 
@@ -439,7 +604,6 @@ def translocations_to_trajectories(points):
     delta_cols = [ c for c in points.columns \
             if c[0]=='d' and c[1:] != 'n' and c[1:] in points.columns ]
     cols_with_deltas = [ c[1:] for c in delta_cols ]
-    cols_to_keep = ['n'] + cols_with_deltas
     trans_n = points['n'].values
     traj_n = []
     traj_xyt = []
@@ -453,7 +617,7 @@ def translocations_to_trajectories(points):
         trans = points.iloc[start:stop]
         traj = trans[cols_with_deltas].values
         traj_end = traj[-1] + trans[delta_cols].values[-1]
-        traj_n.append(np.full((stop-start,1), n))
+        traj_n.append(np.full((stop-start+1,1), n))
         traj_xyt.append(traj)
         traj_xyt.append(traj_end[np.newaxis,:])
     n = pd.DataFrame(np.vstack(traj_n), columns=['n'])
@@ -464,6 +628,7 @@ def translocations_to_trajectories(points):
 __all__ = [
     'translocations',
     'iter_trajectories',
+    'iter_frames',
     'trajectories_to_translocations',
     'translocations_to_trajectories',
     'load_xyt',

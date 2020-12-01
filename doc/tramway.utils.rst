@@ -52,3 +52,12 @@ tramway.utils.mapviz module
     :undoc-members:
     :show-inheritance:
 
+
+tramway.utils.deconvolve module
+-------------------------------
+
+.. automodule:: tramway.utils.deconvolve
+    :members:
+    :undoc-members:
+    :show-inheritance:
+

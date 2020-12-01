@@ -9,7 +9,7 @@ The `official documentation <http://TRamWAy.readthedocs.io>`_ is now on `readthe
 Installation
 ------------
 
-You will need Python >= 2.7 or >= 3.5.
+You will need Python >= 3.6.
 ::
 
 	pip install --user tramway

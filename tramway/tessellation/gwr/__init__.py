@@ -57,6 +57,10 @@ class GasMesh(Voronoi):
         #self.avg_probability = avg_probability
 
     def _preprocess(self, points, batch_size=10000, tau=333.0, trust=1.0, lifetime=50, **kwargs):
+        if isinstance(points, tuple):
+            points, displacements = points
+        else:
+            displacements = None
         init = self.scaler.init
         points = Voronoi._preprocess(self, points)
         if init:
@@ -79,6 +83,14 @@ class GasMesh(Voronoi):
                 if self.min_probability:
                     self.gas.knn = int(round(self.min_probability * \
                         points.shape[0]))
+                    if self.gas.knn == 0:
+                        if self.min_probability<=1e-8:
+                            warn('rounding min_probability down to 0', RuntimeWarning)
+                            self.min_probability = 0
+                            self.gas.knn = 20
+                        else:
+                            warn('min_probability is too low for the amount of available data', RuntimeWarning)
+                            self.gas.knn = 1
                 else:
                     self.gas.knn = 20
             self.gas.trust = trust
@@ -89,12 +101,12 @@ class GasMesh(Voronoi):
             self.gas.edge_lifetime = lifetime
             if self._min_distance:
                 self.gas.collapse_below = self._min_distance# * 0.9
-        return points
+        return points, displacements
 
     def tessellate(self, points, pass_count=(), residual_factor=.7, error_count_tol=5e-3, \
         min_growth=1e-4, collapse_tol=.01, stopping_criterion=0, verbose=False, \
         plot=False, alpha_risk=1e-15, grab=None, max_frames=None, max_batches=None, axes=None, \
-        complete_delaunay=False, \
+        complete_delaunay=False, topology='approximate density', \
         **kwargs):
         """Grow the tessellation.
 
@@ -121,6 +133,7 @@ class GasMesh(Voronoi):
             alpha_risk (float): location distributions of potential neighbor cells
                 are compared with a t-test
             complete_delaunay (bool): complete the Delaunay graph
+            topology (str): any of 'approximate density' (default), 'displacement length'
 
         Returns:
             See :meth:`~tramway.tessellation.Tessellation.tessellate`.
@@ -130,11 +143,11 @@ class GasMesh(Voronoi):
             :meth:`tramway.tessellation.gwr.gas.Gas.train`.
         """
         #np.random.seed(15894754) # to benchmark and compare between Graph implementations
-        points = self._preprocess(points, **kwargs)
+        points, displacements = self._preprocess(points, **kwargs)
         if self._avg_distance:
             residual_factor *= self._avg_distance # important: do this after _preprocess!
         if pass_count is not None:
-            if pass_count is (): # () has been chosen to denote default (not-None) value
+            if pass_count == (): # () has been chosen to denote default (not-None) value
                 n = points.shape[0]
                 p = .95
                 # sample size for each point to have probability p of being chosen once
@@ -145,7 +158,10 @@ class GasMesh(Voronoi):
                 len(pass_count) # sequence?
             except TypeError:
                 pass_count = (pass_count, 2 * pass_count)
-        self.residuals = self.gas.train(np.asarray(points), \
+        if not (topology is None or topology == 'approximate density'):
+            self.gas.topology = topology
+        self.residuals = self.gas.train( \
+            np.asarray(points) if displacements is None else (np.asarray(points), np.asarray(displacements)), \
             pass_count=pass_count, \
             residual_max=residual_factor, \
             error_count_tol=error_count_tol, \

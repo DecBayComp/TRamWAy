@@ -1,15 +1,13 @@
 import numpy as np 
 import pandas as pd
 
-import sys
-sys.path.append("..")
 import argparse
 from   os.path import abspath
 import gc
 import os
 
 from scipy.optimize      import linear_sum_assignment
-from file_processing_loc import *
+from .file_processing_loc import *
 
 
 ####################################################################

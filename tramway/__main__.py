@@ -12,6 +12,10 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
+"""
+As of version 0.4.7, the tramway command is frozen and is only affected by minor fixes.
+"""
+
 import argparse
 try:
     from ConfigParser import ConfigParser

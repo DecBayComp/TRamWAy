@@ -3,7 +3,7 @@
 Installation
 ============
 
-You will need Python >= 2.7 or >= 3.5.
+You will need Python >= 3.6.
 
 ::
 
@@ -13,7 +13,6 @@ or::
 
 	git clone https://github.com/DecBayComp/TRamWAy
 	cd TRamWAy
-	pip install --user -r requirements.txt
 	pip install --user .
 
 
@@ -36,11 +35,11 @@ Notes on Python versions
 ------------------------
 
 Some modules require Python>=3.7.
-These are *bayes_factor* for force “detection” based on Bayesian statistics, *snr* that extracts signal-to-noise ratios required by the *bayes_factor* module, and *d.conj_prior* which estimates the diffusion similarly to *degraded.d* with additional confidence intervals.
+These are *bayes_factor* for force “detection” based on Bayesian statistics, *snr* that extracts signal-to-noise ratios required by the *bayes_factor* module, and *d.conj_prior* which estimates the diffusion similarly to *ddrift* with no regularization but with additional confidence intervals.
 
 
-Notes for installation on Windows
----------------------------------
+(Old) note for installation on Windows
+--------------------------------------
 
 If after following the above steps, launching |tramway| on Windows generates the following error:
 

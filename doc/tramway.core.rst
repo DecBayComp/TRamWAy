@@ -36,6 +36,16 @@ tramway.core.analyses.lazy module
     :show-inheritance:
 
 
+tramway.core.analyses.auto module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+.. automodule:: tramway.core.analyses.auto
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.core.chain module
 -------------------------
 

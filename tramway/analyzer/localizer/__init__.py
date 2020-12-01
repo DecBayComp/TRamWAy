@@ -18,6 +18,8 @@ from .abc import *
 
 class UNetLocalizer(AnalyzerNode):
     """ Loads the weights of a U-Net network for image deconvolution.
+
+    Not implemented yet, as long as the :mod:`~tramway.localization.UNet` package is broken.
     """
     __slots__ = ('_weights_locator',)
     def __init__(self, **kwargs):
@@ -25,21 +27,26 @@ class UNetLocalizer(AnalyzerNode):
         self._weights_locator = 0
     @property
     def weights_locator(self):
-        """ Uniform resource locator for the U-Net weights. """
+        """ *str*: Uniform resource locator for the U-Net weights """
         return self._weights_locator
     @weights_locator.setter
     def weights_locator(self, url):
         self._weights_locator = url
     def localize(self, stack):
+        """
+        Not implemented yet, as long as the :mod:`~tramway.localization.UNet` package is broken.
+        """
         raise NotImplementedError
 
 Localizer.register(UNetLocalizer)
 
 
 class LocalizerInitializer(Initializer):
-    """ initializer class for the `RWAnalyzer.localizer` main analyzer attribute.
+    """ Initializer class for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.localizer` main attribute.
 
-    The `RWAnalyzer.localizer` attribute self-modifies on calling *from_...* methods.
+    The :attr:`~tramway.analyzer.RWAnalyzer.localizer` attribute self-modifies
+    on calling any of the *from_...* methods.
 
     """
     __slots__ = ()
@@ -49,7 +56,7 @@ class LocalizerInitializer(Initializer):
         See also :class:`UNetLocalizer`."""
         self.specialize( UNetLocalizer )
     def from_unet(self):
-        """ Alias for `from_UNet`. """
+        """ Alias for :meth:`from_UNet`. """
         self.from_UNet()
 
 

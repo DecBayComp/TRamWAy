@@ -19,20 +19,32 @@ import traceback
 
 
 class PipelineStage(object):
+    """
+    Wrapper for callables to be run on calling :meth:`Pipeline.run`.
+    """
     __slots__ = ('_run','_granularity','_mutability','options')
-    def __init__(self, run, granularity='coarsest', requires_mutability=False, **options):
+    def __init__(self, run, granularity=None, requires_mutability=False, **options):
         self._run = run
         self._granularity = granularity
         self._mutability = requires_mutability
         self.options = options
     @property
     def granularity(self):
+        """
+        *str*: See :meth:`Pipeline.append_stage`
+        """
         return self._granularity
     @property
     def requires_mutability(self):
+        """
+        *bool*: See :meth:`Pipeline.append_stage`
+        """
         return self._mutability
     @property
     def name(self):
+        """
+        *str*: Callable's name
+        """
         return self._run.__name__
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
@@ -40,11 +52,10 @@ class PipelineStage(object):
 
 class Pipeline(AnalyzerNode):
     """
-    `pipeline` attribute of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    :attr:`~tramway.analyzer.RWAnalyzer.pipeline` attribute of an
+    :class:`~tramway.analyzer.RWAnalyzer` object.
 
-    The main methods are `append_stage` and `run`.
-    Note that the `run` method is called by :meth:`~tramway.analyzer.RWAnalyzer.run`
-    of :class:`~tramway.analyzer.RWAnalyzer`.
+    The main methods are :meth:`append_stage` and :meth:`run`.
     """
     __slots__ = ('_stage',)
     def __init__(self, *args, **kwargs):
@@ -82,7 +93,7 @@ class Pipeline(AnalyzerNode):
         Empties the pipeline processing chain.
         """
         self._stage = []
-    def append_stage(self, stage, granularity='coarsest', requires_mutability=False, **options):
+    def append_stage(self, stage, granularity=None, requires_mutability=False, **options):
         """
         Appends a pipeline stage to the processing chain.
 
@@ -92,12 +103,15 @@ class Pipeline(AnalyzerNode):
                 as unique input argument.
 
             granularity (str): smallest data item `stage` can independently process;
-                any of *'coarsest'* or equivalently *'full dataset'*,
-                *'source'* or equivalently *'spt data'*, *'data source'* or *'spt data source'*,
-                *'roi'* or equivalently *'region of interest'* (case-insensitive).
+                any of :const:`'coarsest'` or equivalently :const:`'full dataset'`,
+                :const:`'source'` or equivalently :const:`'spt data'`, :const:`'data source'`
+                or :const:`'spt data source'`, :const:`'roi'` or equivalently
+                :const:`'region of interest'`,
+                :const:`'time'` or equivalently :const:`'segment'` or :const:`'time segment'`
+                (case-insensitive).
 
             requires_mutability (bool): callable object `stage` alters input argument `self`.
-                Stages with `mutable` set to ``True`` are always run as dependencies.
+                Stages with this argument set to :const:`True` are always run as dependencies.
 
         """
         self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
@@ -126,6 +140,9 @@ class Pipeline(AnalyzerNode):
                             f.roi.self_update(self.env.roi_selector)
                     elif not isinstance(self.roi, Initializer):
                         self.analyzer.roi.self_update(self.env.roi_selector)
+                    # alter the iterators for time
+                    if not isinstance(self.time, Initializer):
+                        self.analyzer.time.self_update(self.env.time_selector)
                     self.logger.info('stage {:d} ready'.format(stage_index))
                     try:
                         stage(self)
@@ -146,7 +163,7 @@ class Pipeline(AnalyzerNode):
                         granularity = '' if stage.granularity is None \
                                 else stage.granularity.lower().replace('-',' ').replace('_',' ')
                         if stage.requires_mutability:
-                            if granularity in ('coarsest','full dataset'):
+                            if not granularity or granularity in ('coarsest','full dataset'):
                                 # run locally
                                 self.logger.info('stage {:d} ready'.format(s))
                                 stage(self)
@@ -161,34 +178,52 @@ class Pipeline(AnalyzerNode):
                         if stack or permanent_stack:
                             s = sorted(permanent_stack+stack+[s])
                             stack = []
-                        if granularity in ('coarsest','full dataset'):
+                        if not granularity or granularity in ('coarsest','full dataset'):
                             self.env.make_job(stage_index=s)
-                        elif granularity.endswith('source') or granularity.startswith('spt data'):
-                            for f in self.spt_data:
-                                if f.source is None and 1<len(self.spt_data):
-                                    raise NotImplementedError('undefined source identifiers')
-                                if self.env.dispatch(source=f.source):
-                                    self.logger.info('source "{}" dispatched'.format(f.source))
-                                self.env.make_job(stage_index=s, source=f.source)
-                        elif granularity in ('roi','region of interest'):
-                            for f in self.spt_data:
-                                if f.source is None and 1<len(self.spt_data):
-                                    raise NotImplementedError('undefined source identifiers')
-                                if self.env.dispatch(source=f.source):
-                                    self.logger.info('source "{}" dispatched'.format(f.source))
-                                for i, _ in f.roi.as_support_regions(return_index=True):
-                                    self.env.make_job(stage_index=s, source=f.source, region_index=i)
                         else:
-                            raise NotImplementedError
+                            try:
+                                alias = all([ bool(f.alias) for f in self._eldest_parent.spt_data ])
+                            except AttributeError:
+                                alias = False
+                            for f in self.spt_data:
+                                source = f.alias if alias else f.source
+                                if source is None:
+                                    if 1<len(self.spt_data):
+                                        raise NotImplementedError('undefined source identifiers')
+                                elif self.env.dispatch(source=source):
+                                    self.logger.info('source "{}" dispatched'.format(source))
+                                if granularity.endswith('source') or granularity.startswith('spt data'):
+                                    self.env.make_job(stage_index=s, source=source)
+                                elif granularity in ('roi','region of interest'):
+                                    for i, _ in f.roi.as_support_regions(return_index=True):
+                                        self.env.make_job(stage_index=s, source=source, region_index=i)
+                                elif granularity in ('time', 'segment', 'time segment'):
+                                    for i, r in f.roi.as_support_regions(return_index=True):
+                                        try:
+                                            w = r.get_sampling()
+                                        except ValueError:
+                                            raise NotImplementedError('cannot iterate on multiple sampling per ROI yet') from None
+                                        except KeyError:
+                                            raise NotImplementedError('cannot autoload the sampling stage; please load the sampling in a separate stage with requires_mutability=True') from None
+                                        for j, _ in self.time.as_time_segments(w, return_index=True, return_times=False):
+                                            self.env.make_job(stage_index=s, source=source, region_index=i, segment_index=j)
+                                else:
+                                    raise NotImplementedError
                         self.logger.info('jobs ready')
                         try:
                             self.env.submit_jobs()
                             self.logger.info('jobs submitted')
                             self.env.wait_for_job_completion()
-                        except KeyboardInterrupt:
+                        except KeyboardInterrupt as e:
                             self.logger.critical('interrupting jobs...')
-                            if not self.env.interrupt_jobs():
-                                raise
+                            try:
+                                ret = self.env.interrupt_jobs()
+                            except KeyboardInterrupt:
+                                self.logger.debug('interrupt_jobs() did not return')
+                                raise e from None
+                            else:
+                                if not ret:
+                                    raise
                         self.logger.info('jobs complete')
                         if self.env.collect_results(stage_index=s):
                             self.logger.info('results collected')
@@ -200,6 +235,9 @@ class Pipeline(AnalyzerNode):
                 stage(self)
 
     def add_collectible(self, filepath):
+        """
+        Registers a file as to be collected after stage completion.
+        """
         self.env.collectibles.add(filepath)
 
     def resume(self, **kwargs):
@@ -209,15 +247,18 @@ class Pipeline(AnalyzerNode):
         Works as a replacement for the :meth:`run` method to recover
         after connection loss.
 
-        Recovery procedures featured by the `env` backend may fail or recover
-        some of the generated files only.
+        Recovery procedures featured by the :attr:`~tramway.analyzer.RWAnalyzer.env`
+        backend may fail or recover some of the generated files only.
 
-        See also the *resume* method of the `env` attribute, if available.
+        See also the :meth:`~tramway.analyzer.env.SlurmOverSSH.resume` method of the
+        :attr:`~tramway.analyzer.RWAnalyzer.env` attribute, if available.
         """
         try:
-            self.env.resume(**kwargs)
+            proc = self.env.resume
         except AttributeError:
             self.logger.error('no recovery procedure available')
+        else:
+            proc(**kwargs)
 
 Attribute.register(Pipeline)
 

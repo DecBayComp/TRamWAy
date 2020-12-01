@@ -37,7 +37,7 @@ else:
 
 class SupportRegions(object):
     """
-    A support region can either be a region of interest or the union of regions of interest.
+    A support region can be either a region of interest or the union of regions of interest.
     Major processing steps such as tessellation and inference may operate
     on support regions so that a region of interest simply acts as a window.
 
@@ -152,12 +152,23 @@ class UnitRegions(SupportRegions):
     def __iter__(self):
         yield from range(len(self))
     def __getitem__(self, r):
+        _r = r
         for coll in self.unit_region:
             rs = self.unit_region[coll]
-            if r<len(rs):
-                return rs[r]
+            if _r<len(rs):
+                return rs[_r]
             else:
-                r -= len(rs)
+                _r -= len(rs)
+        raise IndexError('out of bounds: {}'.format(r))
+    def __setitem__(self, r, bounds):
+        _r = r
+        for coll in self.unit_region:
+            rs = self.unit_region[coll]
+            if _r<len(rs):
+                rs[_r] = bounds
+                return
+            else:
+                _r -= len(rs)
         raise IndexError('out of bounds: {}'.format(r))
     def region_label(self, r):
         if not isinstance(r, int):
@@ -196,6 +207,20 @@ class UnitRegions(SupportRegions):
             else:
                 r += len(self.unit_region[label])
         raise KeyError("no such roi collection: '{}'".format(collection))
+    def region_to_units(self, r):
+        """
+        Returns a `dict` with a single key and single-element list value.
+
+        For compatibility with : class:`GroupedRegions`.
+        """
+        _r = r
+        for coll in self.unit_region:
+            rs = self.unit_region[coll]
+            if _r<len(rs):
+                return { coll: [_r] }
+            else:
+                _r -= len(rs)
+        raise IndexError('out of bounds: {}'.format(r))
     #def collection_range(self, collection_label):
     #    m = 0
     #    for label in self.unit_region:
@@ -228,7 +253,7 @@ class UnitRegions(SupportRegions):
 
 class GroupedRegions(SupportRegions):
     """
-    overlapping regions of interest are pooled together and form a unique support region.
+    Overlapping regions of interest are pooled together and form a unique support region.
 
     Pooling disregards which collection a ROI pertains to.
     """

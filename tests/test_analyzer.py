@@ -266,7 +266,7 @@ class TestTesseller(Common):
             a.tesseller.reset() # let the calibration parameters vary from a roi to another
             sampling = a.sampler.sample(df)
             r.add_sampling(sampling)
-            tree_a = r.analyses
+            tree_a = r.get_sampling()._subtree
             tree_b = b.analyses[r.label].statefree()
             assert self.equal(tree_a, tree_b)
 
@@ -277,6 +277,7 @@ class TestTesseller(Common):
         a=RWAnalyzer()
         a.spt_data.from_ascii_files(all_sptdatafiles)
         a.tesseller.from_callable(tessellers.GWR)
+        a.tesseller.topology = 'approximate density'
         for f in a.spt_data:
             print(f.source)
             #

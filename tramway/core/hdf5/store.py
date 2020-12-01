@@ -13,7 +13,7 @@
 
 
 from tramway.core import rc
-from rwa import HDF5Store, lazytype, lazyvalue
+from rwa import HDF5Store, lazytype, lazyvalue, islazy
 from ..lazy import Lazy
 from ..analyses import Analyses, coerce_labels, format_analyses, append_leaf
 import tramway.core.analyses.abc as abc
@@ -32,12 +32,13 @@ __all__ = ['RWAStore', 'load_rwa', 'save_rwa']
 
 class RWAStore(HDF5Store):
 
-    __slots__ = ('unload', '__special__')
+    __slots__ = ('unload', '__special__', 'force_load_special')
 
     def __init__(self, resource, mode='auto', unload=False, verbose=False, **kwargs):
         HDF5Store.__init__(self, resource, mode, verbose, **kwargs)
         self.unload = unload
         self.__special__ = {}
+        self.force_load_special = False
 
     def poke(self, objname, obj, container=None, visited=None, _stack=None, unload=None):
         if unload is not None:
@@ -65,45 +66,52 @@ class RWAStore(HDF5Store):
         if unload is not None:
             self.unload = previous
 
-    def peek(self, *args, **kwargs):
-        obj = HDF5Store.peek(self, *args, **kwargs)
-        obj = self.special_load(obj)
+    def peek(self, objname, record=None, lazy=None, **kwargs):
+        obj = HDF5Store.peek(self, objname, record=record, lazy=lazy, **kwargs)
+        obj = self.special_load(obj, objname, lazy=lazy)
         return obj
 
-    def special_load(self, obj):
+    def special_load(self, obj, objname, lazy=None):
+        if objname != '_data':
+            return obj
         if 'data0' in self.__special__:
             import tramway.tessellation.base as tessellation
-            if lazytype(obj) is tessellation.Partition:
+            if issubclass(lazytype(obj), tessellation.Partition):
                 obj = lazyvalue(obj, deep=True)
                 try:
                     if obj._points is None:
                         raise AttributeError
                 except AttributeError:
-                    obj._points = self.__special__['data0']
+                    obj._points = lazyvalue(self.__special__['data0'], deep=True)
         else:
             import pandas
-            if lazytype(obj) is pandas.DataFrame:
-                obj = lazyvalue(obj, deep=True)
+            if issubclass(lazytype(obj), pandas.DataFrame):
+                if self.force_load_special or not (self.lazy if lazy is None else lazy):
+                    obj = lazyvalue(obj, deep=True)
                 self.__special__['data0'] = obj
         return obj
 
     def special_unload(self, obj):
+        # forced poke (calling lazyvalue) may not be necessary
         if 'data0' in self.__special__:
             import tramway.tessellation.base as tessellation
-            if isinstance(obj, tessellation.Partition) and obj.points is self.__special__['data0']:
-                import copy
-                obj = copy.copy(obj)
-                obj._points = None
+            if issubclass(lazytype(obj), tessellation.Partition):
+                obj = lazyvalue(obj, deep=True)
+                if obj.points is self.__special__['data0']:
+                    import copy
+                    obj = copy.copy(obj)
+                    obj._points = None
         else:
             import pandas
-            if isinstance(obj, pandas.DataFrame):
+            if issubclass(lazytype(obj), pandas.DataFrame):
+                obj = lazyvalue(obj, deep=True)
                 self.__special__['data0'] = obj
         return obj
 
 
 
 
-def load_rwa(path, verbose=None, lazy=False):
+def load_rwa(path, verbose=None, lazy=False, force_load_spt_data=None):
     """
     Load a .rwa file.
 
@@ -120,6 +128,11 @@ def load_rwa(path, verbose=None, lazy=False):
 
         lazy (bool): reads the file lazily
 
+        force_load_spt_data (bool): *new in 0.5*
+            compatibility flag for pre-0.5 code;
+            `None` currently defaults to `True`,
+            but will default to `False` in the future
+
     Returns:
 
         tramway.core.analyses.base.Analyses:
@@ -131,6 +144,7 @@ def load_rwa(path, verbose=None, lazy=False):
         hdf = RWAStore(path, 'r', verbose=max(0, int(verbose) - 2) if verbose else False)
         #hdf._default_lazy = PermissivePeek
         hdf.lazy = lazy
+        hdf.force_load_special = True if force_load_spt_data is None else force_load_spt_data
         try:
             analyses = lazyvalue(hdf.peek('analyses'))
         except (KeyboardInterrupt, SystemExit):
@@ -140,7 +154,8 @@ def load_rwa(path, verbose=None, lazy=False):
                 print('cannot load file: {}'.format(path))
             raise
         finally:
-            hdf.close()
+            if not lazy:
+                hdf.close()
     except EnvironmentError as e:
         if hasattr(e, 'errno') and e.errno == errno.ENOENT:
             raise
@@ -150,6 +165,7 @@ def load_rwa(path, verbose=None, lazy=False):
             raise OSError('HDF5 libraries may not be installed')
         else:
             raise
+    return analyses
     return coerce_labels(analyses)
 
 

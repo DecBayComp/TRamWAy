@@ -12,11 +12,12 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.track_non_track.file_processing_loc import *
 from ..attribute import *
 from .abc import *
 from tramway.core import *
 import itertools
+import numpy as np
+import pandas as pd
 
 
 class BaseTracker(AnalyzerNode):
@@ -27,11 +28,23 @@ class BaseTracker(AnalyzerNode):
             self._eldest_parent.spt_data.from_tracker()
         return self._eldest_parent.spt_data
     @property
+    def frame_interval(self):
+        return self.spt_data.frame_interval
+    @frame_interval.setter
+    def frame_interval(self, dt):
+        self.spt_data.frame_interval = dt
+    @property
     def dt(self):
         return self.spt_data.dt
     @dt.setter
     def dt(self, dt):
         self.spt_data.dt = dt
+    @property
+    def localization_error(self):
+        return self.spt_data.localization_error
+    @localization_error.setter
+    def localization_error(self, err):
+        self.spt_data.localization_error = err
     @property
     def localization_precision(self):
         return self.spt_data.localization_precision
@@ -89,6 +102,7 @@ class NonTrackingTracker(BaseTracker):
         self._large_length = length
     ###
     def track(self, locations, register=False):
+        import tramway.tracking.track_non_track.file_processing_loc as nt
         images = self._eldest_parent.images
         if isinstance(locations, str):
             loc_file = locations
@@ -96,7 +110,7 @@ class NonTrackingTracker(BaseTracker):
         else:
             loc_file = None
 
-        movie_per_frame, n_unique = convert_to_list(locations.values)
+        movie_per_frame, n_unique = nt.convert_to_list(locations.values)
         dt_theo = self.dt
         t_init = self.dt * 1
         if images.initialized:
@@ -108,6 +122,11 @@ class NonTrackingTracker(BaseTracker):
         D_high = self.estimated_high_diffusivity
         length_high = self.estimated_large_length
 
+        if sigma is None:
+            raise AttributeError('attribute localization_precision is not set')
+        if D_high is None:
+            raise AttributeError('attribute estimated_high_diffusivity is not set')
+
         trajectories = {}
 
         current_trajectory_index = np.uint32(1)
@@ -115,11 +134,11 @@ class NonTrackingTracker(BaseTracker):
 
         for frame_index in range(n_unique-1):
 
-            C = get_cost_function(frame_index, movie_per_frame)
+            C = nt.get_cost_function(frame_index, movie_per_frame)
             C_eff,_,_,_,row_eff,col_eff,M,N,n_row_eff,n_col_eff,anomaly = \
-                    correct_cost_function(C, length_high)
+                    nt.correct_cost_function(C, length_high)
             _, row, col = \
-                    get_assigment_matrix_from_reduced_cost(C_eff, row_eff, col_eff,
+                    nt.get_assigment_matrix_from_reduced_cost(C_eff, row_eff, col_eff,
                         M, N, n_col_eff, n_row_eff, anomaly)
 
             assert isinstance(row, np.ndarray)
@@ -177,7 +196,7 @@ class NonTrackingTracker(BaseTracker):
                 pd.DataFrame(trajectory_coordinates, columns=list('xyt')))
 
         if register:
-            self.spt_data.add_tracked_data(trajectories, loc_file)
+            self.spt_data.add_tracked_data(trajectories, filepath=loc_file)
 
         return trajectories
 
@@ -185,10 +204,11 @@ Tracker.register(NonTrackingTracker)
 
 
 class TrackerInitializer(Initializer):
-    """ initializer class for the `RWAnalyzer.tracker` main analyzer attribute.
+    """ Initializer class for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.tracker` main attribute.
 
-    The `RWAnalyzer.tacker` attribute self-modifies on calling *from_...* methods.
-
+    The :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute self-modifies
+    on calling any of the *from_...* methods.
     """
     __slots__ = ()
     def from_single_particle(self):

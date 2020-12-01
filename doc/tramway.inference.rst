@@ -134,6 +134,15 @@ tramway.inference.gradient module
     :show-inheritance:
 
 
+tramway.inference.optimization module
+-------------------------------------
+
+.. automodule:: tramway.inference.optimization
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.inference.stochastic_dv plugin
 --------------------------------------
 

@@ -21,10 +21,11 @@ import numpy as np
 
 class ImagesInitializer(Initializer):
     """
-    initial value for the `RWAnalyzer.images` attribute.
+    Initial value for the :class:`~tramway.analyzer.RWAnalyzer`
+    :attr:`~tramway.analyzer.RWAnalyzer.images` attribute.
 
-    `from_...` methods alters the parent attribute which specializes
-    into an initialized :class:`.abc.Images` object.
+    *from_...* methods alters the parent attribute which specializes
+    into an initialized :class:`Images` object.
     """
     __slots__ = ()
     def from_tiff_file(self, filepath):
@@ -50,6 +51,9 @@ class ImageParameters(object):
         self._pixel_size = self._loc_offset = None
     @property
     def pixel_size(self):
+        """
+        *float*: Pixel size in :math:`\mu m`
+        """
         return self._pixel_size
     @pixel_size.setter
     def pixel_size(self, pxsize):
@@ -57,7 +61,7 @@ class ImageParameters(object):
     @property
     def loc_offset(self):
         """
-        Offset between coordinates and the image, in pixels.
+        *numpy.ndarray*: Offset between coordinates and the image, in pixels
         """
         return self._loc_offset
     @loc_offset.setter
@@ -65,11 +69,23 @@ class ImageParameters(object):
         self._loc_offset = offset
     # access to shared parameters
     @property
+    def frame_interval(self):
+        """
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.frame_interval`
+        """
+        return self._eldest_parent.spt_data.frame_interval
+    @frame_interval.setter
+    def frame_interval(self, dt):
+        self._eldest_parent.spt_data.frame_interval = dt
+    @property
     def dt(self):
-        return self._eldest_parent.spt_data.dt
+        """
+        *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.dt`
+        """
+        return self.frame_interval
     @dt.setter
     def dt(self, dt):
-        self._eldest_parent.spt_data.dt = dt
+        self.frame_interval = dt
     @property
     def logger(self):
         return self._eldest_parent.logger
@@ -101,17 +117,15 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
     def as_frames(self, index=None, return_time=False):
         """
-        Iterates over the image frames.
+        Generator function; iterates over the image frames and yields
+        NumPy 2D arrays, or pairs of (*float*, NumPy 2D array).
 
         Arguments:
 
-            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+            index (*int*, *Set*, *Sequence* or *callable*):
+                frame filter; see also :func:`indexer`.
 
             return_time (bool): return time along with image frames, as first item.
-
-        Returns:
-
-            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
 
         """
         for f in indexer(index, range(self.n_frames)):
@@ -130,21 +144,27 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
     def crop_frames(self, bounding_box, index=None, return_time=False):
         """
-        Iterates and crops the image frames, similarly to `as_frames`.
+        Generator function; iterates and crops the image frames, similarly to
+        :meth:`as_frames`.
 
         Arguments:
 
             bounding_box (tuple): pair of NumPy arrays (lower bound, upper bound).
 
-            index (int, Set, Sequence or callable): frame filter; see also `indexer`.
+            index (*int*, *Set*, *Sequence* or *callable*): frame filter; see also `indexer`.
 
             return_time (bool): return time along with cropped image frames, as first item.
 
-        Returns:
+        .. note::
 
-            Iterator: NumPy 2D arrays, or pairs of (`float`, NumPy 2D array).
+            Time bounds are not supported yet.
 
         """
+        lb, ub = bounding_box
+        if 2<lb.size:
+            self.logger.warning('time supports are not supported yet')
+            lb, ub = lb[:2], ub[:2]
+            bounding_box = (lb, ub)
         lb, ub = [ b / self.pixel_size - self.loc_offset for b in bounding_box ]
         lb = np.floor(lb).astype(int)
         ub = np.ceil(ub).astype(int)
@@ -174,12 +194,14 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             fourcc (str): 4-character code string.
 
-            colormap (str or matplotlib.colors.ListedColormap): Matplotlib colormap;
+            colormap (*str* or *matplotlib.colors.ListedColormap*): Matplotlib colormap;
                 see also https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html.
 
-            locations (pandas.DataFrame): particle locations with columns 'x', 'y' and 't'.
+            locations (pandas.DataFrame): particle locations with columns :const:`'x'`,
+                :const:`'y'` and :const:`'t'`.
 
-            trajectories (pandas.DataFrame): trajectories with columns 'n', 'x', 'y' and 't';
+            trajectories (pandas.DataFrame): trajectories with columns :const:`'n'`,
+                :const:`'x'`, :const:`'y'` and :const:`'t'`;
                 note this differs from translocations in that displacements are not
                 encoded along with locations and trajectory terminations are independent rows.
 
@@ -187,24 +209,25 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 pairs; if `origin` defines time, `frames` can be a sequence of frames only;
                 :meth:`as_frames` is called instead if undefined.
 
-            origin (numpy.ndarray or pandas.Series): data lower bound if `frames` is defined;
-                implicit columns are 'x' and 'y'; to define time, `origin` must be a `Series`
-                with indices 'x', 'y' and 't';
+            origin (*numpy.ndarray* or *pandas.Series*): data lower bound if `frames` is defined;
+                implicit columns are :const:`'x'` and :const:`'y'`;
+                to define time, `origin` must be a `Series`
+                with indices :const:`'x'`, :const:`'y'` and :const:`'t'`;
                 `origin` is useful only for overlaying locations or trajectories.
 
             markersize (int): location marker size in pixels (side).
 
-            linecolor (str or 3-column float array): color for trajectories;
-                value ``None`` defaults to red.
+            linecolor (*str* or 3-column float array): color for trajectories;
+                value :const:`None` defaults to red.
 
             linewidth (float): trajectory line width
 
-            magnification (int or str): the original image pixels can be represented as square-patches
-                of *magnification* video pixel side; if *str*:
-                '1x'= round(pixel_size/localization_precision),
-                '2x'= round(2*pixel_size/localization_precision);
-                '2x' is adequate for overlaid trajectories, even with the over-compressing
-                'MJPG' encoder.
+            magnification (*int* or *str*): the original image pixels can be represented as
+                square-patches of `magnification` video pixel side; if *str*:
+                :const:`'1x'`= round(pixel_size/localization_precision),
+                :const:`'2x'`= round(2*pixel_size/localization_precision);
+                :const:`'2x'` is adequate for overlaid trajectories, even with the over-compressing
+                :const:`'MJPG'` encoder.
 
             playback_rate (float): default playback rate;
                 1 is real-time, 0.5 is half the normal speed.
@@ -405,6 +428,15 @@ class _RawImage(AnalyzerNode, ImageParameters):
             vid.write(img_as_ubyte(frame)[:,:,::-1])
         vid.release()
 
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        """ tramway.analyzer.images.mpl.Mpl: Matplotlib utilities """
+        return self._mpl_impl(self)
+
 
 class RawImage(_RawImage):
     __slots__ = ()
@@ -445,9 +477,9 @@ class StandaloneImage(object):
         yield self
 
 class ImageIterator(AnalyzerNode, ImageParameters):
-    """ partial implementation for multiple SPT data items.
+    """ Partial :class:`Images` implementation for multiple SPT data items.
 
-    Children classes must implement the `__iter__` method."""
+    Children classes must implement the :meth:`__iter__` method."""
     __slots__ = ()
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
@@ -576,5 +608,8 @@ class TiffFiles(ImageFiles):
 def all_unique(values):
     return np.unique(values).size == values.size
 
-__all__ = ['Image', 'Images', 'ImagesInitializer', 'ImageParameters', 'RawImage', 'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile', 'RawImages', 'ImageFiles', 'TiffFiles']
+
+__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', 'RawImage',
+        'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile',
+        'RawImages', 'ImageFiles', 'TiffFiles', '_RawImage']
 

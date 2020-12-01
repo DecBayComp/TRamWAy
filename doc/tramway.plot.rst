@@ -44,6 +44,24 @@ tramway.plot.tk.contour module
     :show-inheritance:
 
 
+tramway.plot.bokeh subpackage
+-----------------------------
+
+.. automodule:: tramway.plot.bokeh
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+tramway.plot.bokeh.map module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.plot.bokeh.map
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 tramway.plot.animation subpackage
 ---------------------------------
 

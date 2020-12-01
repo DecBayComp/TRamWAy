@@ -1406,7 +1406,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             labels = input_label
         else:
             labels, label = label, None
-        if not (labels or labels is 0):
+        if not valid_label(labels):
             labels = ()
         elif not isinstance(labels, (tuple, list)):
             labels = (labels, )
@@ -1565,7 +1565,7 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
         min_location_count = kwargs['min_location_count']
     except KeyError:
         try:
-            min_location_count = cells.param['tessellation']['min_location_count']
+            min_location_count = cells.param['partition']['min_location_count']
         except (KeyError, AttributeError):
             min_location_count = 0
 
@@ -1609,9 +1609,8 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             else:
                 tplt.plot_points(cells, min_count=min_location_count, **locations)
         if aspect is not None:
-            try:
-                ax = kwargs['axes']
-            except KeyError:
+            ax = kwargs.get('axes', None)
+            if ax is None:
                 ax = fig.gca()
             ax.set_aspect(aspect)
         if voronoi is None:
@@ -1743,82 +1742,6 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
     else:
         for fig in figs:
             mplt.close(fig)
-
-
-
-def find_mesh(path, method=None, full_list=False):
-    """
-    *from version 0.3:* deprecated.
-    """
-    warn('`find_mesh`, `find_imt` and `find_partition` are deprecated in favor of `load_rwa`/`find_artefacts`', DeprecationWarning)
-    if not isinstance(path, (tuple, list)):
-        path = (path,)
-    paths = []
-    for p in path:
-        if os.path.isdir(p):
-            paths.append([ os.path.join(p, f) for f in os.listdir(p) if f.endswith('.rwa') ])
-        else:
-            if p.endswith('.rwa'):
-                ps = [p]
-            else:
-                d, p = os.path.split(p)
-                p, _ = os.path.splitext(p)
-                if d:
-                    ps = [ os.path.join(d, f) for f in os.listdir(d) \
-                        if f.startswith(p) and f.endswith('.rwa') ]
-                else:
-                    ps = [ f for f in os.listdir('.') \
-                        if f.startswith(p) and f.endswith('.rwa') ]
-            paths.append(ps)
-    paths = list(itertools.chain(*paths))
-    found = False
-    for path in paths:
-        try:
-            from rwa import HDF5Store
-            hdf = HDF5Store(path, 'r')
-            hdf.lazy = False
-            try:
-                cells = hdf.peek('cells')
-                if isinstance(cells, Partition) and \
-                    (method is None or cells.param['method'] == method):
-                    found = True
-                    if cells.tessellation is None:
-                        cells._tessellation = hdf.peek('_tesselation', hdf.store['cells'])
-            except EnvironmentError:
-                print(traceback.format_exc())
-                warn('HDF5 libraries may not be installed', ImportWarning)
-            finally:
-                try:
-                    hdf.close()
-                except:
-                    pass
-        except:
-            print(traceback.format_exc())
-            pass
-        if found: break
-    if found:
-        if full_list:
-            path = paths
-        return (path, cells)
-    else:
-        return (paths, None)
-
-
-def find_imt(path, method=None, full_list=False):
-    """
-    Alias for :func:`find_mesh` for backward compatibility.
-
-    *from version 0.3:* deprecated.
-    """
-    return find_mesh(path, method, full_list)
-
-def find_partition(path, method=None, full_list=False):
-    """
-    Alias for :func:`find_mesh`.
-
-    *from version 0.3:* deprecated.
-    """
-    return find_mesh(path, method, full_list)
 
 
 def delete_low_count_cells(partition, count_threshold, priority_by=None, label=True, partition_kwargs={}):

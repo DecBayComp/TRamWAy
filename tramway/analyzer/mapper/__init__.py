@@ -16,7 +16,7 @@ from ..attribute import *
 from ..artefact import analysis
 from .. import attribute
 from .abc import *
-from . import stdalg as mappers
+#from . import stdalg as mappers
 from tramway.inference import plugins
 from tramway.helper.inference import Infer
 
@@ -27,6 +27,15 @@ class MapperInitializer(Initializer):
         self.specialize( MapperPlugin, plugin )
     def from_callable(self, cls):
         self.specialize( StdMapper, cls )
+
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
+        return self._mpl_impl(self)
 
 
 class MapperPlugin(AnalyzerNode):
@@ -83,12 +92,16 @@ class MapperPlugin(AnalyzerNode):
         helper.prepare_data(sampling)
         distr_kwargs, infer_kwargs = {}, {}
         for k in self._kwargs:
-            if k in ('new_cell','new_group','include_empty_cells','grad','rgrad'):
+            if k in ('new_cell','new_group','include_empty_cells','grad','rgrad','cell_sampling'):
                 distr_kwargs[k] = self._kwargs[k]
             if k not in ('new_cell','new_group','include_empty_cells','grad'):
                 infer_kwargs[k] = self._kwargs[k]
         infer_kwargs['sigma'] = self._parent.spt_data.localization_precision
+        if 'cell_sampling' not in distr_kwargs and \
+                self.time.initialized and not self.time.regularize_in_time:
+            distr_kwargs['cell_sampling'] = 'connected'
         cells = helper.distribute(**distr_kwargs)
+        cells = helper.overload_cells(cells)
         helper.name, helper.setup, helper._infer = self.name, self.setup, self._mapper
         maps = helper.infer(cells, **infer_kwargs)
         return maps
@@ -96,5 +109,17 @@ class MapperPlugin(AnalyzerNode):
     def time(self):
         return self._parent.time
 
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
+        return self._mpl_impl(self)
+
 Mapper.register(MapperPlugin)
+
+
+__all__ = [ 'Mapper', 'MapperInitializer', 'MapperPlugin' ]
 

@@ -128,7 +128,9 @@ class WorkerNearDeathException(Exception):
 class Worker(multiprocessing.Process):
     """ Worker that runs job steps.
 
-    The :meth:`target` method may be implemented following the pattern below::
+    The :meth:`target` method may be implemented following the pattern below:
+
+    .. code:: python
 
         class MyWorker(Worker):
             def target(self, *args, **kwargs):
@@ -245,7 +247,8 @@ class Scheduler(object):
     may complete on termination criteria.
     """
     def __init__(self, workspace, tasks, worker_count=None, iter_max=None,
-            name=None, args=(), kwargs={}, daemon=None, max_runtime=None, **_kwargs):
+            name=None, args=(), kwargs={}, daemon=None, max_runtime=None,
+            task_timeout=None, **_kwargs):
         """
         Arguments:
 
@@ -258,6 +261,12 @@ class Scheduler(object):
                 the active workers are interrupted on reaching the timeout;
                 *new in 0.5b2*.
 
+            task_timeout (float): timeout in seconds;
+                this timeout applies to each task and the corresponding
+                worker only is interrupted;
+                the other tasks keep on;
+                *new in 0.5b5*.
+
         """
         self.workspace = workspace
         self.task = tasks
@@ -266,7 +275,8 @@ class Scheduler(object):
         self.dead_workers = dict()
         self.k_eff = 0
         self.k_max = iter_max
-        self.timeout = max_runtime
+        self.global_timeout = max_runtime
+        self.task_timeout = task_timeout
         if worker_count is None:
             worker_count = multiprocessing.cpu_count() - 1
         elif worker_count < 0:
@@ -301,6 +311,14 @@ class Scheduler(object):
     @property
     def worker_count(self):
         return len(self.workers) if isinstance(self.workers, dict) else 0
+    @property
+    def timeout(self):
+        if self.task_timeout is None:
+            return self.global_timeout
+        elif self.global_timeout is None:
+            return self.task_timeout
+        else:
+            return min(self.global_timeout, self.task_timeout)
     def draw(self, k):
         return k
     def next_task(self):
@@ -353,11 +371,12 @@ class Scheduler(object):
 
         Calls the :meth:`stop` method.
 
-        Returns ``False`` if a stopping criterion has been met, ``True`` otherwise.
+        Returns :const:`False` if a stopping criterion has been met, :const:`True` otherwise.
         """
         while True:
             #module_logger.debug('get_processed_step: waiting...') # DEBUG
-            step, status = self.return_queue.get()
+            # note: `get` does not raise TimeoutError
+            step, status = self.return_queue.get(timeout=self.timeout)
             #module_logger.debug('get_processed_step: received {}'.format(self.active[step.resource_id])) # DEBUG
             if step is None:
                 if isinstance(status, WorkerNearDeathException):
@@ -423,14 +442,31 @@ class Scheduler(object):
         """
         Start the workers, send and get job steps back and check for stop criteria.
 
-        Returns ``True`` on normal completion, ``False`` on interruption
+        Returns :const:`True` on normal completion, :const:`False` on interruption
         (:class:`SystemExit`, :class:`KeyboardInterrupt`).
         """
         if isinstance(self.workers, Worker):
             # no multi-processing
+            context = None
+            if self.timeout:
+                try:
+                    import stopit
+                except ImportError:
+                    warn('limited timeout support; install package stopit to get full support', ImportWarning)
+                else:
+                    context = stopit.ThreadingTimeout(self.timeout)
+            if context is None:
+                class DummyContextManager(object):
+                    def __enter__(self):
+                        return self
+                    def __exit__(self, *args):
+                        pass
+                context = DummyContextManager()
+            #
             ret = True
             try:
-                self.workers.run()
+                with context:
+                    self.workers.run()
             except NormalTermination:
                 pass
             except (SystemExit, KeyboardInterrupt):
@@ -440,7 +476,7 @@ class Scheduler(object):
         for w in self.workers.values():
             w.start()
         self.init_resource_lock()
-        if self.timeout:
+        if self.global_timeout:
             self.start_time = time.time()
         k = 0
         postponed = dict()
@@ -451,7 +487,8 @@ class Scheduler(object):
                     break
                 if not self.get_processed_step():
                     break
-                if self.timeout and self.timeout <= (time.time() - self.start_time):
+                if self.global_timeout and self.global_timeout <= (time.time() - self.start_time):
+                    #raise multiprocessing.TimeoutError
                     break
                 if postponed:
                     for i in list(postponed):
@@ -465,7 +502,7 @@ class Scheduler(object):
                 if not postponed:
                     k = self.fill_slots(k, postponed)
             ret = True
-        except (SystemExit, KeyboardInterrupt):
+        except (SystemExit, KeyboardInterrupt, multiprocessing.TimeoutError):
             ret = False
         for w in self.workers.values():
             try:

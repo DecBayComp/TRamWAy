@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import tramway.deconvolution.inference as deconv
+import tramway.localization.UNet.inference as deconv
 import os.path
 import numpy as np
 from skimage import io
@@ -33,6 +33,8 @@ def deconvolve(image_stack_file, weight_file, mean_std_file=None,
         high_res_image_file=None, save_magnified_image=False,
         magnification=10, threshold=0, min_distance_peak=2, margin=3,
         header=True, abs_threshold=1., M=64, N=None, n=2, gpu=1):
+    """
+    """
 
     if N is None:
         N = M
@@ -84,7 +86,7 @@ def main():
     args   = parser.parse_args()
 
     if args.disable_fixes:
-        from tramway.deconvolution import tf
+        from tramway.localization.UNet import tf
         tf.__fix_tf_1_14_0_h5py_3_0_0__ = False
 
     deconvolve(args.stack, args.weights, args.mean_std, gpu=args.gpu,

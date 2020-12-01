@@ -86,40 +86,6 @@ def selfinitializing_property(attr_name, getter, setter, metacls=None, doc=None)
     return property(getter, initializer, doc=doc)
 
 
-class PipelineMethod(object):
-    __slots__ = ('_proc','_args','_kwargs','_enabled','_done')
-    def __init__(self, proc):
-        self._proc = proc
-        self._args = ()
-        self._kwargs = {}
-        self._enabled = False
-        self._done = False
-        self._result = None
-    def __callable__(self, *args, **kwargs):
-        if self.enabled:
-            if self.done:
-                self._done = args == self._args and kwargs == self._kwargs
-            if not self.done:
-                self._args = args
-                self._kwargs = kwargs
-                self._result = self._proc(*args, **kwargs)
-                self._done = True
-        return self._result
-    @property
-    def enabled(self):
-        return self._enabled
-    def enable(self):
-        self._enabled = True
-    @property
-    def disabled(self):
-        return not self._enabled
-    def disable(self):
-        self._enabled = False
-    @property
-    def done(self):
-        return self._done
-
-
 __all__.append('null_index')
 def null_index(i):
     if i is None:
@@ -148,6 +114,7 @@ def null_index(i):
         return i(0)
     else:
         return i == 0
+
 
 __all__.append('indexer')
 def indexer(i, it, return_index=False):
@@ -219,4 +186,52 @@ def indexer(i, it, return_index=False):
             yield item
     else:
         raise TypeError('unsupported index type')
+
+
+__all__.append('first')
+def first(it, **kwargs):
+    if callable(it):
+        it = it(**kwargs)
+    return next(iter(it))
+
+
+__all__.append('single')
+def single(it, **kwargs):
+    if callable(it):
+        it = it(**kwargs)
+    it = iter(it)
+    elem = next(it)
+    try:
+        next(it)
+    except StopIteration:
+        # good
+        pass
+    else:
+        raise RuntimeError('not a singleton') from None
+    return elem
+
+
+__all__.append('Proxy')
+class Proxy(object):
+    __slots__ = ('_proxied',)
+    def __init__(self, proxied):
+        self._proxied = proxied
+    def __len__(self):
+        return self._proxied.__len__()
+    def __iter__(self):
+        return self._proxied.__iter__()
+    @property
+    def _parent(self):
+        return self._proxied._parent
+    @_parent.setter
+    def _parent(self, par):
+        self._proxied._parent = par
+    def __getattr__(self, attrname):
+        return getattr(self._proxied, attrname)
+    def __setattr__(self, attrname, val):
+        if attrname == '_proxied':
+            object.__setattr__(self, '_proxied', val)
+        else:
+            setattr(self._proxied, attrname, val)
+
 

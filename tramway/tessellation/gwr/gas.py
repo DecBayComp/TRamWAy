@@ -46,7 +46,8 @@ class Gas(Graph):
     """
     __slots__ = ['graph', 'insertion_threshold', 'trust', 'learning_rate', \
         'habituation_threshold', 'habituation_initial', 'habituation_alpha', \
-        'habituation_tau', 'edge_lifetime', 'batch_size', 'collapse_below', 'knn']
+        'habituation_tau', 'edge_lifetime', 'batch_size', 'collapse_below', 'knn', \
+        'topology']
 
     def connect(self, n1, n2, **kwargs):
         self.graph.connect(n1, n2, **kwargs)
@@ -126,6 +127,7 @@ class Gas(Graph):
         # sample size
         self.collapse_below = None
         self.knn = None
+        self.topology = 'approximate density'
 
     def local_insertion_threshold(self, eta, node, *vargs):
         """
@@ -244,12 +246,14 @@ class Gas(Graph):
             try:
                 dist_min = sqrt(dist2_min)
             except ValueError:
-                if -1e-12 < dist2_min:
+                precision = int(np.dtype(dist2_min.dtype).str[-1])
+                if (precision==8 and -1e-12 < dist2_min) or (precision==4 and -1e-3 < dist_min):
                     dist_min = 0
                     import warnings
                     warnings.warn('Rounding error: negative distance', RuntimeWarning)
                 else:
-                    raise ValueError('Negative distance')
+                    print('square distance=', dist2_min, '   num. type=', dist2_min.dtype)
+                    raise ValueError('Negative distance') from None
             nearest, second_nearest = index_to_node(i[:2])
             errors.append(dist_min)
             # test activity and habituation against thresholds
@@ -257,6 +261,9 @@ class Gas(Graph):
             habituation = self.habituation(nearest)
             w = self.get_weight(nearest)
             activity_threshold = self.local_insertion_threshold(eta, w, *r)
+            if isinstance(activity_threshold, tuple):
+                assert not self.knn
+                raise ValueError('insertion_threshold is defined as (lower, upper) bounds whereas knn is {}'.format(self.knn))
             if activity_threshold < activity and \
                 habituation < self.habituation_threshold:
                 # insert a new node and connect it with the two nearest nodes
@@ -364,8 +371,12 @@ class Gas(Graph):
                 2. stops if the average residual for the current batch is greater than
                    that of the previous batch.
 
+
         """
         ## TODO: clarify the code
+        if isinstance(sample, tuple):
+            locations, displacements = sample
+            sample = locations
         n = sample.shape[0]
         l = 0 # node count
         residuals = []
@@ -387,8 +398,14 @@ class Gas(Graph):
                 self.insertion_threshold = (self.insertion_threshold, \
                     self.insertion_threshold * 4)
             eta_square = np.sum(sample * sample, axis=1)
-            radius = self.boxed_radius(sample, self.knn, self.insertion_threshold[0], \
-                self.insertion_threshold[1], verbose, plot)
+            if self.topology == 'approximate density':
+                radius = self.boxed_radius(sample, self.knn, self.insertion_threshold[0], \
+                        self.insertion_threshold[1], verbose, plot)
+            elif self.topology == 'displacement length':
+                radius = self.boxed_average(sample, displacements, self.knn, self.insertion_threshold[0], \
+                        self.insertion_threshold[1], verbose, plot)
+            else:
+                raise ValueError("topology=='{}' not supported".format(self.topology))
         # grab
         batch_kwargs = {}
         if grab is not None:
@@ -490,7 +507,6 @@ class Gas(Graph):
         if grab is not None and (max_frames is None or max_frames < sample.shape[0]):
             self.grab_completion(grab, sample, **kwargs)
         return residuals
-
 
     def boxed_radius(self, sample, knn, rmin, rmax, verbose=False, plot=False):
         #plot = True
@@ -774,6 +790,173 @@ class Gas(Graph):
             D.append(d)
         radius = np.concatenate(D)
         return radius
+
+
+    def boxed_average(self, locations, displacements, knn, rmin, rmax, verbose=False, plot=False):
+        #plot = True
+        if plot:
+            import matplotlib.pyplot as plt
+        if not locations.shape == displacements.shape:
+            raise ValueError('locations and displacements do not match in shape')
+        d = locations.shape[1]
+        d = int(d) # PY2
+        if verbose:
+            t0 = 0
+            t = time.time()
+        # bounding box(es)
+        sample = np.asarray(locations)
+        displacements = np.asarray(displacements)
+        smin = sample.min(axis=0)
+        smax = sample.max(axis=0)
+        unit = rmin / sqrt(float(d)) # min radius will be the diagonal of the hypercube
+        # volume ratio of the unit hypercube (1) and the inscribed d-ball
+        dim_penalty = 1 / (pi ** (float(d) / 2.0) / gamma(float(d) / 2.0 + 1.0) * 0.5 ** d)
+        max_n_units = ceil(2.0 * rmax / unit * dim_penalty) # max number of "circles" where to look for neighbors
+        bmin, bmax = smin, smax # multiple names because of copying/pasting
+        dim = np.ceil((bmax - bmin) / unit) - 1
+        adjusted_bmax = bmin + dim * unit # bmin and adjusted_bmax are the lower vertices (origins) of the end cubes
+        dim = [ int(_d) + 1 for _d in dim ] # _d for PY2
+        # partition
+        cell = dict()
+        cell_indices = dict()
+        count = np.zeros(dim, dtype=int)
+        grid = Dichotomy(sample, base_edge=unit, origin=bmin, max_level=0)
+        grid.split()
+        for j in grid.cell:
+            i, _, k = grid.cell[j]
+            ids, pts = grid.subset[k]
+            if ids.size:
+                i = tuple([ int(_n) for _n in np.round((i - bmin) / unit) ])
+                cell[i] = pts
+                if ids.size < knn + 1:
+                    cell_indices[i] = ids
+                try:
+                    count[i] = ids.size
+                except IndexError:
+                    print((count.shape, i))
+                    raise
+        # counts are density estimate; check how good/poor they are
+        if d == 2 and plot:
+            if verbose:
+                t0 += time.time() - t
+            plt.imshow(count.T)
+            plt.gca().invert_yaxis()
+            plt.show()
+            if verbose:
+                t = time.time()
+        # count_threshold is useful for saving computation time,
+        # skipping poorly populated cells with populated neighbor cells.
+        # lower threshold means higher skip frequency (more approximations)
+        count_threshold = np.zeros_like(count)
+        for i in range(d):
+            a = np.swapaxes(count_threshold, 0, i) # view (numpy >= 1.10)
+            b = np.swapaxes(count, 0, i) # view
+            a[:-1,...] += b[1::,...]
+            a[1::,...] += b[:-1,...]
+        count_threshold = (knn + 1) - count_threshold / (d * 2) # average number of points in neighbor cells
+        # count_threshold should depend on space dimension
+        count_threshold *= 2 # hard-coded, empirical, actually not even adjusted
+        # adjust the requested number of neighbors (k)
+        k = int(round(float(knn) * dim_penalty)) # request more neighbors in the cube so that the inscribed ball should contain knn as expected (hypothesis: points are homogeneously distributed)
+        k *= 2 # gwr actually works better with higher k; hard-coded factor; empirical
+        scale = {}
+        n = sample.shape[0]
+        dr = displacements
+        displacement_length = np.sqrt(np.sum(dr*dr, axis=1))
+        avg_length = np.zeros(n, dtype=sample.dtype)
+        for i in cell_indices:
+            j = cell_indices[i]
+            if count_threshold[i] < count[i]:
+                avg_length[j] = np.median(displacement_length[j], keepdims=True)
+                continue # consider more measurements than wished
+            m = 0
+            while True:
+                m += 1
+                I = [ np.arange(max(0, _k - m), min(_k + m + 1, _d)) \
+                    for _k, _d in zip(i, dim) ] # _k, _d for PY2
+                I = np.meshgrid(*I, indexing='ij')
+                I = np.column_stack([ _i.flatten() for _i in I ]) # _i for PY2
+                p = np.sum(count[tuple(I.T)])
+                if not (p < k + 1 and m < max_n_units):
+                    break
+            scale[i] = m
+            if p < k + 1:
+                # `m` has reached `max_n_units`; consider less measurements than wished
+                avg_length[j] = np.median(displacement_length[j], keepdims=True)
+                continue
+            X = []
+            L = []
+            for _i in I:
+                try:
+                    _len = displacement_length[cell_indices[tuple(_i)]]
+                    _x = cell[tuple(_i)]
+                except KeyError:
+                    pass
+                else:
+                    L.append(_len)
+                    X.append(_x)
+            #X = [ cell[tuple(_i)] for _i in I if tuple(_i) in cell ] # _i for PY2
+            X = np.concatenate(X, axis=0)
+            L = np.concatenate(L, axis=0)
+            x = cell[i]
+            # dist with SciPy
+            D = cdist(X, x)
+            I = np.argsort(D, axis=0)[:k]
+            # and without SciPy (better for bigger matrices)
+            #D = np.dot(X, x.T)
+            #x2 = np.sum(x * x, axis=1, keepdims=True)
+            #D -= 0.5 * x2.T
+            #X2 = np.sum(X * X, axis=1, keepdims=True)
+            #D -= 0.5 * X2
+            #D.sort(axis=0)
+            #r = D[-(k+1)]
+            #r = np.sqrt(-2.0 * r)
+            #r[np.isnan(r)] = 0.0 # numeric precision errors => negative square distances => NaN distances
+            #
+            del D
+            avg_length[j] = np.median(L[I], axis=0)
+        if verbose:
+            print('estimating density: elapsed time {:d} ms'.format(int(round((t0 + time.time() - t) * 1000)))) # int for PY2
+        # plot local radius
+        #plot = True
+        if d == 2 and plot:
+            color = (avg_length - rmin) / (rmax - rmin)
+            r = self.collapse_below * 0.5 # collapse_below defines a diameter
+            cmap = plt.get_cmap('RdPu')
+            fig = plt.figure()
+            ax = fig.add_subplot(111, aspect='equal')
+            for x in np.arange(smin[0], smax[0], unit):
+                plt.plot([x, x], [smin[1], smax[1]], 'y-')
+            for y in np.arange(smin[1], smax[1], unit):
+                plt.plot([smin[0], smax[0]], [y, y], 'y-')
+            for i in range(n):
+                c = color[i]
+                if rmax < avg_length[i]:
+                    ax.add_artist(patches.Circle(sample[i], r * 4, \
+                        color=cmap(0.0), alpha=0.1))
+                elif avg_length[i] < rmin - np.spacing(1):
+                    ax.add_artist(patches.Circle(sample[i], r * 0.25, \
+                        color=cmap(1.0)))
+                elif rmin + np.spacing(1) < avg_length[i]:
+                    ax.add_artist(patches.Circle(sample[i], r, \
+                        color=cmap(1.0 - c)))
+            plt.plot(sample[:,0], sample[:,1], 'k+')
+            for i, x in cell.items():
+                center = smin + (np.asarray(list(i)) + 0.5) * unit
+                count = x.shape[0]
+                if count < knn + 1:
+                    color = 'm'
+                    txt = "{:d}\n{:d}".format(count, scale.get(i, 0))
+                else:
+                    color = 'c'
+                    txt = str(count)
+                plt.text(center[0], center[1], txt, color=color, \
+                    horizontalalignment='center', verticalalignment='center')
+            try:
+                plt.show()
+            except AttributeError: # window has been closed; go on
+                pass
+        return avg_length
 
 
     def collapse(self):

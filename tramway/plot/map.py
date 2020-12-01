@@ -19,7 +19,7 @@ import pandas as pd
 import numpy.ma as ma
 from tramway.core.exceptions import NaNWarning
 from tramway.tessellation import *
-from tramway.inference import Distributed, Maps
+from tramway.inference import FiniteElements, Maps
 from matplotlib.patches import Polygon, Wedge
 from matplotlib.collections import PatchCollection
 import scipy.spatial
@@ -298,13 +298,13 @@ def box_voronoi_2d(tessellation, xlim, ylim):
 
 def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None, linewidth=1,
         delaunay=False, colorbar=True, alpha=None, colormap=None, unit=None, clabel=None,
-        xlim=None, ylim=None, try_fix_corners=True, **kwargs):
+        xlim=None, ylim=None, try_fix_corners=True, return_patches=False, **kwargs):
     """
     Plot a 2D scalar map as a colourful image.
 
     Arguments:
 
-        cells (Partition or Distributed): spatial description of the cells
+        cells (Partition or FiniteElements): spatial description of the cells
 
         values (pandas.DataFrame or numpy.ndarray): feature value at each cell,
             that will be represented as a colour
@@ -337,6 +337,9 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
         ylim (2-element sequence): lower and upper y-axis bounds
 
+        return_patches (bool): returns `PatchCollection` patches and the corresponding
+            bin indices.
+
     Extra keyword arguments are passed to :func:`~matplotlib.collections.PatchCollection`.
 
     """
@@ -360,7 +363,7 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
     # turn the cells into polygons
     ids = []
     polygons = []
-    if isinstance(cells, Distributed):
+    if isinstance(cells, FiniteElements):
 
         ix, xy, ok = zip(*[ (i, c.center, bool(c)) for i, c in cells.items() ])
         ix, xy, ok = np.array(ix), np.array(xy), np.array(ok)
@@ -573,7 +576,10 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         if unit:
             _colorbar.set_label(unit)
 
-    return obj
+    if return_patches:
+        return patches, np.asarray(ids)
+    else:
+        return obj
 
 
 
@@ -588,7 +594,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
 
     Arguments:
 
-        cells (Partition or Distributed): spatial description of the cells
+        cells (Partition or FiniteElements): spatial description of the cells
 
         values (pandas.DataFrame or numpy.ndarray): value at each cell, represented as a colour
 
@@ -666,7 +672,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     # identify the visible cell centers
     if isinstance(cells, Tessellation):
         pts = cells.cell_centers
-    elif isinstance(cells, Distributed):
+    elif isinstance(cells, FiniteElements):
         pts = np.vstack([ cells[i].center for i in cells ])#values.index ])
     elif isinstance(cells, Partition):
         assert isinstance(cells.tessellation, Tessellation)
@@ -675,7 +681,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     # compute the distance between adjacent cell centers
     if isinstance(cells, Delaunay):
         A = cells.cell_adjacency
-    elif isinstance(cells, Distributed):
+    elif isinstance(cells, FiniteElements):
         A = cells.adjacency
     elif isinstance(cells, Partition) and isinstance(cells.tessellation, Delaunay):
         A = cells.tessellation.cell_adjacency

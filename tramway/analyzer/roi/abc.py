@@ -15,16 +15,36 @@
 from ..attribute.abc import Attribute, abstractmethod
 
 class ROI(Attribute):
+    """
+    Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute
+    of an :class:`~tramway.analyzer.RWAnalyzer` object.
+    """
     @abstractmethod
     def __iter__(self):
         return self.as_individual_roi()
     @abstractmethod
     def as_individual_roi(self, index=None, collection=None):
         """ 
-        `index` is the index in the collection.
+        Generator function; iterates over the individual ROI.
+
+        `index` is the index in the collection and `collection`
+        should be defined if multiple collections of ROI are defined.
+
+        .. note::
+
+            Iterating over the individual ROI may be useful for visualization;
+            favor :meth:`~tramway.analyzer.roi.ROI.as_support_regions` for
+            data processing.
+
         """
         pass
     @abstractmethod
     def as_support_regions(self, index=None):
+        """
+        Generator function; iterates over the support regions.
+
+        Support regions are the regions to be processed.
+        An individual ROI operates as a window on a support region.
+        """
         pass
 

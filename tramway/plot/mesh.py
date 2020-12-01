@@ -35,7 +35,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
 
     Arguments:
 
-        cells (Partition or Distributed):
+        cells (Partition or FiniteElements):
             full partition
 
         min_count (int):
@@ -74,9 +74,10 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
             select=merge, shape=(npts, ncells))
         if min_count:
             cell_mask = min_count <= cells.location_count
+            label = np.array(label) # copy
             label[np.logical_not(cell_mask[cells.cell_index])] = -1
             #label = cell_mask[cells.cell_index]
-    else:#if isinstance(cells, Distributed):
+    else:#if isinstance(cells, FiniteElements):
 
         # fully distinct implementation
         handles = []
@@ -95,7 +96,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
         return handles
 
 
-    # original implementation for the not-Distributed case
+    # original implementation for the not-FiniteElements case
 
     if isstructured(points):
         x = points['x']
@@ -439,11 +440,11 @@ def _graph_theme(tess, labels, color, negative):
 def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
         arrow_size=5, arrow_color='y'):
     """
-    Plot a :class:`~tramway.inference.base.Distributed` object as a mesh.
+    Plot a :class:`~tramway.inference.base.FiniteElements` object as a mesh.
 
     Arguments:
 
-        cells (tramway.inference.base.Distributed):
+        cells (tramway.inference.base.FiniteElements):
             mesh prepared for the inference
 
         vertex_color (str): colour for the cell centers
@@ -462,7 +463,7 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
             handle of the cell centers (vertices),
             list of handles of the arrow segments
 
-    `plot_distributed` is similar to `plot_delaunay` but takes a :class:`~tramway.inference.base.Distributed` object instead.
+    `plot_distributed` is similar to `plot_delaunay` but takes a :class:`~tramway.inference.base.FiniteElements` object instead.
     """
     import matplotlib.pyplot as plt
 
@@ -516,7 +517,7 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
 
     Arguments:
 
-        cells (Partition or Tessellation or Distributed):
+        cells (Partition or Tessellation or FiniteElements):
             tessellation
 
         font_size (int):
@@ -554,8 +555,8 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
         for x,y in cells.cell_centers:
             text(x, y, i)
             i += 1
-    # Distributed
-    else:#if isinstance(cells, Distributed):
+    # FiniteElements
+    else:#if isinstance(cells, FiniteElements):
         for i in cells:
             x,y = cells[i].center
             text(x, y, i)

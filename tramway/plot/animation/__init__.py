@@ -11,6 +11,14 @@
 # The fact that you are presently reading this means that you have had
 # knowledge of the CeCILL license and that you accept its terms.
 
+"""
+This package is no longer maintained and is superseded by the *mpl*
+functionalities of :class:`~tramway.analyzer.RWAnalyzer`.
+
+See for example :meth:`~tramway.analyzer.images._RawImage.to_color_movie`,
+:meth:`~tramway.analyzer.spt_data.mpl.Mpl.animate` and
+:meth:`~tramway.analyzer.mapper.mpl.Mpl.animate`.
+"""
 
 try:
     input = raw_input # Py2

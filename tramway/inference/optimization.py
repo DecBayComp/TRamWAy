@@ -48,7 +48,7 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
     if args is not None:
         if args is args_f:
             pass
-        elif args_f is ():
+        elif args_f == ():
             args_f = args
         else:
             raise ValueError('both `args` and `args_f` are defined')
@@ -969,33 +969,33 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8, Component=Component,
         independent_components=False, newton=True, verbose=False, diagnosis=None,
-        returns=(), max_runtime=None, **kwargs):
+        returns=(), max_runtime=None, update_timeout=None, **kwargs):
     """
-    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
+    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \\forall x \in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
-    :math:`\forall j \notin G_{i}, \forall x in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
+    :math:`\\forall j \\notin G_{i}, \\forall x \in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
 
     Let the components also covary sparsely:
-    :math:`\forall i in C,
+    :math:`\\forall i \in C,
     \exists C_{i} \subset C | i \in C_{i},
     \exists D_{i} \subset G_{i},
-    \forall j in D_{i},
-    \forall x in \Theta,
-    \frac{\partial f}{\partial x_{j}}(x) =
-    \sum_{i' \in C_{i}} \frac{\partial f_{i'}}{\partial x_{j}}(x)`.
+    \\forall j \in D_{i},
+    \\forall x \in \Theta,
+    \\frac{\partial f}{\partial x_{j}}(x) =
+    \sum_{i' \in C_{i}} \\frac{\partial f_{i'}}{\partial x_{j}}(x)`.
 
     We may additionally need that
-    :math:`\forall i \in C, D_{i} = \bigcap_{i' \in C_{i}} G_{i'}`,
-    :math:`\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \forall i, j \in C^{2}`
-    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\rvert_{j \in J}`
+    :math:`\\forall i \in C, D_{i} = \\bigcap_{i' \in C_{i}} G_{i'}`,
+    :math:`\\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \\forall i, j \in C^{2}`
+    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\\rvert_{j \in J}`
     (to be checked).
 
     At iteration :math:`k`, let choose component :math:`i`
     and minimize :math:`f` wrt parameters :math:`\{x_{j} | j \in D_{i}\}`.
 
-    Compute gradient :math:`g_{i}(x) = \lvert\frac{\partial f}{\partial x_{j}}(x)\rvert_{j} =
-    \sum_{i' \in C_{i}} \lvert\frac{\partial f_{i'}}{\partial x_{j}}(x) \rvert_{j}`
-    with (again) :math:`g_{i}(x)\rvert_{j} = 0 \forall j \notin G_{i}`.
+    Compute gradient :math:`g_{i}(x) = \lvert\\frac{\partial f}{\partial x_{j}}(x)\\rvert_{j} =
+    \sum_{i' \in C_{i}} \lvert\\frac{\partial f_{i'}}{\partial x_{j}}(x) \\rvert_{j}`
+    with (again) :math:`g_{i}(x)\\rvert_{j} = 0 \\forall j \\notin G_{i}`.
 
     Perform a Wolfe line search along descent direction restricted to subspace :math:`D_{i}`.
     Update :math:`x` and compute the gradient again.
@@ -1135,7 +1135,7 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
             ls_failure_rate=ls_failure_rate, fix_ls=fix_ls, fix_ls_trigger=fix_ls_trigger,
             verbose=verbose, logger=logger, diagnosis=diagnosis,
             returns={'f', 'df', 'projg', 'err', 'ncalls', 'diagnosis'} if returns == 'all' else returns,
-            max_runtime=max_runtime,
+            max_runtime=max_runtime, update_timeout=update_timeout,
             **kwargs)
     sched.logger = logger
 
@@ -1200,10 +1200,11 @@ class SBFGSScheduler(parallel.Scheduler):
             name=None, args=(), kwargs={}, daemon=None,
             max_iter=None, ftol=None, gtol=None, low_df_rate=None, low_dg_rate=None,
             ls_failure_rate=None, fix_ls=None, fix_ls_trigger=None, returns={},
-            max_runtime=None, **_kwargs):
+            max_runtime=None, update_timeout=None, **_kwargs):
         __global__.gtol = gtol
         parallel.Scheduler.__init__(self, __global__, C, worker_count=worker_count, iter_max=max_iter,
-                name=name, args=args, kwargs=kwargs, daemon=daemon, max_runtime=max_runtime, **_kwargs)
+                name=name, args=args, kwargs=kwargs, daemon=daemon, max_runtime=max_runtime,
+                task_timeout=update_timeout, **_kwargs)
         self.component = component
         self.ftol = ftol
         self.gtol = gtol
@@ -1567,31 +1568,31 @@ def minimize_sparse_bfgs0(fun, x0, component, covariate, gradient_subspace, desc
         gradient_initial_step=1e-8,
         independent_components=True, newton=True, verbose=False):
     """
-    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x in \Theta`
+    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \\forall x \in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
-    :math:`\forall j \notin G_{i}, \forall x in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
+    :math:`\\forall j \\notin G_{i}, \\forall x \in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
 
     Let the components also covary sparsely:
-    :math:`\forall i in C,
+    :math:`\\forall i \in C,
     \exists C_{i} \subset C | i \in C_{i},
     \exists D_{i} \subset G_{i},
-    \forall j in D_{i},
-    \forall x in \Theta,
-    \frac{\partial f}{\partial x_{j}}(x) =
-    \sum_{i' \in C_{i}} \frac{\partial f_{i'}}{\partial x_{j}}(x)`.
+    \\forall j \in D_{i},
+    \\forall x \in \Theta,
+    \\frac{\partial f}{\partial x_{j}}(x) =
+    \sum_{i' \in C_{i}} \\frac{\partial f_{i'}}{\partial x_{j}}(x)`.
 
     We may additionally need that
-    :math:`\forall i \in C, D_{i} = \bigcap_{i' \in C_{i}} G_{i'}`,
-    :math:`\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \forall i, j \in C^{2}`
-    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\rvert_{j \in J}`
+    :math:`\\forall i \in C, D_{i} = \\bigcap_{i' \in C_{i}} G_{i'}`,
+    :math:`\\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \\forall i, j \in C^{2}`
+    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\\rvert_{j \in J}`
     (to be checked).
 
     At iteration :math:`k`, let choose component :math:`i`
     and minimize :math:`f` wrt parameters :math:`\{x_{j} | j \in D_{i}\}`.
 
-    Compute gradient :math:`g_{i}(x) = \lvert\frac{\partial f}{\partial x_{j}}(x)\rvert_{j} =
-    \sum_{i' \in C_{i}} \lvert\frac{\partial f_{i'}}{\partial x_{j}}(x) \rvert_{j}`
-    with (again) :math:`g_{i}(x)\rvert_{j} = 0 \forall j \notin G_{i}`.
+    Compute gradient :math:`g_{i}(x) = \lvert\\frac{\partial f}{\partial x_{j}}(x)\\rvert_{j} =
+    \sum_{i' \in C_{i}} \lvert\\frac{\partial f_{i'}}{\partial x_{j}}(x) \\rvert_{j}`
+    with (again) :math:`g_{i}(x)\\rvert_{j} = 0 \\forall j \\notin G_{i}`.
 
     Perform a Wolfe line search along descent direction restricted to subspace :math:`D_{i}`.
     Update :math:`x` and compute the gradient again.
@@ -1996,7 +1997,7 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
     if not regul:
         penalty = 0.
     total_grad, partial_grad = [], {}
-    any_ok = False
+    any_ok, failures = False, []
     a = np.zeros((H.size, H.size), dtype=float)
     for j in active_j:
         if callable(active_i):
@@ -2026,9 +2027,9 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
                 except (KeyboardInterrupt, SystemExit):
                     raise
                 except:
-                    raise
+                    #raise
                     #traceback.print_exc()
-                    continue
+                    break
                 if u == 0:
                     continue
                 fac = CON2
@@ -2043,7 +2044,7 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
                 if SAFE * err <= abs(a[u,u] - a[u-1,u-1]):
                     break
             if total_grad_j is None:
-                module_logger.warning('sparse_grad failed at column {}'.format(j))
+                failures.append(j)
                 total_grad_j = 0.
             else:
                 any_ok = True
@@ -2052,9 +2053,12 @@ def sparse_grad(fun, x, active_i, active_j, args=(), _sum=np.sum, regul=None, bo
         finally:
             x[j] = xj # restore
     if any_ok:
+        if failures:
+            module_logger.warning('sparse_grad failed at column(s): {}'.format(', '.join([ str(i) for i in failures ])))
         total_grad = np.array(total_grad)
         return total_grad, partial_grad
     else:
+        module_logger.warning('sparse_grad failed at all the columns')
         return None, None
 
 minimize_sparse_bfgs = minimize_sparse_bfgs1
