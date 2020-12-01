@@ -24,7 +24,7 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         lifetime_tau=None, lifetime=None, single=False,
         box=(0., 0., 1., 1.), duration=10., time_step=.05, minor_step_count=99,
         reflect=False, full=False, count_outside_trajectories=None):
-    """
+    r"""
     Generate random walks.
 
     Consider also the alternative generator

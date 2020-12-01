@@ -94,9 +94,9 @@ class Hexagons(TessellerProxy):
 
     #scaler          = proxy_property('scaler', 'attr')
     tilt            = proxy_property('tilt',    'attr')
-    """
+    r"""
     *float*:
-        Angle of the "main" axis, in :math:`\\frac{\pi}{6}` radians;
+        Angle of the "main" axis, in :math:`\frac{\pi}{6}` radians;
         0= the main axis is the x-axis; 1= the main axis is the y-axis
     """
     #min_probability = proxy_property('min_probability', 'attr')
@@ -242,10 +242,10 @@ class GWR(TessellerProxy):
         for the nearest and second nearest nodes respectively
     """
     trust              = proxy_property('trust',    'tessellate')
-    """
+    r"""
     *float*:
         Confidence in outstanding points to become new nodes;
-        the new node is set as :math:`\\frac{(1-\\rm{trust})*w + (1+\\rm{trust})*\eta}{2}`;
+        the new node is set as :math:`\frac{(1-\rm{trust})*w + (1+\rm{trust})*\eta}{2}`;
         the original GWR algorithm corresponds to ``trust = 0``
     """
     lifetime           = proxy_property('lifetime', 'tessellate')

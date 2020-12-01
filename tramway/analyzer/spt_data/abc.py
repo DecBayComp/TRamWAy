@@ -30,7 +30,7 @@ class SPTData(Attribute):
     @property
     @abstractmethod
     def localization_error(self):
-        """
+        r"""
         *float*: Localization error in :math:`\mu m^2 s^{-1}`
         """
         pass

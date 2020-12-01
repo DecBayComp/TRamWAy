@@ -51,7 +51,7 @@ class ImageParameters(object):
         self._pixel_size = self._loc_offset = None
     @property
     def pixel_size(self):
-        """
+        r"""
         *float*: Pixel size in :math:`\mu m`
         """
         return self._pixel_size

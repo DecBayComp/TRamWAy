@@ -85,7 +85,7 @@ class SPTParameters(object):
     localization_error.__doc__ = SPTData.localization_error.__doc__
     @property
     def localization_precision(self):
-        """
+        r"""
         *float*: Localization precision in :math:`\mu m s^{-1}`;
             :attr:`localization_error` :math:`\sigma^2` is affected by
             :attr:`localization_precision` :math:`\sigma` and vice versa
