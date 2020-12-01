@@ -970,32 +970,32 @@ def minimize_sparse_bfgs1(fun, x0, component, covariate, gradient_subspace, desc
         gradient_initial_step=1e-8, Component=Component,
         independent_components=False, newton=True, verbose=False, diagnosis=None,
         returns=(), max_runtime=None, update_timeout=None, **kwargs):
-    """
-    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \\forall x \in \Theta`
+    r"""
+    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x \in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
-    :math:`\\forall j \\notin G_{i}, \\forall x \in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
+    :math:`\forall j \notin G_{i}, \forall x \in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
 
     Let the components also covary sparsely:
-    :math:`\\forall i \in C,
+    :math:`\forall i \in C,
     \exists C_{i} \subset C | i \in C_{i},
     \exists D_{i} \subset G_{i},
-    \\forall j \in D_{i},
-    \\forall x \in \Theta,
-    \\frac{\partial f}{\partial x_{j}}(x) =
-    \sum_{i' \in C_{i}} \\frac{\partial f_{i'}}{\partial x_{j}}(x)`.
+    \forall j \in D_{i},
+    \forall x \in \Theta,
+    \frac{\\partial f}{\partial x_{j}}(x) =
+    \sum_{i' \in C_{i}} \frac{\partial f_{i'}}{\partial x_{j}}(x)`.
 
     We may additionally need that
-    :math:`\\forall i \in C, D_{i} = \\bigcap_{i' \in C_{i}} G_{i'}`,
-    :math:`\\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \\forall i, j \in C^{2}`
-    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\\rvert_{j \in J}`
+    :math:`\forall i \in C, D_{i} = \bigcap_{i' \in C_{i}} G_{i'}`,
+    :math:`\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \forall i, j \in C^{2}`
+    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\rvert_{j \in J}`
     (to be checked).
 
     At iteration :math:`k`, let choose component :math:`i`
     and minimize :math:`f` wrt parameters :math:`\{x_{j} | j \in D_{i}\}`.
 
-    Compute gradient :math:`g_{i}(x) = \lvert\\frac{\partial f}{\partial x_{j}}(x)\\rvert_{j} =
-    \sum_{i' \in C_{i}} \lvert\\frac{\partial f_{i'}}{\partial x_{j}}(x) \\rvert_{j}`
-    with (again) :math:`g_{i}(x)\\rvert_{j} = 0 \\forall j \\notin G_{i}`.
+    Compute gradient :math:`g_{i}(x) = \lvert\frac{\partial f}{\partial x_{j}}(x)\rvert_{j} =
+    \sum_{i' \in C_{i}} \lvert\frac{\partial f_{i'}}{\partial x_{j}}(x) \rvert_{j}`
+    with (again) :math:`g_{i}(x)\rvert_{j} = 0 \forall j \notin G_{i}`.
 
     Perform a Wolfe line search along descent direction restricted to subspace :math:`D_{i}`.
     Update :math:`x` and compute the gradient again.
@@ -1567,32 +1567,32 @@ def minimize_sparse_bfgs0(fun, x0, component, covariate, gradient_subspace, desc
         ls_armijo_max=None, ls_wolfe=None, ls_failure_rate=.9, fix_ls=None, fix_ls_trigger=5,
         gradient_initial_step=1e-8,
         independent_components=True, newton=True, verbose=False):
-    """
-    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \\forall x \in \Theta`
+    r"""
+    Let the objective function :math:`f(x) = \sum_{i \in C} f_{i}(x) \forall x \in \Theta`
     be a linear function of sparse components :math:`f_{i}` such that
-    :math:`\\forall j \\notin G_{i}, \\forall x \in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
+    :math:`\forall j \notin G_{i}, \forall x \in \Theta, {\partial f_{i}}{\partial x_{j}}(x) = 0`.
 
     Let the components also covary sparsely:
-    :math:`\\forall i \in C,
+    :math:`\forall i \in C,
     \exists C_{i} \subset C | i \in C_{i},
     \exists D_{i} \subset G_{i},
-    \\forall j \in D_{i},
-    \\forall x \in \Theta,
-    \\frac{\partial f}{\partial x_{j}}(x) =
-    \sum_{i' \in C_{i}} \\frac{\partial f_{i'}}{\partial x_{j}}(x)`.
+    \forall j \in D_{i},
+    \forall x \in \Theta,
+    \frac{\\partial f}{\partial x_{j}}(x) =
+    \sum_{i' \in C_{i}} \frac{\partial f_{i'}}{\partial x_{j}}(x)`.
 
     We may additionally need that
-    :math:`\\forall i \in C, D_{i} = \\bigcap_{i' \in C_{i}} G_{i'}`,
-    :math:`\\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \\forall i, j \in C^{2}`
-    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\\rvert_{j \in J}`
+    :math:`\forall i \in C, D_{i} = \bigcap_{i' \in C_{i}} G_{i'}`,
+    :math:`\bigcup_{i \in C} D_{i} = J` and :math:`D_{i} \cap D_{j} = \emptyset \\forall i, j \in C^{2}`
+    with :math:`J` the indices of parameter vector :math:`x = \lvert x_{j}\rvert_{j \in J}`
     (to be checked).
 
     At iteration :math:`k`, let choose component :math:`i`
     and minimize :math:`f` wrt parameters :math:`\{x_{j} | j \in D_{i}\}`.
 
-    Compute gradient :math:`g_{i}(x) = \lvert\\frac{\partial f}{\partial x_{j}}(x)\\rvert_{j} =
-    \sum_{i' \in C_{i}} \lvert\\frac{\partial f_{i'}}{\partial x_{j}}(x) \\rvert_{j}`
-    with (again) :math:`g_{i}(x)\\rvert_{j} = 0 \\forall j \\notin G_{i}`.
+    Compute gradient :math:`g_{i}(x) = \lvert\frac{\partial f}{\partial x_{j}}(x)\rvert_{j} =
+    \sum_{i' \in C_{i}} \lvert\frac{\partial f_{i'}}{\partial x_{j}}(x) \rvert_{j}`
+    with (again) :math:`g_{i}(x)\rvert_{j} = 0 \forall j \notin G_{i}`.
 
     Perform a Wolfe line search along descent direction restricted to subspace :math:`D_{i}`.
     Update :math:`x` and compute the gradient again.

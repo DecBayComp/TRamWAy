@@ -91,7 +91,7 @@ class Helper(object):
         Isolate the requested artefacts if the input is an analysis tree or an rwa file
         and `labels` or `types` is defined.
         """
-        if metadata is None or metadata is False: # no, I did not mean "=="
+        if metadata is None or metadata is False:
             self.metadata = None
         if verbose is None:
             verbose = self.verbose
@@ -249,7 +249,7 @@ class Helper(object):
 
     @property
     def inplace(self):
-        return (self.input_label or self.input_label is 0) \
+        return valid_label(self.input_label) \
             and self.label_is_absolute(self.output_label) \
             and self.input_label == self.output_label
 

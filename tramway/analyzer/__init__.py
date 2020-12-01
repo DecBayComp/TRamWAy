@@ -418,7 +418,6 @@ class RWAnalyzer(object):
         self.env.script = filename
 
     def __del__(self):
-        self.logger.debug('RWAnalyzer.__del__ has been called')
         if self.spt_data.initialized:
             for f in self.spt_data:
                 try:

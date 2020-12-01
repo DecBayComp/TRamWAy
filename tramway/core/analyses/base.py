@@ -208,7 +208,7 @@ class Analyses(object):
         return self.instances.keys()
 
     def autoindex(self, pattern=None):
-        """
+        r"""
         Determine the lowest available natural integer for use as key in `instances` and `comments`.
 
         If `pattern` is an integer, `autoindex` returns the pattern unchanged.
