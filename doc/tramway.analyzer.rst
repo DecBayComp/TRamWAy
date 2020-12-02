@@ -73,6 +73,7 @@ tramway.analyzer.spt_data package
     :undoc-members:
     :show-inheritance:
     :member-order: bysource
+    :private-members: _SPTDataFrame
 
 
 tramway.analyzer.spt_data.mpl module

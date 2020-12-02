@@ -410,7 +410,7 @@ class RWAnalyzer(object):
         or visualizing maps without explicitly calling the ``bokeh serve`` command
         (e.g. from a Jupyter notebook).
 
-        Alias for :attr:`env` :attr:`~.env.environments.Env.script`.
+        Alias for :attr:`env` :attr:`~.env.Environment.script`.
         """
         return self.env.script
     @script.setter

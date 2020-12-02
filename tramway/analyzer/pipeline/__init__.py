@@ -250,8 +250,8 @@ class Pipeline(AnalyzerNode):
         Recovery procedures featured by the :attr:`~tramway.analyzer.RWAnalyzer.env`
         backend may fail or recover some of the generated files only.
 
-        See also the :meth:`~tramway.analyzer.env.SlurmOverSSH.resume` method of the
-        :attr:`~tramway.analyzer.RWAnalyzer.env` attribute, if available.
+        See also the :meth:`~tramway.analyzer.env.environments.SlurmOverSSH.resume` method
+        of the :attr:`~tramway.analyzer.RWAnalyzer.env` attribute, if available.
         """
         try:
             proc = self.env.resume

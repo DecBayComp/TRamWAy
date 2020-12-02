@@ -123,7 +123,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
         Arguments:
 
             index (*int*, *Set*, *Sequence* or *callable*):
-                frame filter; see also :func:`indexer`.
+                frame filter; see also :func:`~tramway.analyzer.attribute.indexer`.
 
             return_time (bool): return time along with image frames, as first item.
 
@@ -151,7 +151,8 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
             bounding_box (tuple): pair of NumPy arrays (lower bound, upper bound).
 
-            index (*int*, *Set*, *Sequence* or *callable*): frame filter; see also `indexer`.
+            index (*int*, *Set*, *Sequence* or *callable*):
+                frame filter; see also :func:`~tramway.analyzer.attribute.indexer`.
 
             return_time (bool): return time along with cropped image frames, as first item.
 
@@ -223,9 +224,10 @@ class _RawImage(AnalyzerNode, ImageParameters):
             linewidth (float): trajectory line width
 
             magnification (*int* or *str*): the original image pixels can be represented as
-                square-patches of `magnification` video pixel side; if *str*:
-                :const:`'1x'`= round(pixel_size/localization_precision),
-                :const:`'2x'`= round(2*pixel_size/localization_precision);
+                square-patches of `magnification` video pixel side;
+                if *str*:
+                :const:`'1x'` = `round(pixel_size/localization_precision)`,
+                :const:`'2x'` = `round(2*pixel_size/localization_precision)`;
                 :const:`'2x'` is adequate for overlaid trajectories, even with the over-compressing
                 :const:`'MJPG'` encoder.
 

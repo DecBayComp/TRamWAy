@@ -22,6 +22,9 @@ class Environment(Attribute):
     @property
     @abstractmethod
     def script(self):
+        """
+        *str*: Path to the local script; usually a filename
+        """
         pass
     @abstractmethod
     def setup(self):

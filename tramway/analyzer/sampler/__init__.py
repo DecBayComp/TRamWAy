@@ -195,3 +195,7 @@ class TimeKnn(BaseSampler):
     def sample(self, spt_data, segmentation=None):
         return BaseSampler.sample(self, spt_data, segmentation, time_knn=self.knn)
 
+
+__all__ = ['Sampler', 'SamplerInitializer', 'BaseSampler', 'VoronoiSampler'
+        'SphericalSampler', 'Knn', 'TimeKnn']
+
