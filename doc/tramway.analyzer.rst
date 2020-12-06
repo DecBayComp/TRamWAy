@@ -34,7 +34,6 @@ tramway.analyzer.images package
     :members:
     :undoc-members:
     :show-inheritance:
-    :member-order: bysource
     :private-members: _RawImage
 
 
@@ -72,7 +71,6 @@ tramway.analyzer.spt_data package
     :members:
     :undoc-members:
     :show-inheritance:
-    :member-order: bysource
     :private-members: _SPTDataFrame
 
 

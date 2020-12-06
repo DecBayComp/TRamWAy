@@ -153,8 +153,32 @@ class Mpl(AnalyzerNode):
     @property
     def plotter(self):
         return PatchCollection
+    def clabel(self, feature, map_kwargs, kwargs, logscale=None):
+        """
+        Extracts from `kwargs` arguments related to the colorbar label
+        and adds a :const:`'unit'` or :const:`clabel` argument to `map_kwargs`
+        if necessary.
+        """
+        try:
+            unit = kwargs.pop('unit')
+        except KeyError:
+            pass
+        else:
+            if unit == 'std':
+                if logscale is True:
+                    scale = lambda u: 'log[{}]'.format(u)
+                else:
+                    scale = lambda u: u
+                unit = dict(
+                        diffusivity=scale('$\mu\\rm{m}^2\\rm{s}^{-1}$'),
+                        potential=scale('$k_{\\rm{B}}T$'),
+                        force='Amplitude' if logscale is False else 'Log. amplitude',
+                        drift=scale('$\mu\\rm{m}\\rm{s}^{-1}$'),
+                    ).get(feature, None)
+            if unit is not None:
+                map_kwargs['unit'] = unit
     def animate(self, fig, maps, feature, sampling=None, overlay_locations=False,
-            axes=None, aspect='equal', **kwargs):
+            axes=None, aspect='equal', logscale=None, **kwargs):
         """
         Animates the time-segmented inference parameters.
 
@@ -179,6 +203,9 @@ class Mpl(AnalyzerNode):
             axes (matplotlib.axes.Axes): figure axes.
 
             aspect (*str* or None): aspect ratio.
+
+            logscale (bool): transform the color-coded values in natural logarithm;
+                default is :const:`False` but for force amplitude.
 
         Returns:
 
@@ -215,28 +242,23 @@ class Mpl(AnalyzerNode):
         maps = maps[feature]
         if maps.shape[1] == 2:
             if feature == 'force':
-                maps = maps.pow(2).sum(1).apply(np.log)*.5
+                if logscale is False:
+                    maps = maps.pow(2).sum(1).apply(np.sqrt)
+                else:
+                    maps = maps.pow(2).sum(1).apply(np.log)*.5
             else:
-                maps = maps.pow(2).sum(1).apply(np.sqrt)
+                if logscale is True:
+                    maps = maps.pow(2).sum(1).apply(np.log)*.5
+                else:
+                    maps = maps.pow(2).sum(1).apply(np.sqrt)
         else:
+            if logscale:
+                maps = maps.apply(np.log)
             maps = maps[feature] # to Series
         assert isinstance(maps, pd.Series)
         clim = [maps.min(), maps.max()]
         map_kwargs = dict(clim=clim, aspect=aspect)
-        try:
-            unit = kwargs.pop('unit')
-        except KeyError:
-            pass
-        else:
-            if unit == 'std':
-                unit = dict(
-                        diffusivity='$\mu\\rm{m}^2\\rm{s}^{-1}$',
-                        potential='$k_{\\rm{B}}T$',
-                        force='Log. amplitude',
-                        drift='$\mu\\rm{m}\\rm{s}^{-1}$',
-                    ).get(feature, None)
-            if unit is not None:
-                map_kwargs['unit'] = unit
+        self.clabel(feature, map_kwargs, kwargs, logscale)
         map_kwargs.update(kwargs)
         map_kwargs['overlay_locations'] = overlay_locations
         #

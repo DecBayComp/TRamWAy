@@ -521,7 +521,7 @@ class HasAnalysisTree(HasROI):
         :meth:`check_cache` raises an exception of type `_raise`.
 
         If `_raise` is :const:`None` or :const:`False`, then :meth:`check_cache` returns
-        a :class:`bool` instead, that is :const:`False` if the cache is alright,
+        a `bool` instead, that is :const:`False` if the cache is alright,
         :const:`True` otherwise.
         If `_raise` is :const:`True`, then :meth:`check_cache` returns :const:`True` if
         the cache is alright, :const:`False` otherwise.
@@ -690,7 +690,8 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         """
         Exports the analysis tree to file.
 
-        Calls :func:`save_rwa` with argument ``compress=False`` unless explicitly set.
+        Calls :func:`~tramway.core.hdf5.store.save_rwa` with argument
+        ``compress=False`` unless explicitly set.
         """
         if self.analyses.data is None:
             raise ValueError('no data available')
@@ -856,7 +857,7 @@ class SPTFile(_SPTDataFrame):
         self.set_analyses(tree)
     def _trigger_discard_static_trajectories(self):
         """
-        Calls :meth:`~SPTDataFrame.discard_static_trajectories`;
+        Calls :meth:`SPTDataFrame.discard_static_trajectories`;
         requires the data are already loaded.
         """
         if self._discard_static_trajectories is True:
@@ -865,7 +866,7 @@ class SPTFile(_SPTDataFrame):
             SPTDataFrame.discard_static_trajectories(self, **self._discard_static_trajectories)
     def _trigger_reset_origin(self):
         """
-        Calls :meth:`~SPTDataFrame.reset_origin`;
+        Calls :meth:`SPTDataFrame.reset_origin`;
         requires the data are already loaded.
         """
         if self._reset_origin:

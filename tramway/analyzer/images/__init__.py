@@ -611,7 +611,7 @@ def all_unique(values):
     return np.unique(values).size == values.size
 
 
-__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', 'RawImage',
-        'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile',
-        'RawImages', 'ImageFiles', 'TiffFiles', '_RawImage']
+__all__ = ['Images', 'Image', 'ImagesInitializer', 'ImageParameters', '_RawImage',
+        'RawImage', 'ImageFile', 'TiffFile', 'StandaloneImageFile', 'StandaloneTiffFile',
+        'RawImages', 'ImageFiles', 'TiffFiles']
 

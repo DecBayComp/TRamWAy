@@ -377,6 +377,8 @@ class Gas(Graph):
         if isinstance(sample, tuple):
             locations, displacements = sample
             sample = locations
+        elif self.knn and self.topology == 'displacement length':
+            raise ValueError('no displacement information found')
         n = sample.shape[0]
         l = 0 # node count
         residuals = []
