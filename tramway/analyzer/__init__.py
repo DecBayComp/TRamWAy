@@ -410,7 +410,7 @@ class RWAnalyzer(object):
         or visualizing maps without explicitly calling the ``bokeh serve`` command
         (e.g. from a Jupyter notebook).
 
-        Alias for :attr:`env` :attr:`~.env.environments.Env.script`.
+        Alias for :attr:`env` :attr:`~.env.Environment.script`.
         """
         return self.env.script
     @script.setter
@@ -419,11 +419,14 @@ class RWAnalyzer(object):
 
     def __del__(self):
         if self.spt_data.initialized:
-            for f in self.spt_data:
-                try:
-                    f.analyses.terminate()
-                except AttributeError:
-                    pass
+            try:
+                for f in self.spt_data:
+                    try:
+                        f.analyses.terminate()
+                    except AttributeError:
+                        pass
+            except ValueError:
+                pass
 
     def __setattr__(self, attrname, obj):
         if attrname[0] == '_' or (isinstance(obj, type) and issubclass(obj, Initializer)) or\

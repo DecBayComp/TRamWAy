@@ -1639,13 +1639,19 @@ def cell_plot(cells, xy_layer=None, output_file=None, fig_format=None, \
             tplt.plot_indices(cells, **cell_indices)
         if title:
             if isinstance(title, str):
-                mplt.title(title)
+                _title = title
             elif delaunay == voronoi:
-                mplt.title(pp_method_name)
+                _title = pp_method_name
             elif delaunay:
-                mplt.title(pp_method_name + ' based Delaunay')
+                _title = pp_method_name + ' based Delaunay'
             elif voronoi:
-                mplt.title(pp_method_name + ' based Voronoi')
+                _title = pp_method_name + ' based Voronoi'
+            try:
+                axes = kwargs['axes']
+            except KeyError:
+                mplt.title(_title)
+            else:
+                axes.set_title(_title)
 
 
     if print_figs:

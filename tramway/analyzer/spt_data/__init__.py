@@ -86,7 +86,7 @@ class SPTParameters(object):
     @property
     def localization_precision(self):
         r"""
-        *float*: Localization precision in :math:`\mu m s^{-1}`;
+        *float*: Localization precision in :math:`\mu m`;
             :attr:`localization_error` :math:`\sigma^2` is affected by
             :attr:`localization_precision` :math:`\sigma` and vice versa
         """
@@ -342,6 +342,8 @@ class SPTDataInitializer(Initializer):
         This lets additional arguments to be provided to the
         :class:`~tramway.analyzer.RWAnalyzer` :attr:`~tramway.analyzer.RWAnalyzer.spt_data`
         attribute before the data are loaded.
+
+        See also :class:`StandaloneSPTAsciiFile`.
         """
         self.specialize( StandaloneSPTAsciiFile, filepath )
     def from_ascii_files(self, filepattern):
@@ -358,17 +360,27 @@ class SPTDataInitializer(Initializer):
         This lets additional arguments to be provided to the
         :class:`~tramway.analyzer.RWAnalyzer` :attr:`~tramway.analyzer.RWAnalyzer.spt_data`
         attribute before the data are loaded.
+
+        See also :class:`SPTAsciiFiles`.
         """
         self.specialize( SPTAsciiFiles, filepattern )
     def from_dataframe(self, df):
+        """
+        See also :class:`StandaloneSPTDataFrame`.
+        """
         self.specialize( StandaloneSPTDataFrame, df )
     def from_dataframes(self, dfs):
+        """
+        See also :class:`SPTDataFrames`.
+        """
         self.specialize( SPTDataFrames, dfs )
     def from_mat_file(self, filepath):
         """
         Sets a MatLab V7 file as the source of SPT data.
 
         Similarly to :meth:`from_ascii_file`, data loading is lazy.
+
+        See also :class:`StandaloneSPTMatFile`.
         """
         self.specialize( StandaloneSPTMatFile, filepath )
     def from_mat_files(self, filepattern):
@@ -381,21 +393,29 @@ class SPTDataInitializer(Initializer):
         The parts of the filename that match the placeholder are used as keys.
 
         Similarly to :meth:`from_ascii_files`, data loading is lazy.
+
+        See also :class:`SPTMatFiles`.
         """
         self.specialize( SPTMatFiles, filepattern )
     def from_rwa_file(self, filepath):
         """
         Similar to :meth:`from_ascii_file`, for *.rwa* files.
+
+        See also :class:`StandaloneRWAFile`.
         """
         self.specialize( StandaloneRWAFile, filepath )
     def from_rwa_files(self, filepattern):
         """
         Similar to :meth:`from_ascii_files`, for *.rwa* files.
+
+        See also :class:`RWAFiles`.
         """
         self.specialize( RWAFiles, filepattern )
     def from_rw_generator(self, generator):
         """
         A random walk generator features a :meth:`generate` method.
+
+        See also :class:`RWGenerator`.
         """
         self.specialize( RWGenerator, generator )
     def from_analysis_tree(self, analyses, copy=False):
@@ -404,6 +424,8 @@ class SPTDataInitializer(Initializer):
         """ This initializer method does not need to be called;
         The :class:`~tramway.analyzer.RWAnalyzer`
         :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute does this automatically.
+
+        See also :class:`TrackerOutput`.
         """
         self.specialize( TrackerOutput )
 
@@ -499,7 +521,7 @@ class HasAnalysisTree(HasROI):
         :meth:`check_cache` raises an exception of type `_raise`.
 
         If `_raise` is :const:`None` or :const:`False`, then :meth:`check_cache` returns
-        a :class:`bool` instead, that is :const:`False` if the cache is alright,
+        a `bool` instead, that is :const:`False` if the cache is alright,
         :const:`True` otherwise.
         If `_raise` is :const:`True`, then :meth:`check_cache` returns :const:`True` if
         the cache is alright, :const:`False` otherwise.
@@ -668,7 +690,8 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         """
         Exports the analysis tree to file.
 
-        Calls :func:`save_rwa` with argument ``compress=False`` unless explicitly set.
+        Calls :func:`~tramway.core.hdf5.store.save_rwa` with argument
+        ``compress=False`` unless explicitly set.
         """
         if self.analyses.data is None:
             raise ValueError('no data available')
@@ -834,7 +857,7 @@ class SPTFile(_SPTDataFrame):
         self.set_analyses(tree)
     def _trigger_discard_static_trajectories(self):
         """
-        Calls :meth:`~SPTDataFrame.discard_static_trajectories`;
+        Calls :meth:`SPTDataFrame.discard_static_trajectories`;
         requires the data are already loaded.
         """
         if self._discard_static_trajectories is True:
@@ -843,7 +866,7 @@ class SPTFile(_SPTDataFrame):
             SPTDataFrame.discard_static_trajectories(self, **self._discard_static_trajectories)
     def _trigger_reset_origin(self):
         """
-        Calls :meth:`~SPTDataFrame.reset_origin`;
+        Calls :meth:`SPTDataFrame.reset_origin`;
         requires the data are already loaded.
         """
         if self._reset_origin:
@@ -1208,6 +1231,10 @@ class _SPTMatFile(RawSPTFile):
         self._coord_scale = None
     @property
     def coord_scale(self):
+        r"""
+        *float*:
+            Convertion factor for the loaded coordinates so that they read in :math:`\mu m`
+        """
         return self._coord_scale
     @coord_scale.setter
     def coord_scale(self, scale):
@@ -1217,6 +1244,7 @@ class _SPTMatFile(RawSPTFile):
             self._coord_scale = scale
     @property
     def pixel_size(self):
+        """ *float*: Former name for :attr:`coord_scale`; **deprecated** """
         self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
         return self.coord_scale
     @pixel_size.setter
@@ -1269,8 +1297,10 @@ class SPTMatFiles(RawSPTFiles):
     def coord_scale(self, scale):
         for f in self:
             f.coord_scale = scale
+    coord_scale.__doc__ = SPTMatFile.coord_scale.__doc__
     @property
     def pixel_size(self):
+        """ *float*: Former name for :attr:`coord_scale`; **deprecated** """
         self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
         return self.coord_scale
     @pixel_size.setter

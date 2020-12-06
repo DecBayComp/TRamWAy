@@ -136,6 +136,52 @@ class TimeInitializer(Initializer, DT):
         See also :class:`SlidingWindow`.
         """
         self.specialize( SlidingWindow, duration, shift )
+    def from_sampling(self, sampling):
+        """
+        Extracts the time segmentation parameters stored in a
+        :class:`~tramway.tessellation.base.Partition` object
+        and tries to initialize the parent
+        :attr:`~tramway.analyzer.RWAnalyzer.time` attribute
+        correspondingly.
+
+        This may fail,
+        either silently or raising a :class:`ValueError` exception,
+        as this method covers only cases of sliding windows.
+        """
+        if isinstance(sampling, Analysis):
+            sampling = sampling.data
+        segmentation = sampling.tessellation
+        if isinstance(segmentation, window.SlidingWindow):
+            duration, shift, start_time = segmentation.duration, segmentation.shift, segmentation.start_time
+        else:
+            # experimental!
+            import tramway.tessellation.time as time
+            if isinstance(segmentation, time.TimeLattice):
+                segments = segmentation.time_lattice
+                if segments is None or len(segments)==0:
+                    raise ValueError('no time segments defined')
+                durations = np.diff(segments, axis=1)
+                duration = durations[0]
+                if not np.all(durations == duration):
+                    raise ValueError('varying time segment duration is not supported')
+                shifts = np.diff(segments[:,0])
+                if shifts.size == 0:
+                    shift = None
+                else:
+                    shift = shifts[0]
+                    if not np.all(shifts == shift):
+                        raise ValueError('varying time shift is not supported')
+                start_time = segments[0,0]
+                t0 = sampling.points['t'].min()
+                if start_time == t0:
+                    start_time = None
+            else:
+                self._parent.logger.warning('unsupported time segmentation type: '+str(type(segmentation)))
+                return
+        self.specialize( SlidingWindow, duration, shift )
+        if start_time is not None:
+            self._parent.time.start_time = start_time
+
 
 class SlidingWindow(AnalyzerNode, DT):
     """

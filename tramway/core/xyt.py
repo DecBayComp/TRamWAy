@@ -65,6 +65,8 @@ def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=
     """
     if not isinstance(trajectories, pd.DataFrame):
         raise TypeError('trajectories is not a DataFrame')
+    if trajectories.empty:
+        return ()
 
     if asarray or not asslice:
         other_cols = [ col for col in trajectories.columns if col != trajnum_colname ]
@@ -95,14 +97,19 @@ def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=
                 start = i
                 stop = start + 1
                 curr_traj_num = num
+        yield from_slice(start, stop)
 
     elif order == 'start':
 
         new_n = 0<np.diff(trajectories['n'].values)
-        new_n, = np.nonzero(new_n)
-        traj_ids = np.stack((np.r_[0,new_n+1], np.r_[new_n+1,len(trajectories)]), axis=1)
-        traj_ts = trajectories['t'].iloc[traj_ids[:,0]].values
-        traj_ids = traj_ids[np.argsort(traj_ts)]
+        new_n = np.flatnonzero(new_n)
+        if new_n.size:
+            new_n += 1
+            traj_ids = np.stack((np.r_[0,new_n], np.r_[new_n,len(trajectories)]), axis=1)
+            traj_ts = trajectories['t'].iloc[traj_ids[:,0]].values
+            traj_ids = traj_ids[np.argsort(traj_ts)]
+        else:
+            traj_ids = np.array([[0,len(trajectories)]])
         for i,j in traj_ids:
             yield from_slice(i,j)
 
@@ -371,7 +378,7 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
         return df
 
 
-def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False):
+def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False, keep_nan=None):
     """
     Remove locations outside a bounding box.
 
@@ -398,7 +405,7 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         add_deltas (bool): add 'dx', 'dy', ..., 'dt' columns is they are not already present;
             deltas are associated to the translocation origins
 
-        keep_nans (bool): adding deltas generates NaN; keep them
+        keep_nans/keep_nan (bool): adding deltas generates NaN; keep them
 
         no_deltas (bool): do not consider any column as deltas
 
@@ -450,10 +457,57 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         within = within[ok]
         points['n'] -= (points['n'].diff().fillna(0).astype(int) - 1).clip(lower=0).cumsum()
     points = points[within]
-    if not keep_nans:
+    if keep_nan is None:
+        keep_nan = keep_nans
+    if not keep_nan:
         points.dropna(inplace=True)
     points.index = np.arange(points.shape[0])
     return points
+
+
+def reindex_trajectories(trajectories, trajnum_colname='n', dt=None):
+    """
+    Splits the trajectories with missing time steps and assigns different indices to
+    the different segments.
+
+    Works with trajectories and translocations.
+    """
+    are_translocations = 'dt' in trajectories.columns and not np.any(np.isnan(trajectories['dt']))
+    trajs = []
+    for traj in iter_trajectories(trajectories, trajnum_colname):
+        if dt is None:
+            if are_translocations:
+                dt = traj['dt'].min()
+            else:
+                dt = traj['t'].diff().min()
+            print(dt)
+            if dt.size == 0:
+                dt = None
+            elif np.isclose(dt, 0):
+                raise ValueError('multiple rows for the same time point and trajectory')
+        if dt is None:
+            holes = np.array([])
+        elif are_translocations:
+            holes = 1.1 * dt <= traj['dt'].values
+            holes[-1] = False
+            holes = np.flatnonzero(holes)
+        else:
+            frame_ids = np.round(traj['t'].values/dt)
+            steps = np.diff(frame_ids)
+            holes = np.flatnonzero(1 < steps)
+        if holes.size:
+            holes += 1
+            i = 0
+            for j in holes:
+                trajs.append(j-i)
+                i = j
+            trajs.append(len(traj)-i)
+        else:
+            trajs.append(len(traj))
+    n = np.repeat(np.arange(1,len(trajs)+1), trajs)
+    trajs = trajectories.copy()
+    trajs[trajnum_colname] = n
+    return trajs
 
 
 def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n', full_trajectory=False, verbose=False, localization_error=None):
@@ -635,5 +689,6 @@ __all__ = [
     'load_mat',
     'crop',
     'discard_static_trajectories',
+    'reindex_trajectories',
     ]
 

@@ -133,6 +133,25 @@ class TestXyt(object):
         return pandas.DataFrame([[1,.1,.1,.05],[1,.45,.45,.1],[1,.85,.65,.12],[2,.6,.9,.25],[2,.4,.5,.3]], columns=list('nxyt'))
         assert crop(self.example_nxyt(), self.example_bbox(), add_deltas=False).equals(expected_result[list('nxyt')])
 
+    def test_reindex(self):
+        from io import StringIO
+        df=pandas.read_csv(StringIO("""\
+             n          x          y           t
+78894    19782  30.030399  30.079800   93.279999
+78895    19782  30.054001  30.084801   93.320000
+78897    19782  30.031000  30.090000   93.400000
+659881  160801  30.197300  30.087900  452.640015
+659882  160801  30.129200  30.116600  452.679993
+659883  160801  30.191401  30.155399  452.720001
+793381  192719  30.062099  30.159700  516.520020
+796888  193576  30.150600  30.155199  518.280029
+842499  204282  30.147100  30.192900  541.239990
+907067  219796  30.189301  30.164801  570.400024\
+"""), delim_whitespace=True)
+        df = reindex_trajectories(df)
+        assert numpy.all(df['n'].values == numpy.r_[1,1,2,3,3,3,4,5,6,7])
+        reindex_trajectories(pd.DataFrame([], columns=list('nxyt')))
+
 
 from tramway.core.analyses import *
 class TestAnalyses(object):

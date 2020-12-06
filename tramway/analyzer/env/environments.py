@@ -487,7 +487,7 @@ class Env(AnalyzerNode):
             command_options.append('--segment-index={:d}'.format(segment_index))
         self.pending_jobs.append(tuple(command_options))
     @classmethod
-    def _combine_analyses(cls, wd, data_location, logger, *args):
+    def _combine_analyses(cls, wd, data_location, logger, *args, directory_mapping={}):
         """
         Loads the generated rwa files, combines them and returns the list of the combined files.
 
@@ -535,7 +535,15 @@ class Env(AnalyzerNode):
         end_result_files = []
         for source in analyses:
             rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
-            if not os.path.isabs(os.path.expanduser(rwa_file)) and data_location:
+            if os.path.isabs(rwa_file):
+                if directory_mapping:
+                    for to_be_replaced in directory_mapping:
+                        if rwa_file.startswith(to_be_replaced):
+                            rwa_file = rwa_file[len(to_be_replaced):]
+                            replacement = directory_mapping[to_be_replaced]
+                            if replacement:
+                                rwa_file = os.path.join(replacement, rwa_file)
+            elif not os.path.isabs(os.path.expanduser(rwa_file)) and data_location:
                 rwa_file = os.path.join(data_location, rwa_file)
             logger.info('writing file: {}...'.format(rwa_file))
             if original_files[source][1:]:
@@ -1089,14 +1097,16 @@ data_location = '{}'
 logger = BasicLogger()
 stage = {!r}
 log_pattern = '{}'
+directory_mapping = {}
 
-files  = environments.{}._combine_analyses(wd, data_location, logger, stage)
+files  = environments.{}._combine_analyses(wd, data_location, logger, stage,
+            directory_mapping=directory_mapping)
 files += environments.RemoteHost._collectibles_from_log_files(wd, log_pattern, stage)
 
 files  = environments.RemoteHost._format_collectibles(files)
 
 print('{}'+';'.join(files))\
-""".format(self.wd, data_loc, stage_index, _log_pattern, _parent_cls, _prefix)
+""".format(self.wd, data_loc, stage_index, _log_pattern, self.directory_mapping, _parent_cls, _prefix)
         local_script = self.make_temporary_file(suffix='.py', text=True)
         with open(local_script, 'w') as f:
             f.write(code)
@@ -1194,9 +1204,17 @@ print('{}'+';'.join(files))\
         call = line.find('.run()')
         if 0<call:
             analyzer_var = line[:call]
+            # insert mapping for home directories
+            filtered_content = filtered_content[:-1]
+            filtered_content.append("""
+if '{0}' not in {1}.env.directory_mapping:
+    {1}.env.directory['{0}'] = '~'
+""".format(os.path.expanduser('~'), analyzer_var))
+            filtered_content.append(line)
+            # append output listing
             filtered_content.append(\
-                    "\nprint({}.env.collectible_prefix()+';'.join({}.env.format_collectibles()))\n".format(
-                        analyzer_var, analyzer_var))
+                    "\nprint({0}.env.collectible_prefix()+';'.join({0}.env.format_collectibles()))\n".format(
+                        analyzer_var))
         # 
         return filtered_content
     def delete_temporary_data(self):

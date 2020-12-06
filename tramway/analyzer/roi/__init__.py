@@ -336,6 +336,7 @@ class ROIInitializer(Initializer):
             :class:`~tramway.analyzer.RWAnalyzer`
             :attr:`~tramway.analyzer.RWAnalyzer.spt_data` main attribute.
 
+        See also :class:`ROIAsciiFile`.
         """
         if isinstance(self._parent, HasROI):
             self.specialize( ROIAsciiFile, filepath, size, label, group_overlapping_roi )
@@ -356,7 +357,7 @@ class ROIInitializer(Initializer):
         necessary.
 
         If the `source` attribute of the :class:`~tramway.analyzer.spt_data.SPTDataItem`
-        items, a :class:`ValueError` exception is raised.
+        items is not defined, a :class:`ValueError` exception is raised.
 
         .. note::
 
@@ -366,10 +367,14 @@ class ROIInitializer(Initializer):
             :class:`~tramway.analyzer.RWAnalyzer`
             :attr:`~tramway.analyzer.RWAnalyzer.roi` main attribute.
 
+        See also :class:`ROIAsciiFiles`.
         """
         self._eldest_parent.roi.specialize( ROIAsciiFiles, suffix, extension,
                 size, label, group_overlapping_roi, skip_missing )
     def from_dedicated_rwa_record(self, label=None, version=None, _impl=None):
+        """
+        See also :class:`v1_ROIRecord`.
+        """
         if isinstance(self._parent, HasROI):
             if version is None:
                 self._parent.logger.info('set version=1 to ensure constant behavior in the future')
@@ -380,6 +385,9 @@ class ROIInitializer(Initializer):
         else:
             self.from_dedicated_rwa_records(label, version, _impl=_impl)
     def from_dedicated_rwa_records(self, label=None, version=None, _impl=None):
+        """
+        See also :class:`ROIRecords`.
+        """
         self._eldest_parent.roi.specialize( ROIRecords, label, version, _impl )
     ## in the case no ROI are defined
     def as_support_regions(self, index=None, source=None, return_index=False):
@@ -597,6 +605,27 @@ ROI.register(BoundingBoxes)
 
 
 class ROIAsciiFile(BoundingBoxes):
+    """
+    :class:`ROI` class for the decentralized :attr:`HasROI.roi` attributes
+    to be loaded from text files.
+
+    A ROI file contains tab-separated columns with a header line.
+
+    The columns represent either centers or bounds.
+
+    ROI center information is formed by :const:`'x'` and :const:`'y'` columns
+    (and optionally :const:`'z'` but not :const:`'t'`).
+    
+    ROI bounds are defined by two columns for each coordinate, for example
+    labelled :const:`'x min'` and :const:`'x max'` for coordinate *x*.
+    Time can also be represented this way.
+
+    Note that combining spatial center information and time bounds is allowed,
+    i.e. :const:`'x'`, :const:`'y'`, :const:`'t min'` and :const:`'t max'`.
+
+    The center information from a ROI file must be complemented with
+    the `size` argument/attribute.
+    """
     __slots__ = ('_path', '_size')
     def __init__(self, path, size=None, label=None,
             group_overlapping_roi=False, **kwargs):
@@ -613,7 +642,18 @@ class ROIAsciiFile(BoundingBoxes):
         return not all([ bb is None for bb in self._bounding_boxes.values() ])
     @property
     def filepath(self):
+        """ *str*: Path of the ROI file """
         return self._path
+    @property
+    def size(self):
+        """ *float*: ROI size for space components; apply solely to center-defined ROI """
+        return self._size
+    @size.setter
+    def size(self, sz):
+        if self.reified:
+            raise AttributeError("file '{}' has already been loaded; cannot modify the ROI size anymore".format(self.filepath.split('/')[-1]))
+        else:
+            self._size = sz
     @property
     def bounding_boxes(self):
         # this is enough to make `as_individual_roi` properly work
@@ -636,8 +676,8 @@ class ROIAsciiFile(BoundingBoxes):
                     # only case allowed
                     coords = [ col in center_cols for col in 'xyz' ]
                     if coords:
-                        lower_bounds = (roi[coords] - .5 * self._size).join(roi[['t min']]).values
-                        upper_bounds = (roi[coords] + .5 * self._size).join(roi[['t max']]).values
+                        lower_bounds = (roi[coords] - .5 * self.size).join(roi[['t min']]).values
+                        upper_bounds = (roi[coords] + .5 * self.size).join(roi[['t max']]).values
                     else:
                         lower_bounds = roi[['t min']].values
                         upper_bounds = roi[['t max']].values
@@ -654,8 +694,8 @@ class ROIAsciiFile(BoundingBoxes):
                     self._eldest_parent.logger.debug('ROI size does not apply to bounds-defined regions')
         else:
             coords = center_cols
-            lower_bounds = roi[coords].values - .5 * self._size
-            upper_bounds = roi[coords].values + .5 * self._size
+            lower_bounds = roi[coords].values - .5 * self.size
+            upper_bounds = roi[coords].values + .5 * self.size
         # last check
         if 'x' in coords:
             if 'y' not in coords:
@@ -675,6 +715,17 @@ ROI.register(ROIAsciiFile)
 
 
 class ROIAsciiFiles(DecentralizedROIManager):
+    """
+    :class:`ROI` class for multiple ROI text files.
+
+    The filepaths are inferred from the :attr:`~..spt_data.SPTDataItem.source`
+    attribute of each :class:`~..spt_data.SPTDataItem` in the main
+    :attr:`~tramway.analyzer.RWAnalyzer.spt_data` attribute.
+    The SPT file extensions are replaced by a suffix (usually *-roi*) plus
+    the *.txt* extension.
+
+    See also :class:`ROIAsciiFile` for more information on the format.
+    """
     __slots__ = ('_suffix',)
     def __init__(self, suffix='roi', extension='.txt', side=None, label=None,
             group_overlapping_roi=False, skip_missing=False, **kwargs):
@@ -734,6 +785,11 @@ ROI.register(ROIAsciiFiles)
 
 
 class v1_ROIRecord(BoundingBoxes):
+    """
+    :class:`ROI` class for the individual special partitions in an analysis tree.
+
+    This storing strategy is likely to be marked as deprecated.
+    """
     __slots__ = ('_helper',)
     def __init__(self, label=None, _impl=None, **kwargs):
         SpecializedROI.__init__(self, **kwargs) # not BoundingBoxes.__init__
@@ -773,6 +829,9 @@ class v1_ROIRecord(BoundingBoxes):
 
 
 class ROIRecords(DecentralizedROIManager):
+    """
+    :class:`ROI` class for the main :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute.
+    """
     __slots__ = ()
     def __init__(self, label=None, version=None, _impl=None, **kwargs):
         DecentralizedROIManager.__init__(self, **kwargs)
