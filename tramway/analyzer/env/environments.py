@@ -194,10 +194,9 @@ class Env(AnalyzerNode):
         """
         assert self.worker_side
         return self.selectors['stage_index']
-    def setup(self, *argv):
+    def early_setup(self, *argv):
         """
-        Determines which side is running and alters iterators of the main
-        :class:`~tramway.analyzer.RWAnalyzer` attributes.
+        Determines which side is running and sets the `submit_side`/`worker_side` attributes.
 
         Takes command-line arguments (``sys.argv``).
         """
@@ -250,6 +249,20 @@ class Env(AnalyzerNode):
                 valid_arguments = None
             if valid_arguments is None:
                 break
+        if valid_arguments:
+            # worker side
+            _valid_arguments = dict(valid_arguments) # copy
+            self.wd = _valid_arguments.pop('working_directory', self.wd)
+            self.selectors = _valid_arguments
+        return valid_arguments
+    def setup(self, *argv):
+        """
+        Determines which side is running and alters iterators of the main
+        :class:`~tramway.analyzer.RWAnalyzer` attributes.
+
+        Takes command-line arguments (``sys.argv``).
+        """
+        valid_arguments = self.early_setup(*argv)
         if valid_arguments:
             # worker side
             self.wd = valid_arguments.pop('working_directory', self.wd)
@@ -501,7 +514,7 @@ class Env(AnalyzerNode):
             if os.stat(output_file).st_size == 0:
                 logger.info('skipping empty file '+output_file)
                 continue
-            logger.info('reading file: {}...'.format(output_file))
+            logger.info('reading file: {}'.format(output_file))
             try:
                 __analyses = load_rwa(output_file,
                         lazy=True, force_load_spt_data=False)
@@ -534,7 +547,9 @@ class Env(AnalyzerNode):
             loaded_files.append(output_file)
         end_result_files = []
         for source in analyses:
+            logger.info('for source file: {}...'.format(source))
             rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
+            logger.info((rwa_file, os.path.isabs(rwa_file), directory_mapping))
             if os.path.isabs(rwa_file):
                 if directory_mapping:
                     for to_be_replaced in directory_mapping:
@@ -545,7 +560,7 @@ class Env(AnalyzerNode):
                                 rwa_file = os.path.join(replacement, rwa_file)
             elif not os.path.isabs(os.path.expanduser(rwa_file)) and data_location:
                 rwa_file = os.path.join(data_location, rwa_file)
-            logger.info('writing file: {}...'.format(rwa_file))
+            logger.info('writing file: {}'.format(rwa_file))
             if original_files[source][1:]:
                 try:
                     save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True, compress=False)
@@ -1207,8 +1222,10 @@ print('{}'+';'.join(files))\
             # insert mapping for home directories
             filtered_content = filtered_content[:-1]
             filtered_content.append("""
+if {1}.env.directory_mapping is None:
+    {1}.env.directory_mapping = {{}}
 if '{0}' not in {1}.env.directory_mapping:
-    {1}.env.directory['{0}'] = '~'
+    {1}.env.directory_mapping['{0}'] = '~'
 """.format(os.path.expanduser('~'), analyzer_var))
             filtered_content.append(line)
             # append output listing

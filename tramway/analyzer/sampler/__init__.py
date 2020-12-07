@@ -42,7 +42,10 @@ class BaseSampler(AnalyzerNode):
                 segmentation = self.tesseller.tessellate(spt_dataframe)
             if self.time.initialized:
                 segmentation = self.time.segment(spt_dataframe, segmentation)
-        cell_index = segmentation.cell_index(df, **kwargs)
+        if segmentation is None:
+            cell_index = None
+        else:
+            cell_index = segmentation.cell_index(df, **kwargs)
         sample = Partition(df, segmentation, cell_index)
         try:
             self.tesseller.bc_update_params(sample.param)

@@ -60,6 +60,12 @@ class EnvironmentInitializer(Initializer):
     def collectibles(self):
         """ set: Compatilibity attribute; not used """
         return set()
+    @property
+    def submit_side(self):
+        return False
+    @property
+    def worker_side(self):
+        return False
 
 
 __all__ = ['Environment', 'EnvironmentInitializer', 'environments']
