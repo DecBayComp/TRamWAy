@@ -481,7 +481,6 @@ class SpecializedROI(AnalyzerNode):
         self._collections = None
     def self_update(self, op):
         self._parent._roi = op(self)
-        assert self._global is not None
         if self._global is not None:
             # parent spt_data object should still be registered
             assert self._parent in self._global._records

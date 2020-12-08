@@ -533,6 +533,7 @@ class TestAssignment(object):
                 ('resolution', .1),
                 ('dt', .04),
                 ('time_step', .05),
+                ('frame_interval', .06),
                 ):
             try:
                 setattr(a, attr, val)
@@ -551,6 +552,7 @@ class TestAssignment(object):
                 ('resolution', .1, False),
                 ('dt', .04, False),
                 ('time_step', .05, False),
+                ('frame_interval', .06, False),
                 ):
             try:
                 setattr(a, attr, val)

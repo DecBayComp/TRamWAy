@@ -286,15 +286,16 @@ class Env(AnalyzerNode):
                 self.selectors['source'] = sources
                 #self.logger.debug('selecting source: '+', '.join((sources,) if isinstance(sources, str) else sources))
             #
-            for f in self.spt_data_selector(self.analyzer.spt_data):
+            for f in self.analyzer.spt_data: # TODO: check why self.spt_data_selector(..) does not work
                 f.analyses.rwa_file = self.make_temporary_file(suffix='.rwa', output=True)
                 f.analyses.autosave = True
         elif self.script is None:
+            # not tested!
             candidate_files = [ f for f in os.listdir() \
                     if f.endswith('.py') or f.endswith('.ipynb') ]
             if candidate_files and not candidate_files[1:]:
                 self.script = candidate_files[0]
-                os.logger.info('candidate script: {} (in {})'.format(self.script, os.getcwd()))
+                self.logger.info('candidate script: {} (in {})'.format(self.script, os.getcwd()))
             raise ValueError('attribute `script` is not set')
         else:
             self.make_working_directory()
@@ -549,7 +550,7 @@ class Env(AnalyzerNode):
         for source in analyses:
             logger.info('for source file: {}...'.format(source))
             rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
-            logger.info((rwa_file, os.path.isabs(rwa_file), directory_mapping))
+            #logger.info((rwa_file, os.path.isabs(rwa_file), directory_mapping))
             if os.path.isabs(rwa_file):
                 if directory_mapping:
                     for to_be_replaced in directory_mapping:

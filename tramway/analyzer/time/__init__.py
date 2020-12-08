@@ -334,12 +334,16 @@ class SlidingWindow(AnalyzerNode, DT):
                 if permissive:
                     self._eldest_parent.logger.warning('not all segments are available; combining aborted')
                 else:
-                    raise KeyError('not all segments are available; combining aborted')
+                    raise KeyError('not all segments are available; combining aborted') from None
             else:
                 if permissive:
                     return None
                 else:
-                    raise KeyError("no '{}' segments found".format(combined_output_label)) from None
+                    labels = list(analyses.labels)
+                    if labels and any( l.startswith(combined_output_label+' -- t=') for l in labels ):
+                        raise KeyError("'{}' segments do not start at the expected time; expected label: '{}'; found labels: {}".format(combined_output_label, single_segment_label, str(labels))) from None
+                    else:
+                        raise KeyError("no '{}' segments found".format(combined_output_label)) from None
         assert single_segment_output
         from tramway.inference.base import Maps
         ok = [ isinstance(m, Maps) for m in single_segment_output ]
