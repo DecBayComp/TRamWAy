@@ -215,8 +215,9 @@ class RWAnalyzer(object):
             #self._logger = BasicLogger()
             import logging
             self._logger = logging.getLogger(__name__)
-            self._logger.setLevel(logging.DEBUG)
-            self._logger.addHandler(logging.StreamHandler())
+            if not self._logger.hasHandlers():
+                self._logger.setLevel(logging.DEBUG)
+                self._logger.addHandler(logging.StreamHandler())
         return self._logger
     @logger.setter
     def logger(self, logger):

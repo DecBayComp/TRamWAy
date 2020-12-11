@@ -1172,6 +1172,7 @@ class _RWAFile(SPTFile):
         reloaded._alias = self.alias
         reloaded._roi = copy.copy(self.roi)
         reloaded.roi._parent = reloaded
+        self.analyses.terminate()
         reloaded.analyses.rwa_file = self.analyses.rwa_file
         reloaded.analyses.autosave = self.analyses.autosave
         return reloaded

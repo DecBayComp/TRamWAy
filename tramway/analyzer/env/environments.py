@@ -15,6 +15,7 @@
 from ..attribute import *
 from .abc import *
 from ..spt_data.abc import SPTData
+from ..spt_data import _normalize
 from ..roi.abc import ROI
 from ..time.abc import Time
 import os
@@ -335,7 +336,7 @@ class Env(AnalyzerNode):
                     __slots__ = ()
                     def __iter__(self):
                         for f in self._proxied:
-                            if f.source in sources:
+                            if _normalize(f.source) in sources:
                                 #logger.debug('source {} selected'.format(f.source))
                                 yield f
             SPTData.register(selector_cls)
@@ -514,6 +515,7 @@ class Env(AnalyzerNode):
             output_file = output_files.pop()
             if os.stat(output_file).st_size == 0:
                 logger.info('skipping empty file '+output_file)
+                os.unlink(output_file)
                 continue
             logger.info('reading file: {}'.format(output_file))
             try:
