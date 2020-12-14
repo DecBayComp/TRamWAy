@@ -47,14 +47,34 @@ from .images    import *
 from .localizer import *
 from .tracker   import *
 
-import tramway.analyzer.spt_data.allsymbols  as spt_data
-import tramway.analyzer.roi.allsymbols       as roi
-import tramway.analyzer.time.allsymbols      as time
-import tramway.analyzer.tesseller.allsymbols as tesseller
-import tramway.analyzer.sampler.allsymbols   as sampler
-import tramway.analyzer.mapper.allsymbols    as mapper
-import tramway.analyzer.images.allsymbols    as images
-import tramway.analyzer.tracker.allsymbols   as tracker
+
+import importlib
+class AttributeSubPackage(object):
+    __slots__ = ('__attrname__', '_module')
+    def __init__(self, attrname):
+        self.__attrname__ = attrname
+        self.module = None
+    @property
+    def module(self):
+        if self._module is None:
+            self._module = importlib.import_module(
+                    '.{}.allsymbols'.format(self.__attrname__),
+                    package='tramway.analyzer')
+        return self._module
+    @module.setter
+    def module(self, mod):
+        self._module = mod
+    def __getattr__(self, attrname):
+        return getattr(self.module, attrname)
+
+spt_data  = AttributeSubPackage('spt_data' )
+roi       = AttributeSubPackage('roi'      )
+time      = AttributeSubPackage('time'     )
+tesseller = AttributeSubPackage('tesseller')
+sampler   = AttributeSubPackage('sampler'  )
+mapper    = AttributeSubPackage('mapper'   )
+images    = AttributeSubPackage('images'   )
+tracker   = AttributeSubPackage('tracker'  )
 
 
 class BasicLogger(object):
@@ -112,27 +132,28 @@ class RWAnalyzer(object):
     The supported steps are defined in a declarative way with special attributes;
     these steps and corresponding attributes are as follows:
 
-    * :attr:`images`: microscopy images
-    * :attr:`localizer`: single molecule localization
-    * :attr:`tracker`: single particle tracking
-    * :attr:`spt_data`: SPT data loading or generation
-    * :attr:`roi`: regions of interest
-    * :attr:`tesseller`: spatial segmentation
-    * :attr:`time`: temporal segmentation of the tracking data
-    * :attr:`sampler`: assignment of SPT data points to microdomains
-    * :attr:`mapper`: estimation of model parameters at each microdomains
+    * :attr:`~tramway.analyzer.RWAnalyzer.images`: microscopy images
+    * :attr:`~tramway.analyzer.RWAnalyzer.localizer`: single molecule localization
+    * :attr:`~tramway.analyzer.RWAnalyzer.tracker`: single particle tracking
+    * :attr:`~tramway.analyzer.RWAnalyzer.spt_data`: SPT data loading or generation
+    * :attr:`~tramway.analyzer.RWAnalyzer.roi`: regions of interest
+    * :attr:`~tramway.analyzer.RWAnalyzer.tesseller`: spatial segmentation
+    * :attr:`~tramway.analyzer.RWAnalyzer.time`: temporal segmentation of the tracking data
+    * :attr:`~tramway.analyzer.RWAnalyzer.sampler`: assignment of SPT data points to microdomains
+    * :attr:`~tramway.analyzer.RWAnalyzer.mapper`: estimation of model parameters at each microdomains
 
     Most attributes are self-morphing, i.e. they first are initializers and exhibit
     *from_...* methods (for example
-    :meth:`~tramway.analyzer.spt_data.SPTDataInitializer.from_dataframe` and
-    :meth:`~tramway.analyzer.spt_data.SPTDataInitializer.from_ascii_file` for
-    :attr:`spt_data`) and then, once any such initializer method is called,
+    :meth:`~.spt_data.SPTDataInitializer.from_dataframe` and
+    :meth:`~.spt_data.SPTDataInitializer.from_ascii_file` for
+    :attr:`~tramway.analyzer.RWAnalyzer.spt_data`) and then,
+    once any such initializer method is called,
     they specialize into a new attribute and exhibit specific attributes depending
     on the chosen initializer.
 
     Specialized attributes can also exhibit self-morphing attributes.
     For example, regions of interest can be defined globally using the main
-    :attr:`roi` attribute, or on a per-SPT-datafile basis:
+    :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute, or on a per-SPT-datafile basis:
 
     .. code-block:: python
 
@@ -151,20 +172,25 @@ class RWAnalyzer(object):
 
     In the above example, per-dataset ROI definition is useful when multiple
     datasets are loaded and the ROI may differ between datasets.
-    The main :attr:`roi` attribute is still convenient as it allows to iterate
-    over all the defined ROI, omitting the :attr:`spt_data` loop (continues any of
-    the code blocks above):
+    The main :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute is still convenient
+    as it allows to iterate over all the defined ROI,
+    omitting the :attr:`~tramway.analyzer.RWAnalyzer.spt_data` loop (continues any
+    of the code blocks above):
 
     .. code-block:: python
 
         for roi in a.roi.as_support_regions():
             roi_spt_data = roi.crop()
 
-    See the documentation for the :attr:`roi` attribute for more information about
-    the available iterators.
+    See the documentation for the :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute
+    for more information about the available iterators.
 
-    While the :attr:`spt_data` and :attr:`roi` attributes act as data providers,
-    the :attr:`time`, :attr:`tesseller`, :attr:`sampler` and :attr:`mapper` attributes
+    While the :attr:`~tramway.analyzer.RWAnalyzer.spt_data` and
+    :attr:`~tramway.analyzer.RWAnalyzer.roi` attributes act as data providers,
+    the :attr:`~tramway.analyzer.RWAnalyzer.time`,
+    :attr:`~tramway.analyzer.RWAnalyzer.tesseller`,
+    :attr:`~tramway.analyzer.RWAnalyzer.sampler` and
+    :attr:`~tramway.analyzer.RWAnalyzer.mapper` attributes
     do not feature direct access to the data and require the SPT data to be passed as
     input argument to their main processing methods.
     For example:
@@ -176,24 +202,27 @@ class RWAnalyzer(object):
             roi_spt_data = roi.crop()
             tessellation = a.tesseller.tessellate(roi_spt_data)
 
-    Similarly, the :attr:`images` attribute defines data location,
-    while the :attr:`localizer` and :attr:`tracker` attributes define processing steps
+    Similarly, the :attr:`~tramway.analyzer.RWAnalyzer.images` attribute defines data location,
+    while the :attr:`~tramway.analyzer.RWAnalyzer.localizer` and
+    :attr:`~tramway.analyzer.RWAnalyzer.tracker` attributes define processing steps
     on these data.
 
     Other attributes drive the execution of the processing chain.
     The :meth:`run` method launches the processing chain, which is operated by the
-    :attr:`pipeline` attribute.
+    :attr:`~tramway.analyzer.RWAnalyzer.pipeline` attribute.
     
     Various parallelization schemes are available, and the platform-specific
-    implementation of these schemes are provided by the :attr:`env` attribute.
+    implementation of these schemes are provided by the
+    :attr:`~tramway.analyzer.RWAnalyzer.env` attribute.
 
     Last but not least, the :class:`RWAnalyzer` features plotting utilities.
     Some of them are available through the *mpl* sub-attribute of some
     main :class:`RWAnalyzer` attributes or items
     (for example :attr:`~.images._RawImage.mpl`, :attr:`~.spt_data._SPTDataFrame.mpl`,
     :attr:`~.tesseller.TessellerInitializer.mpl`, :attr:`~.mapper.MapperInitializer.mpl`).
-    In addition, the :attr:`browser` attribute can plot the inferred parameter maps
-    from a Jupyter notebook, or calling the ``bokeh serve`` command:
+    In addition, the :attr:`~tramway.analyzer.RWAnalyzer.browser` attribute
+    can plot the inferred parameter maps from a Jupyter notebook,
+    or calling the ``bokeh serve`` command:
 
     .. code-block:: python
 
@@ -393,7 +422,7 @@ class RWAnalyzer(object):
         """
         Launches the pipeline.
 
-        Alias for :attr:`~RWAnalyzer.pipeline` :meth:`~.pipeline.Pipeline.run`.
+        Alias for :attr:`~tramway.analyzer.RWAnalyzer.pipeline` :meth:`~.pipeline.Pipeline.run`.
         """
         return self.pipeline.run()
 
@@ -401,7 +430,8 @@ class RWAnalyzer(object):
         """
         Designates a file generated on the worker side to be transferred back to the submit side.
 
-        Alias for :attr:`~RWAnalyzer.pipeline` :meth:`~.pipeline.Pipeline.add_collectible`.
+        Alias for :attr:`~tramway.analyzer.RWAnalyzer.pipeline`
+        :meth:`~.pipeline.Pipeline.add_collectible`.
         """
         self.pipeline.add_collectible(collectible)
 
@@ -423,7 +453,7 @@ class RWAnalyzer(object):
         or visualizing maps without explicitly calling the ``bokeh serve`` command
         (e.g. from a Jupyter notebook).
 
-        Alias for :attr:`env` :attr:`~.env.Environment.script`.
+        Alias for :attr:`~tramway.analyzer.RWAnalyzer.env` :attr:`~.env.Environment.script`.
         """
         return self.env.script
     @script.setter
