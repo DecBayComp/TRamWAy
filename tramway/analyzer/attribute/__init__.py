@@ -71,6 +71,9 @@ def selfinitializing_property(attr_name, getter, setter, metacls=None, doc=None)
         if cls is None:
             setter(self, None)
         elif callable(cls):
+            if isinstance(cls, InitializerMethod):
+                cls.assign( self )
+                return
             if metacls:
                 def typechecked_setter(obj):
                     if not isinstance(obj, metacls):
@@ -234,4 +237,39 @@ class Proxy(object):
         else:
             setattr(self._proxied, attrname, val)
 
+
+__all__.append('InitializerMethod')
+class InitializerMethod(object):
+    """
+    Useful for explicit typing.
+    """
+    __slots__ = ('attrname', 'method', 'args', 'kwargs')
+    def __init__(self, method, attrname=None):
+        self.method = method
+        if attrname is None:
+            attrname = method.__module__.split('.')[-1]
+        self.attrname = attrname
+        self.args = self.kwargs = None
+    def __call__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        return self
+    def assign(self, parent_analyzer):
+        if not (isinstance(self.args, tuple) and isinstance(self.kwargs, dict)):
+            raise RuntimeError('initializer method has not been called')
+        parent_attribute = getattr(parent_analyzer, self.attrname)
+        self.method(parent_attribute, *self.args, **self.kwargs)
+    def reassign(self, parent_analyzer):
+        import importlib
+        mod = importlib.import_module(self.method.__module__)
+        try:
+            clsname = str(self.method)[::-1].split('.', 1)[-1][::-1].split()[-1]
+            cls = getattr(mod, clsname)
+            assert isinstance(cls, type) and issubclass(cls, Initializer)
+        except:
+            raise AttributeError("cannot find a proper initializer for the '{}' attribute".format(self.attrname))
+        attr = getattr(type(parent_analyzer), self.attrname)
+        # TODO: add a freset method to the properties returned by selfinitializing_property
+        attr.fset(parent_analyzer, cls)
+        self.assign( parent_analyzer )
 

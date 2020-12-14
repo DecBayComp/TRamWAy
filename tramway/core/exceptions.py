@@ -29,6 +29,9 @@ class MultipleArgumentError(ValueError):
 class MisplacedAttributeWarning(UserWarning):
     pass
 
+class SideEffectWarning(UserWarning):
+    pass
+
 class RWAFileException(IOError):
     def __init__(self, filepath=None, exc=None):
         self.filepath = filepath

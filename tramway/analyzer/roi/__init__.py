@@ -599,6 +599,52 @@ class BoundingBoxes(SpecializedROI):
         if not isinstance(n, int):
             raise TypeError('num_digits is not an int')
         self.index_format = n
+    def to_ascii_file(self, filepath, collection=None, columns=None, header=True,
+            float_format='%.4f', **kwargs):
+        """
+        Exports the bounding boxes to text file.
+
+        Arguments:
+
+            filepath (str): output filepath.
+
+            collection (str): roi collection label.
+
+            columns (sequence of *str*): column names; default is:
+                ['x', 'y'] for 2D, ['x', 'y', 't'] for 3D
+                and ['x', 'y', 'z', 't'] for 4D.
+
+            header (bool): print column names on the first line.
+
+            float_format (str): see also :meth:`pandas.DataFrame.to_csv`.
+
+        Additional keyword arguments are passed to :meth:`pandas.DataFrame.to_csv`.
+        """
+        if collection is None:
+            collection = ''
+        example_bound, _ = first(self.bounding_boxes[collection])
+        if columns is None:
+            columns = {
+                    2: list('xy'),
+                    3: list('xyt'),
+                    4: list('xyzt'),
+                }[len(example_bound)]
+        bounds = np.stack([ np.r_[bounds] for bounds in self.bounding_boxes[collection] ], axis=0)
+        actual_columns = []
+        for col in columns:
+            actual_columns.append(col+' min')
+        for col in columns:
+            actual_columns.append(col+' max')
+        bounds = pd.DataFrame(bounds, columns=actual_columns)
+        for arg in ('sep', 'index'):
+            try:
+                kwargs.pop(arg)
+            except KeyError:
+                pass
+            else:
+                self._eldest_parent.logger.warning("ignoring argument '{}'".format(arg))
+        bounds.to_csv(filepath, sep='\t', index=False, header=header, float_format=float_format,
+                **kwargs)
 
 ROI.register(BoundingBoxes)
 

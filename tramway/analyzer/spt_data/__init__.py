@@ -660,7 +660,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
     def set_precision(self, precision):
         dtypes = compute_dtypes(self.dataframe, precision)
         self._dataframe = self.dataframe.astype(dtypes)
-    def to_ascii_file(self, filepath, columns=None, header=True, **kwargs):
+    def to_ascii_file(self, filepath, columns=None, header=True, float_format='%.4f', **kwargs):
         """
         Exports the data to text file.
 
@@ -672,8 +672,9 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
 
             header (bool): print column names on the first line.
 
+            float_format (str): see also :meth:`pandas.DataFrame.to_csv`.
+
         Additional keyword arguments are passed to :meth:`pandas.DataFrame.to_csv`.
-        See for example `float_format`.
         """
         df = self.dataframe
         if columns:
@@ -685,7 +686,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
                 pass
             else:
                 self.logger.warning("ignoring argument '{}'".format(arg))
-        df.to_csv(filepath, sep='\t', index=False, header=header, **kwargs)
+        df.to_csv(filepath, sep='\t', index=False, header=header, float_format=float_format, **kwargs)
     def to_rwa_file(self, filepath, **kwargs):
         """
         Exports the analysis tree to file.
@@ -772,6 +773,7 @@ class SPTDataFrames(SPTDataIterator):
         if not dfs:
             raise ValueError("no dataframes found")
         self._dataframes = tuple([ self._bear_child( SPTDataFrame, df ) for df in  dfs ])
+        assert callable(all)
         if not all([ tuple(self.columns) == tuple(df.columns) for df in dfs ]):
             raise ValueError("not all the dataframes feature the same column names")
     @property

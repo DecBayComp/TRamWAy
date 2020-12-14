@@ -2,6 +2,7 @@
 import os
 from math import *
 import numpy
+import pandas
 import random
 import subprocess
 import pytest
@@ -249,17 +250,17 @@ class TestTesseller(Common):
         self.tmpdir = tmpdir
         self.label = '3roi_hexagons'
         #
-        roi = [([-.4,-.5],[0.,-.1]),([-.1,0.],[.3,.4]),([.1,-.3],[.5,.1])]
-        roi = [ (numpy.array(lb), numpy.array(ub)) for lb, ub in roi ]
+        roi_bounds = [([-.4,-.5],[0.,-.1]),([-.1,0.],[.3,.4]),([.1,-.3],[.5,.1])]
+        roi_bounds = [ (numpy.array(lb), numpy.array(ub)) for lb, ub in roi_bounds ]
         #
         a=RWAnalyzer()
         a.spt_data.from_ascii_file(one_sptdatafile)
         a.tesseller.from_callable(tessellers.Hexagons)
         a.tesseller.ref_distance = .01
         a.tesseller.avg_location_count = 5
-        a.roi.from_bounding_boxes(roi, label='3-roi hexagons', group_overlapping_roi=True)
+        a.roi.from_bounding_boxes(roi_bounds, label='3-roi hexagons', group_overlapping_roi=True)
         b = RoiHelper(one_sptdatafile, verbose=False)
-        b.set_bounding_boxes(roi, collection_label='3-roi hexagons')
+        b.set_bounding_boxes(roi_bounds, collection_label='3-roi hexagons')
         b.tessellate('hexagon', ref_distance=.01, avg_location_count=5)
         for i, r in enumerate(a.roi.as_support_regions()):
             df = r.crop()
@@ -416,8 +417,8 @@ class TestIndexer(Common):
         a=RWAnalyzer()
         a.spt_data.from_ascii_file(dynamicmesh)
         a.spt_data.localization_precision = 1e-4
-        roi = [[.2,-.1],[-.3,.3],[0.,.1],[-.2,-0.]]
-        a.roi.from_squares(np.array(roi), .2, group_overlapping_roi=False)
+        roi_centers = [[.2,-.1],[-.3,.3],[0.,.1],[-.2,-0.]]
+        a.roi.from_squares(np.array(roi_centers), .2, group_overlapping_roi=False)
         #
         for i, r in a.roi.as_individual_roi(index=1, return_index=True):
             assert i == 1
@@ -454,8 +455,8 @@ class TestIndexer(Common):
         a=RWAnalyzer()
         a.spt_data.from_ascii_file(dynamicmesh)
         a.spt_data.localization_precision = 1e-4
-        roi = [[.2,-.1],[-.3,.3],[0.,.1],[-.2,-0.]]
-        a.roi.from_squares(np.array(roi), .2, group_overlapping_roi=True)
+        roi_centers = [[.2,-.1],[-.3,.3],[0.,.1],[-.2,-0.]]
+        a.roi.from_squares(np.array(roi_centers), .2, group_overlapping_roi=True)
         #
         j = 0
         for i,r in a.roi.as_individual_roi(return_index=True):
@@ -566,4 +567,21 @@ class TestAssignment(object):
                     pass
                 else:
                     assert attr is not attr # could set the attribute before initializing its parent
+
+
+class TestSideEffects(object):
+    def test_attribute_overwrite(self):
+        warnings.simplefilter('ignore', SideEffectWarning)
+        a = RWAnalyzer()
+        a.spt_data.from_dataframe(pandas.DataFrame([], columns=list('xyt')))
+        a.spt_data.localization_precision = .03
+        a.spt_data.frame_interval = .05
+        a.time.frame_interval = .04
+        old_spt_data = a.spt_data
+        a.spt_data = spt_data.from_dataframe(pandas.DataFrame([], columns=list('xyt')))
+        a.spt_data.localization_error = old_spt_data.localization_error
+        a.spt_data.dt = old_spt_data.dt
+        assert a.spt_data.localization_precision == .03
+        assert a.spt_data.dt == .04
+        warnings.simplefilter('error', SideEffectWarning)
 

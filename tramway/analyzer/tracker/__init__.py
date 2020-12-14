@@ -55,7 +55,7 @@ class BaseTracker(AnalyzerNode):
 
 class SingleParticleTracker(BaseTracker):
     __slots__ = ()
-    def track(self, locations, register=False):
+    def track(self, locations, register=False, source=None):
         if isinstance(locations, str):
             loc_file = locations
             locations = load_xyt(loc_file, columns=list('xyt'))
@@ -66,12 +66,18 @@ class SingleParticleTracker(BaseTracker):
         trajectories = trajectory_index.join(locations)
 
         if register:
-            self.spt_data.add_tracked_data(trajectories, loc_file)
+            self.spt_data.add_tracked_data(trajectories, loc_file if source is None else source)
 
         return trajectories
 
 Tracker.register(SingleParticleTracker)
 
+
+def _tolist(a):
+    a = a.tolist()
+    if not isinstance(a, list):
+        a = [ a ]
+    return a
 
 class NonTrackingTracker(BaseTracker):
     """ Non-tracking tracker.
@@ -101,7 +107,7 @@ class NonTrackingTracker(BaseTracker):
     def estimated_large_length(self, length):
         self._large_length = length
     ###
-    def track(self, locations, register=False):
+    def track(self, locations, register=False, source=None):
         import tramway.tracking.track_non_track.file_processing_loc as nt
         images = self._eldest_parent.images
         if isinstance(locations, str):
@@ -109,6 +115,7 @@ class NonTrackingTracker(BaseTracker):
             locations = load_xyt(loc_file, columns=list('xyt'))
         else:
             loc_file = None
+            locations = locations[list('xyt')]
 
         movie_per_frame, n_unique = nt.convert_to_list(locations.values)
         dt_theo = self.dt
@@ -135,8 +142,15 @@ class NonTrackingTracker(BaseTracker):
         for frame_index in range(n_unique-1):
 
             C = nt.get_cost_function(frame_index, movie_per_frame)
-            C_eff,_,_,_,row_eff,col_eff,M,N,n_row_eff,n_col_eff,anomaly = \
+
+            try:
+                C_eff,_,_,_,row_eff,col_eff,M,N,n_row_eff,n_col_eff,anomaly = \
                     nt.correct_cost_function(C, length_high)
+            except IndexError:
+                #print(C, length_high)
+                currently_assigned = set()
+                continue
+
             _, row, col = \
                     nt.get_assigment_matrix_from_reduced_cost(C_eff, row_eff, col_eff,
                         M, N, n_col_eff, n_row_eff, anomaly)
@@ -147,12 +161,12 @@ class NonTrackingTracker(BaseTracker):
                 continue
 
             if currently_assigned:
-                source = movie_per_frame[frame_index]
+                source_ = movie_per_frame[frame_index]
                 destination = movie_per_frame[frame_index+1]
-                row_to_col = np.full(len(source), -1, dtype=int)
+                row_to_col = np.full(len(source_), -1, dtype=int)
                 row_to_col[row] = col
                 if row.size == 1:
-                    row, col = [row.tolist()], [col.tolist()]
+                    row, col = _tolist(row), _tolist(col)
                 newly_assigned = set(row)
                 new_assignment = np.zeros(len(destination), dtype=np.uint32)
                 growing_trajectory = currently_assigned & newly_assigned
@@ -166,14 +180,14 @@ class NonTrackingTracker(BaseTracker):
                     traj_index = current_trajectory_index
                     current_trajectory_index += 1
                     j = row_to_col[i]
-                    trajectories[traj_index] = [ source[[i]], destination[[j]] ]
+                    trajectories[traj_index] = [ source_[[i]], destination[[j]] ]
                     new_assignment[j] = traj_index
                 current_assignment = new_assignment
 
             else:
                 if row.size == 1:
-                    row, col = [row.tolist()], [col.tolist()]
-                source = movie_per_frame[frame_index][row]
+                    row, col = _tolist(row), _tolist(col)
+                source_ = movie_per_frame[frame_index][row]
                 destination = movie_per_frame[frame_index+1][col]
                 n = current_trajectory_index
                 new_trajectory_indices = np.arange(n, n+len(col), dtype=np.uint32)
@@ -181,9 +195,12 @@ class NonTrackingTracker(BaseTracker):
                 current_assignment = np.zeros(len(movie_per_frame[frame_index+1]), dtype=np.uint32)
                 current_assignment[col] = new_trajectory_indices
                 for k in np.arange(len(col), dtype=np.uint32):
-                    trajectories[new_trajectory_indices[k]] = [ source[[k]], destination[[k]] ]
+                    trajectories[new_trajectory_indices[k]] = [ source_[[k]], destination[[k]] ]
 
-            currently_assigned = set(col)
+            try:
+                currently_assigned = set(col)
+            except TypeError:
+                print(col)
 
         trajectory_indices, trajectory_coordinates = [], []
         for n in range(1, current_trajectory_index):
@@ -196,7 +213,7 @@ class NonTrackingTracker(BaseTracker):
                 pd.DataFrame(trajectory_coordinates, columns=list('xyt')))
 
         if register:
-            self.spt_data.add_tracked_data(trajectories, filepath=loc_file)
+            self.spt_data.add_tracked_data(trajectories, filepath=loc_file if source is None else source)
 
         return trajectories
 

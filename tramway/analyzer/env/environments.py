@@ -1347,7 +1347,7 @@ notice: job failures are not reported before the stage is complete;
                     if _continue:
                         continue
                     if start is None:
-                        total = pending = None
+                        total, pending = None, 0
                     else:
                         total = stop
                         pending = stop - start

@@ -188,7 +188,7 @@ def correct_cost_function(C,length_high):
 		anomaly          = 1
 
 	elif (n_col_reduced==1):
-		print("here col")
+		#print("here col")
 
 		CC               = np.squeeze(C[row_reduced,:])
 		CC               = np.squeeze(CC[:,col_reduced])

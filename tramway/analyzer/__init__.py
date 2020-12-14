@@ -12,12 +12,12 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-from tramway.core.exceptions import MisplacedAttributeWarning
-from warnings import warn
+from tramway.core.exceptions import MisplacedAttributeWarning, SideEffectWarning
+import warnings
 import logging
 
 def report_misplaced_attribute(attr_name, proper_parent_name):
-    warn('`{}` is an attribute of the initialized `{}` attribute; this warning message can safely be silenced'.format(attr_name, proper_parent_name), MisplacedAttributeWarning)
+    warnings.warn('`{}` is an attribute of the initialized `{}` attribute; this warning message can safely be silenced'.format(attr_name, proper_parent_name), MisplacedAttributeWarning)
 def proper_parent_name(attr_name):
     parent_name = None
     get_conditions, set_conditions = {}, {}
@@ -28,6 +28,9 @@ def proper_parent_name(attr_name):
     elif attr_name in ('scaler', 'resolution'):
         parent_name = 'tesseller'
     return parent_name, get_conditions, set_conditions
+
+warnings.filterwarnings('error', category=SideEffectWarning)
+
 
 from .attribute import *
 from .artefact  import *
@@ -43,6 +46,15 @@ from .browser   import *
 from .images    import *
 from .localizer import *
 from .tracker   import *
+
+import tramway.analyzer.spt_data.allsymbols  as spt_data
+import tramway.analyzer.roi.allsymbols       as roi
+import tramway.analyzer.time.allsymbols      as time
+import tramway.analyzer.tesseller.allsymbols as tesseller
+import tramway.analyzer.sampler.allsymbols   as sampler
+import tramway.analyzer.mapper.allsymbols    as mapper
+import tramway.analyzer.images.allsymbols    as images
+import tramway.analyzer.tracker.allsymbols   as tracker
 
 
 class BasicLogger(object):
@@ -434,11 +446,22 @@ class RWAnalyzer(object):
                 attrname in ('script',):
             object.__setattr__(self, attrname, obj)
         elif callable(obj):
-            attr = getattr(self, attrname)
-            try:
-                attr.from_callable(obj)
-            except AttributeError:
-                raise AttributeError('attribute is read-only')
+            if attrname[0] != '_' and isinstance(obj, InitializerMethod):
+                attr = getattr(self, attrname)
+                if isinstance(attr, Initializer):
+                    obj.assign( self )
+                else:
+                    warnings.warn(
+                            "attribute '{}' is already initialized; side effects may occur".format(
+                                attrname),
+                            SideEffectWarning)
+                    obj.reassign( self )
+            else:
+                attr = getattr(self, attrname)
+                try:
+                    attr.from_callable(obj)
+                except AttributeError:
+                    raise AttributeError('attribute is read-only')
         else:
             parent_name, _, set_conditions = proper_parent_name(attrname)
             if parent_name is None:
@@ -461,8 +484,13 @@ class RWAnalyzer(object):
 
 
 __all__ = ['RWAnalyzer',
+        'spt_data', 'roi',
+        'time', 'tesseller', 'sampler',
+        'mapper',
+        'images', 'tracker',
         'tessellers', 'cell_mergers',
         'Analysis', 'commit_as_analysis',
         'environments',
-        'first', 'single']
+        'first', 'single',
+        'SideEffectWarning']
 

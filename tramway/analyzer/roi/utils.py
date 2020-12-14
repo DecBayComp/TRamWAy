@@ -1,10 +1,73 @@
 
 from .collections import Collections
+import scipy.sparse as sparse
 import numpy as np
 
 """
 This module exports functions for the identification of regions of interest.
 """
+
+
+def epanechnikov_density(xy, eval_at, target_pattern_size):
+    from sklearn.neighbors import KernelDensity
+
+    bandwidth = .5 * target_pattern_size # the bandwidth is similar to a radius (not a diameter)
+    estimator = KernelDensity(kernel='epanechnikov', bandwidth=bandwidth)
+
+    estimator.fit(xy)
+    log_density = estimator.score_samples(eval_at)
+
+    return log_density
+
+
+def density_based_roi(locations, min_kernel_density=.1,
+        target_pattern_size=.3, step_size_factor=.1, dr=4,
+        kernel_density=epanechnikov_density):
+    xy = locations[['x','y']].values
+    
+    extent = np.ravel(np.r_[xy.min(axis=0, keepdims=True), xy.max(axis=0, keepdims=True)])
+
+    step = step_size_factor * target_pattern_size
+
+    if extent is None:
+        xymin, xymax = xy.min(axis=0), xy.max(axis=0)
+    else:
+        xymin, xymax = [extent[0], extent[1]], [extent[2], extent[3]]
+
+    grid_x, grid_y = np.arange(xymin[0], xymax[0], step), np.arange(xymin[1], xymax[1], step)
+    _x, _y = np.meshgrid(grid_x, grid_y, indexing='ij')
+    grid = np.c_[_x.reshape((-1,1)),_y.reshape((-1,1))]
+
+    log_density = epanechnikov_density(xy, grid, target_pattern_size)
+    log_density = log_density.reshape(len(grid_x),len(grid_y))
+    
+     # find local maxima using logical convolution
+    sizx, sizy = log_density.shape[0]-2*dr, log_density.shape[1]-2*dr
+    _x = lambda x: (log_density.shape[0] if x==0 else x)
+    _y = lambda y: (log_density.shape[1] if y==0 else y)
+    mask = np.ones((sizx, sizy), dtype=bool)
+    for dx in range(-dr,dr):
+        for dy in range(-dr,dr):
+            if (not (dx==0 and dy==0)) and (dx+dy <= dr):
+                mask = mask & \
+                        (log_density[dr+dx:_x(dx-dr),dr+dy:_y(dy-dr)] < log_density[dr:-dr,dr:-dr])
+
+    local_max = sparse.coo_matrix(mask)
+    selected_nz = np.log(min_kernel_density) <= log_density[local_max.row,local_max.col]
+    if not np.any(selected_nz):
+        print('global max density is below the threshold: {} < {}'.format(
+            np.exp(log_density[local_max.row,local_max.col].max()), min_kernel_density))
+    selected_i, selected_j = local_max.row[selected_nz], local_max.col[selected_nz]
+
+    # define the roi as center points
+    roi_centers = [ np.r_[grid_x[dr+i],grid_y[dr+j]] for i,j in zip(selected_i, selected_j) ]
+    if roi_centers:
+        if len(roi_centers)<10:
+            print('few roi found: {}'.format(len(roi_centers)))
+    else:
+        raise RuntimeError('no roi found')
+        
+    return roi_centers
 
 
 def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_points,
@@ -154,5 +217,5 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
     else:
         return regions
 
-__all__ = [ 'set_contiguous_time_support_by_count' ]
+__all__ = [ 'set_contiguous_time_support_by_count', 'epanechnikov_density', 'density_based_roi' ]
 
