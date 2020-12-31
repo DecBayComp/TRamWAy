@@ -766,7 +766,7 @@ class Slurm(Env):
                 error='%J.err',
                 )
         self._job_id = None
-        self.refresh_interval = 10
+        self.refresh_interval = 20
     @property
     def sbatch_options(self):
         return self._sbatch_options

@@ -28,6 +28,12 @@ class BaseSampler(AnalyzerNode):
         self._min_location_count = 0
     @property
     def min_location_count(self):
+        """
+        *int*: Minimum number of assigned (trans-)locations, as given
+            by the default Voronoi sampling;
+            any microdomain with too few assigned (trans-)locations
+            are marked as disabled and are excluded from further analyses
+        """
         return self._min_location_count
     @min_location_count.setter
     def min_location_count(self, n):
@@ -101,12 +107,13 @@ class SamplerInitializer(Initializer):
     def from_spheres(self, radius):
         """ nearest neighbor assignment by distance.
 
-        The Voronoi assignment is applied first.
+        Voronoi assignment is applied first and then, for each microdomain,
+        the maximum distance of the assigned points to the center of the cell is considered.
         The `radius` argument defines a lower and/or upper bound(s) on the distance
         from the cell center.
-        If the minimum and/or maximum distance of the assigned points is out of the
-        specified bounds for a cell/microdomain, more or less nearest neighbors are
-        selected for this cell/microdomain.
+        If the most distant assigned point is out of the specified bounds,
+        additional points are selected (or assigned points are discarded)
+        in order of distance from the corresponding cell center.
         
         See also :class:`SphericalSampler`."""
         self.specialize( SphericalSampler, radius )
@@ -115,9 +122,9 @@ class SamplerInitializer(Initializer):
 
         The Voronoi assignment is applied first.
         The `knn` argument defines a lower and/or upper bound(s) on the number of neighbors.
-        If the number that results from the Voronoi assignment is out of the specified
-        bounds for a cell/microdomain, more or less nearest neighbors are selected for
-        this cell/microdomain.
+        For each microdomain, if the number that results from Voronoi assignment is
+        out of the specified bounds, additional points are selected (or assigned points are
+        discarded) in order of distance from the corresponding cell center.
         
         See also :class:`Knn`."""
         self.specialize( Knn, knn )
@@ -145,9 +152,11 @@ class SphericalSampler(BaseSampler):
     @property
     def radius(self):
         """
-        *float* or *(float, float)*:
-            Upper bound or (lower bound, upper bound) pair on the distance
-            from a cell/microdomain center
+        *float* or *(float, float)* or *callable*:
+            Lower bound or (lower bound, upper bound) pair on the distance
+            from a cell/microdomain center;
+            alternatively, a function can define these bounds for each
+            microdomain (takes the microdomain index as input argument)
         """
         return self._radius
     @radius.setter
@@ -166,9 +175,16 @@ class Knn(BaseSampler):
     @property
     def knn(self):
         """ 
-        *int* or *(int, int)*: 
-            Upper bound or (lower bound, upper bound) pair on
-            the number of data points away from the cell/microdomain center
+        *int* or *(int, int)* or *callable*:
+            Lower bound or (lower bound, upper bound) pair on the number of data points
+            which, if Voronoi assignment yields a number out of these bounds,
+            triggers a procedure that picks extra points (or discards assigned points)
+            wrt distance from the Voronoi cell center.
+            This applies independently for each microdomain with insufficient or too
+            many points.
+            Alternatively, bounds can be defined on a per-microdomain basis
+            with a function that takes the microdomain index as an `int` and
+            returns either an `int` or a pair of `int` or :const:`None`
         """
         return self._knn
     @knn.setter
@@ -187,9 +203,17 @@ class TimeKnn(BaseSampler):
     @property
     def knn(self):
         """
-        *int* or *(int, int)*:
-            Upper bound or (lower bound, upper bound) pair on the number of data points
-            as pooled shrinking/widening the time window
+        *int* or *(int, int)* or *callable*:
+            Lower bound or (lower bound, upper bound) pair on the number of data points
+            which, if Voronoi assignment yields a number out of these bounds,
+            triggers the shrinking or widening of the time window,
+            centered on the original middle point of the time segment.
+            This applies independently for each microdomain with insufficient or too
+            many points.
+            microdomain with insufficient or too many points.
+            Alternatively, bounds can be defined on a per-microdomain basis
+            with a function that takes the microdomain index as an `int` and
+            returns either an `int` or a pair of `int` or :const:`None`
         """
         return self._knn
     @knn.setter

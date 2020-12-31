@@ -150,7 +150,7 @@ class TestXyt(object):
 """), delim_whitespace=True)
         df = reindex_trajectories(df)
         assert numpy.all(df['n'].values == numpy.r_[1,1,2,3,3,3,4,5,6,7])
-        reindex_trajectories(pd.DataFrame([], columns=list('nxyt')))
+        reindex_trajectories(pandas.DataFrame([], columns=list('nxyt')))
 
 
 from tramway.core.analyses import *

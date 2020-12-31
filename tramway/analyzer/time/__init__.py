@@ -292,6 +292,8 @@ class SlidingWindow(AnalyzerNode, DT):
             sampling = sampling.data
         it = sampling.tessellation.split_segments(sampling, return_times=return_times)
         if maps is not None:
+            if isinstance(maps, Analysis):
+                maps = maps.data
             try:
                 maps = maps.maps
             except AttributeError:
@@ -319,7 +321,10 @@ class SlidingWindow(AnalyzerNode, DT):
             segment_index = times
             times = sampling.tessellation.time_lattice[segment_index]
         format_time = lambda t: '{:.3f}'.format(t).rstrip('0').rstrip('.')
-        return '{} -- t={}-{}s'.format(map_label, *[ format_time(t) for t in times ])
+        if map_label:
+            return '{} -- t={}-{}s'.format(map_label, *[ format_time(t) for t in times ])
+        else:
+            return 't={}-{}s'.format(*[ format_time(t) for t in times ])
     def combine_segments(self, combined_output_label, combined_sampling, commit=True, permissive=False):
         analyses = combined_sampling.subtree
         sampling = combined_sampling.data

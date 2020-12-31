@@ -26,7 +26,7 @@ class MapperInitializer(Initializer):
     def from_plugin(self, plugin):
         self.specialize( MapperPlugin, plugin )
     def from_callable(self, cls):
-        self.specialize( StdMapper, cls )
+        self.from_plugin(cls)
 
     @property
     def _mpl_impl(self):

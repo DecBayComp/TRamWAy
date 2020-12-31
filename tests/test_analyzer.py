@@ -2,7 +2,9 @@
 import os
 from math import *
 import numpy
+import numpy as np
 import pandas
+import pandas as pd
 import random
 import subprocess
 import pytest
@@ -146,6 +148,9 @@ class Common(object):
             tree_a = tree_a.statefree()
         except AttributeError:
             pass
+        if isinstance(tree_a.data, pandas.DataFrame):
+            tree_a.data.localization_error = None
+            tree_a.data.frame_interval = None
         assert type(tree_a) is type(tree_b)
         if label is None:
             label = self.label
@@ -423,22 +428,22 @@ class TestIndexer(Common):
         for i, r in a.roi.as_individual_roi(index=1, return_index=True):
             assert i == 1
             lb,ub = r.bounding_box
-            assert np.all( lb == np.array(roi[1])-.1 )
-            assert np.all( ub == np.array(roi[1])+.1 )
+            assert np.all( lb == np.array(roi_centers[1])-.1 )
+            assert np.all( ub == np.array(roi_centers[1])+.1 )
         #
         j = 3
         for i, r in a.roi.as_individual_roi(index=[3,2,1,0], return_index=True):
             assert i == j
             j -= 1
             lb,ub = r.bounding_box
-            assert np.all( lb == np.array(roi[i])-.1 )
-            assert np.all( ub == np.array(roi[i])+.1 )
+            assert np.all( lb == np.array(roi_centers[i])-.1 )
+            assert np.all( ub == np.array(roi_centers[i])+.1 )
         #
         j = 0
         for r in a.roi.as_individual_roi(index=set((0,3))):
             lb,ub = r.bounding_box
-            assert np.all( lb == np.array(roi[j])-.1 )
-            assert np.all( ub == np.array(roi[j])+.1 )
+            assert np.all( lb == np.array(roi_centers[j])-.1 )
+            assert np.all( ub == np.array(roi_centers[j])+.1 )
             j += 3
         #
         for r0, r1 in zip(
@@ -462,8 +467,8 @@ class TestIndexer(Common):
         for i,r in a.roi.as_individual_roi(return_index=True):
             assert i == j
             lb,ub = r.bounding_box
-            assert np.all( lb == np.array(roi[j])-.1 )
-            assert np.all( ub == np.array(roi[j])+.1 )
+            assert np.all( lb == np.array(roi_centers[j])-.1 )
+            assert np.all( ub == np.array(roi_centers[j])+.1 )
             j += 1
         #
         for i,r in a.roi.as_support_regions(return_index=True):
@@ -475,10 +480,10 @@ class TestIndexer(Common):
                 assert np.isclose(ub[1], .2)
             elif i==1:
                 lb,ub = r.bounding_box
-                assert lb[0] == roi[1][0]-.1
-                assert lb[1] == roi[1][1]-.1
-                assert ub[0] == roi[1][0]+.1
-                assert ub[1] == roi[1][1]+.1
+                assert lb[0] == roi_centers[1][0]-.1
+                assert lb[1] == roi_centers[1][1]-.1
+                assert ub[0] == roi_centers[1][0]+.1
+                assert ub[1] == roi_centers[1][1]+.1
             else:
                 assert i<2 # False
 

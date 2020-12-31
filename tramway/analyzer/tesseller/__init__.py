@@ -54,7 +54,7 @@ class TessellerInitializer(Initializer):
                 that returns a :class:`Tesseller` object.
 
         """
-        if issubclass(cls, TessellerProxy):
+        if isinstance(cls, type) and issubclass(cls, TessellerProxy):
             self.specialize( cls )
         else:
             self.specialize( TessellerProxy, cls )

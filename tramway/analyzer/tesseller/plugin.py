@@ -31,9 +31,13 @@ class TessellerPlugin(TessellerProxy):
         if isinstance(cls, str):
             cls = getattr(module, cls)
         TessellerProxy.__init__(self, cls, **kwargs)
+        self._reset_kwargs()
         self._module, self._setup = module, setup
+    def _reset_kwargs(self):
+        TessellerProxy._reset_kwargs(self)
         self._init_kwargs = { attr: None for attr in \
-                ('min_distance','avg_distance','max_distance',
+                ('ref_distance',
+                 'min_distance','avg_distance','max_distance',
                  'min_probability','avg_probability','max_probability',
                 ) }
 
@@ -44,7 +48,7 @@ def tesseller_plugin(name):
     defined in the *tessellers* module, if available,
     else returns a generic `TessellerPlugin` initializer.
     """
-    import proxied
+    from . import proxied
     if name == 'grid':
         return proxied.Squares
     elif name == 'hexagon':
@@ -54,9 +58,11 @@ def tesseller_plugin(name):
     elif name in ('gwr', 'gas'):
         return proxied.GWR
     else:
-        def init(**kwargs):
-            return TessellerPlugin(name, **kwargs)
-        return init
+        class Cls(TessellerPlugin):
+            __slots__ = () # important for __setattr__ to work properly!
+            def __init__(self, **kwargs):
+                TessellerPlugin.__init__(self, name, **kwargs)
+        return Cls
 
 __all__ = ['TessellerPlugin', 'tesseller_plugin']
 

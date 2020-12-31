@@ -240,7 +240,11 @@ class TessellerProxy(AnalyzerNode):
             val = getattr(self.tesseller, attrname)
         return val
     def __setattr__(self, attrname, val):
-        """ Beware that it ignores :attr:`_init_kwargs` symbols """
+        """ Beware that it ignores :attr:`_init_kwargs` symbols.
+
+        Important note: __slots__ must be defined instead of __dict__
+            so that object.__setattr__ fails with AttributeError.
+        """
         # special setters for self-initializing properties
         if attrname == 'post_processing' and isinstance(self.post_processing, Initializer):
             self.post_processing.from_callable(val)

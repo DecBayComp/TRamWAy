@@ -136,7 +136,7 @@ class TestPipeline(object):
 a.env = environments.GPULab
 a.env.username = '{username}'
 a.env.ssh._password = '{password}'
-a.env.container = 'tramway-hpc-201207.sif'
+a.env.container = 'tramway-hpc-201230.sif'
 #a.env.debug = True
 a.env.sbatch_options.update(dict(p='dbc'))\
 """.format(username=username, password=password)

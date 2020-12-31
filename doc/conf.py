@@ -83,7 +83,7 @@ author = u'François Laurent'
 # built documents.
 #
 # The short X.Y version.
-version = u'0.5-beta6'
+version = u'0.5-beta7'
 # The full version, including alpha/beta/rc tags.
 release = u'0.5'
 

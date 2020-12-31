@@ -106,7 +106,7 @@ class TestTessellation(object):
         input_file = self.xytfile()
         random.seed(seed)
         numpy.random.seed(seed)
-        status = execute('{} -m tramway tessellate {} -i {} --seed {}', sys.executable, cmd, input_file, seed)
+        status = execute('{} -m tramway tessellate {} -i {} --seed {} --disable-metadata', sys.executable, cmd, input_file, seed)
         assert status == 0
         output_file = '{}.rwa'.format(os.path.splitext(input_file)[0])
         assert os.path.isfile(output_file)
@@ -154,10 +154,10 @@ class TestTessellation(object):
         random.seed(seed)
         numpy.random.seed(seed)
         cmd = 'window --duration 50 --shift 50'
-        status = execute('{} -m tramway tessellate {} -i {} -o {} -l {} --seed {}', sys.executable, cmd, input_file, output_file, label, seed)
+        status = execute('{} -m tramway tessellate {} -i {} -o {} -l {} --seed {} --disable-metadata', sys.executable, cmd, input_file, output_file, label, seed)
         assert status == 0
         cmd = 'random -c 100'
-        status = execute('{} -m tramway tessellate {} -i {} -L {} --inplace --seed {}', sys.executable, cmd, output_file, label, seed)
+        status = execute('{} -m tramway tessellate {} -i {} -L {} --inplace --seed {} --disable-metadata', sys.executable, cmd, output_file, label, seed)
         assert status == 0
         if reference:
             reference = self.rwafile(reference)
@@ -194,7 +194,7 @@ class TestInference(object):
         i, o = open(initial_file, 'rb'), open(input_file, 'wb')
         o.write(i.read())
         o.close(), i.close()
-        status = execute('{} -m tramway infer {} -i {} --seed {}', sys.executable, cmd, input_file, seed)
+        status = execute('{} -m tramway infer {} -i {} --seed {} --disable-metadata', sys.executable, cmd, input_file, seed)
         assert status == 0
         ref_file = prepare_file(ref_file, datadir, tmpdir)
         generated, expected = input_file, ref_file

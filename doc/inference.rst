@@ -3,8 +3,8 @@
 Inference
 =========
 
-This step consists of inferring the values of parameters of the local dynamics in each cell.
-These parameters are diffusivity, force, diffusive drift and potential energy.
+This step consists of inferring the values of parameters of the local dynamics in each microdomain or cell.
+These parameters can be diffusivities, forces, drifts and potential energies.
 
 The inference usually consists of minimizing a cost function.
 It can be perfomed in each cell independently (e.g. :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>` in their *degraded* variants) or jointly in all or some cells (e.g. :ref:`DV <inference_dv>`).
@@ -27,7 +27,7 @@ and can be applied with the :func:`~tramway.helper.inference.infer` helper funct
 	maps = infer(cells, 'DV')
 
 
-However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed diffusivities are low and the experimental localisation error is also low.
+However such a straightforward call to :func:`~tramway.helper.inference.infer` may occasionally fail in situations where the observed molecules exhibit little movement, that cannot even account for the experimental localisation precision.
 
 An argument that should be first considered in an attempt to deal with runtime errors is `min_diffusivity`.
 

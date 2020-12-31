@@ -276,7 +276,7 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
     """ autosaving analyses. 
     
     Argument and attribute `rwa_file` designate the output file."""
-    __slots__ = __autosavecapable_slots__ + ('rwa_file','save_options')
+    __slots__ = __autosavecapable_slots__ + ('rwa_file','save_options','hooks')
     def __init__(self, data=None, metadata=None, rwa_file=None, autosave=False):
         if isinstance(data, AutosaveCapable):
             raise TypeError('nested autosave-capable objects')
@@ -284,6 +284,7 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
         AutosaveCapable.__init__(self, autosave)
         self.rwa_file = rwa_file
         self.save_options = dict(force=True, compress=False)
+        self.hooks = []
     @property
     def analyses(self):
         return self._analyses
@@ -307,6 +308,8 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
     def save(self, out_of_context=False):
         if not (out_of_context or self.active):
             raise RuntimeError("method 'save' called from outside the context")
+        for hook in self.hooks:
+            hook(self.analyses)
         if self.rwa_file:
             from tramway.core.hdf5.store import save_rwa
             save_rwa(os.path.expanduser(self.rwa_file), self.analyses.statefree(), **self.save_options)
