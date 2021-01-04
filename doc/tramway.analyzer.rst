@@ -85,6 +85,14 @@ tramway.analyzer.roi package
     :member-order: bysource
 
 
+tramway.analyzer.roi.utils module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.analyzer.roi.utils
+    :members:
+    :show-inheritance:
+
+
 tramway.analyzer.tesseller package
 ----------------------------------
 
@@ -173,6 +181,14 @@ tramway.analyzer.mapper package
     :members:
     :show-inheritance:
     :member-order: bysource
+
+
+tramway.analyzer.mapper.utils module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: tramway.analyzer.mapper.utils
+    :members:
+    :show-inheritance:
 
 
 tramway.analyzer.mapper.mpl module

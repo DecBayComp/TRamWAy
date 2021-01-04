@@ -94,7 +94,7 @@ class MapperPlugin(AnalyzerNode):
         for k in self._kwargs:
             if k in ('new_cell','new_group','include_empty_cells','grad','rgrad','cell_sampling'):
                 distr_kwargs[k] = self._kwargs[k]
-            if k not in ('new_cell','new_group','include_empty_cells','grad'):
+            if k not in ('new_cell','new_group','include_empty_cells','grad','cell_sampling'):
                 infer_kwargs[k] = self._kwargs[k]
         infer_kwargs['sigma'] = self._parent.spt_data.localization_precision
         if 'cell_sampling' not in distr_kwargs and \
