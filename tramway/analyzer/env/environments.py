@@ -1432,7 +1432,7 @@ class Tars(SlurmOverSSH):
     Designed for server *tars.pasteur.fr*.
 
     By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
-    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/slurmoverssh/containers/available_images.rst>`_.
+    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
@@ -1469,7 +1469,7 @@ class GPULab(SlurmOverSSH):
     Designed for server *adm.inception.hubbioit.pasteur.fr*.
 
     By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
-    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/slurmoverssh/containers/available_images.rst>`_.
+    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
@@ -1500,5 +1500,42 @@ class GPULab(SlurmOverSSH):
             self.ssh.download_if_missing(self.container, self.container_url, self.logger)
 
 
-__all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab']
+class Maestro(SlurmOverSSH):
+    """
+    Designed for server *maestro.pasteur.fr*.
+
+    By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
+    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
+    """
+    def __init__(self, **kwargs):
+        SlurmOverSSH.__init__(self, **kwargs)
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-200928.sif python3.6 -s'
+        self.remote_dependencies = 'module load singularity'
+    @property
+    def username(self):
+        return None if self.ssh.host is None else self.ssh.host.split('@')[0]
+    @username.setter
+    def username(self, name):
+        self.ssh.host = None if name is None else name+'@maestro.pasteur.fr'
+        if self.wd is None:
+            self.wd = '/pasteur/sonic/scratch/users/'+name
+    @property
+    def container(self):
+        parts = self.interpreter.split()
+        return parts[parts.index('python3.6')-1]
+    @container.setter
+    def container(self, path):
+        parts = self.interpreter.split()
+        p = parts.index('python3.6')
+        self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
+    @property
+    def container_url(self):
+        return 'http://dl.pasteur.fr/fop/VsJYgkxP/tramway-hpc-200928.sif'
+    def setup(self, *argv):
+        SlurmOverSSH.setup(self, *argv)
+        if self.submit_side:
+            self.ssh.download_if_missing(self.container, self.container_url, self.logger)
+
+
+__all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab', 'Maestro']
 

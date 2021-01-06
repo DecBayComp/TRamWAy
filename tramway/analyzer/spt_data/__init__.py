@@ -315,6 +315,9 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
         The rwa file that corresponds to an SPT file should be available at the
         same path with the *.rwa* extension instead of the SPT file's extension.
 
+        This method is known to fail with a :class:`TypeError` exception in cases
+        where not any matching *.rwa* file can be found.
+
         .. note::
 
             As this operation modifies the SPT data `source` and `filepath` attributes,
@@ -476,7 +479,7 @@ class HasAnalysisTree(HasROI):
         self._frame_interval_cache = self._localization_error_cache = None
         HasROI.__init__(self, **kwargs)
         self.analyses = Analyses(df, standard_metadata(), autosave=True)
-        self.analyses.hooks.append(lambda _: self.commit_cache(autoload=True))
+        self._analyses.hooks.append(lambda _: self.commit_cache(autoload=True))
     @property
     def _frame_interval(self):
         return self._frame_interval_cache

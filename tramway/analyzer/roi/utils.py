@@ -119,6 +119,8 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
         units = roi.regions.region_to_units(r)
 
         region_weight = sum([ len(u) for u in units.values() ]) # TODO: relative surface area instead
+        if not group_overlapping_roi:
+            assert region_weight == 1
         threshold = start_stop_min_points * region_weight
 
         times = roi.regions.crop(r, points)['t'].values
@@ -170,33 +172,22 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
         start_times, end_times = [], []
         for first_t, last_t in zip(first_ts, last_ts):
 
-            start_time = times[first_t]-duration
-            if start_time<times[0]:
-                start_time = None
+            min_start_time = times[first_t] - duration
+            max_start_time = max(times[0], min_start_time)
 
-            if last_t+1==times.size:
-                end_time = None
+            min_end_time = times[last_t]
+            if last_t+1 == times.size:
+                max_end_time = times[-max(1, threshold)] + duration
             else:
-                end_time = times[last_t]
+                max_end_time = min_end_time
 
-            nsegments = None
-            if start_time is None:
-                if end_time is None:
-                    start_time = times[0]
-                    end_time = times[-1]
-                else:
-                    nsegments = np.floor((end_time - times[first_t]) / shift) + 1
-                    start_time = end_time - duration - (nsegments - 1) * shift
-            elif end_time is None:
-                end_time = times[-1]
-            else:
-                nsegments = np.floor((end_time - start_time - duration) / shift) + 1
-                total_duration = duration + (nsegments - 1) * shift
-                time_margin = .5 * (end_time - start_time - total_duration)
-                start_time += time_margin
-                end_time -= time_margin
-            if nsegments is None:
-                nsegments = np.floor((end_time - start_time - duration) / shift) + 1
+            max_total_duration = max_end_time - min_start_time
+            nsegments = np.floor((max_total_duration - duration) / shift) + 1
+            total_duration = duration + (nsegments - 1) * shift
+            time_margin = .5 * (max_total_duration - total_duration)
+            start_time = min(min_start_time + time_margin, max_start_time)
+            end_time = max_end_time# - time_margin # no need to discard the trailing data
+
             if nsegments<min_segments:
                 continue
 
