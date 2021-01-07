@@ -671,15 +671,16 @@ class Distributed(Local):
 
     def run(self, function, *args, **kwargs):
         """
-        Apply a function to the groups (:class:`FiniteElements`) of terminal cells.
+        Apply a function that takes a group (:class:`FiniteElements`) of terminal cells
+        as input argument, plus args and kwargs, and must return a `pandas.DataFrame` array
+        with the indices referring to cells.
 
-        The results are merged into a single :class:`~pandas.DataFrame` array,
-        handling adjacency margins if any.
+        `function` is called for each group of terminal cells, adjacency margins
+        are removed if any, and the resulting `DataFrame` are merged into a single
+        `DataFrame`.
 
-        Although this method was designed for `FiniteElements` of `FiniteElements`, its usage is
-        advised to call any function that returns a DataFrame with cell indices as indices.
-
-        Multiples processes may be spawned.
+        `function` may instead be applied to `self` in the case `self.cells` has been
+        overloaded to exhibit the output features as attributes.
 
         Arguments:
 
@@ -693,14 +694,16 @@ class Distributed(Local):
                 positional arguments for `function` after the first one.
 
             kwargs (dict):
-                keyword arguments for `function` from which are removed the ones below.
+                keyword arguments for `function`;
+                the following arguments are popped out of `kwargs`:
 
             returns (list):
                 attributes to be collected from all the individual cells as return values;
                 if defined, the values returned by `function` are ignored.
 
             worker_count (int):
-                number of simultaneously working processing units.
+                number of simultaneously working processing units,
+                if the `self.cells` .
 
             profile (bool or str or tuple):
                 profile each child job if any;
@@ -708,12 +711,18 @@ class Distributed(Local):
                 if `tuple`, print a report with :func:`~pstats.Stats.print_stats` and
                 tuple elements as input arguments.
 
+            function_worker_count (int):
+                if `worker_count` is a reserved keyword argument for `function`,
+                `function_worker_count` can be specified and is passed to `function`
+                with name/keyword `worker_count`;
+                in this case, `worker_count` must be a multiple of `function_worker_count`.
+
         Returns:
 
             pandas.DataFrame:
                 single merged array of maps.
                 If `function` returns two output arguments, :meth:`run` also
-                returns a second merged array of posteriors.
+                returns a second merged array of posterior probabilities(?).
 
         """
         # clear the caches
@@ -721,11 +730,26 @@ class Distributed(Local):
 
         returns = kwargs.pop('returns', None)
 
-        if all(isinstance(cell, FiniteElements) for cell in self.cells.values()):
-            # parallel for-loop over the subsets of cells
-            # if `worker_count` is `None`, `Pool` will use `multiprocessing.cpu_count()`
+        parallel = all(isinstance(cell, FiniteElements) for cell in self.cells.values())
+        if parallel:
             worker_count = kwargs.pop('worker_count', None)
             profile = kwargs.pop('profile', False)
+
+        for arg in ('returns', 'worker_count', 'profile'):
+            try:
+                val = kwargs.pop('function_'+arg)
+            except KeyError:
+                pass
+            else:
+                kwargs[arg] = val
+                if arg == 'worker_count' and \
+                        isinstance(worker_count, int) and \
+                        isinstance(val, int) and 0<val:
+                    worker_count /= val
+
+        if parallel:
+            # parallel for-loop over the subsets of cells
+            # if `worker_count` is `None`, `Pool` will use `multiprocessing.cpu_count()`
             pool = Pool(worker_count)
             fargs = (function, args, kwargs)
             if profile:

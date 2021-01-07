@@ -120,69 +120,112 @@ def null_index(i):
 
 
 __all__.append('indexer')
-def indexer(i, it, return_index=False):
+def indexer(i, it, return_index=False, has_keys=False):
     if i is None:
         if return_index:
-            yield from enumerate(it)
+            if has_keys:
+                for k in it:
+                    yield k, it[k]
+            else:
+                yield from enumerate(it)
         else:
-            yield from it
+            if has_keys:
+                for k in it:
+                    yield it[k]
+            else:
+                yield from it
     elif callable(i):
-        for j, item in enumerate(it):
-            if i(j):
+        if has_keys:
+            if return_index:
+                for j in it:
+                    if i(j):
+                        yield j, item
+            else:
+                for j in it:
+                    if i(j):
+                        yield item
+        else:
+            if return_index:
+                for j, item in enumerate(it):
+                    if i(j):
+                        yield j, item
+            else:
+                for j, item in enumerate(it):
+                    if i(j):
+                        yield item
+    elif isinstance(i, (Sequence, np.ndarray)):
+        if has_keys:
+            if return_index:
+                for k in i:
+                    yield k, it[k]
+            else:
+                for k in i:
+                    yield it[k]
+        else:
+            # no need for `__getitem__`, but iteration follows the ordering in `i`
+            postponed = dict()
+            j, it = -1, iter(it)
+            for k in i:
+                try:
+                    while j<k:
+                        if j in i:
+                            postponed[j] = item
+                        j, item = j+1, next(it)
+                except StopIteration:
+                    raise IndexError('index is out of bounds: {}'.format(k))
+                if j != k:
+                    try:
+                        item = postponed.pop(k)
+                    except KeyError:
+                        if k < 0:
+                            raise IndexError('negative values are not supported in a sequence of indices')
+                        else:
+                            raise IndexError('duplicate index: {}'.format(k))
                 if return_index:
-                    yield j, item
+                    yield k, item
                 else:
                     yield item
-    elif isinstance(i, (Sequence, np.ndarray)):
-        # no need for `__getitem__`, but iteration follows the ordering in `i`
-        postponed = dict()
-        j, it = -1, iter(it)
-        for k in i:
-            try:
-                while j<k:
-                    if j in i:
-                        postponed[j] = item
-                    j, item = j+1, next(it)
-            except StopIteration:
-                raise IndexError('index is out of bounds: {}'.format(k))
-            if j != k:
-                try:
-                    item = postponed.pop(k)
-                except KeyError:
-                    if k < 0:
-                        raise IndexError('negative values are not supported in a sequence of indices')
-                    else:
-                        raise IndexError('duplicate index: {}'.format(k))
-            if return_index:
-                yield k, item
-            else:
-                yield item
     elif isinstance(i, Set):
         i = set(i) # copy and make mutable
-        for j, item in enumerate(it):
-            if j in i:
-                if return_index:
-                    yield j, item
-                else:
-                    yield item
-                i.remove(j)
+        if has_keys:
+            for j in it:
+                if j in i:
+                    if return_index:
+                        yield j, it[j]
+                    else:
+                        yield it[j]
+                    i.remove(j)
+        else:
+            for j, item in enumerate(it):
+                if j in i:
+                    if return_index:
+                        yield j, item
+                    else:
+                        yield item
+                    i.remove(j)
         if i:
             raise IndexError(('some indices are out of bounds: '+', '.join(['{}'])).format(*tuple(i)))
     elif np.isscalar(i):
-        it = iter(it)
-        if i == -1:
+        if has_keys:
             try:
-                while True:
-                    item = next(it)
-            except StopIteration:
-                pass
+                item = it[i]
+            except KeyError:
+                raise IndexError('index is out of bounds: {}'.format(i)) from None
         else:
-            j = -1
-            try:
-                while j<i:
-                    j, item = j+1, next(it)
-            except StopIteration:
-                raise IndexError('index is out of bounds: {}'.format(i))
+            it = iter(it)
+            if i == -1:
+                try:
+                    while True:
+                        item = next(it)
+                except StopIteration:
+                    pass
+            else:
+                j = -1
+                try:
+                    while j<i:
+                        j, item = j+1, next(it)
+                except StopIteration:
+                    raise IndexError('index is out of bounds: {}'.format(i))
         if return_index:
             yield i, item
         else:

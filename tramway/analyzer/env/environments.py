@@ -551,6 +551,8 @@ class Env(AnalyzerNode):
         end_result_files = []
         for source in analyses:
             logger.info('for source file: {}...'.format(source))
+            # TODO: if isinstance(spt_data, (StandaloneRWAFile, RWAFiles))
+            #       pass the input rwa file paths to _combine_analyses
             rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
             #logger.info((rwa_file, os.path.isabs(rwa_file), directory_mapping))
             if os.path.isabs(rwa_file):
@@ -1017,6 +1019,9 @@ class RemoteHost(object):
     def remote_dependencies(self, deps):
         self._remote_dependencies = deps
     @property
+    def collection_interpreter(self):
+        return self.interpreter
+    @property
     def wd_is_available(self):
         return self.worker_side
     def make_working_directory(self):
@@ -1133,7 +1138,7 @@ print('{}'+';'.join(files))\
         self.logger.debug(attrs)
         cmd = '{}{} {}; rm {}'.format(
                 '' if self.remote_dependencies is None else self.remote_dependencies+'; ',
-                self.interpreter, remote_script, remote_script)
+                self.collection_interpreter, remote_script, remote_script)
         out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
         if err:
             self.logger.error(err.rstrip())
@@ -1377,6 +1382,25 @@ notice: job failures are not reported before the stage is complete;
             self.logger.info('killing jobs with: scancel '+self.job_id)
             self.ssh.exec('scancel '+self.job_id, shell=True)
             raise
+    @property
+    def srun_options(self):
+        return ('p', 'partition', 'q', 'qos')
+    @property
+    def collection_interpreter(self):
+        cmd = ['srun']
+        for option in self.sbatch_options:
+            if option not in self.srun_options:
+                continue
+            value = self.sbatch_options[option]
+            if option[1:]:
+                fmt = '--{}={}'
+            else:
+                fmt = '-{} {}'
+            if isinstance(value, str) and ' ' in value:
+                value = '"{}"'.format(value)
+            cmd.append(fmt.format(option, value))
+        cmd.append(self.interpreter)
+        return ' '.join(cmd)
     def collect_results(self, stage_index=None):
         RemoteHost.collect_results(self, '*.out', stage_index)
     collect_results.__doc__ = RemoteHost.collect_results.__doc__

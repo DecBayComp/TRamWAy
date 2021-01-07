@@ -247,7 +247,7 @@ class Gas(Graph):
                 dist_min = sqrt(dist2_min)
             except ValueError:
                 precision = int(np.dtype(dist2_min.dtype).str[-1])
-                if (precision==8 and -1e-12 < dist2_min) or (precision==4 and -1e-3 < dist_min):
+                if (precision==8 and -1e-10 < dist2_min) or (precision==4 and -1e-3 < dist_min):
                     dist_min = 0
                     import warnings
                     warnings.warn('Rounding error: negative distance', RuntimeWarning)

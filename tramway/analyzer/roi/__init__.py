@@ -96,6 +96,11 @@ class BoundingBox(IndividualROI):
         _min,_max = self._bounding_box
         if df is None:
             df = self._spt_data.dataframe
+        n_space_cols = len([ col for col in 'xyz' if col in df.columns ])
+        if n_space_cols < _min.size:
+            assert _min.size == n_space_cols + 1
+            df = df[(_min[-1] <= df['t']) & (df['t'] <= _max[-1])]
+            _min, _max = _min[:-1], _max[:-1]
         df = crop(df, np.r_[_min, _max-_min])
         return df
     @property
@@ -487,12 +492,9 @@ class SpecializedROI(AnalyzerNode):
     def as_support_regions(self, index=None, source=None, return_index=False):
         if return_index:
             def bear_child(cls, r, *args):
-                i, r = r
-                return i, self._bear_child(cls, r, *args)
-            kwargs = dict(return_index=return_index)
+                return r, self._bear_child(cls, r, *args)
         else:
             bear_child = self._bear_child
-            kwargs = {}
         try:
             spt_data = self._parent.spt_data
         except AttributeError:
@@ -500,7 +502,7 @@ class SpecializedROI(AnalyzerNode):
             if source is not None:
                 warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             spt_data = self._parent
-            for r in indexer(index, self._collections.regions, **kwargs):
+            for r, _ in indexer(index, self._collections.regions, has_keys=True, return_index=True):
                 yield bear_child( SupportRegion, r, self._collections.regions, spt_data )
         else:
             # roi manager (one set of regions, multiple sources)
@@ -508,7 +510,7 @@ class SpecializedROI(AnalyzerNode):
                 raise RuntimeError('cannot iterate not-initialized SPT data')
             if source is None:
                 for d in spt_data:
-                    for r in indexer(index, self._collections.regions, **kwargs):
+                    for r, _ in indexer(index, self._collections.regions, has_keys=True, return_index=True):
                         yield bear_child( SupportRegion, r, self._collections.regions, d )
             else:
                 if callable(source):
@@ -517,7 +519,7 @@ class SpecializedROI(AnalyzerNode):
                     sfilter = lambda s: s==source
                 for d in spt_data:
                     if sfilter(d.source):
-                        for r in indexer(index, self._collections.regions, **kwargs):
+                        for r, _ in indexer(index, self._collections.regions, has_keys=True, return_index=True):
                             yield bear_child( SupportRegion, r, self._collections.regions, d )
     as_support_regions.__doc__ = ROI.as_support_regions.__doc__
     def __iter__(self):
@@ -538,7 +540,10 @@ class SpecializedROI(AnalyzerNode):
             exception.
 
         """
-        return single(self.as_support_regions(index=self._collections.regions.unit_to_region(index, collection)))
+        sr_index = self._collections.regions.unit_to_region(index, collection)
+        sr = single(self.as_support_regions(index=sr_index))
+        assert sr._sr_index == sr_index
+        return sr
 
 
 class BoundingBoxes(SpecializedROI):
