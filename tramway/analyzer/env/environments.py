@@ -672,7 +672,7 @@ class Env(AnalyzerNode):
         """
         cmd = 'jupyter nbconvert --to python "{}" --stdout'.format(notebook)
         self.logger.info('running: '+cmd)
-        p = subprocess.Popen(cmd, shell=True, capture_output=True,
+        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 encoding='utf-8')
         out, err = p.communicate()
         if out:
@@ -718,7 +718,7 @@ class LocalHost(Env):
                 self.wait_for_job_completion(1)
             self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
-                    capture_output=True, encoding='utf-8')
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
             self.running_jobs.append((j,p))
         self.pending_jobs = []
     def wait_for_job_completion(self, count=None):
@@ -988,7 +988,7 @@ class Slurm(Env):
             while True:
                 time.sleep(self.refresh_interval)
                 p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.18i %.2t %.10M %R"'),
-                        capture_output=True, encoding='utf-8')
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
                 out, err = p.communicate()
                 if err:
                     self.logger.error(err)
