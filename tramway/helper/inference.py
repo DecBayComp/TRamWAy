@@ -924,10 +924,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
     unit = kwargs.pop('unit', None)
     if unit == 'std':
-        unit = {'diffusivity': '$\mu\\rm{m}^2\\rm{s}^{-1}$',
-                'potential': '$k_{\\rm{B}}T$',
-                #'force': '$k_{\\rm{B}}T$', # depends on the model
-                'drift': '$\mu\\rm{m}\\rm{s}^{-1}$',
+        unit = {'diffusivity': r'$\mu\rm{m}^2\rm{s}^{-1}$',
+                'potential': r'$k_{\rm{B}}T$',
+                #'force': r'$k_{\rm{B}}T$', # depends on the model
+                'drift': r'$\mu\rm{m}\rm{s}^{-1}$',
                }
 
     # identify time segments, if any

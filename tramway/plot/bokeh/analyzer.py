@@ -313,10 +313,10 @@ class Controller(object):
         if kwargs.get('unit', None) == 'std':
             kwargs = dict(kwargs)
             unit = dict(
-                    diffusivity='$\mu\\rm{m}^2\\rm{s}^{-1}$',
-                    potential='$k_{\\rm{B}}T$',
+                    diffusivity=r'$\mu\rm{m}^2\rm{s}^{-1}$',
+                    potential=r'$k_{\rm{B}}T$',
                     force='Log. amplitude',
-                    drift='$\mu\\rm{m}\\rm{s}^{-1}$',
+                    drift=r'$\mu\rm{m}\rm{s}^{-1}$',
                     ) # LaTeX not supported yet
             unit = dict(
                     diffusivity='µm²/s',

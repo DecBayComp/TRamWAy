@@ -22,7 +22,7 @@ from warnings import warn
 
 
 class KohonenMesh(Voronoi):
-    """Kohonen fitting for arbitrary initial mesh.
+    r"""Kohonen fitting for arbitrary initial mesh.
 
     Attributes:
         step_size (tuple of float):

@@ -332,6 +332,7 @@ class Env(AnalyzerNode):
                                 #logger.debug('source {} selected'.format(f.source))
                                 yield f
             else:
+                sources = set([ _normalize(_s) for _s in sources ])
                 class selector_cls(Proxy):
                     __slots__ = ()
                     def __iter__(self):
@@ -671,7 +672,7 @@ class Env(AnalyzerNode):
         """
         cmd = 'jupyter nbconvert --to python "{}" --stdout'.format(notebook)
         self.logger.info('running: '+cmd)
-        p = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE,
+        p = subprocess.Popen(cmd, shell=True, capture_output=True,
                 encoding='utf-8')
         out, err = p.communicate()
         if out:
@@ -696,6 +697,7 @@ class LocalHost(Env):
     __slots__ = ('running_jobs',)
     def __init__(self, **kwargs):
         Env.__init__(self, **kwargs)
+        self.interpreter = sys.executable
         self.running_jobs = []
         self.wc = None
     @property
@@ -716,7 +718,7 @@ class LocalHost(Env):
                 self.wait_for_job_completion(1)
             self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
-                    stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+                    capture_output=True, encoding='utf-8')
             self.running_jobs.append((j,p))
         self.pending_jobs = []
     def wait_for_job_completion(self, count=None):
@@ -754,24 +756,123 @@ class LocalHost(Env):
 Environment.register(LocalHost)
 
 
+class UpdatedDict(dict):
+    __slots__ = ('_proper', '_inherited')
+    def __init__(self, proper, shared, shared_keys=None):
+        self._proper = proper
+        if shared_keys:
+            self._inherited = { k: shared[k] for k in shared if k in shared_keys }
+        else:
+            self._inherited = dict(shared)
+        self._inherited.update(self._proper)
+    def __repr__(self):
+        return repr(self._inherited)
+    def __str__(self):
+        return str(self._inherited)
+    def __contains__(self, key):
+        return key in self._inherited
+    def __iter__(self):
+        return iter(self._inherited)
+    def __len__(self):
+        return len(self._inherited)
+    def __getitem__(self, key):
+        return self._inherited[key]
+    def __setitem__(self, key, value):
+        self._proper[key] = value
+        self._inherited[key] = value
+    def __delitem__(self, key):
+        del self._inherited[key]
+        try:
+            del self._proper[key]
+        except KeyError:
+            pass
+    def clear(self):
+        self._proper.clear()
+        self._inherited = {}
+    def copy(self):
+        return self._inherited.copy()
+    def get(self, *args):
+        return self._inherited.get(*args)
+    def items(self):
+        return self._inherited.items()
+    def keys(self):
+        return self._inherited.keys()
+    def pop(self, key, *args):
+        try:
+            value = self._inherited.pop(key)
+        except KeyError:
+            if args:
+                value = args[0]
+            else:
+                raise
+        else:
+            try:
+                del self._proper[key]
+            except KeyError:
+                pass
+        return value
+    def popitem(self):
+        key, value = self._inherited.popitem()
+        try:
+            del self._proper[key]
+        except KeyError:
+            pass
+        return key, value
+    def setdefault(self, key, default=None):
+        try:
+            value = self._inherited[key]
+        except KeyError:
+            value = self._proper[key] = self._inherited[key] = default
+        return value
+    def update(self, other):
+        self._proper.update(other)
+        self._inherited.update(other)
+    def values(self):
+        return self._inherited.values()
+
+
 class Slurm(Env):
     """
     Not supposed to properly run, as TRamWAy is expected to be called
     inside a container;
     see :class:`SlurmOverSSH` instead.
     """
-    __slots__ = ('_sbatch_options','_job_id','refresh_interval')
+    __slots__ = ('_sbatch_options','_job_id','refresh_interval','_srun_options')
     def __init__(self, **kwargs):
         Env.__init__(self, **kwargs)
         self._sbatch_options = dict(
                 output='%J.out',
                 error='%J.err',
                 )
+        self._srun_options = {}
         self._job_id = None
         self.refresh_interval = 20
     @property
     def sbatch_options(self):
         return self._sbatch_options
+    @property
+    def srun_options(self):
+        return UpdatedDict(self._srun_options, self.sbatch_options, self.slurm_common_options)
+    @srun_options.setter
+    def srun_options(self, options):
+        if options is None:
+            self._srun_options = {}
+        elif isinstance(options, SlurmOptions):
+            self._srun_options = options._proper
+        elif isinstance(options, dict):
+            self._srun_options = options
+        else:
+            raise TypeError("wrong type for srun_options: '{}'".format(type(options).__name__))
+    @property
+    def slurm_common_options(self):
+        """
+        tuple:
+            set of options that are common to sbatch and srun;
+            if a "common" option found in :attr:`sbatch_options`
+            and not in :attr:`srun_options`, :attr:`srun_options`
+            is updated with this option
+        """
+        return ('p', 'partition', 'q', 'qos')
     @property
     def job_name(self):
         try:
@@ -887,7 +988,7 @@ class Slurm(Env):
             while True:
                 time.sleep(self.refresh_interval)
                 p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.18i %.2t %.10M %R"'),
-                        stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+                        capture_output=True, encoding='utf-8')
                 out, err = p.communicate()
                 if err:
                     self.logger.error(err)
@@ -1112,6 +1213,9 @@ class RemoteHost(object):
         """
         _prefix = self.collectible_prefix(stage_index)
         data_loc = self.remote_data_location if self.remote_data_location else ''
+        home = os.path.expanduser('~')
+        if home not in self.directory_mapping:
+            self.directory_mapping[home] = '~'
         code = """\
 from tramway.analyzer import environments, BasicLogger
 
@@ -1383,24 +1487,21 @@ notice: job failures are not reported before the stage is complete;
             self.ssh.exec('scancel '+self.job_id, shell=True)
             raise
     @property
-    def srun_options(self):
-        return ('p', 'partition', 'q', 'qos')
-    @property
     def collection_interpreter(self):
-        cmd = ['srun']
-        for option in self.sbatch_options:
-            if option not in self.srun_options:
-                continue
-            value = self.sbatch_options[option]
-            if option[1:]:
-                fmt = '--{}={}'
-            else:
-                fmt = '-{} {}'
-            if isinstance(value, str) and ' ' in value:
-                value = '"{}"'.format(value)
-            cmd.append(fmt.format(option, value))
-        cmd.append(self.interpreter)
-        return ' '.join(cmd)
+        if self._srun_options:
+            cmd = ['srun']
+            for option, value in self.srun_options.items():
+                if option[1:]:
+                    fmt = '--{}={}'
+                else:
+                    fmt = '-{} {}'
+                if isinstance(value, str) and ' ' in value:
+                    value = '"{}"'.format(value)
+                cmd.append(fmt.format(option, value))
+            cmd.append(self.interpreter)
+            return ' '.join(cmd)
+        else:
+            return self.interpreter
     def collect_results(self, stage_index=None):
         RemoteHost.collect_results(self, '*.out', stage_index)
     collect_results.__doc__ = RemoteHost.collect_results.__doc__
@@ -1455,12 +1556,12 @@ class Tars(SlurmOverSSH):
     """
     Designed for server *tars.pasteur.fr*.
 
-    By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
+    By default, makes singularity container *tramway-hpc-210111.sif* run on the remote host.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-200928.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210111.sif python3.6 -s'
         self.remote_dependencies = 'module load singularity'
     @property
     def username(self):
@@ -1481,7 +1582,7 @@ class Tars(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'http://dl.pasteur.fr/fop/VsJYgkxP/tramway-hpc-200928.sif'
+        return 'http://dl.pasteur.fr/fop/aPR4RiC8/tramway-hpc-210111.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:
@@ -1492,12 +1593,12 @@ class GPULab(SlurmOverSSH):
     """
     Designed for server *adm.inception.hubbioit.pasteur.fr*.
 
-    By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
+    By default, makes singularity container *tramway-hpc-210111.sif* run on the remote host.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME tramway-hpc-200928.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME tramway-hpc-210111.sif python3.6 -s'
     @property
     def username(self):
         return None if self.ssh.host is None else self.ssh.host.split('@')[0]
@@ -1517,7 +1618,7 @@ class GPULab(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'http://dl.pasteur.fr/fop/VsJYgkxP/tramway-hpc-200928.sif'
+        return 'http://dl.pasteur.fr/fop/aPR4RiC8/tramway-hpc-210111.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:
@@ -1528,12 +1629,12 @@ class Maestro(SlurmOverSSH):
     """
     Designed for server *maestro.pasteur.fr*.
 
-    By default, makes singularity container *tramway-hpc-200928.sif* run on the remote host.
+    By default, makes singularity container *tramway-hpc-210111.sif* run on the remote host.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-200928.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210111.sif python3.6 -s'
         self.remote_dependencies = 'module load singularity'
     @property
     def username(self):
@@ -1554,7 +1655,7 @@ class Maestro(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'http://dl.pasteur.fr/fop/VsJYgkxP/tramway-hpc-200928.sif'
+        return 'http://dl.pasteur.fr/fop/aPR4RiC8/tramway-hpc-210111.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:

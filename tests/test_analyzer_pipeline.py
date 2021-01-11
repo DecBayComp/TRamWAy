@@ -83,7 +83,7 @@ a.pipeline.append_stage(fresh_start)
 a.pipeline.append_stage(tessellate, granularity='roi')
 a.pipeline.append_stage(reload, requires_mutability=True)
 a.pipeline.append_stage(map, granularity='time segment'{options})
-""".format(input=dynamicmesh, env=env, options=options)
+""".format(input=dynamicmesh.replace('\\','/'), env=env, options=options)
 
     test = """
 a.spt_data.reload_from_rwa_files()
@@ -100,12 +100,12 @@ a.env.script = __file__
     with open(script_name, 'w') as f:
         f.write(script(env))
         f.write('a.run()\n')
-    out = subprocess.check_output([sys.executable, script_name], encoding='utf8')
+    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=60)
     logger.info(out)
     with open(script_name, 'w') as f:
         f.write(script())
         f.write(test)
-    out = subprocess.check_output([sys.executable, script_name], encoding='utf8')
+    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=30)
     logger.info(out)
     assert out.endswith("""\
 <class 'pandas.core.frame.DataFrame'>
@@ -136,7 +136,7 @@ class TestPipeline(object):
 a.env = environments.GPULab
 a.env.username = '{username}'
 a.env.ssh._password = '{password}'
-a.env.container = 'tramway-hpc-201230.sif'
+a.env.container = 'tramway-hpc-210111.sif'
 #a.env.debug = True
 a.env.sbatch_options.update(dict(p='dbc'))\
 """.format(username=username, password=password)

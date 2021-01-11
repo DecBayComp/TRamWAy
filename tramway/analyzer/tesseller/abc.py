@@ -27,7 +27,7 @@ class Tesseller(Attribute):
     @property
     @abstractmethod
     def resolution(self):
-        """
+        r"""
         *float*: Desired spatial resolution in :math:`\mu m`
         """
         pass
