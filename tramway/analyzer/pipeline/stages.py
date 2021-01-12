@@ -109,7 +109,7 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
 
         dry_run = True
 
-        for r in f.roi.as_support_regions(**asr_filters):
+        for r in self.roi.as_support_regions(**asr_filters):
 
             # get the input data
             sampling = r.get_sampling(sampling_label)
@@ -122,13 +122,12 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
             if isinstance(r, FullRegion):
                 if roi_expected:
                     continue
-                any_full_region = True
                 msg = f"inferring on source: '{source_name}'..."
             else:
                 roi_label = r.label
                 msg = f"inferring on roi: '{roi_label}' (in source '{source_name}')..."
 
-            with f.autosaving():
+            with r.autosaving():
 
                 self.logger.info(msg)
                 maps = self.mapper.infer(sampling)

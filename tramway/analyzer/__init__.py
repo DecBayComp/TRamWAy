@@ -465,7 +465,7 @@ class RWAnalyzer(object):
             try:
                 for f in self.spt_data:
                     try:
-                        f.analyses.terminate()
+                        f._analyses.terminate()
                     except AttributeError:
                         pass
             except ValueError:
