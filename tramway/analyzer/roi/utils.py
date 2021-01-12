@@ -208,5 +208,65 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
     else:
         return regions
 
-__all__ = [ 'set_contiguous_time_support_by_count', 'epanechnikov_density', 'density_based_roi' ]
+
+def _enumerate(it):
+    for ix, elem in enumerate(it):
+        yield (ix,)+tuple(elem)
+
+def group_roi(a, *args, overlap=.75, return_matches_only=False):
+    """ Returns the smallest rectangles that contain the ROI grouped depending on whether
+    they overlap or not.
+
+    A ROI should be a pair (tuple) of `numpy.ndarray` for (lower-,upper-) bounds.
+    
+    Time is handled just like any space coordinate.
+    As a consequence, if time bounds are also specified, the corresponding values
+    should be scaled so that time can be artificially related to space in the volume
+    calculation carried out in the estimatation of the amount of overlap.
+    """
+    if args:
+        b = args[0]
+        if args[1:]:
+            raise ValueError('arguments `overlap` and `return_matches_only` should be keyworded')
+    else:
+        b = a
+    intra_grouping = a is b
+    if intra_grouping:
+        already_grouped = set()
+    grouped_roi = []
+    for _a, _a_lb, _a_ub in _enumerate(a):
+        if intra_grouping and _a in already_grouped:
+            continue
+        #
+        _a_area = np.prod(_a_ub - _a_lb)
+        #
+        _matches = []
+        for _b, _b_lb, _b_ub in _enumerate(b):
+            if intra_grouping and _b == _a:
+                continue
+            #
+            _lb, _ub = np.maximum(_a_lb, _b_lb), np.minimum(_a_ub, _b_ub)
+            if np.all(_lb < _ub):
+                _b_area = np.prod(_b_ub - _b_lb)
+                _max_area = min(_a_area, _b_area)
+                _intersect_area = np.prod(_ub - _lb)
+                _overlap = _intersect_area / _max_area
+                if overlap <= _overlap:
+                    _matches.append((_b_lb, _b_ub))
+                    if intra_grouping:
+                        already_grouped.add(_b)
+        _lb, _ub = _a_lb, _a_ub
+        if _matches:
+            # compute the minimum rectangle that contains the union
+            while _matches:
+                _other_lb, _other_ub = _matches.pop()
+                _lb, _ub = np.minimum(_lb, _other_lb), np.maximum(_ub, _other_ub)
+        elif return_matches_only:
+            continue
+        grouped_roi.append((_lb, _ub))
+    return grouped_roi
+
+
+__all__ = [ 'set_contiguous_time_support_by_count', 'epanechnikov_density', 'density_based_roi',
+        'group_roi' ]
 

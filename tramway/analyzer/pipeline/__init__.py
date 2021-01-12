@@ -21,13 +21,22 @@ import traceback
 class PipelineStage(object):
     """
     Wrapper for callables to be run on calling :meth:`Pipeline.run`.
+
+    `requires_mutability` defaults to :const:`False`.
     """
     __slots__ = ('_run','_granularity','_mutability','options')
-    def __init__(self, run, granularity=None, requires_mutability=False, **options):
-        self._run = run
-        self._granularity = granularity
-        self._mutability = requires_mutability
-        self.options = options
+    def __init__(self, run, granularity=None, requires_mutability=None, **options):
+        if isinstance(run, PipelineStage):
+            self._run = run._run
+            self._granularity = run._granularity if granularity is None else granularity
+            self._mutability = run._mutability if requires_mutability is None else requires_mutability
+            self.options = dict(run.options)
+            self.options.update(options)
+        else:
+            self._run = run
+            self._granularity = granularity
+            self._mutability = False if requires_mutability is None else requires_mutability
+            self.options = options
     @property
     def granularity(self):
         """
@@ -93,7 +102,7 @@ class Pipeline(AnalyzerNode):
         Empties the pipeline processing chain.
         """
         self._stage = []
-    def append_stage(self, stage, granularity=None, requires_mutability=False, **options):
+    def append_stage(self, stage, granularity=None, requires_mutability=None, **options):
         """
         Appends a pipeline stage to the processing chain.
 
@@ -112,6 +121,7 @@ class Pipeline(AnalyzerNode):
 
             requires_mutability (bool): callable object `stage` alters input argument `self`.
                 Stages with this argument set to :const:`True` are always run as dependencies.
+                Default is :const:`False`.
 
         """
         self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
@@ -279,5 +289,7 @@ class Pipeline(AnalyzerNode):
 Attribute.register(Pipeline)
 
 
-__all__ = ['Pipeline']
+from . import stages
+
+__all__ = ['Pipeline', 'stages']
 

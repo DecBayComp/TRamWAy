@@ -28,6 +28,7 @@ from math import sqrt
 import numpy as np
 import pandas as pd
 import copy
+import glob as _glob
 
 
 def compute_dtypes(df, precision):
@@ -52,6 +53,24 @@ def compute_dtypes(df, precision):
             if dtype[0] == '<' and dtype[1] in 'uif' and dtype[2] != nbytes:
                 dtypes[col] = np.dtype(dtype[:2]+nbytes)
     return dtypes
+
+
+def glob(pattern):
+    """ Same as :func:`glob.glob`, with support for tilde.
+
+    :func:`os.path.expanduser` is applied to `pattern`,
+    and then the expanded part is replaced back with
+    tilde in the resulting paths."""
+    if pattern.startswith('~'):
+        home = os.path.expanduser('~')
+        files = []
+        for f in _glob.glob(os.path.expanduser(pattern)):
+            if f.startswith(home):
+                f = '~' + f[len(home):]
+            files.append(f)
+    else:
+        files = _glob.glob(pattern)
+    return files
 
 
 class SPTParameters(object):
@@ -969,6 +988,7 @@ class SPTFiles(SPTDataFrames):
     def __init__(self, filepattern, **kwargs):
         SPTDataIterator.__init__(self, **kwargs)
         self._files = []
+        #self._filepattern = filepattern # should work in most cases
         if isinstance(filepattern, str):
             self._filepattern = os.path.expanduser(filepattern)
         else:
@@ -1026,7 +1046,6 @@ class SPTFiles(SPTDataFrames):
         """
         Interprets the filepath glob pattern and lists the matching files.
         """
-        from glob import glob
         if isinstance(self.filepattern, str):
             self._files = glob(self.filepattern)
         else:
@@ -1496,5 +1515,5 @@ __all__ = [ 'SPTData', 'SPTDataItem', 'SPTParameters', 'StandaloneDataItem', 'SP
         '_RWAFile', 'RWAFile', 'StandaloneRWAFile', 'RWAFiles',
         '_SPTMatFile', 'SPTMatFile', 'StandaloneSPTMatFile', 'SPTMatFiles',
         'RWAnalyses', 'MultipleRWAnalyses', 'RWGenerator', 'LocalizationFile', 'TrackerOutput',
-        'compute_dtypes']
+        'compute_dtypes', 'glob' ]
 

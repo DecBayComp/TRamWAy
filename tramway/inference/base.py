@@ -24,6 +24,7 @@ import scipy.spatial.qhull
 from copy import copy
 from collections import OrderedDict
 from multiprocessing import Pool, Lock
+import os # for os.name
 import six
 from functools import partial
 from warnings import warn
@@ -749,20 +750,33 @@ class Distributed(Local):
 
         if parallel:
             # parallel for-loop over the subsets of cells
+            # if Windows, make the computation sequential
+            if os.name == 'nt':
+                if worker_count is None:
+                    worker_count = 0
+                else:
+                    warn('multiprocessing may break on Windows', RuntimeWarning)
             # if `worker_count` is `None`, `Pool` will use `multiprocessing.cpu_count()`
-            pool = Pool(worker_count)
+            # if `worker_count == 0`, make it single-processing
+            if worker_count == 0:
+                pool = None
+            else:
+                pool = Pool(worker_count)
             fargs = (function, args, kwargs)
             if profile:
                 fargs = (profile, fargs)
                 cells = [ (i, self.cells[i]) for i in self.cells ]#if bool(self.cells[i]) ]
             else:
                 cells = [ self.cells[i] for i in self.cells ]#if bool(self.cells[i]) ]
-            if six.PY3:
+            if six.PY3 or pool is None:
                 if profile:
                     _run = __profile_run__
                 else:
                     _run = __run__
-                ys = pool.map(partial(_run, fargs), cells)
+                if pool is None:
+                    ys = [ _run(fargs, c) for c in cells ]
+                else:
+                    ys = pool.map(partial(_run, fargs), cells)
             elif six.PY2:
                 import itertools
                 if profile:

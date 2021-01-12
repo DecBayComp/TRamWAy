@@ -1556,12 +1556,12 @@ class Tars(SlurmOverSSH):
     """
     Designed for server *tars.pasteur.fr*.
 
-    By default, makes singularity container *tramway-hpc-210111.sif* run on the remote host.
+    By default, makes singularity container *tramway-hpc-210112.sif* run on the remote host.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210111.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210112.sif python3.6 -s'
         self.remote_dependencies = 'module load singularity'
     @property
     def username(self):
@@ -1582,7 +1582,7 @@ class Tars(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'http://dl.pasteur.fr/fop/aPR4RiC8/tramway-hpc-210111.sif'
+        return 'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:
@@ -1593,12 +1593,12 @@ class GPULab(SlurmOverSSH):
     """
     Designed for server *adm.inception.hubbioit.pasteur.fr*.
 
-    By default, makes singularity container *tramway-hpc-210111.sif* run on the remote host.
+    By default, makes singularity container *tramway-hpc-210112.sif* run on the remote host.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME tramway-hpc-210111.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME tramway-hpc-210112.sif python3.6 -s'
     @property
     def username(self):
         return None if self.ssh.host is None else self.ssh.host.split('@')[0]
@@ -1618,7 +1618,7 @@ class GPULab(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'http://dl.pasteur.fr/fop/aPR4RiC8/tramway-hpc-210111.sif'
+        return 'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:
@@ -1629,12 +1629,12 @@ class Maestro(SlurmOverSSH):
     """
     Designed for server *maestro.pasteur.fr*.
 
-    By default, makes singularity container *tramway-hpc-210111.sif* run on the remote host.
+    By default, makes singularity container *tramway-hpc-210112.sif* run on the remote host.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210111.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210112.sif python3.6 -s'
         self.remote_dependencies = 'module load singularity'
     @property
     def username(self):
@@ -1655,7 +1655,7 @@ class Maestro(SlurmOverSSH):
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     @property
     def container_url(self):
-        return 'http://dl.pasteur.fr/fop/aPR4RiC8/tramway-hpc-210111.sif'
+        return 'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif'
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
         if self.submit_side:

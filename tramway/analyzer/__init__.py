@@ -522,5 +522,7 @@ __all__ = ['RWAnalyzer',
         'Analysis', 'commit_as_analysis',
         'environments',
         'first', 'single',
-        'SideEffectWarning']
+        'SideEffectWarning',
+        'stages',
+        ]
 
