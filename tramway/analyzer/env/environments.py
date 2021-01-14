@@ -1571,7 +1571,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-210112.sif*.
+    The current default Singularity container is *tramway-hpc-210114.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -1585,7 +1585,7 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210112.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210114.sif python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
@@ -1619,6 +1619,7 @@ class SingularitySlurm(SlurmOverSSH):
         return {
                 'tramway-hpc-200928.sif':   'http://dl.pasteur.fr/fop/VsJygkxP/tramway-hpc-200928.sif',
                 'tramway-hpc-210112.sif':   'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif',
+                'tramway-hpc-210114.sif':   'http://dl.pasteur.fr/fop/cZWZqsDW/tramway-hpc-210114.sif',
                 }.get(container, None)
     def setup(self, *argv):
         SlurmOverSSH.setup(self, *argv)
