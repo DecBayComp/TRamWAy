@@ -79,7 +79,10 @@ class Client(object):
             import paramiko
         except ImportError:
             raise ImportError('package paramiko is required')
-        user, host = self.host.split('@')
+        try:
+            user, host = self.host.split('@')
+        except ValueError:
+            user, host = None, self.host
         self._conn = paramiko.SSHClient()
         self._conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self._conn.load_system_host_keys()
@@ -102,7 +105,7 @@ class Client(object):
         if shell:
             cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
         if logger is not None:
-            logger.info('running command: '+cmd)
+            logger.debug('running command: '+cmd)
         _in, _out, _err = self.connection.exec_command(cmd)
         out = _out.read()
         if out and not isinstance(out, str):

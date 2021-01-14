@@ -129,6 +129,8 @@ class Env(AnalyzerNode):
     def script(self, file):
         if file is None:
             self._script = None
+        elif file.startswith('/'):
+            self._script = file
         else:
             self._script = os.path.abspath(os.path.expanduser(file))
     @property
@@ -465,13 +467,17 @@ class Env(AnalyzerNode):
             if os.path.isdir(file):
                 try:
                     shutil.rmtree(file)
-                except:
-                    self.logger.debug('temporary files removal failed with the following error:\n'+traceback.format_exc())
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except Exception as e:
+                    self.logger.warning('temporary files removal failed with the following error:\n{}'.format(e))
             elif os.path.isfile(file):
                 try:
                     os.unlink(file)
-                except:
-                    self.logger.debug('temporary file removal failed with the following error:\n'+traceback.format_exc())
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except Exception as e:
+                    self.logger.debug('temporary file removal failed with the following error:\n{}'.format(e))
         self._temporary_files = []
     def make_job(self, stage_index=None, source=None, region_index=None, segment_index=None):
         """
@@ -563,7 +569,7 @@ class Env(AnalyzerNode):
                             rwa_file = rwa_file[len(to_be_replaced):]
                             replacement = directory_mapping[to_be_replaced]
                             if replacement:
-                                rwa_file = os.path.join(replacement, rwa_file)
+                                rwa_file = replacement+rwa_file # and NOT os.path.join, since rwa_file may start with '/'
             elif not os.path.isabs(os.path.expanduser(rwa_file)) and data_location:
                 rwa_file = os.path.join(data_location, rwa_file)
             logger.info('writing file: {}'.format(rwa_file))
@@ -597,7 +603,13 @@ class Env(AnalyzerNode):
         to_keep = [ f[0] if isinstance(f,tuple) else f for f in end_result_files ]
         for output_file in loaded_files:
             if output_file not in to_keep:
-                os.unlink(output_file)
+                try:
+                    os.unlink(output_file)
+                except PermissionError as e:
+                    if os.name == 'nt':
+                        logger.debug(str(e))
+                    else:
+                        raise
         #
         return end_result_files
     def collect_results(self, stage_index=None):
@@ -672,14 +684,17 @@ class Env(AnalyzerNode):
         """
         cmd = 'jupyter nbconvert --to python "{}" --stdout'.format(notebook)
         self.logger.info('running: '+cmd)
-        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                encoding='utf-8')
+        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if out:
+            if not isinstance(out, str):
+                out = out.decode('utf-8')
             content = out.splitlines(True)
         else:
             content = None
         if err:
+            if not isinstance(err, str):
+                err = err.decode('utf-8')
             if err != '[NbConvertApp] Converting notebook {} to python\n'.format(notebook):
                 self.logger.error(err)
         return content
@@ -718,7 +733,7 @@ class LocalHost(Env):
                 self.wait_for_job_completion(1)
             self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.running_jobs.append((j,p))
         self.pending_jobs = []
     def wait_for_job_completion(self, count=None):
@@ -726,6 +741,7 @@ class LocalHost(Env):
         n = 0
         for j,p in self.running_jobs:
             out, err = p.communicate()
+            out, err = out.rstrip(), err.rstrip()
             if out:
                 if not isinstance(out, str):
                     out = out.decode('utf-8')
@@ -734,7 +750,7 @@ class LocalHost(Env):
                 if not isinstance(err, str):
                     err = err.decode('utf-8')
                 self.logger.error(err)
-            self.logger.debug('job {:d} done'.format(j))
+            self.logger.debug('job {:d} done\n'.format(j))
             n += 1
             if n==count:
                 self.running_jobs = self.running_jobs[n:]
@@ -906,11 +922,11 @@ class Slurm(Env):
             self.job_name # sets job-name sbatch option
             output_log = self.sbatch_options['output']
             if not os.path.isabs(os.path.expanduser(output_log)):
-                output_log = os.path.join(self.wd, output_log)
+                output_log = '/'.join((self.wd, output_log)) # NOT os.path.join
                 self.sbatch_options['output'] = output_log
             error_log = self.sbatch_options['error']
             if not os.path.isabs(os.path.expanduser(error_log)):
-                error_log = os.path.join(self.wd, error_log)
+                error_log = '/'.join((self.wd, error_log))
                 self.sbatch_options['error'] = error_log
     def make_sbatch_script(self, stage=None, path=None):
         assert self.submit_side
@@ -919,7 +935,7 @@ class Slurm(Env):
         else:
             sbatch_script = path
         self.job_name # set default job name if not defined yet
-        with open(sbatch_script, 'w') as f:
+        with open(sbatch_script, 'w', encoding='utf-8', newline='\n') as f:
             f.write('#!/bin/bash\n')
             for option, value in self.sbatch_options.items():
                 if option[1:]:
@@ -1104,10 +1120,7 @@ class RemoteHost(object):
         Directory mapping with local paths as keys
         and the corresponding remote paths as values.
 
-        .. warning::
-
-            never tested!
-
+        Paths should not have slashes at the end.
         """
         return self._directory_mapping
     @property
@@ -1171,6 +1184,7 @@ class RemoteHost(object):
                 if source.startswith(_dir):
                     source = self.directory_mapping[_dir]+source[len(_dir):]
                     break
+            source = source.replace(os.sep, '/')
         return source
     def dispatch(self, **kwargs):
         if not kwargs:
@@ -1244,8 +1258,9 @@ print('{}'+';'.join(files))\
                 '' if self.remote_dependencies is None else self.remote_dependencies+'; ',
                 self.collection_interpreter, remote_script, remote_script)
         out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
+        out, err = out.rstrip(), err.rstrip()
         if err:
-            self.logger.error(err.rstrip())
+            self.logger.error(err)
         if not out:
             return False
         self.logger.debug(out)
@@ -1338,7 +1353,7 @@ if {1}.env.directory_mapping is None:
     {1}.env.directory_mapping = {{}}
 if '{0}' not in {1}.env.directory_mapping:
     {1}.env.directory_mapping['{0}'] = '~'
-""".format(os.path.expanduser('~'), analyzer_var))
+""".format(os.path.expanduser('~').replace('\\',r'\\'), analyzer_var))
             filtered_content.append(line)
             # append output listing
             filtered_content.append(\
@@ -1395,7 +1410,7 @@ class SlurmOverSSH(Slurm, RemoteHost):
         sbatch_script = self.make_sbatch_script()
         dest = '/'.join((self.wd, os.path.basename(sbatch_script)))
         attrs = self.ssh.put(sbatch_script, dest)
-        self.logger.info(attrs)
+        self.logger.debug(attrs)
         self.logger.info('sbatch script transferred to: '+dest)
         #self.logger.info('running: module load singularity')
         #out, err = self.ssh.exec('module load singularity')
@@ -1552,114 +1567,116 @@ notice: job failures are not reported before the stage is complete;
 Environment.register(SlurmOverSSH)
 
 
-class Tars(SlurmOverSSH):
+class SingularitySlurm(SlurmOverSSH):
+    """
+    Runs TRamWAy jobs as Slurm jobs in a Singularity container.
+
+    The current default Singularity container is *tramway-hpc-210112.sif*.
+    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
+
+    Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
+    They can be defined as standard methods or class methods.
+    """
+    @classmethod
+    def hostname(cls):
+        raise NotImplementedError
+    @classmethod
+    def scratch(cls, username):
+        raise NotImplementedError
+    def __init__(self, **kwargs):
+        SlurmOverSSH.__init__(self, **kwargs)
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210112.sif python3.6 -s'
+        self.ssh.host = self.hostname()
+    @property
+    def username(self):
+        try:
+            username, _ = self.ssh.host.split('@')
+        except (AttributeError, ValueError):
+            import getpass
+            username = getpass.getuser()
+        return username
+    @username.setter
+    def username(self, name):
+        if name is None:
+            self.ssh.host = self.hostname()
+            self.wd = None
+        else:
+            self.ssh.host = '@'.join((name, self.hostname()))
+            if self.wd is None:
+                self.wd = self.scratch(name)
+    @property
+    def container(self):
+        parts = self.interpreter.split()
+        return parts[parts.index('python3.6')-1]
+    @container.setter
+    def container(self, path):
+        parts = self.interpreter.split()
+        p = parts.index('python3.6')
+        self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
+    def get_container_url(self, container=None):
+        if container is None:
+            container = self.container
+        return {
+                'tramway-hpc-200928.sif':   'http://dl.pasteur.fr/fop/VsJygkxP/tramway-hpc-200928.sif',
+                'tramway-hpc-210112.sif':   'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif',
+                }.get(container, None)
+    def setup(self, *argv):
+        SlurmOverSSH.setup(self, *argv)
+        if self.submit_side:
+            self.ssh.download_if_missing(self.container, self.get_container_url(), self.logger)
+    @property
+    def working_directory(self):
+        if self._working_directory is None:
+            self._working_directory = self.scratch(self.username)
+        return self._working_directory
+    working_directory.__doc__ = SlurmOverSSH.working_directory.__doc__
+    @working_directory.setter
+    def working_directory(self, wd):
+        self._working_directory = wd
+
+
+class Tars(SingularitySlurm):
     """
     Designed for server *tars.pasteur.fr*.
 
-    By default, makes singularity container *tramway-hpc-210112.sif* run on the remote host.
-    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
+    The server is closed.
     """
+    @classmethod
+    def hostname(cls):
+        return 'tars.pasteur.fr'
+    @classmethod
+    def scratch(cls, username):
+        return os.path.join('/pasteur/scratch/users', username)
     def __init__(self, **kwargs):
-        SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210112.sif python3.6 -s'
+        SingularitySlurm.__init__(self, **kwargs)
         self.remote_dependencies = 'module load singularity'
-    @property
-    def username(self):
-        return None if self.ssh.host is None else self.ssh.host.split('@')[0]
-    @username.setter
-    def username(self, name):
-        self.ssh.host = None if name is None else name+'@tars.pasteur.fr'
-        if self.wd is None:
-            self.wd = '/pasteur/scratch/users/'+name
-    @property
-    def container(self):
-        parts = self.interpreter.split()
-        return parts[parts.index('python3.6')-1]
-    @container.setter
-    def container(self, path):
-        parts = self.interpreter.split()
-        p = parts.index('python3.6')
-        self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
-    @property
-    def container_url(self):
-        return 'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif'
-    def setup(self, *argv):
-        SlurmOverSSH.setup(self, *argv)
-        if self.submit_side:
-            self.ssh.download_if_missing(self.container, self.container_url, self.logger)
 
 
-class GPULab(SlurmOverSSH):
+class GPULab(SingularitySlurm):
     """
     Designed for server *adm.inception.hubbioit.pasteur.fr*.
-
-    By default, makes singularity container *tramway-hpc-210112.sif* run on the remote host.
-    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
-    def __init__(self, **kwargs):
-        SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME tramway-hpc-210112.sif python3.6 -s'
-    @property
-    def username(self):
-        return None if self.ssh.host is None else self.ssh.host.split('@')[0]
-    @username.setter
-    def username(self, name):
-        self.ssh.host = None if name is None else name+'@adm.inception.hubbioit.pasteur.fr'
-        if self.wd is None:
-            self.wd = '/master/home/{}/scratch'.format(name)
-    @property
-    def container(self):
-        parts = self.interpreter.split()
-        return parts[parts.index('python3.6')-1]
-    @container.setter
-    def container(self, path):
-        parts = self.interpreter.split()
-        p = parts.index('python3.6')
-        self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
-    @property
-    def container_url(self):
-        return 'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif'
-    def setup(self, *argv):
-        SlurmOverSSH.setup(self, *argv)
-        if self.submit_side:
-            self.ssh.download_if_missing(self.container, self.container_url, self.logger)
+    @classmethod
+    def hostname(cls):
+        return 'adm.inception.hubbioit.pasteur.fr'
+    @classmethod
+    def scratch(cls, username):
+        return os.path.join('/master/home', username, 'scratch')
 
 
-class Maestro(SlurmOverSSH):
+class Maestro(SingularitySlurm):
     """
     Designed for server *maestro.pasteur.fr*.
-
-    By default, makes singularity container *tramway-hpc-210112.sif* run on the remote host.
-    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
     """
+    @classmethod
+    def hostname(cls):
+        return 'maestro.pasteur.fr'
+    @classmethod
+    def scratch(cls, username):
+        return os.path.join('/pasteur/sonic/scratch/users', username)
     def __init__(self, **kwargs):
-        SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210112.sif python3.6 -s'
+        SingularitySlurm.__init__(self, **kwargs)
         self.remote_dependencies = 'module load singularity'
-    @property
-    def username(self):
-        return None if self.ssh.host is None else self.ssh.host.split('@')[0]
-    @username.setter
-    def username(self, name):
-        self.ssh.host = None if name is None else name+'@maestro.pasteur.fr'
-        if self.wd is None:
-            self.wd = '/pasteur/sonic/scratch/users/'+name
-    @property
-    def container(self):
-        parts = self.interpreter.split()
-        return parts[parts.index('python3.6')-1]
-    @container.setter
-    def container(self, path):
-        parts = self.interpreter.split()
-        p = parts.index('python3.6')
-        self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
-    @property
-    def container_url(self):
-        return 'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif'
-    def setup(self, *argv):
-        SlurmOverSSH.setup(self, *argv)
-        if self.submit_side:
-            self.ssh.download_if_missing(self.container, self.container_url, self.logger)
 
 
 __all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab', 'Maestro']

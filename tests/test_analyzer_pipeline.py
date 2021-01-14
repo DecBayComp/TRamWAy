@@ -100,12 +100,12 @@ a.env.script = __file__
     with open(script_name, 'w') as f:
         f.write(script(env))
         f.write('a.run()\n')
-    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=60)
+    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=120)
     logger.info(out)
     with open(script_name, 'w') as f:
         f.write(script())
         f.write(test)
-    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=30)
+    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=60)
     logger.info(out)
     assert out.endswith("""\
 <class 'pandas.core.frame.DataFrame'>
@@ -129,16 +129,14 @@ class TestPipeline(object):
         env = "a.env = environments.LocalHost"
         run_script1(tmpdir, dynamicmesh, env)
     def test_GPULab(self, tmpdir, dynamicmesh):
-        with open(os.path.join(os.path.dirname(__file__), 'credentials'), 'r') as f:
+        with open(os.path.join(os.path.dirname(__file__), 'maestro.credentials'), 'r') as f:
             username = f.readline().rstrip()
             password = f.readline().rstrip()
         env = """\
-a.env = environments.GPULab
+a.env = environments.Maestro
 a.env.username = '{username}'
 a.env.ssh._password = '{password}'
-a.env.container = 'tramway-hpc-210111.sif'
-#a.env.debug = True
-a.env.sbatch_options.update(dict(p='dbc'))\
+#a.env.sbatch_options.update(dict(p='dbc'))\
 """.format(username=username, password=password)
 #        options = """,
 #        sbatch_options=dict(c=a.mapper.worker_count)\
