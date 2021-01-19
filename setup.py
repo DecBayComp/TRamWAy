@@ -83,7 +83,6 @@ setup(
     scripts = ['scripts/tramway', 'scripts/tramway-browse'],
     install_requires = install_requires,
     extras_require = extras_require,
-    setup_requires = setup_requires,
     tests_require = tests_require,
     package_data = {},
 )
