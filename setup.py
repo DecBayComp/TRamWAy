@@ -10,7 +10,6 @@ extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
         'roi':  ['polytope', 'cvxopt', 'tqdm'],
         'webui':    ['bokeh>=2.0.2', 'selenium']}
-setup_requires = ['pytest-runner']
 tests_require = ['pytest']
 
 
@@ -32,7 +31,6 @@ setup(
     classifiers = [
         'Intended Audience :: Science/Research',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',

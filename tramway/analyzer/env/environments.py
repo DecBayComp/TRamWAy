@@ -1585,7 +1585,10 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210114.sif python3.6 -s'
+        if os.path.isdir('/pasteur'):
+            self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210114.sif python3.6 -s'
+        else:
+            self.interpreter = 'singularity exec -H $HOME tramway-hpc-210114.sif python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
