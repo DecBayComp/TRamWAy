@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2020, Institut Pasteur
+# Copyright © 2017-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -378,7 +378,8 @@ def load_xyt(path, columns=None, concat=True, return_paths=False, verbose=False,
         return df
 
 
-def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False, keep_nan=None):
+def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False, keep_nan=None,
+        preserve_index=False):
     """
     Remove locations outside a bounding box.
 
@@ -408,6 +409,9 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         keep_nans/keep_nan (bool): adding deltas generates NaN; keep them
 
         no_deltas (bool): do not consider any column as deltas
+
+        preserve_index (bool): do not split the trajectories with out-of-bound locations,
+            do not re-index the trajectories
 
     Returns:
 
@@ -449,19 +453,22 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         else:
             raise ValueError('unsupported value for argument `by`')
     if 'n' in points.columns:
-        points['n'] += np.cumsum(np.logical_not(within), dtype=points.index.dtype)
-        single_point = 0 < points['n'].diff().values[1:]
+        n = points['n'] + np.cumsum(np.logical_not(within), dtype=points.index.dtype)
+        single_point = 0 < n.diff().values[1:]
         single_point[:-1] = np.logical_and(single_point[:-1], single_point[1:])
         ok = np.r_[True, np.logical_not(single_point)]
         points = points[ok]
         within = within[ok]
-        points['n'] -= (points['n'].diff().fillna(0).astype(int) - 1).clip(lower=0).cumsum()
+        if not preserve_index:
+            n -= (n.diff().fillna(0).astype(int) - 1).clip(lower=0).cumsum()
+            points['n'] = n
     points = points[within]
     if keep_nan is None:
         keep_nan = keep_nans
     if not keep_nan:
         points.dropna(inplace=True)
-    points.index = np.arange(points.shape[0])
+    if not preserve_index:
+        points.index = np.arange(points.shape[0])
     return points
 
 

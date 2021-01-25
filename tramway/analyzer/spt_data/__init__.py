@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -1046,6 +1046,8 @@ class SPTFiles(SPTDataFrames):
         """
         Interprets the filepath glob pattern and lists the matching files.
         """
+        if self.filepattern is None:
+            raise ValueError('filepattern is not defined')
         if isinstance(self.filepattern, str):
             self._files = glob(self.filepattern)
         else:
@@ -1272,6 +1274,7 @@ class RWAFiles(SPTFiles):
         self._files = [ self._bear_child( RWAFile, filepath ) for filepath in self._files ]
     def reload_from_rwa_files(self, skip_missing=False):
         cls = type(self) if isinstance(self, RWAFiles) else RWAFiles
+        assert cls is RWAFiles
         self.self_update( cls.__reload__(self, skip_missing=skip_missing) )
     @classmethod
     def __reload__(cls, self, skip_missing=False, parent=None):
@@ -1289,6 +1292,8 @@ class RWAFiles(SPTFiles):
                     raise
             else:
                 reloaded._files.append(f)
+        if not reloaded._files:
+            raise RuntimeError('could not reload any .rwa file')
         return reloaded
 
 SPTData.register(RWAFiles)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -19,7 +19,7 @@ try:
 except ImportError:
     pt = None
 import copy
-from tramway.core.xyt import crop
+from tramway.core.xyt import crop, reindex_trajectories
 import tramway.core.analyses.auto as autosaving
 from tramway.helper import *
 import re
@@ -476,14 +476,14 @@ class GroupedRegions(SupportRegions):
                 if n_space_cols < _min.size:
                     assert _min.size == n_space_cols + 1
                     df_u = df[(_min[-1] <= df['t']) & (df['t'] <= _max[-1])]
-                    df_u = crop(df_u, np.r_[_min[:-1], _max[:-1]-_min[:-1]])
+                    df_u = crop(df_u, np.r_[_min[:-1], _max[:-1]-_min[:-1]], preserve_index=True)
                 else:
-                    df_u = crop(df, np.r_[_min,_max-_min])
+                    df_u = crop(df, np.r_[_min,_max-_min], preserve_index=True)
             if df_r is None:
                 df_r = df_u
             else:
                 df_r = pd.merge(df_r, df_u, how='outer')
-        return df_r
+        return reindex_trajectories(df_r.sort_values(by=['n','t']))
 
 
 class RoiCollection(object):

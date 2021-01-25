@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -89,6 +89,8 @@ class Client(object):
         allow_password = self.options.pop('allow_password', None)
         try:
             self._conn.connect(host, 22, user, **self.options)
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except:
             if allow_password is False:
                 raise

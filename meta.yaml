@@ -1,24 +1,23 @@
 
 {% set name = "tramway" %}
-{% set version = "0.5rc4" %}
+{% set version = "0.5rc5" %}
 
 package:
   name: {{ name }}
   version: {{ version }}
 
 source:
-  #url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
+  url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
   #sha256: 80226d3949c210f1c9b22ecb884080f34869a033c3491f40c540cec094bfae7f
-  git_url: https://github.com/decbaycomp/tramway.git
+  #git_url: https://github.com/DecBayComp/TRamWAy.git
 
 build:
   noarch: python
   number: 0
-  script: "{{ PYTHON }} -m pip install .[roi,animate] -vv"
+  # remove polytope as soon as the package in available in some conda channel
+  script: "{{ PYTHON }} -m pip install --no-deps https://pypi.io/packages/source/p/polytope/polytope-0.2.3.tar.gz . -vv"
 
 requirements:
-  #build:
-  #  - pytest-runner
   host:
     - pip
     - python >=3.6
@@ -26,20 +25,25 @@ requirements:
     - hdf5
     - python >=3.6
     - rwa-python
+    - matplotlib
+    - cvxopt
+    - tqdm
+    - scikit-image
 
 test:
   imports:
     - tramway
-  requires:
-    - pytest
-  commands:
-    - pytest tests/test_core.py
-    - pytest tests/test_analyzer.py
-    - pytest tests/test_analyzer_pipeline.py::test_LocalHost
   source_files:
     - tests/test_core.py
     - tests/test_analyzer.py
     - tests/test_analyzer_pipeline.py
+  requires:
+    - pytest
+  commands:
+    - pytest
+         tests/test_core.py
+         tests/test_analyzer.py
+         tests/test_analyzer_pipeline.py::TestPipeline::test_LocalHost
 
 about:
   home: https://github.com/DecBayComp/TRamWAy

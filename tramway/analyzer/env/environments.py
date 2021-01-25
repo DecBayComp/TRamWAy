@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -652,7 +652,7 @@ class Env(AnalyzerNode):
 
         Arguments:
 
-            content (*list* of *str*): lines with the :const:`'\\n'` character at the end of each line
+            content (*list* of *str*): lines with the :const:`'\n'` character at the end of each line
 
         Returns:
 
@@ -661,7 +661,9 @@ class Env(AnalyzerNode):
         """
         filtered_content = []
         for line in content:
-            if line.startswith('get_ipython('):
+            if line.startswith('#'):
+                pass
+            elif line.startswith('get_ipython('):
                 continue
             elif '.run()' in line:
                 # last line
