@@ -128,6 +128,7 @@ class TestXyt(object):
         tested_result = crop(self.example_nxyt(), self.example_bbox())
         assert isinstance(tested_result, pandas.DataFrame) and \
                 numpy.all(tested_result.columns == expected_result.columns) and \
+                tested_result.dtypes.tolist() == expected_result.dtypes.tolist() and \
                 numpy.all(tested_result.index == expected_result.index) and \
                 numpy.allclose(tested_result, expected_result)
         return pandas.DataFrame([[1,.1,.1,.05],[1,.45,.45,.1],[1,.85,.65,.12],[2,.6,.9,.25],[2,.4,.5,.3]], columns=list('nxyt'))

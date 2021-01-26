@@ -75,7 +75,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'TRamWAy'
-copyright = u'2017-2020, Institut Pasteur'
+copyright = u'2017-2021, Institut Pasteur'
 author = u'François Laurent'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -83,7 +83,7 @@ author = u'François Laurent'
 # built documents.
 #
 # The short X.Y version.
-version = u'0.5rc5'
+version = u'0.5'
 # The full version, including alpha/beta/rc tags.
 release = u'0.5'
 

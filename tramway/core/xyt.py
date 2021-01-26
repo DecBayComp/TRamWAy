@@ -468,7 +468,7 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         no_deltas (bool): do not consider any column as deltas
 
         preserve_index (bool): do not split the trajectories with out-of-bound locations,
-            do not re-index the trajectories
+            do not re-index the trajectories nor the rows
 
     Returns:
 
@@ -510,13 +510,14 @@ def crop(points, box, by=None, add_deltas=True, keep_nans=False, no_deltas=False
         else:
             raise ValueError('unsupported value for argument `by`')
     if 'n' in points.columns:
-        n = points['n'] + np.cumsum(np.logical_not(within), dtype=points.index.dtype)
+        n = points['n'] + np.cumsum(np.logical_not(within), dtype=points.dtypes['n'])
         single_point = 0 < n.diff().values[1:]
         single_point[:-1] = np.logical_and(single_point[:-1], single_point[1:])
         ok = np.r_[True, np.logical_not(single_point)]
         points = points[ok]
         within = within[ok]
         if not preserve_index:
+            n = n[ok]
             n -= (n.diff().fillna(0).astype(int) - 1).clip(lower=0).cumsum()
             points['n'] = n
     points = points[within]
