@@ -258,7 +258,7 @@ class Env(AnalyzerNode):
             self.wd = _valid_arguments.pop('working_directory', self.wd)
             self.selectors = _valid_arguments
         return valid_arguments
-    def setup(self, *argv):
+    def setup(self, *argv, create_working_directory=True):
         """
         Determines which side is running and alters iterators of the main
         :class:`~tramway.analyzer.RWAnalyzer` attributes.
@@ -300,7 +300,7 @@ class Env(AnalyzerNode):
                 self.script = candidate_files[0]
                 self.logger.info('candidate script: {} (in {})'.format(self.script, os.getcwd()))
             raise ValueError('attribute `script` is not set')
-        else:
+        elif create_working_directory:
             self.make_working_directory()
             self.logger.info('working directory: '+self.wd)
     def spt_data_selector(self, spt_data_attr):
@@ -513,7 +513,7 @@ class Env(AnalyzerNode):
         """
         Loads the generated rwa files, combines them and returns the list of the combined files.
 
-        To be run on the worker side, where the collectible files are available.
+        Should be run on the worker side only, where the collectible files are available.
         """
         analyses, original_files = {}, {}
         output_files = glob.glob(os.path.join(wd, '*.rwa'))
@@ -918,8 +918,8 @@ class Slurm(Env):
     @task_count.setter
     def task_count(self, count):
         self.worker_count = count
-    def setup(self, *argv):
-        Env.setup(self, *argv)
+    def setup(self, *argv, **kwargs):
+        Env.setup(self, *argv, **kwargs)
         if self.submit_side:
             self.job_name # sets job-name sbatch option
             output_log = self.sbatch_options['output']
@@ -1044,8 +1044,8 @@ class RemoteHost(object):
                 RemoteHost.__init__(self)
             wd_is_available = RemoteHost.wd_is_available
             make_working_directory = RemoteHost.make_working_directory
-            def setup(self, *argv):
-                cls.setup(self, *argv)
+            def setup(self, *argv, **kwargs):
+                cls.setup(self, *argv, **kwargs)
                 RemoteHost.setup(self, *argv)
             def filter_script_content(self, content):
                 return RemoteHost.filter_script_content(self,
@@ -1390,8 +1390,8 @@ class SlurmOverSSH(Slurm, RemoteHost):
         RemoteHost.__init__(self)
     wd_is_available = RemoteHost.wd_is_available
     make_working_directory = RemoteHost.make_working_directory
-    def setup(self, *argv):
-        Slurm.setup(self, *argv)
+    def setup(self, *argv, **kwargs):
+        Slurm.setup(self, *argv, **kwargs)
         RemoteHost.setup(self, *argv)
     def dispatch(self, **kwargs):
         if 'stage_options' in kwargs:
@@ -1536,7 +1536,6 @@ notice: job failures are not reported before the stage is complete;
             if log is None:
                 log = input('please copy-paste below the log output of the disconnected instance\n(job progress information can be omitted):\n')
             log = log.splitlines()
-            #job_id = wd = stage_index = None
             for line in log[::-1]:
                 if wd:
                     try:
@@ -1550,20 +1549,31 @@ notice: job failures are not reported before the stage is complete;
                 elif job_id:
                     assert line.startswith('running: ') and 'sbatch ' in line
                     script = line.split('sbatch ')[-1].rstrip()
-                    wd = '/'.join(script.split('/')[:-1])
+                    if not wd:
+                        wd = '/'.join(script.split('/')[:-1])
                 elif line.startswith('Submitted batch job '):
                     job_id = line[20:].rstrip()
-        if stage_index:
-            self.setup(sys.executable)
+                elif line.startswith('working directory: '):
+                    wd = line[19:].rstrip()
+            if stage_index is None and len(self._eldest_parent.pipeline)==1:
+                stage_index = 0
+        if stage_index is None:
+            self.logger.info('cannot identify an execution point where to resume from')
+        else:
+            self.setup(sys.executable, create_working_directory=False)
             assert self.submit_side
-            self.delete_temporary_data() # undo wd creation during setup
+            #self.delete_temporary_data() # undo wd creation during setup
             self.working_directory = wd
             self.job_id = job_id
-            self.logger.info('trying to complete stage(s): '+', '.join([str(i) for i in stage_index]))
-            self.wait_for_job_completion()
+            if isinstance(stage_index, int):
+                stage_index = [stage_index]
+            self.logger.info('trying to complete stage(s):\t'+', '.join([str(i) for i in stage_index])+"""
+ with working directory:\t'{}'
+  and job id:\t\t\t{}\
+""".format(wd, job_id))
+            if self.job_id is not None:
+                self.wait_for_job_completion()
             self.collect_results(stage_index=stage_index)
-        else:
-            self.logger.info('cannot identify an execution point where to resume from')
 
 
 Environment.register(SlurmOverSSH)
@@ -1573,7 +1583,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-210114.sif*.
+    The current default Singularity container is *tramway-hpc-210125.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -1588,9 +1598,9 @@ class SingularitySlurm(SlurmOverSSH):
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
         if os.path.isdir('/pasteur'):
-            self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210114.sif python3.6 -s'
+            self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210125.sif python3.6 -s'
         else:
-            self.interpreter = 'singularity exec -H $HOME tramway-hpc-210114.sif python3.6 -s'
+            self.interpreter = 'singularity exec -H $HOME tramway-hpc-210125.sif python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
@@ -1625,9 +1635,10 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-200928.sif':   'http://dl.pasteur.fr/fop/VsJygkxP/tramway-hpc-200928.sif',
                 'tramway-hpc-210112.sif':   'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif',
                 'tramway-hpc-210114.sif':   'http://dl.pasteur.fr/fop/cZWZqsDW/tramway-hpc-210114.sif',
+                'tramway-hpc-210125.sif':   'http://dl.pasteur.fr/fop/6Avu9HuV/tramway-hpc-210125.sif',
                 }.get(container, None)
-    def setup(self, *argv):
-        SlurmOverSSH.setup(self, *argv)
+    def setup(self, *argv, **kwargs):
+        SlurmOverSSH.setup(self, *argv, **kwargs)
         if self.submit_side:
             self.ssh.download_if_missing(self.container, self.get_container_url(), self.logger)
     @property

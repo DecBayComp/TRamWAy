@@ -70,6 +70,10 @@ class Pipeline(AnalyzerNode):
     def __init__(self, *args, **kwargs):
         AnalyzerNode.__init__(self, *args, **kwargs)
         self._stage = []
+    def __nonzero__(self):
+        return bool(self._stage)
+    def __len__(self):
+        return len(self._stage)
     @property
     def analyzer(self):
         return self._parent
