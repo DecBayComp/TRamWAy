@@ -114,6 +114,63 @@ def iter_trajectories(trajectories, trajnum_colname='n', asslice=False, asarray=
             yield from_slice(i,j)
 
 
+def iter_full_trajectories(cropped_trajs, all_trajs, match_cols=list('xyt'), unique=True):
+    """
+    In the case `cropped_trajs` results from cropping `all_trajs`,
+    yields the trajectories in `all_trajs` that are in `cropped_trajs`.
+
+    This function is helpful for retrieving the original trajectories,
+    with the excluded points included back.
+    Indeed, `crop` removes the out-of-bound locations, splits the affected
+    trajectories and re-indices the trajectories, so that they are contiguous
+    in time.
+
+    There is no need to call `translocations_to_trajectories` on `cropped_trajs`
+    beforehands.
+
+    If `all_trajs` actually represent series of translocations,
+    `iter_full_trajectories` yields full series of translocations.
+
+    Argument `unique` set to :const:`False` makes `iter_full_trajectories`
+    yield the trajectories that correspond to those yielded by `iter_trajectories`,
+    so that both output can be zipped.
+    The following code example iterates over regions of interest using the
+    :class:`~tramway.analyzer.RWAnalyzer` object:
+
+    .. code-block:: python
+
+        from tramway.core.xyt import *
+        from tramway.analyzer import *
+
+        a = RWAnalyzer()
+
+        # ... [define the SPT data and ROI]
+
+        for f in a.spt_data:
+            all_trajectories = f.dataframe
+            for r in f.roi.as_support_regions():
+                local_translocations = r.crop()
+                local_trajectories = translocations_to_trajectories(local_translocations)
+                for cropped_trajectory, full_trajectory in zip(
+                        iter_trajectories(local_trajectories),
+                        iter_full_trajectories(local_translocations, all_trajectories, unique=False),
+                    ):
+                    # do sommething with `cropped_trajectory` and corresponding `full_trajectory`
+                    pass
+
+    """
+    visited_indices = set()
+    all_coords = all_trajs[match_cols].values
+    for traj in iter_trajectories(cropped_trajs):
+        sample_loc = traj.iloc[0][match_cols].values
+        matching_row_index = np.flatnonzero(np.all(sample_loc==all_coords, axis=1))
+        assert len(matching_row_index)==1
+        matching_index = all_trajs.iloc[matching_row_index[0]]['n']
+        if not (unique and matching_index in visited_indices):
+            visited_indices.add(matching_index)
+            yield all_trajs[all_trajs['n']==matching_index]
+
+
 def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None, skip_empty_frames=True):
     """
     Yields series of row indices, each series corresponding to a different frame.
@@ -487,7 +544,6 @@ def reindex_trajectories(trajectories, trajnum_colname='n', dt=None):
                 dt = traj['dt'].min()
             else:
                 dt = traj['t'].diff().min()
-            print(dt)
             if dt.size == 0:
                 dt = None
             elif np.isclose(dt, 0):
@@ -689,6 +745,7 @@ def translocations_to_trajectories(points):
 __all__ = [
     'translocations',
     'iter_trajectories',
+    'iter_full_trajectories',
     'iter_frames',
     'trajectories_to_translocations',
     'translocations_to_trajectories',
