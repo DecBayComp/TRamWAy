@@ -7,9 +7,8 @@ package:
   version: {{ version }}
 
 source:
-  #url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
-  #sha256: 
-  git_url: https://github.com/DecBayComp/TRamWAy.git
+  url: https://github.com/DecBayComp/TRamWAy/archive/v{{ version }}.tar.gz
+  sha256: 6e26acc4280dfb6d93f1d5009009927dd1fa2e63f18a2c4e160b9a1e40534bc6
 
 build:
   noarch: python

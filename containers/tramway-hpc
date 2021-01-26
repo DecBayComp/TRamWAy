@@ -47,7 +47,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
 
     cd /root
     if ! [ -d TRamWAy ]; then
-        git clone git://github.com/DecBayComp/TRamWAy -b slurmoverssh
+        git clone git://github.com/DecBayComp/TRamWAy -b master
     fi
     cd TRamWAy
     export LC_ALL=C
