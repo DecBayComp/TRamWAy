@@ -153,6 +153,13 @@ def indexer(i, it, return_index=False, has_keys=False):
                 for j, item in enumerate(it):
                     if i(j):
                         yield item
+    elif isinstance(i, (bytes, str)):
+        if not has_keys:
+            raise TypeError('string index for indexing a collection with no keys')
+        if return_index:
+            yield i, it[i]
+        else:
+            yield it[i]
     elif isinstance(i, (Sequence, np.ndarray)):
         if has_keys:
             if return_index:

@@ -26,15 +26,24 @@ def tessellate(label=None, roi_expected=False, **kwargs):
     """
     Returns a standard pipeline stage for SPT data sampling.
 
+    Although the name 'tessellate' refers merely to the spatial
+    segmentation, time segmentation is also handled, if defined.
+    The name alludes to the standalone
+    :func:`tramway.helper.tessellation.tessellate` function.
+
     The default granulariy is set to 'spt data',
     whereas in principle the finest valid granularity is 'roi'.
-    The tessellation step is fast enough to a avoid the overhead of saving
-    as many files as regions of interest.
+    The tessellation step is fast enough to a avoid the overhead
+    of saving as many files as regions of interest.
 
     .. important::
 
         If the input SPT data is defined as ascii file(s),
         the corresponding *.rwa* files will be overwritten.
+
+        If analysis trees already reference analysis artefacts
+        for the specified label, these artefacts are also
+        overwritten.
 
     """
 
@@ -99,7 +108,10 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
     The default granularity is set to 'roi', which is suitable for computer-intensive
     inferences such as 'DV'.
 
-    If `map_label` is :const:`None`, `overwrite` is ignored and the stage acts like if
+    With default ``overwrite=False``, if the specified output label `map_label` already
+    exists in analysis trees, the inference is skipped for these analysis trees and the
+    corresponding artefact not overwritten.
+    However, if `map_label` is :const:`None`, `overwrite` is ignored and the stage acts like if
     `overwrite` were :const:`True`.
     """
 

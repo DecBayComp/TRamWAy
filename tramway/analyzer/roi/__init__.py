@@ -577,14 +577,16 @@ class BoundingBoxes(SpecializedROI):
             if source is not None:
                 warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             spt_data = self._parent
-            for label in indexer(collection, self.bounding_boxes):
-                for i, bb in indexer(index, self.bounding_boxes[label], return_index=True):
+            for label, bbs in indexer(collection, self.bounding_boxes, has_keys=True,
+                    return_index=True):
+                for i, bb in indexer(index, bbs, return_index=True):
                     roi_label = self._collections[label].roi_label(i)
                     yield bear_child(i, BoundingBox, bb, roi_label, spt_data )
         else:
             for d in spt_data:
-                for label in indexer(collection, self.bounding_boxes):
-                    for i, bb in indexer(index, self.bounding_boxes[label], return_index=True):
+                for label, bbs in indexer(collection, self.bounding_boxes, has_keys=True,
+                        return_index=True):
+                    for i, bb in indexer(index, bbs, return_index=True):
                         roi_label = self._collections[label].roi_label(i)
                         yield bear_child(i, BoundingBox, bb, roi_label, d )
     as_individual_roi.__doc__ = ROI.as_individual_roi.__doc__
