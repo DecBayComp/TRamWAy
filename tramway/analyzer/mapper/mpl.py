@@ -147,6 +147,135 @@ class PatchCollection(object):
         return self.plot(map, times=ts, locations=df)
 
 
+class FuncAnimations(animation.FuncAnimation):
+    """
+    Proxy for the :class:`matplotlib.animation.FuncAnimation` class.
+
+    It inherits from :class:`~matplotlib.animation.FuncAnimation` for typing purposes,
+    but does not reuse (or intend to reuse) any attribute from the parent class,
+    very much like if it inherited from :class:`object` instead.
+    """
+    def __init__(self, fig, *args, **kwargs):
+        self._proxied = None
+        self._rendered = False
+        self._fig = fig
+        self._func = []
+        self._frames = []
+        self._init_func = []
+        self._fargs = []
+        self._kwargs = {}
+        if args:
+            self.add(fig, *args, **kwargs)
+
+    def add(self, fig, func, frames=None, init_func=None, fargs=None, **kwargs):
+        if self._proxied is not None:
+            raise RuntimeError('cannot append more animations to an already rendered FuncAnimation')
+        assert fig is self._fig
+        self._func.append(func)
+        self._frames.append(frames)
+        self._init_func.append(init_func)
+        self._fargs.append(fargs if fargs else ())
+        self._kwargs.update(kwargs)
+        return self
+
+    @property
+    def proxied(self):
+        if self._proxied is None:
+            if self.rendered:
+                raise ValueError('a FuncAnimations movie can be rendered only once')
+
+            def func(arg):
+                combined_ret = []
+                for f, arg0, args in zip(self._func, arg, self._fargs):
+                    if arg0 is not None:
+                        ret = f(arg0, *args)
+                        if ret is None:
+                            pass
+                        elif isinstance(ret, (tuple, list, frozenset, set)):
+                            combined_ret += list(ret)
+                        else:
+                            combined_ret.append(ret)
+                if combined_ret:
+                    return tuple(combined_ret)
+
+            def init_func():
+                combined_ret = []
+                for f in self._init_func:
+                    ret = f()
+                    if ret is None:
+                        pass
+                    elif isinstance(ret, (tuple, list, frozenset, set)):
+                        combined_ret += list(ret)
+                    else:
+                        combined_ret.append(ret)
+                if combined_ret:
+                    return tuple(combined_ret)
+
+            def frames():
+                updated_generators = [ None if gen is None else iter(gen) for gen in self._frames ]
+                while True:
+                    dry_run = True
+                    ret = []
+                    generators, updated_generators = updated_generators, []
+                    for gen in generators:
+                        if gen is None:
+                            ret.append(None)
+                        else:
+                            try:
+                                ret.append(next(gen))
+                            except StopIteration:
+                                gen = None
+                                ret.append(None)
+                            else:
+                                dry_run = False
+                        updated_generators.append(gen)
+                    if dry_run:
+                        break
+                    else:
+                        yield ret
+
+            self._proxied = animation.FuncAnimation(
+                    self._fig, func, frames(), init_func, **self._kwargs)
+
+        return self._proxied
+
+    @property
+    def rendered(self):
+        return self._rendered
+
+    def __del__(self):
+        self._proxied = None
+        self._func = []
+        self._frames = []
+        self._init_func = []
+        self._fargs = []
+        self._kwargs = {}
+
+    def new_frame_seq(self):
+        return self.proxied.new_frame_seq()
+
+    def new_saved_frame_seq(self):
+        return self.proxied.new_saved_frame_seq()
+
+    def save(self, *args, **kwargs):
+        try:
+            return self.proxied.save(*args, **kwargs)
+        finally:
+            self._rendered = True
+
+    def to_html5_video(self, *args, **kwargs):
+        try:
+            return self.proxied.to_html5_video(*args, **kwargs)
+        finally:
+            self._rendered = True
+
+    def to_jshtml(self, *args, **kwargs):
+        try:
+            return self.proxied.to_jshtml(*args, **kwargs)
+        finally:
+            self._rendered = True
+
+
 class Mpl(AnalyzerNode):
     """  """
     __slots__ = ()
@@ -178,7 +307,7 @@ class Mpl(AnalyzerNode):
             if unit is not None:
                 map_kwargs['unit'] = unit
     def animate(self, fig, maps, feature, sampling=None, overlay_locations=False,
-            axes=None, aspect='equal', logscale=None, **kwargs):
+            axes=None, aspect='equal', logscale=None, composable=True, **kwargs):
         """
         Animates the time-segmented inference parameters.
 
@@ -207,6 +336,11 @@ class Mpl(AnalyzerNode):
             logscale (bool): transform the color-coded values in natural logarithm;
                 default is :const:`False` but for force amplitude.
 
+            composable (bool): returns an overloaded :class:`FuncAnimation`
+                object that can be passed in place of argument `fig` in later
+                calls to :meth:`animate` so to stack animations on
+                different axes (`axes`) of a same figure (`fig`).
+
         Returns:
 
             matplotlib.animation.FuncAnimation: animation object.
@@ -215,6 +349,8 @@ class Mpl(AnalyzerNode):
         or :class:`PatchCollection` (and :func:`~tramway.plot.map.scalar_map_2d`).
         """
         if axes is None:
+            if isinstance(fig, FuncAnimations):
+                raise ValueError('composing animations without axes')
             axes = fig.gca()
         #
         if isinstance(maps, Analysis):
@@ -265,7 +401,17 @@ class Mpl(AnalyzerNode):
         _iter = self._eldest_parent.time.as_time_segments
         patches = self.plotter(axes, sampling.tessellation.spatial_mesh, sampling.bounding_box,
                 **map_kwargs)
-        return animation.FuncAnimation(fig, patches.animate, init_func=patches.init_func,
+        #
+        if isinstance(fig, FuncAnimations):
+            animators = fig
+            cls, fig = animators.add, animators._fig
+        elif composable:
+            animators = FuncAnimations(fig)
+            cls = animators.add
+        else:
+            cls = animation.FuncAnimation
+        #
+        return cls(fig, patches.animate, init_func=patches.init_func,
                 frames=_iter(sampling, maps, return_times=True), **anim_kwargs)
 
     def plot(self, maps, feature, sampling=None, axes=None, aspect='equal', **kwargs):
@@ -287,5 +433,5 @@ class Mpl(AnalyzerNode):
         map_plot(maps, sampling, feature=feature, axes=axes, **kwargs)
 
 
-__all__ = ['PatchCollection', 'Mpl']
+__all__ = ['PatchCollection', 'FuncAnimation', 'Mpl']
 
