@@ -1597,10 +1597,7 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        if os.path.isdir('/pasteur'):
-            self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210125.sif python3.6 -s'
-        else:
-            self.interpreter = 'singularity exec -H $HOME tramway-hpc-210125.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210125.sif python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
@@ -1679,6 +1676,9 @@ class GPULab(SingularitySlurm):
     @classmethod
     def scratch(cls, username):
         return os.path.join('/master/home', username, 'scratch')
+    def __init__(self, **kwargs):
+        SingularitySlurm.__init__(self, **kwargs)
+        self.interpreter = self.interpreter.replace('-B /pasteur ', '')
 
 
 class Maestro(SingularitySlurm):
