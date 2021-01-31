@@ -107,13 +107,13 @@ class _RawImage(AnalyzerNode, ImageParameters):
         self._stack = stack
     @property
     def n_frames(self):
-        return self.stack.shape[0]
+        return len(self.stack)
     @property
     def width(self):
-        return self.stack.shape[2]
+        return first(self.stack).shape[2]
     @property
     def height(self):
-        return self.stack.shape[1]
+        return first(self.stack).shape[1]
 
     def as_frames(self, index=None, return_time=False):
         """
@@ -128,8 +128,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
             return_time (bool): return time along with image frames, as first item.
 
         """
-        for f in indexer(index, range(self.n_frames)):
-            frame = self.stack[f,:,:]
+        for f, frame in indexer(index, self.stack, return_index=True):
             if return_time:
                 t = (f+1)*self.dt
                 yield t, frame
@@ -458,7 +457,7 @@ class _ImageFile(_RawImage):
         self._filepath = fp
     def read(self):
         from skimage import io
-        return io.imread(os.path.expanduser(self.filepath))
+        return io.MultiImage(os.path.expanduser(self.filepath))
 
 class ImageFile(_ImageFile):
     __slots__ = ()
