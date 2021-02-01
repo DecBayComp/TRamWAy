@@ -195,9 +195,9 @@ class Pipeline(AnalyzerNode):
                         if stage.requires_mutability:
                             if not granularity or granularity in ('coarsest','full dataset'):
                                 # run locally
-                                self.logger.info('stage {:d} ready'.format(s))
+                                self.logger.debug('[submit] stage {:d} ready'.format(s))
                                 stage(self)
-                                self.logger.info('stage {:d} done'.format(s))
+                                self.logger.debug('[submit] stage {:d} done'.format(s))
                                 # make the next dispatched stages run this stage again
                                 permanent_stack.append(s)
                                 continue
@@ -239,7 +239,7 @@ class Pipeline(AnalyzerNode):
                                             self.env.make_job(stage_index=s, source=source, region_index=i, segment_index=j)
                                 else:
                                     raise NotImplementedError
-                        self.logger.info('jobs ready')
+                        self.logger.info('\njobs ready')
                         try:
                             self.env.submit_jobs()
                             self.logger.info('jobs submitted')
@@ -260,6 +260,8 @@ class Pipeline(AnalyzerNode):
             finally:
                 if self.env.submit_side and not self.env.debug:
                     self.env.delete_temporary_data()
+                elif self.env.worker_side:
+                    self.env.close()
         else:
             for stage in self._stage:
                 stage(self)

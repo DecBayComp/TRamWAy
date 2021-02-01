@@ -459,6 +459,8 @@ class Env(AnalyzerNode):
     def __del__(self):
         #self.delete_temporary_data()
         pass
+    def close(self):
+        self._parent.spt_data.close()
     def delete_temporary_data(self):
         """
         Deletes all the temporary data, on both the submit and worker sides.
@@ -1004,7 +1006,6 @@ class Slurm(Env):
         prefix = '{}_['.format(self.job_id)
         try:
             while True:
-                time.sleep(self.refresh_interval)
                 p = subprocess.Popen(('squeue', '-j '+self.job_id, '-h', '-o "%.18i %.2t %.10M %R"'),
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
                 out, err = p.communicate()
@@ -1019,6 +1020,7 @@ class Slurm(Env):
                     self.logger.info('status: {}   time used: {}   reason: {}'.format(status, time_used, reason))
                 else:
                     break
+                time.sleep(self.refresh_interval)
         except:
             self.logger.info('killing jobs with: scancel '+self.job_id)
             subprocess.Popen(('scancel', self.job_id)).communicate()
@@ -1597,7 +1599,7 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210125.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210201.sif python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
@@ -1633,6 +1635,7 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-210112.sif':   'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif',
                 'tramway-hpc-210114.sif':   'http://dl.pasteur.fr/fop/cZWZqsDW/tramway-hpc-210114.sif',
                 'tramway-hpc-210125.sif':   'http://dl.pasteur.fr/fop/6Avu9HuV/tramway-hpc-210125.sif',
+                'tramway-hpc-210201.sif':   'http://dl.pasteur.fr/fop/MSRwa8CR/tramway-hpc-210201.sif',
                 }.get(container, None)
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)

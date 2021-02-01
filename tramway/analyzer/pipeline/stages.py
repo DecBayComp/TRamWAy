@@ -69,7 +69,6 @@ def tessellate(label=None, roi_expected=False, **kwargs):
                             continue
                         any_full_region = True
                         msg = f"tessellating source: '{source_name}'..."
-                        self.logger.info()
                     else:
                         roi_label = r.label
                         msg = f"tessellating roi: '{roi_label}' (in source '{source_name}')..."

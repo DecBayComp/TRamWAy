@@ -347,6 +347,9 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
     def set_precision(self, precision):
         for f in self:
             f.set_precision(precision)
+    def close(self):
+        for f in self:
+            f.close()
 
 
 class SPTDataInitializer(Initializer):
@@ -497,6 +500,7 @@ class HasAnalysisTree(HasROI):
     def __init__(self, df=None, **kwargs):
         self._frame_interval_cache = self._localization_error_cache = None
         HasROI.__init__(self, **kwargs)
+        self._analyses = None
         self.analyses = Analyses(df, standard_metadata(), autosave=True)
         self._analyses.hooks.append(lambda _: self.commit_cache(autoload=True))
     @property
@@ -589,11 +593,26 @@ class HasAnalysisTree(HasROI):
             return _return
     def set_analyses(self, tree):
         if isinstance(tree, AutosaveCapable):
-            self._analyses = tree
-            tree = tree.analyses.statefree()
+            autosaver = tree
+            tree = autosaver.analyses.statefree()
         else:
             autosaver = Analyses(tree, autosave=True)
+        if self._analyses is None:
             self._analyses = autosaver
+        else:
+            # in the very special case `self` results from a call to `_RWAFile.__reload__`:
+            try:
+                rwa_file = self._analyses.rwa_file
+            except AttributeError:
+                rwa_file = None
+                autosave = None
+            else:
+                autosave = self._analyses.autosave
+            self._analyses = autosaver
+            if rwa_file is not None:
+                self._analyses.rwa_file = rwa_file
+            if autosave is not None:
+                self._analyses.autosave = autosave
         #
         err_cache = self._localization_error_cache
         dt_cache = self._frame_interval_cache
@@ -641,6 +660,23 @@ class HasAnalysisTree(HasROI):
     @property
     def dataframe(self):
         return self.analyses.data
+    def close(self):
+        if self._analyses is not None:
+            tree = self
+            while True:
+                try:
+                    wrapped_tree = tree._analyses
+                except AttributeError:
+                    break
+                else:
+                    tree = wrapped_tree
+            try:
+                wrapped_tree = tree.statefree()
+            except AttributeError:
+                pass
+            else:
+                tree = wrapped_tree
+            tree.terminate()
 
 
 class _SPTDataFrame(HasAnalysisTree, SPTParameters):
@@ -1240,9 +1276,9 @@ class _RWAFile(SPTFile):
         reloaded._roi = copy.copy(self.roi)
         reloaded.roi._parent = reloaded
         #
-        self.analyses.terminate()
-        reloaded.analyses.rwa_file = self.analyses.rwa_file
-        reloaded.analyses.autosave = self.analyses.autosave
+        reloaded._analyses.rwa_file = self._analyses.rwa_file
+        reloaded._analyses.autosave = self._analyses.autosave
+        self.close()
         return reloaded
 
 class RWAFile(_RWAFile):
