@@ -22,7 +22,7 @@ import scipy.spatial as spatial
 from tramway.core import *
 import itertools
 import copy
-from collections import Counter, namedtuple, defaultdict
+from collections import Counter, defaultdict
 import sys
 
 
@@ -1292,6 +1292,7 @@ class Voronoi(Delaunay):
             raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
         points = np.asarray(self._cell_centers)
         if False:#points.shape[1] == 2:
+            from tramway.tessellation.utils2d import boxed_voronoi_2d
             voronoi = boxed_voronoi_2d(points)
         else:
             voronoi = spatial.Voronoi(points)
@@ -1914,160 +1915,6 @@ def sparse_to_dict(cell_vertex):
     return cell_vertex
 
 
-_Voronoi = namedtuple('BoxedVoronoi', (
-        'points',
-        'vertices',
-        'ridge_points',
-        'ridge_vertices',
-        'regions',
-        'point_region',
-    ))
-
-def boxed_voronoi_2d(points, bounding_box=None):
-    voronoi = spatial.Voronoi(points)
-    if bounding_box is None:
-        #x_min = np.minimum(np.min(points, axis=0), np.min(voronoi.vertices, axis=0))
-        #x_max = np.maximum(np.max(points, axis=0), np.max(voronoi.vertices, axis=0))
-        x_min, x_max = np.min(points, axis=0), np.max(points, axis=0)
-        dx = x_max - x_min
-        x_min -= 1e-4 * dx
-        x_max += 1e-4 * dx
-        bounding_box = (
-            x_min,
-            np.array([x_max[0], x_min[1]]),
-            x_max,
-            np.array([x_min[0], x_max[1]]),
-            )
-    t = (bounding_box[0] + bounding_box[2]) * .5
-    lstsq_kwargs = dict(rcond=None)
-    region_point = np.full(len(voronoi.regions), -1, dtype=int)
-    region_point[voronoi.point_region] = np.arange(voronoi.point_region.size)
-    extra_vertices = []
-    vertex_index = n_vertices = voronoi.vertices.shape[0]
-    extra_ridges = []
-    n_ridges = voronoi.ridge_points.shape[0]
-    _ridge_vertices, _ridge_points, _regions = \
-        voronoi.ridge_vertices, voronoi.ridge_points, [[]]
-    for c, u in enumerate(points):
-        r = voronoi.point_region[c]
-        region = voronoi.regions[r]
-        #assert region_point[r] == c
-        _region = []
-        for k, h in enumerate(region):
-            if 0 <= h:
-                _region.append(h)
-                continue
-
-            # find the two "adjacent" vertices
-            i, j = region[k-1], region[(k+1)%len(region)]
-            assert 0<=i
-            assert 0<=j
-            # find the corresponding neighbour cells
-            m, n = set(), set() # mutable
-            for d, hs in enumerate(voronoi.regions):
-                if not hs or d == r:
-                    continue
-                for e, cs in ((i,m), (j,n)):
-                    try:
-                        l = hs.index(e)
-                    except ValueError:
-                        continue
-                    if (hs[l-1]==-1) or (hs[(l+1)%len(hs)]==-1):
-                        cs.add(region_point[d])
-            p, q = m.pop(), n.pop()
-            assert not m
-            assert not n
-            # pick a distant point on the perpendicular bissector
-            # of the neighbour centers, at the intersection with
-            # the bounding box
-            prev_edge = None
-            for h, d in ((i,p), (j,q)):
-                gs = []
-                try:
-                    gs = _ridge_vertices[n_ridges+extra_ridges.index([d,c])]
-                except ValueError:
-                    try:
-                        gs = _ridge_vertices[n_ridges+extra_ridges.index([c,d])]
-                    except ValueError:
-                        pass
-                if gs:
-                    g, = [ g for g in gs if g != h ]
-                    _region.append(g)
-                    continue
-                v = voronoi.vertices[h]
-                w = points[d]
-                if np.any(v<bounding_box[0]) or np.any(bounding_box[2]<v):
-                    # vertex v stands outside the bounding box
-                    # TODO: check for corners as potential intermediate vertices
-                    continue
-                n = np.array([u[1]-w[1], w[0]-u[0]])
-                #y = (u + w) * .5
-                y = v
-                # determine direction: n or -n?
-                if 0 < np.dot(n, t-y):
-                    n = -n
-                # intersection of [y,n) and [a,ab]
-                v_next = None
-                for l, a in enumerate(bounding_box):
-                    b = bounding_box[(l+1)%len(bounding_box)]
-                    M, p = np.c_[n, a-b], a-y
-                    q = np.linalg.lstsq(M, p, **lstsq_kwargs)
-                    q = q[0]
-                    if 0<=q[0] and 0<=q[1] and q[1]<=1:
-                        # intersection found
-                        v_next = y + q[0] * n
-                        #if 0<q[0]:
-                        break
-                assert v_next is not None
-                if prev_edge is None or prev_edge == l:
-                    h_prev = h
-                else:
-                    # add the corner which the previous
-                    # and current edges intersect at
-                    e_max = len(bounding_box)-1
-                    if (0<l and prev_edge==l-1) or \
-                        (l==0 and prev_edge==e_max):
-                        v_prev = a
-                    elif (l<e_max and prev_edge==l+1) or \
-                        (l==e_max and prev_edge==0):
-                        v_prev = b
-                    else:
-                        # two corners?
-                        # better connect the intersection points and let the corners out
-                        h_prev = h
-                        v_prev = None
-                    if v_prev is not None:
-                        h_prev = vertex_index
-                        vertex_index += 1
-                        extra_vertices.append(v_prev)
-                        extra_ridges.append([-1,c])
-                        _ridge_vertices.append([h,h_prev])
-                        _region.append(h_prev)
-                prev_edge = l
-                #
-                h_next = vertex_index
-                vertex_index += 1
-                # insert the new vertex
-                extra_vertices.append(v_next)
-                k, = ((_ridge_points[:,0]==c) & (_ridge_points[:,1]==d)).nonzero()
-                if k.size==0:
-                    k, = ((_ridge_points[:,0]==d) & (_ridge_points[:,1]==c)).nonzero()
-                k = k[0].tolist()
-                _ridge_vertices = _ridge_vertices[:k] \
-                    + [[h_prev,h_next]] \
-                    + _ridge_vertices[k+1:]
-                _region.append(h_next)
-                assert len(extra_vertices) == vertex_index - n_vertices
-
-        assert all( r in _region for r in region if 0 < r )
-        _regions.append(_region)
-    _points = voronoi.points
-    _vertices = np.vstack([voronoi.vertices]+extra_vertices)
-    _ridge_points = np.vstack([_ridge_points]+extra_ridges)
-    _point_region = np.arange(1, len(_regions))#voronoi.point_region
-    return _Voronoi(_points, _vertices, _ridge_points, _ridge_vertices, _regions, _point_region)
-
-
 def cell_index_by_radius(tessellation, points, radius, format=None, select=None, metric='euclidean',
         **kwargs):
     """
@@ -2119,78 +1966,8 @@ def cell_index_by_radius(tessellation, points, radius, format=None, select=None,
     return format_cell_index(associations, format=format, select=select, shape=shape)
 
 
-def get_exterior_cells(tessellation, relative_margin=.1, bounds=None):
-    """
-    Looks for Voronoi cells that expand outside the 2D data bounding box.
-
-    This function can be called in two ways:
-
-    * pass a partition object, which bounding box is inferred from location data,
-      and optionaly define a margin on this default bounding box,
-    * pass a tessellation object and explicitly define the bounding box.
-
-    Arguments:
-
-        tessellation (*Voronoi* or *Partition*):
-            spatial segmentation (*TimeLattice* objects are supported)
-            or full data partition
-
-        relative_margin (float):
-            margin for the default bounds, to identify outside vertices
-
-        bounds (pair of *numpy.ndarray*):
-            lower and upper bounds on the spatial coordinates
-
-    Returns:
-
-        list: indices of exterior cells
-    
-    Modified from https://github.com/DecBayComp/Stochastic_Integrals_Diffusivity/blob/master/ito-to-tramway/get_exterior_cells.py
-    """
-    if bounds is None:
-        # assume first argument is a Partition object
-        partition = tessellation
-        if not isinstance(partition, Partition):
-            raise ValueError('undefined bounds')
-        #
-        tessellation = partition.tessellation
-        bb = partition.bounding_box
-        space_cols = list('xy')
-        lb, ub = bb.loc['min',space_cols].values, bb.loc['max',space_cols].values
-    else:
-        lb, ub = bounds
-
-    try:
-        tessellation = tessellation.spatial_mesh
-    except AttributeError:
-        pass
-
-    # rebuild the Voronoi diagram with explicit undefined vertices (with index -1)
-    voronoi = spatial.Voronoi(tessellation.cell_centers)
-
-    margin = relative_margin * (ub-lb)
-    outside_vertices = np.any((tessellation.vertices<lb-margin)|(ub+margin<tessellation.vertices), axis=1)
-
-    exterior_cells = set()
-    for cell_ix in range(tessellation.number_of_cells):
-
-        region_ix = voronoi.point_region[cell_ix]
-        vertex_ids = np.asarray(voronoi.regions[region_ix])
-
-        if np.any(vertex_ids < 0):
-            # divergent cell
-            exterior_cells.add(cell_ix)
-
-        elif np.any(outside_vertices[vertex_ids]):
-            # out-of-bounds vertex
-            exterior_cells.add(cell_ix)
-
-    return list(exterior_cells)
-
-
-
 __all__ = ['Partition', 'CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
     'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict', \
-    '_Voronoi', 'boxed_voronoi_2d', 'cell_index_by_radius', 'get_exterior_cells']
+    'cell_index_by_radius']
 
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -414,11 +414,16 @@ class Mpl(AnalyzerNode):
         return cls(fig, patches.animate, init_func=patches.init_func,
                 frames=_iter(sampling, maps, return_times=True), **anim_kwargs)
 
-    def plot(self, maps, feature, sampling=None, axes=None, aspect='equal', **kwargs):
+    def plot(self, maps, feature, sampling=None, axes=None, aspect='equal',
+            interior_contour=None, **kwargs):
         """
         Calls :func:`~tramway.helper.inference.map_plot`.
 
         May be reworked in the future to remove the :mod:`~tramway.helper` dependency.
+
+        *new in 0.5.2*:
+        argument *interior_contour* is a :class`dict` with the following keys allowed:
+        *margin*, *linestyle*, *linewidth* and *color*
         """
         from tramway.helper.inference import map_plot
         if isinstance(maps, Analysis):
@@ -429,8 +434,27 @@ class Mpl(AnalyzerNode):
             sampling = sampling.data
         if 'title' not in kwargs:
             kwargs['title'] = None
+        if 'show' not in kwargs:
+            kwargs['show'] = False
         kwargs['aspect'] = aspect
         map_plot(maps, sampling, feature=feature, axes=axes, **kwargs)
+
+        # added in 0.5.2
+        if interior_contour:
+            from tramway.tessellation.utils2d import get_interior_contour
+            if interior_contour is True:
+                interior_contour = {}
+            try:
+                margin = interior_contour.pop('margin')
+            except KeyError:
+                contour = get_interior_contour(sampling)
+            else:
+                contour = get_interior_contour(sampling, margin=margin)
+            contour = np.vstack((contour, contour[[0]]))
+            if axes is None:
+                import matplotlib.pyplot as plt
+                axes = plt
+            axes.plot(contour[:,0], contour[:,1], 'r-', **interior_contour)
 
 
 __all__ = ['PatchCollection', 'FuncAnimation', 'Mpl']
