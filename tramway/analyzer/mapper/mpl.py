@@ -444,12 +444,9 @@ class Mpl(AnalyzerNode):
             from tramway.tessellation.utils2d import get_interior_contour
             if interior_contour is True:
                 interior_contour = {}
-            try:
-                margin = interior_contour.pop('margin')
-            except KeyError:
-                contour = get_interior_contour(sampling)
-            else:
-                contour = get_interior_contour(sampling, margin=margin)
+            margin = interior_contour.pop('margin',
+                     interior_contour.pop('relative_margin', 0))
+            contour = get_interior_contour(sampling, relative_margin=margin)
             contour = np.vstack((contour, contour[[0]]))
             if axes is None:
                 import matplotlib.pyplot as plt
