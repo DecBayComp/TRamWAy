@@ -1478,7 +1478,7 @@ notice: job failures are not reported before the stage is complete;
                         total, pending = None, 0
                     else:
                         total = stop
-                        pending = stop - start
+                        pending = stop - start + 1
                     running = 0
                     other = 0
                     for out in _out:

@@ -275,10 +275,22 @@ class SlidingWindow(AnalyzerNode, DT):
     def regularize_in_time(self):
         """ *bool*: :const:`True` if time regularization is enabled """
         return self._regularize_in_time
-    def n_time_segments(self, sampling):
+    def get_time_segments(self, sampling):
+        """
+        Returns the time segment bounds as an Nx2 array.
+        """
         if isinstance(sampling, Analysis):
             sampling = sampling.data
-        return len(sampling.tessellation.time_lattice)
+        return sampling.tessellation.time_lattice
+    def get_spatial_segmentation(self, sampling, segment=None):
+        """
+        Returns the spatial tessellation.
+        """
+        if isinstance(sampling, Analysis):
+            sampling = sampling.data
+        return sampling.tessellation.spatial_mesh
+    def n_time_segments(self, sampling):
+        return len(self.get_time_segments(sampling))
     def as_time_segments(self, sampling, maps=None, index=None, return_index=False, return_times=True):
         if return_index:
             if return_times or maps is not None:

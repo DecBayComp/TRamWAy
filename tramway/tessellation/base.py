@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2020, Institut Pasteur
+# Copyright © 2017-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -2119,9 +2119,78 @@ def cell_index_by_radius(tessellation, points, radius, format=None, select=None,
     return format_cell_index(associations, format=format, select=select, shape=shape)
 
 
+def get_exterior_cells(tessellation, relative_margin=.1, bounds=None):
+    """
+    Looks for Voronoi cells that expand outside the 2D data bounding box.
+
+    This function can be called in two ways:
+
+    * pass a partition object, which bounding box is inferred from location data,
+      and optionaly define a margin on this default bounding box,
+    * pass a tessellation object and explicitly define the bounding box.
+
+    Arguments:
+
+        tessellation (*Voronoi* or *Partition*):
+            spatial segmentation (*TimeLattice* objects are supported)
+            or full data partition
+
+        relative_margin (float):
+            margin for the default bounds, to identify outside vertices
+
+        bounds (pair of *numpy.ndarray*):
+            lower and upper bounds on the spatial coordinates
+
+    Returns:
+
+        list: indices of exterior cells
+    
+    Modified from https://github.com/DecBayComp/Stochastic_Integrals_Diffusivity/blob/master/ito-to-tramway/get_exterior_cells.py
+    """
+    if bounds is None:
+        # assume first argument is a Partition object
+        partition = tessellation
+        if not isinstance(partition, Partition):
+            raise ValueError('undefined bounds')
+        #
+        tessellation = partition.tessellation
+        bb = partition.bounding_box
+        space_cols = list('xy')
+        lb, ub = bb.loc['min',space_cols].values, bb.loc['max',space_cols].values
+    else:
+        lb, ub = bounds
+
+    try:
+        tessellation = tessellation.spatial_mesh
+    except AttributeError:
+        pass
+
+    # rebuild the Voronoi diagram with explicit undefined vertices (with index -1)
+    voronoi = spatial.Voronoi(tessellation.cell_centers)
+
+    margin = relative_margin * (ub-lb)
+    outside_vertices = np.any((tessellation.vertices<lb-margin)|(ub+margin<tessellation.vertices), axis=1)
+
+    exterior_cells = set()
+    for cell_ix in range(tessellation.number_of_cells):
+
+        region_ix = voronoi.point_region[cell_ix]
+        vertex_ids = np.asarray(voronoi.regions[region_ix])
+
+        if np.any(vertex_ids < 0):
+            # divergent cell
+            exterior_cells.add(cell_ix)
+
+        elif np.any(outside_vertices[vertex_ids]):
+            # out-of-bounds vertex
+            exterior_cells.add(cell_ix)
+
+    return list(exterior_cells)
+
+
 
 __all__ = ['Partition', 'CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
     'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict', \
-    '_Voronoi', 'boxed_voronoi_2d', 'cell_index_by_radius']
+    '_Voronoi', 'boxed_voronoi_2d', 'cell_index_by_radius', 'get_exterior_cells']
 
 
