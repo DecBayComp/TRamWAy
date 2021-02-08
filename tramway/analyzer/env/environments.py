@@ -1438,6 +1438,7 @@ notice: job failures are not reported before the stage is complete;
         check the .err log files generated in the remote working directory
         and manually interrupt the pipeline if all the jobs seem to fail\
 ''')
+        total_task_count = None
         try:
             cmd = 'squeue -j {} -h -o "%K %t %M %R"'.format(self.job_id)
             while True:
@@ -1475,10 +1476,17 @@ notice: job failures are not reported before the stage is complete;
                     if _continue:
                         continue
                     if start is None:
-                        total, pending = None, 0
+                        total, pending = total_task_count, 0
                     else:
-                        total = stop
+                        total = stop + 1
                         pending = stop - start + 1
+
+                        if total_task_count is None:
+                            total_task_count = total
+                        elif total_task_count != total:
+                            self.logger.debug('could not estimate the total number of tasks from squeue output')
+                            total_task_count = total
+
                     running = 0
                     other = 0
                     for out in _out:

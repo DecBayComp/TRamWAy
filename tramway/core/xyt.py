@@ -642,7 +642,10 @@ def discard_static_trajectories(trajectories, min_msd=None, trajnum_colname='n',
             traj = traj.loc[~static]
         if (columns_with_deltas and 0<len(traj)) or 1<len(traj):
             trajs.append(traj)
-    return pd.concat(trajs, ignore_index=True) # preserve column types
+    if trajs:
+        return pd.concat(trajs, ignore_index=True) # preserve column types
+    else:
+        return pd.DataFrame([], columns=trajectories.columns)
 
 
 def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pixel_size=None):

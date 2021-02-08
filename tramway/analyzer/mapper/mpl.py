@@ -423,7 +423,8 @@ class Mpl(AnalyzerNode):
 
         *new in 0.5.2*:
         argument *interior_contour* is a :class`dict` with the following keys allowed:
-        *margin*, *linestyle*, *linewidth* and *color*
+        *margin*, *linestyle*, *linewidth* and *color*.
+        The default value for *margin* (or *relative_margin*) is `0.01`.
         """
         from tramway.helper.inference import map_plot
         if isinstance(maps, Analysis):
@@ -445,7 +446,7 @@ class Mpl(AnalyzerNode):
             if interior_contour is True:
                 interior_contour = {}
             margin = interior_contour.pop('margin',
-                     interior_contour.pop('relative_margin', 0))
+                     interior_contour.pop('relative_margin', .01))
             contour = get_interior_contour(sampling, relative_margin=margin)
             contour = np.vstack((contour, contour[[0]]))
             if axes is None:

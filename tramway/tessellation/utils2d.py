@@ -172,7 +172,7 @@ def boxed_voronoi_2d(points, bounding_box=None):
     return _Voronoi(_points, _vertices, _ridge_points, _ridge_vertices, _regions, _point_region)
 
 
-def get_exterior_cells(tessellation, relative_margin=.1, bounds=None):
+def get_exterior_cells(tessellation, relative_margin=.05, bounds=None, extended_cell_filter=None):
     """
     Looks for Voronoi cells that expand outside the 2D data bounding box.
 
@@ -194,6 +194,11 @@ def get_exterior_cells(tessellation, relative_margin=.1, bounds=None):
 
         bounds (pair of *numpy.ndarray*):
             lower and upper bounds on the spatial coordinates
+
+        extended_cell_filter (callable):
+            boolean function that takes the vertices of any closed cell with at least
+            one out-of-bound vertex, and returns :const:`True` if the corresponding
+            cell should be marked as exterior, :const:`False` otherwise
 
     Returns:
 
@@ -245,7 +250,8 @@ def get_exterior_cells(tessellation, relative_margin=.1, bounds=None):
 
         elif np.any(outside_vertices[vertex_ids]):
             # out-of-bounds vertex
-            exterior_cells.add(cell_ix)
+            if not extended_cell_filter or extended_cell_filter(voronoi.vertices[vertex_ids]):
+                exterior_cells.add(cell_ix)
 
     return list(exterior_cells)
 
@@ -337,7 +343,8 @@ class Path(object):
         return path
 
 
-def get_interior_contour(tessellation, relative_margin=None, bounds=None, return_indices=False):
+def get_interior_contour(tessellation, relative_margin=None, bounds=None, return_indices=False,
+        extended_cell_filter=None):
     """
     Calls `get_exterior_cells` and returns the 2D inner vertices of exterior cells
     so that these vertices make a contour around the interior cells.
@@ -365,9 +372,11 @@ def get_interior_contour(tessellation, relative_margin=None, bounds=None, return
         voronoi = spatial.Voronoi(tessellation.cell_centers)
 
     if relative_margin is None:
-        outer_ids = get_exterior_cells(voronoi, bounds=bounds)
+        outer_ids = get_exterior_cells(voronoi, bounds=bounds,
+                extended_cell_filter=extended_cell_filter)
     else:
-        outer_ids = get_exterior_cells(voronoi, relative_margin, bounds)
+        outer_ids = get_exterior_cells(voronoi, relative_margin,
+                bounds, extended_cell_filter)
 
     outer_ids = set(outer_ids)
 
