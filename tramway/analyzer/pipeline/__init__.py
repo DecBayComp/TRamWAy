@@ -129,7 +129,7 @@ class Pipeline(AnalyzerNode):
 
         """
         self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
-    def early_setup(self):
+    def early_setup(self, **kwargs):
         """
         Sets the `submit_side`/`worker_side` properties of the :attr:`~tramway.analyzer.RWAnalyzer.env`
         attribute.
@@ -144,7 +144,7 @@ class Pipeline(AnalyzerNode):
         :attr:`..env.EnvironmentInitializer.worker_side` properties are :const:`False`.
         """
         if self.env.initialized:
-            self.env.early_setup(*sys.argv)
+            self.env.early_setup(*sys.argv, **kwargs)
     def run(self):
         """
         Sequentially runs the different stages of the pipeline.

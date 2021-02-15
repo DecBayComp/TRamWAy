@@ -5,6 +5,10 @@ Standard analysis steps for RWAnalyzer.pipeline
 
 from ..roi import FullRegion
 from . import PipelineStage
+from ..artefact import commit_as_analysis
+import os.path
+import numpy as np
+from tramway.core import load_xyt
 
 
 def _spt_source_name(f):
@@ -22,7 +26,7 @@ def _filters(kwargs):
     return asr_filters
 
 
-def tessellate(label=None, roi_expected=False, **kwargs):
+def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='freeze', **kwargs):
     """
     Returns a standard pipeline stage for SPT data sampling.
 
@@ -45,9 +49,22 @@ def tessellate(label=None, roi_expected=False, **kwargs):
         for the specified label, these artefacts are also
         overwritten.
 
+    This stage building function features two mechanisms to
+    make the resulting *.rwa* files smaller in size:
+
+    * with option `spt_data='placeholder'`, the SPT data can be
+      omitted in the *.rwa* files;
+      see also :func:`restore_spt_data`;
+    * the spatial tessellation can be freezed (default);
+      this implies the tesellation cannot be updated any longer
+      with extra data.
+
     """
 
     asr_filters = _filters(kwargs)
+
+    def placeholder_for_top_data(tree):
+        tree._data = None
 
     def _tessellate(self):
 
@@ -60,7 +77,7 @@ def tessellate(label=None, roi_expected=False, **kwargs):
             # for data formatting
             any_full_region = False
 
-            with f.autosaving():
+            with f.autosaving() as tree:
 
                 for r in f.roi.as_support_regions(**asr_filters):
 
@@ -86,20 +103,32 @@ def tessellate(label=None, roi_expected=False, **kwargs):
                     dry_run = False
 
                     # store
+                    if tessellation=='freeze':
+                        try:
+                            sampling.tessellation.freeze()
+                        except AttributeError:
+                            pass
                     r.add_sampling(sampling, label=label)
 
-                if not any_full_region:
+                if spt_data == 'placeholder':
+                    ## [does not work:] make the dataframe empty and keep the additional attributes
+                    #df = f.dataframe
+                    #f._dataframe = df[np.zeros(df.shape[0], dtype=bool)]
+                    tree.hooks.append(placeholder_for_top_data)
+                elif not any_full_region:
                     # save the full dataset with reasonnable precision to save storage space
                     f.set_precision('single')
                     # the data in the roi is stored separately and will keep the original precision
 
         if dry_run:
             self.logger.info('stage skipped')
+            diagnose(self)
 
     return PipelineStage(_tessellate, granularity='spt data')
 
 
-def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=False, **kwargs):
+def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=False,
+        single_path=False, **kwargs):
     """
     Returns a standard pipeline stage for inferring model parameters on each region of interest,
     or SPT data item if no roi are defined.
@@ -138,7 +167,7 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
                 roi_label = r.label
                 msg = f"inferring on roi: '{roi_label}' (in source '{source_name}')..."
 
-            with r.autosaving():
+            with r.autosaving() as tree:
 
                 self.logger.info(msg)
                 maps = self.mapper.infer(sampling)
@@ -148,8 +177,17 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
                 # store
                 maps.commit_as_analysis(map_label)
 
+                if single_path:
+                    for label in tree:
+                        if label != sampling_label:
+                            del tree[label]
+                    for label in tree[sampling_label]:
+                        if label != map_label:
+                            del tree[sampling_label][label]
+
         if dry_run:
             self.logger.info('stage skipped')
+            diagnose(self)
 
     return PipelineStage(_infer, granularity='roi')
 
@@ -177,6 +215,156 @@ def reload(skip_missing=True):
 
     return PipelineStage(_reload, requires_mutability=True)
 
+def restore_spt_data():
+    """
+    Reintroduces the original SPT dataframe into the *.rwa* files.
 
-__all__ = ['tessellate', 'infer', 'reload']
+    This post-processing stage - typically post-infer stage - is expected to be
+    called only when the `tessellate` stage was called before with option
+    `spt_data='placeholder'`.
+
+    .. warning:
+
+        This stage requires the original SPT data available as ascii files.
+
+    """
+    from ..spt_data import RWAFile
+
+    def _restore(self):
+        for f in self.spt_data:
+            if not isinstance(f, RWAFile):
+                f.reload_from_rwa_files()
+                f = self.spt_data.filter_by_source(f.source)
+            #
+            spt_ascii_file = f.analyses.metadata['datafile']
+            rwa_file = f.filepath
+            local_spt_file = os.path.join(os.path.dirname(rwa_file), os.path.basename(spt_ascii_file))
+            if os.path.isfile(local_spt_file):
+                df = load_xyt(local_spt_file)
+                restore = no_dataframe = f.dataframe is None
+                if not no_dataframe:
+                    cols, cols_ = f.dataframe.columns, df.columns
+                    restore = len(cols)==len(cols__) and all([ c==c_ for c, c_ in zip(cols, cols_) ])
+                if restore:
+                    with f.autosaving() as tree:
+                        f._dataframe = df
+                        tree.flag_as_modified()
+                else:
+                    self.logger.error('column names do not match with file: {}'.format(local_spt_file))
+            else:
+                self.logger.error('could not find file: {}'.format(local_spt_file))
+
+    return PipelineStage(_restore, granularity='spt data')
+
+
+def tessellate_and_infer(map_label, sampling_label=None, spt_data=True, **kwargs):
+
+    def placeholder_for_top_data(tree):
+        tree._data = None
+
+    def _tessellate_and_infer(self):
+
+        dry_run = True
+
+        for f in self.spt_data:
+
+            # for logging
+            source_name = _spt_source_name(f)
+            # for data formatting
+            any_full_region = False
+
+            with f.autosaving() as tree:
+
+                for r in f.roi.as_support_regions():
+
+                    if isinstance(r, FullRegion):
+                        #if roi_expected:
+                        #    continue
+                        any_full_region = True
+                        msg = f"{{}}ing source: '{source_name}'..."
+                    else:
+                        roi_label = r.label
+                        msg = f"{{}}ing roi: '{roi_label}' (in source '{source_name}')..."
+                    def log(op):
+                        if op.endswith('e'):
+                            op = op[:-1]
+                        self.logger.info(msg.format(op))
+
+                    # get the SPT data
+                    df = r.crop()
+
+                    # filter some translocations out
+                    df = r.discard_static_trajectories(df)
+
+                    # tessellate
+                    log('tessellate')
+                    sampling = self.sampler.sample(df)
+
+                    # infer
+                    log('infer')
+                    maps = self.mapper.infer(sampling)
+
+                    dry_run = False
+
+                    # store
+                    try:
+                        sampling.tessellation.freeze()
+                    except AttributeError:
+                        pass
+                    if sampling_label is None:
+                        label = r.label
+                    else:
+                        label = sampling_label
+                    sampling = commit_as_analysis(label, sampling, parent=r)
+                    maps     = commit_as_analysis(map_label, maps, parent=sampling)
+
+                if spt_data=='placeholder':
+                    tree.hooks.append(placeholder_for_top_data)
+
+        if dry_run:
+            self.logger.info('stage skipped')
+            diagnose(self)
+
+    return PipelineStage(_tessellate_and_infer, granularity='roi')
+
+
+def diagnose(self):
+    """
+    Checks for filter consistency.
+
+    To be called only in the case of proven dry runs.
+    """
+    from ..spt_data import _normalize
+
+    sources = self.env.selectors['source']
+    if isinstance(sources, str):
+        sources = (sources,)
+
+    try:
+        alias = all([ bool(f.alias) for f in self._eldest_parent.spt_data ])
+    except AttributeError:
+        alias = False
+    if alias:
+        requested = set(sources)
+        available = set(self.spt_data.aliases)
+    else:
+        requested = set([ _normalize(_s) for _s in sources ])
+        available = set([ _normalize(_f.source) for _f in self.spt_data ])
+
+    if bool( requested - available ):
+        self.logger.critical(f"""
+The local worker was assigned the following SPT data source(s):
+   {requested}
+but listed other sources:
+   {available}
+This is known to happen when files are listed from the file system
+and a subset of the listed files is selected based on their order
+in the list.
+Avoid doing so!
+Filename ordering varies from a file system to another.
+""")
+        raise RuntimeError
+
+
+__all__ = ['tessellate', 'infer', 'reload', 'restore_spt_data', 'tessellate_and_infer']
 

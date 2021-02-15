@@ -511,12 +511,16 @@ class Env(AnalyzerNode):
             command_options.append('--segment-index={:d}'.format(segment_index))
         self.pending_jobs.append(tuple(command_options))
     @classmethod
-    def _combine_analyses(cls, wd, data_location, logger, *args, directory_mapping={}):
+    def _combine_analyses(cls, wd, data_location, logger, *args, directory_mapping={},
+            inplace=False):
         """
-        Loads the generated rwa files, combines them and returns the list of the combined files.
+        Loads the generated interim rwa files, combines them and returns the list
+        of the resulting files.
 
-        Should be run on the worker side only, where the collectible files are available.
+        Should be run on the worker side only, where the collectible files are
+        available.
         """
+        # read the interim files and combine the analysis trees
         analyses, original_files = {}, {}
         output_files = glob.glob(os.path.join(wd, '*.rwa'))
         loaded_files = []
@@ -557,14 +561,27 @@ class Env(AnalyzerNode):
                 else:
                     original_files[source].append(output_file)
             loaded_files.append(output_file)
+
+        # write all the combined trees in output files
         end_result_files = []
         for source in analyses:
             logger.info('for source file: {}...'.format(source))
+
             # TODO: if isinstance(spt_data, (StandaloneRWAFile, RWAFiles))
-            #       pass the input rwa file paths to _combine_analyses
+            #       pass the input rwa file paths to _combine_analyses;
+            #       this would be helpful for user-defined rwa filenames
+            #       that do not match the original SPT data filename.
+
+            # determine the output rwa filename
             rwa_file = os.path.splitext(os.path.normpath(source))[0]+'.rwa'
-            #logger.info((rwa_file, os.path.isabs(rwa_file), directory_mapping))
-            if os.path.isabs(rwa_file):
+            if inplace:
+                if original_files[source][1:]:
+                    if inplace:
+                        fd, rwa_file = tempfile.mkstemp(dir=wd, suffix='.rwa')
+                        os.close(fd)
+                else:
+                    rwa_file = None
+            elif os.path.isabs(rwa_file):
                 if directory_mapping:
                     for to_be_replaced in directory_mapping:
                         if rwa_file.startswith(to_be_replaced):
@@ -574,13 +591,26 @@ class Env(AnalyzerNode):
                                 rwa_file = replacement+rwa_file # and NOT os.path.join, since rwa_file may start with '/'
             elif not os.path.isabs(os.path.expanduser(rwa_file)) and data_location:
                 rwa_file = os.path.join(data_location, rwa_file)
-            logger.info('writing file: {}'.format(rwa_file))
+
+            # log the outcome
+            if rwa_file is None:
+                # designate the standalone .rwa file as an output file
+                # so that it is spared while cleaning up the working directory
+                rwa_file = original_files[source][0]
+                #
+                logger.info('interim file left untouched: {}'.format(rwa_file))
+            else:
+                logger.info('writing file: {}'.format(rwa_file))
+
+            # flush the combined data
             if original_files[source][1:]:
                 try:
                     save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True, compress=False)
                 except (KeyboardInterrupt, SystemExit):
                     raise
                 except:# FileNotFoundError:
+                    if inplace:
+                        raise
                     logger.warning('writing file failed: {}'.format(rwa_file))
                     local_rwa_file = rwa_file
                     fd, remote_rwa_file = tempfile.mkstemp(dir=wd, suffix='.rwa')
@@ -588,7 +618,7 @@ class Env(AnalyzerNode):
                     logger.info('writing file: {}...'.format(remote_rwa_file))
                     save_rwa(remote_rwa_file, analyses[source], force=True, compress=False)
                     rwa_file = (remote_rwa_file, local_rwa_file)
-            else:
+            elif not inplace:
                 analyses[source]._data.store.close() # close the file descriptor
                 original_file = original_files[source][0]
                 # copy original_file to rwa_file
@@ -600,8 +630,11 @@ class Env(AnalyzerNode):
                     remote_rwa_file = original_file
                     local_rwa_file = rwa_file
                     rwa_file = (remote_rwa_file, local_rwa_file)
+
+            # register the output files
             end_result_files.append(rwa_file)
-        #
+
+        # delete the input interim files
         to_keep = [ f[0] if isinstance(f,tuple) else f for f in end_result_files ]
         for output_file in loaded_files:
             if output_file not in to_keep:
@@ -614,7 +647,7 @@ class Env(AnalyzerNode):
                         raise
         #
         return end_result_files
-    def collect_results(self, stage_index=None):
+    def collect_results(self, stage_index=None, inplace=False):
         """
         Calls :meth:`_combine_analyses` for the remote data location and the
         current working directory and stage index,
@@ -622,8 +655,16 @@ class Env(AnalyzerNode):
         if they are different hosts.
 
         Returns :const:`True` if files are collected/retrieved.
+
+        If `inplace` is :const:`True`, user-defined collectibles are disregarded
+        and only the *.rwa* files are sought for and combined.
+        In addition, no files are moved outside the working directory on the
+        worker side.
+        The intermediate *.rwa* files are combined into new intermediate *.rwa* files.
+        This is useful to maintain fewer intermediate files and free significant amount
+        of disk space.
         """
-        return bool(self._combine_analyses(self.wd, None, self.logger, stage_index))
+        return bool(self._combine_analyses(self.wd, None, self.logger, stage_index, inplace=inplace))
     def prepare_script(self, script=None):
         main_script = script is None
         if main_script:
@@ -877,7 +918,7 @@ class Slurm(Env):
     def srun_options(self, options):
         if options is None:
             self._srun_options = {}
-        elif isinstance(options, SlurmOptions):
+        elif isinstance(options, UpdatedDict):
             self._srun_options = options._proper
         elif isinstance(options, dict):
             self._srun_options = options
@@ -1056,9 +1097,9 @@ class RemoteHost(object):
                         segment_index=None):
                 cls.make_job(self, stage_index, self.format_source(source),
                         region_index, segment_index)
-            def collect_results(self, stage_index=None):
+            def collect_results(self, stage_index=None, inplace=False):
                 log_pattern = '*.out' # to be adapted
-                RemoteHost.collect_results(self, log_pattern, stage_index):
+                RemoteHost.collect_results(self, log_pattern, stage_index, inplace=inplace)
             def delete_temporary_data(self):
                 RemoteHost.delete_temporary_data(self)
                 cls.delete_temporary_data(self)
@@ -1224,10 +1265,13 @@ class RemoteHost(object):
             # attribute `current_stage` is expected to defined in the concrete parent class
             stage_index = self.current_stage
         return self._collectible_prefix(stage_index)
-    def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env'):
+    def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env', inplace=False):
         """
         Downloads the reported collectibles from the remote host (worker side)
         to the local host (submit side).
+
+        See :meth:`Env.collect_results` for information on the distinct behavior
+        of the `inplace=True` case.
         """
         _prefix = self.collectible_prefix(stage_index)
         data_loc = self.remote_data_location if self.remote_data_location else ''
@@ -1245,19 +1289,24 @@ log_pattern = '{}'
 directory_mapping = {}
 
 files  = environments.{}._combine_analyses(wd, data_location, logger, stage,
-            directory_mapping=directory_mapping)
+            directory_mapping=directory_mapping, inplace={})\
+""".format(self.wd, data_loc, stage_index, _log_pattern, self.directory_mapping, _parent_cls,
+            inplace)
+        if not inplace:
+            code += """
 files += environments.RemoteHost._collectibles_from_log_files(wd, log_pattern, stage)
 
 files  = environments.RemoteHost._format_collectibles(files)
 
 print('{}'+';'.join(files))\
-""".format(self.wd, data_loc, stage_index, _log_pattern, self.directory_mapping, _parent_cls, _prefix)
+""".format(_prefix)
         local_script = self.make_temporary_file(suffix='.py', text=True)
         with open(local_script, 'w') as f:
             f.write(code)
         remote_script = '/'.join((self.wd, os.path.basename(local_script)))
         attrs = self.ssh.put(local_script, remote_script, confirm=True)
         self.logger.debug(attrs)
+        log_file = os.path.splitext(remote_script)[0]+'.log'
         cmd = '{}{} {}; rm {}'.format(
                 '' if self.remote_dependencies is None else self.remote_dependencies+'; ',
                 self.collection_interpreter, remote_script, remote_script)
@@ -1265,6 +1314,8 @@ print('{}'+';'.join(files))\
         out, err = out.rstrip(), err.rstrip()
         if err:
             self.logger.error(err)
+        if inplace:
+            return False
         if not out:
             return False
         self.logger.debug(out)
@@ -1529,8 +1580,8 @@ notice: job failures are not reported before the stage is complete;
             return ' '.join(cmd)
         else:
             return self.interpreter
-    def collect_results(self, stage_index=None):
-        RemoteHost.collect_results(self, '*.out', stage_index)
+    def collect_results(self, stage_index=None, inplace=False):
+        RemoteHost.collect_results(self, '*.out', stage_index, inplace=inplace)
     collect_results.__doc__ = RemoteHost.collect_results.__doc__
     def delete_temporary_data(self):
         RemoteHost.delete_temporary_data(self)
@@ -1584,6 +1635,61 @@ notice: job failures are not reported before the stage is complete;
             if self.job_id is not None:
                 self.wait_for_job_completion()
             self.collect_results(stage_index=stage_index)
+
+    def pack_temporary_rwa_files(self, log=None, wd=None, stage_index=None, job_id=None):
+        """
+        Similarly to :meth:`resume`, `pack_temporary_rwa_files` combines the intermediate
+        *.rwa* files in the temporary directory for a running instance on the compute host.
+
+        This does not move files out of the temporary directory.
+        Instead, the intermediate *.rwa* files are replaced by new (but fewer) intermediate
+        *.rwa* files that result from combining the former.
+
+        This may be useful to save disk space, as the localization data is duplicated as
+        many times as there are intermediate files.
+        """
+        # perform the same checks as `resume`, although the temporary directory only is
+        # required
+        if wd is None or stage_index is None or job_id is None:
+            if log is None:
+                log = input('please copy-paste below the log output of the disconnected instance\n(job progress information can be omitted):\n')
+            log = log.splitlines()
+            for line in log[::-1]:
+                if wd:
+                    try:
+                        opt = line.index(' --stage-index=')
+                    except ValueError:
+                        pass
+                    else:
+                        stage_index = line[opt+15:].split()[0]
+                        stage_index = [ int(s) for s in stage_index.split(',') ]
+                        break
+                elif job_id:
+                    assert line.startswith('running: ') and 'sbatch ' in line
+                    script = line.split('sbatch ')[-1].rstrip()
+                    if not wd:
+                        wd = '/'.join(script.split('/')[:-1])
+                elif line.startswith('Submitted batch job '):
+                    job_id = line[20:].rstrip()
+                elif line.startswith('working directory: '):
+                    wd = line[19:].rstrip()
+            if stage_index is None and len(self._eldest_parent.pipeline)==1:
+                stage_index = 0
+        if stage_index is None:
+            self.logger.info('cannot identify an execution point where to resume from')
+        else:
+            self.setup(sys.executable, create_working_directory=False)
+            assert self.submit_side
+            #self.delete_temporary_data() # undo wd creation during setup
+            self.working_directory = wd
+            self.job_id = job_id
+            if isinstance(stage_index, int):
+                stage_index = [stage_index]
+            self.logger.info('packing intermediate files for uncomplete stage(s):\t'+', '.join([str(i) for i in stage_index])+"""
+ with working directory:\t'{}'
+  and job id:\t\t\t{}\
+""".format(wd, job_id))
+            self.collect_results(stage_index=stage_index, inplace=True)
 
 
 Environment.register(SlurmOverSSH)

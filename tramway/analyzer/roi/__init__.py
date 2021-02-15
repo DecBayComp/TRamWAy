@@ -563,6 +563,11 @@ class BoundingBoxes(SpecializedROI):
     @property
     def bounding_boxes(self):
         return self._bounding_boxes
+    def __setitem__(self, label, bb):
+        if label is None:
+            label = ''
+        self._collections[label] = bb
+        self._bounding_boxes = {label: bb}
     def as_individual_roi(self, index=None, collection=None, source=None, return_index=False):
         if return_index:
             def bear_child(i, *args):
@@ -716,8 +721,10 @@ class ROIAsciiFile(BoundingBoxes):
         if not self.reified:
             self.load()
         yield from BoundingBoxes.as_support_regions(self, *args, **kwargs)
-    def load(self):
-        roi = pd.read_csv(self.filepath, sep='\t')
+    def load(self, label=None, filepath=None):
+        if filepath is None:
+            filepath = self.filepath
+        roi = pd.read_csv(filepath, sep='\t')
         center_cols = [ col for col in 'xyzt' if col in roi.columns ]
         bound_cols = [ col for col in 'xyzt' if col+' min' in roi.columns and col+' max' in roi.columns ]
         if 't' in center_cols:
@@ -757,11 +764,23 @@ class ROIAsciiFile(BoundingBoxes):
         #
         bounds = list(zip(lower_bounds, upper_bounds))
         #
-        for label in self._bounding_boxes:
-            if self._bounding_boxes[label] is None:
-                self._collections[label] = bounds
-                self._bounding_boxes[label] = bounds
-                #break?
+        if label is None:
+            for label in self._bounding_boxes:
+                if self._bounding_boxes[label] is None:
+                    self._collections[label] = bounds
+                    self._bounding_boxes[label] = bounds
+                    #break?
+        else:
+            self._collections[label] = bounds
+            self._bounding_boxes[label] = bounds
+    def add_collection(self, label, filepath):
+        if not self.reified:
+            self.load()
+        if label is None:
+            label = ''
+        if label in self._bounding_boxes:
+            raise KeyError("collection '{}' is already defined".format(label))
+        self.load(label, filepath)
 
 ROI.register(ROIAsciiFile)
 
@@ -829,6 +848,50 @@ class ROIAsciiFiles(DecentralizedROIManager):
 
             #
             f.roi.from_ascii_file(filepath, *args)
+        #
+        if first:
+            raise FileNotFoundError('not any roi file found')
+    def add_collection(self, label, suffix, skip_missing=False):
+        import os.path
+        first = True
+        for f in self._parent.spt_data:
+            _, extension = os.path.splitext(f.roi.filepath)
+            _suffix = suffix + extension
+            filepath, _ = os.path.splitext(f.source)
+            if first:
+                found = False
+                for join_with in ('', '-', '_'):
+                    candidate_filepath = join_with.join((filepath, _suffix))
+                    if os.path.isfile(os.path.expanduser(candidate_filepath)):
+                        found = True
+                        _filepath, filepath = filepath, candidate_filepath
+                        _suffix = join_with + _suffix
+                        break
+                if not found:
+                    if skip_missing:
+                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        continue
+                    raise FileNotFoundError('{}{}{}'.format(
+                            os.path.basename(_filepath),
+                            '' if _suffix[0] in '-_' else '[-_]',
+                            _suffix,
+                        ))
+                first = False
+            else:
+                _suffix = join_with + _suffix
+                _filepath, filepath = filepath, filepath + _suffix
+                if not os.path.isfile(os.path.expanduser(filepath)):
+                    if skip_missing:
+                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        continue
+                    raise FileNotFoundError('{}{}{}'.format(
+                            os.path.basename(_filepath),
+                            '' if _suffix[0] in '-_' else '[-_]',
+                            _suffix,
+                        ))
+
+            #
+            f.roi.add_collection(label, filepath)
         #
         if first:
             raise FileNotFoundError('not any roi file found')

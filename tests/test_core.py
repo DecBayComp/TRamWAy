@@ -157,8 +157,8 @@ class TestXyt(object):
 from tramway.core.analyses import *
 class TestAnalyses(object):
 
-    def example_list(self):
-        return ['a', 1, [], True]
+    def example_list(self, i=1):
+        return ['a', i, [], True]
 
     def example_dict(self, i=1):
         if i == 1:
@@ -178,6 +178,13 @@ class TestAnalyses(object):
         tree.add(subtree, label='a list', comment='heterogeneous list')
         subsubtree = Analyses(self.example_dict())
         subtree.add(subsubtree, label='a dict')
+        return tree
+
+    def example_tree_2(self):
+        tree = Analyses('a string')
+        tree['another list'] = self.example_list(2)
+        tree['another list']['a dict'] = self.example_dict(2)
+        tree['another list'].comments['a dict'] = 'basic dictionnary'
         return tree
 
     def example_comment(self):
@@ -202,4 +209,22 @@ class TestAnalyses(object):
         assert art2 == {}
         art1, art2 = find_artefacts(tree, ((set, list), dict), ('a list', 'a dict', 'another dict', 'yet another dict'))
         assert art2 == self.example_dict(2)
+
+    def test_combine_trees(self):
+        a = self.example_tree()
+        b = self.example_tree_2()
+        append_leaf(a, b)
+        assert a.data == 'a string'
+        assert len(a.labels) == 2
+        print(a) # shows if test fails
+        assert set(a.labels) == set(('a list', 'another list'))
+
+        a = self.example_tree()
+        a._data = None
+        b._data = None
+        append_leaf(a, b)
+        assert a.data is None
+        assert len(a.labels) == 2
+        print(a) # shows if test fails
+        assert set(a.labels) == set(('a list', 'another list'))
 

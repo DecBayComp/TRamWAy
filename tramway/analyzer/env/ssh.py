@@ -144,6 +144,8 @@ class Client(object):
         except:
             info = None
         if info is None:
+            if target_url is None:
+                return True
             if logger is not None:
                 logger.info('downloading {}...'.format(target_url))
             out, err = self.exec('wget '+target_url)

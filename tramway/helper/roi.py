@@ -176,7 +176,7 @@ class UnitRegions(SupportRegions):
             r = r[0]
         for collection in self.unit_region:
             n = len(self.unit_region[collection])
-            if n < r:
+            if n <= r:
                 r -= n
             else:
                 break
@@ -236,7 +236,7 @@ class UnitRegions(SupportRegions):
     def crop(self, r, df):
         n_space_cols = len([ col for col in 'xyz' if col in df.columns ])
         for regions in self.unit_region.values():
-            if len(regions) < r:
+            if len(regions) <= r:
                 r -= len(regions)
             else:
                 if isinstance(regions[r], (pt.Polytope, pt.Region)):

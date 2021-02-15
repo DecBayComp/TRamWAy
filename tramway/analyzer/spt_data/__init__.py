@@ -910,7 +910,7 @@ class SPTFile(_SPTDataFrame):
     def get_analyses(self):
         if self._analyses._data is None:
             self.load()
-            assert self._analyses._data is not None
+            assert self._analyses._data is not None or bool(self._analyses._instances)
         return self._analyses
     @property
     def analyses(self):
@@ -1226,7 +1226,7 @@ class _RWAFile(SPTFile):
         try:
             tree = load_rwa(os.path.expanduser(self.filepath),
                     lazy=True, force_load_spt_data=False)
-            assert islazy(tree._data)
+            assert islazy(tree._data) or tree._data is None
             self.analyses = tree
         except KeyError as e:
             raise RWAFileException(self.filepath, e) from None
