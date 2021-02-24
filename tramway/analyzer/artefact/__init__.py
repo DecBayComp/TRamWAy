@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -77,6 +77,12 @@ class Analysis(object):
     @classmethod
     def get_analysis(cls, parent, label):
         artefact = cls(None, parent)
+        if label is None:
+            from tramway.analyzer.attribute import single
+            try:
+                label = single(artefact.parent.labels)
+            except RuntimeError:
+                raise RuntimeError('undefined label for analysis artefact') from None
         artefact.label = label
         artefact._subtree = artefact.parent[label]
         artefact._data = artefact.subtree.data
@@ -87,13 +93,78 @@ class Analysis(object):
             return self.parent
         else:
             return self.subtree
-    def get_child(self, label):
+    def get_child(self, label=None):
         return Analysis.get_analysis(self, label)
     def get_parent(self):
         if isinstance(self._parent, Analysis):
             return self._parent
         else:
             return None
+    @classmethod
+    def rebase_tree(cls, tree, origin_tree):
+        """ Merges `tree` into pre-existing `origin_tree`.
+
+        `tree` is modified in-place.
+        As a consequence, the resulting tree is `tree`,
+        and NOT `origin_tree`, although the operation
+        is conceptually easier to describe as `tree` being
+        merged into `origin_tree`, or equivalently
+        `origin_tree` being updated with `tree`.
+
+        `tree` takes priority and an artefact in `origin_tree`
+        is taken into account only if the corresponding label does
+        not already exist in `tree`.
+
+        `rebase_tree` has been designed to rebase `tree` from
+        `origin_tree` and pulling any change.
+        """
+        subtree0, subtree1 = tree, origin_tree
+        if subtree0:
+            labels0 = set(list(subtree0.labels))
+            labels1 = set(list(subtree1.labels))
+            for label in labels0 & labels1:
+                cls.rebase_tree(subtree0[label], subtree1[label])
+            for label in labels1 - labels0:
+                subtree0[label] = subtree1[label]
+                try:
+                    subtree0.comments[label] = subtree1.comments[label]
+                except KeyError:
+                    pass
+        else:
+            if subtree1:
+                for label in subtree1:
+                    subtree0[label] = subtree1[label]
+                    try:
+                        subtree0.comments[label] = subtree1.comments[label]
+                    except KeyError:
+                        pass
+    @classmethod
+    def save(cls, filepath, tree, **kwargs):
+        """
+        Wrapper for :func:`~tramway.core.hdf5.store.save_rwa` that overrides
+        the default values for `compress` (:const:`False`) and `append` (:const:`True`).
+
+        `append=None` is interpreted as `append=False` and a `PendingDeprecationWarning`
+        warning is thrown.
+
+        `append` behavior itself is also overriden.
+        It is replaced by that of :meth:`rebase_tree`.
+        As a consequence, :meth:`save` also understands keyworded argument `rebase`,
+        and `append` is treated as a synonym for `rebase`.
+        """
+        import os.path
+        from tramway.core.hdf5.store import load_rwa, save_rwa
+        kwargs['compress'] = kwargs.get('compress', False)
+        append = kwargs.pop('append', None)
+        rebase = kwargs.pop('rebase', None)
+        if rebase is None:
+            rebase = True if append is None else append
+        elif not (append is None or append == rebase):
+            raise ValueError('`append` and `rebase` do not have compatible values')
+        if rebase and os.path.isfile(filepath):
+            existing_tree = load_rwa(filepath)
+            cls.rebase_tree(tree, existing_tree)
+        save_rwa(filepath, tree, **kwargs)
 
 
 def _getter(pos, kw=None, default=None):

@@ -13,6 +13,7 @@
 
 
 from ..attribute import *
+from ..artefact import Analysis
 from .abc import *
 from ..spt_data.abc import SPTData
 from ..spt_data import _normalize
@@ -27,7 +28,7 @@ import tempfile
 import shutil
 import glob
 import traceback
-from tramway.core.hdf5.store import load_rwa, save_rwa
+from tramway.core.hdf5.store import load_rwa
 from tramway.core.analyses.base import append_leaf
 
 
@@ -290,8 +291,8 @@ class Env(AnalyzerNode):
                 #self.logger.debug('selecting source: '+', '.join((sources,) if isinstance(sources, str) else sources))
             #
             for f in self.analyzer.spt_data: # TODO: check why self.spt_data_selector(..) does not work
-                f.analyses.rwa_file = self.make_temporary_file(suffix='.rwa', output=True)
-                f.analyses.autosave = True
+                f._analyses.rwa_file = self.make_temporary_file(suffix='.rwa', output=True)
+                f._analyses.autosave = True
         elif self.script is None:
             # not tested!
             candidate_files = [ f for f in os.listdir() \
@@ -512,7 +513,7 @@ class Env(AnalyzerNode):
         self.pending_jobs.append(tuple(command_options))
     @classmethod
     def _combine_analyses(cls, wd, data_location, logger, *args, directory_mapping={},
-            inplace=False):
+            inplace=False, reload_existing_rwa_files=False):
         """
         Loads the generated interim rwa files, combines them and returns the list
         of the resulting files.
@@ -553,7 +554,7 @@ class Env(AnalyzerNode):
                 original_files[source] = [output_file]
             else:
                 try:
-                    append_leaf(_analyses, __analyses)
+                    Analysis.rebase_tree(_analyses, __analyses)
                 except ValueError:
                     print(_analyses)
                     print(__analyses)
@@ -605,7 +606,8 @@ class Env(AnalyzerNode):
             # flush the combined data
             if original_files[source][1:]:
                 try:
-                    save_rwa(os.path.expanduser(rwa_file), analyses[source], force=True, compress=False)
+                    Analysis.save(os.path.expanduser(rwa_file), analyses[source], force=True,
+                            rebase=reload_existing_rwa_files)
                 except (KeyboardInterrupt, SystemExit):
                     raise
                 except:# FileNotFoundError:
@@ -616,7 +618,8 @@ class Env(AnalyzerNode):
                     fd, remote_rwa_file = tempfile.mkstemp(dir=wd, suffix='.rwa')
                     os.close(fd)
                     logger.info('writing file: {}...'.format(remote_rwa_file))
-                    save_rwa(remote_rwa_file, analyses[source], force=True, compress=False)
+                    Analysis.save(remote_rwa_file, analyses[source], force=True,
+                            rebase=reload_existing_rwa_files)
                     rwa_file = (remote_rwa_file, local_rwa_file)
             elif not inplace:
                 analyses[source]._data.store.close() # close the file descriptor
@@ -647,7 +650,7 @@ class Env(AnalyzerNode):
                         raise
         #
         return end_result_files
-    def collect_results(self, stage_index=None, inplace=False):
+    def collect_results(self, stage_index=None, inplace=False, reload_existing_rwa_files=False):
         """
         Calls :meth:`_combine_analyses` for the remote data location and the
         current working directory and stage index,
@@ -664,7 +667,8 @@ class Env(AnalyzerNode):
         This is useful to maintain fewer intermediate files and free significant amount
         of disk space.
         """
-        return bool(self._combine_analyses(self.wd, None, self.logger, stage_index, inplace=inplace))
+        return bool(self._combine_analyses(self.wd, None, self.logger, stage_index, inplace=inplace,
+                reload_existing_rwa_files=reload_existing_rwa_files))
     def prepare_script(self, script=None):
         main_script = script is None
         if main_script:
@@ -778,7 +782,7 @@ class LocalHost(Env):
                 self.wait_for_job_completion(1)
             self.logger.debug('submitting: '+( ' '.join(['{}']*(len(job)+2)).format(self.interpreter, self.script, *job) ))
             p = subprocess.Popen([self.interpreter, self.script, *job],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.running_jobs.append((j,p))
         self.pending_jobs = []
     def wait_for_job_completion(self, count=None):
@@ -786,7 +790,7 @@ class LocalHost(Env):
         n = 0
         for j,p in self.running_jobs:
             out, err = p.communicate()
-            out, err = out.rstrip(), err.rstrip()
+            out, err = out.rstrip(), None if err is None else err.rstrip()
             if out:
                 if not isinstance(out, str):
                     out = out.decode('utf-8')
@@ -807,9 +811,13 @@ class LocalHost(Env):
         for j,p in self.running_jobs:
             out, err = p.communicate()
             if err:
+                if not isinstance(err, str):
+                    err = err.decode('utf-8')
                 self.logger.error(err)
                 return False
             elif out:
+                if not isinstance(out, str):
+                    out = out.decode('utf-8')
                 self.logger.info(out)
         self.running_jobs = []
         return True
@@ -1097,9 +1105,11 @@ class RemoteHost(object):
                         segment_index=None):
                 cls.make_job(self, stage_index, self.format_source(source),
                         region_index, segment_index)
-            def collect_results(self, stage_index=None, inplace=False):
+            def collect_results(self, stage_index=None, inplace=False,
+                        reload_existing_rwa_files=False):
                 log_pattern = '*.out' # to be adapted
-                RemoteHost.collect_results(self, log_pattern, stage_index, inplace=inplace)
+                RemoteHost.collect_results(self, log_pattern, stage_index,
+                    inplace=inplace, reload_existing_rwa_files=reload_existing_rwa_files)
             def delete_temporary_data(self):
                 RemoteHost.delete_temporary_data(self)
                 cls.delete_temporary_data(self)
@@ -1244,6 +1254,13 @@ class RemoteHost(object):
             self.script = dest
             self.logger.info('Python script location: '+dest)
             return True
+    def exec_inline_python(self, inline_code):
+        python = []
+        if self.remote_dependencies:
+            python.append(self.remote_dependencies)
+        python.append(self.collection_interpreter)
+        python = '; '.join(python)
+        return self.ssh.exec('{} -c "{}"'.format(python, inline_code.replace('"', r'\"')), shell=True, logger=self.logger)
     @classmethod
     def _collectible_prefix(cls, stage_index=None):
         """
@@ -1265,7 +1282,8 @@ class RemoteHost(object):
             # attribute `current_stage` is expected to defined in the concrete parent class
             stage_index = self.current_stage
         return self._collectible_prefix(stage_index)
-    def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env', inplace=False):
+    def collect_results(self, _log_pattern, stage_index=None, _parent_cls='Env', inplace=False,
+            reload_existing_rwa_files=False):
         """
         Downloads the reported collectibles from the remote host (worker side)
         to the local host (submit side).
@@ -1289,9 +1307,10 @@ log_pattern = '{}'
 directory_mapping = {}
 
 files  = environments.{}._combine_analyses(wd, data_location, logger, stage,
-            directory_mapping=directory_mapping, inplace={})\
+            directory_mapping=directory_mapping, inplace={},
+            reload_existing_rwa_files={})\
 """.format(self.wd, data_loc, stage_index, _log_pattern, self.directory_mapping, _parent_cls,
-            inplace)
+            inplace, reload_existing_rwa_files)
         if not inplace:
             code += """
 files += environments.RemoteHost._collectibles_from_log_files(wd, log_pattern, stage)
@@ -1313,12 +1332,15 @@ print('{}'+';'.join(files))\
         out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
         out, err = out.rstrip(), err.rstrip()
         if err:
+            if out:
+                self.logger.debug(out)
             self.logger.error(err)
         if inplace:
             return False
         if not out:
             return False
-        self.logger.debug(out)
+        if not err:
+            self.logger.debug(out)
         out = out.splitlines()
         while True:
             try:
@@ -1421,10 +1443,10 @@ if '{0}' not in {1}.env.directory_mapping:
         Deletes the worker-side working directory.
         """
         out, err = self.ssh.exec('rm -rf '+self.wd)
-        if err:
-            self.logger.error(err)
         if out:
             self.logger.info(out)
+        if err:
+            self.logger.error(err)
 
 
 class SlurmOverSSH(Slurm, RemoteHost):
@@ -1580,8 +1602,9 @@ notice: job failures are not reported before the stage is complete;
             return ' '.join(cmd)
         else:
             return self.interpreter
-    def collect_results(self, stage_index=None, inplace=False):
-        RemoteHost.collect_results(self, '*.out', stage_index, inplace=inplace)
+    def collect_results(self, stage_index=None, inplace=False, reload_existing_rwa_files=False):
+        RemoteHost.collect_results(self, '*.out', stage_index, inplace=inplace,
+                reload_existing_rwa_files=reload_existing_rwa_files)
     collect_results.__doc__ = RemoteHost.collect_results.__doc__
     def delete_temporary_data(self):
         RemoteHost.delete_temporary_data(self)
@@ -1643,10 +1666,15 @@ notice: job failures are not reported before the stage is complete;
 
         This does not move files out of the temporary directory.
         Instead, the intermediate *.rwa* files are replaced by new (but fewer) intermediate
-        *.rwa* files that result from combining the former.
+        *.rwa* files that result from combining the former files.
 
         This may be useful to save disk space, as the localization data is duplicated as
         many times as there are intermediate files.
+
+        .. warning::
+
+            not tested yet
+
         """
         # perform the same checks as `resume`, although the temporary directory only is
         # required
@@ -1690,6 +1718,17 @@ notice: job failures are not reported before the stage is complete;
   and job id:\t\t\t{}\
 """.format(wd, job_id))
             self.collect_results(stage_index=stage_index, inplace=True)
+    def list_uncomplete_task_log_files(self):
+        cmd = "for file in `ls '{}/*.err'`; do if [ -z \"`tail -n1 '$file' | grep -Ex 'stage [0-9]{1,} done'`\" ]; then echo $file; fi; done".format(self.wd)
+        self.logger.debug('running: '+cmd)
+        out, err = self.ssh.exec(cmd, shell=True)
+        if err:
+            self.logger.error(err.rstrip())
+        if out:
+            out = out.rstrip()
+            return out.splitlines()
+        else:
+            return []
 
 
 Environment.register(SlurmOverSSH)
@@ -1699,7 +1738,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-210125.sif*.
+    The current default Singularity container is *tramway-hpc-210222.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -1713,7 +1752,7 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210201.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210222.sif python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
@@ -1750,6 +1789,7 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-210114.sif':   'http://dl.pasteur.fr/fop/cZWZqsDW/tramway-hpc-210114.sif',
                 'tramway-hpc-210125.sif':   'http://dl.pasteur.fr/fop/6Avu9HuV/tramway-hpc-210125.sif',
                 'tramway-hpc-210201.sif':   'http://dl.pasteur.fr/fop/MSRwa8CR/tramway-hpc-210201.sif',
+                'tramway-hpc-210222.sif':   'http://dl.pasteur.fr/fop/rzx2LnjB/tramway-hpc-210222.sif',
                 }.get(container, None)
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)

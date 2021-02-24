@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018-2020, Institut Pasteur
+# Copyright © 2018-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -14,6 +14,7 @@
 
 from tramway.core import *
 from tramway.core.hdf5 import *
+from tramway.core.exceptions import SideEffectWarning
 import tramway.core.analyses.abc as abc
 from tramway.inference import *
 from .base import *
@@ -180,6 +181,9 @@ class Infer(Helper):
                 attrs = any_cell.__dict__
             except AttributeError:
                 attrs = Lazy.__slots__ + Local.__slots__ + Cell.__slots__ + cell_type.__slots__
+                conflicting_names = set(output_features) & set(attrs)
+                if conflicting_names:
+                    warn('output feature name is also an existing attribute: {}'.format(list(conflicting_names)), SideEffectWarning)
             class OverloadedCell(cell_type):
                 __slots__ = input_features + output_features
                 def __init__(self, cell, **kwargs):

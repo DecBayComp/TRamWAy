@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -280,7 +280,7 @@ class Mpl(AnalyzerNode):
 
         if axes is None:
             import matplotlib.pyplot as plt
-            axes = plt
+            axes = plt.gca()
 
         loc_glyphs = trj_glyphs = roi_glyphs = sup_glyphs = None
 

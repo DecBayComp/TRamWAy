@@ -104,6 +104,8 @@ class Client(object):
 
         if some executable is reported missing, set ``shell=True``.
         """
+        if isinstance(cmd, (tuple, list)):
+            cmd = ' '.join(cmd)
         if shell:
             cmd = 'bash -l -c "{}"'.format(cmd.replace('"',r'\"'))
         if logger is not None:
@@ -116,19 +118,23 @@ class Client(object):
         if err and not isinstance(err, str):
             err = err.decode('utf-8')
         return out, err
-    def put(self, src, dest, confirm=False):
+    def put(self, src, dest=None, confirm=False):
         """
         uploads *src* to remote file *dest*.
 
         see also `paramiko.sftp_client.SFTPClient.put`.
         """
+        if dest is None:
+            dest = src
         return self.sftp_client.put(src, dest, confirm=confirm)
-    def get(self, target, dest):
+    def get(self, target, dest=None):
         """
         downloads *target* as local file *dest*.
 
         see also `paramiko.sftp_client.SFTPClient.put`.
         """
+        if dest is None:
+            dest = target
         if target.startswith('~/'):
             target = target[2:]
         dest = os.path.expanduser(dest)

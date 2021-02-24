@@ -19,3 +19,10 @@ Available singularity images are:
   Python is available as *python3.6* and the run command admits option *-s*, passed to Python,
   resulting in command ``python3.6 -s -m tramway $@``.
 
+* `tramway-hpc-210222.sif <http://dl.pasteur.fr/fop/rzx2LnjB/tramway-hpc-210222.sif>`_
+
+  *tramway0.5.2* image with target *roi* and *animate*, plus a few optional dependencies
+  including *paramiko*, *scikit-learn* and *stopit*.
+  Python is available as *python3.6* and the run command admits option *-s*, passed to Python,
+  resulting in command ``python3.6 -s -m tramway $@``.
+

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -374,8 +374,21 @@ class ROIInitializer(Initializer):
 
         See also :class:`ROIAsciiFiles`.
         """
+        if not suffix:
+            raise ValueError('undefined suffix')
+        if isinstance(suffix, (tuple, list)):
+            if not (isinstance(label, (tuple, list)) and len(suffix) == len(label)):
+                raise ValueError('not as many labels as suffices')
+            extra_suffixes = zip(suffix[1:], label[1:])
+            suffix, label = suffix[0], label[0]
+        else:
+            extra_suffixes = ()
+        #
         self._eldest_parent.roi.specialize( ROIAsciiFiles, suffix, extension,
                 size, label, group_overlapping_roi, skip_missing )
+        #
+        for suffix, label in extra_suffixes:
+            self._eldest_parent.roi.add_collection(label=label, suffix=suffix)
     def from_dedicated_rwa_record(self, label=None, version=None, _impl=None):
         """
         See also :class:`v1_ROIRecord`.

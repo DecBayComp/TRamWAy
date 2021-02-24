@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -23,20 +23,26 @@ class PipelineStage(object):
     Wrapper for callables to be run on calling :meth:`Pipeline.run`.
 
     `requires_mutability` defaults to :const:`False`.
+
+    `update_existing_rwa_files` defaults to :const:`False` as of version *5.2*.
     """
-    __slots__ = ('_run','_granularity','_mutability','options')
-    def __init__(self, run, granularity=None, requires_mutability=None, **options):
+    __slots__ = ('_run','_granularity','_mutability','options','update_existing_rwa_files')
+    def __init__(self, run, granularity=None, requires_mutability=None,
+            update_existing_rwa_files=None, **options):
         if isinstance(run, PipelineStage):
             self._run = run._run
             self._granularity = run._granularity if granularity is None else granularity
             self._mutability = run._mutability if requires_mutability is None else requires_mutability
             self.options = dict(run.options)
             self.options.update(options)
+            self.update_existing_rwa_files = run.update_existing_rwa_files \
+                    if update_existing_rwa_files is None else update_existing_rwa_files
         else:
             self._run = run
             self._granularity = granularity
             self._mutability = False if requires_mutability is None else requires_mutability
             self.options = options
+            self.update_existing_rwa_files = update_existing_rwa_files
     @property
     def granularity(self):
         """

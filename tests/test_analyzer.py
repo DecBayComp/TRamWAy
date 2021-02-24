@@ -590,3 +590,38 @@ class TestSideEffects(object):
         assert a.spt_data.dt == .04
         warnings.simplefilter('error', SideEffectWarning)
 
+
+class TestMisc(object):
+
+    def test_analysis_save(self, tmp_path):
+        existing_tree = Analyses(0)
+        existing_tree['child 0'] = 1
+        existing_tree['child 0']['grand child 00'] = 2
+        existing_tree['child 1'] = 3
+        existing_tree['child 1']['grand child 10'] = 4
+        existing_tree['child 2'] = 5
+        existing_tree['child 2']['grand child 20'] = 6
+        _path = tmp_path / 'tree.rwa'
+        Analysis.save(_path, existing_tree, force=True)
+        #
+        extra_tree = Analyses(0)
+        extra_tree['child 0'] = 1
+        extra_tree['child 0']['grand child 00'] = 7
+        extra_tree['child 0']['grand child 01'] = 8
+        extra_tree['child 1'] = 3
+        extra_tree['child 1']['grand child 11'] = 9
+        extra_tree['child 2'] = 5
+        Analysis.save(_path, extra_tree, force=True)
+        #
+        resulting_tree = load_rwa(_path)
+        print(resulting_tree)
+        assert resulting_tree.data == 0
+        assert resulting_tree['child 0'].data == 1
+        assert resulting_tree['child 0']['grand child 00'].data == 7
+        assert resulting_tree['child 0']['grand child 01'].data == 8
+        assert resulting_tree['child 1'].data == 3
+        assert resulting_tree['child 1']['grand child 10'].data == 4
+        assert resulting_tree['child 1']['grand child 11'].data == 9
+        assert resulting_tree['child 2'].data == 5
+        assert resulting_tree['child 2']['grand child 20'].data == 6
+

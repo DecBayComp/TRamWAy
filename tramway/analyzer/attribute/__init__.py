@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -52,9 +52,9 @@ class Initializer(AnalyzerNode):
     def __init__(self, attribute_setter, parent=None):
         AnalyzerNode.__init__(self, parent)
         self._specialize = attribute_setter
-    def specialize(self, attribute_cls, *attribute_args):
-        parent = dict(parent=self._parent)
-        self._specialize(attribute_cls(*attribute_args, **parent))
+    def specialize(self, attribute_cls, *cls_args, **cls_kwargs):
+        cls_kwargs['parent'] = self._parent
+        self._specialize(attribute_cls(*cls_args, **cls_kwargs))
     @property
     def initialized(self):
         return False

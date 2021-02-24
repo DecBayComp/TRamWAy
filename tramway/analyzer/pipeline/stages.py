@@ -5,10 +5,12 @@ Standard analysis steps for RWAnalyzer.pipeline
 
 from ..roi import FullRegion
 from . import PipelineStage
+from ..attribute import single
 from ..artefact import commit_as_analysis
 import os.path
 import numpy as np
 from tramway.core import load_xyt
+from collections import defaultdict
 
 
 def _spt_source_name(f):
@@ -24,6 +26,9 @@ def _filters(kwargs):
         if k.startswith('spt_') or k.startswith('roi_'):
             asr_filters[k[4:]] = kwargs[k]
     return asr_filters
+
+def _placeholder_for_root_data(tree):
+    tree._data = None
 
 
 def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='freeze', **kwargs):
@@ -62,9 +67,6 @@ def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='free
     """
 
     asr_filters = _filters(kwargs)
-
-    def placeholder_for_top_data(tree):
-        tree._data = None
 
     def _tessellate(self):
 
@@ -114,7 +116,7 @@ def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='free
                     ## [does not work:] make the dataframe empty and keep the additional attributes
                     #df = f.dataframe
                     #f._dataframe = df[np.zeros(df.shape[0], dtype=bool)]
-                    tree.hooks.append(placeholder_for_top_data)
+                    tree.hooks.append(_placeholder_for_root_data)
                 elif not any_full_region:
                     # save the full dataset with reasonnable precision to save storage space
                     f.set_precision('single')
@@ -234,7 +236,7 @@ def restore_spt_data():
         for f in self.spt_data:
             if not isinstance(f, RWAFile):
                 f.reload_from_rwa_files()
-                f = self.spt_data.filter_by_source(f.source)
+                f = single(self.spt_data.filter_by_source(f.source))
             #
             spt_ascii_file = f.analyses.metadata['datafile']
             rwa_file = f.filepath
@@ -257,10 +259,10 @@ def restore_spt_data():
     return PipelineStage(_restore, granularity='spt data')
 
 
-def tessellate_and_infer(map_label, sampling_label=None, spt_data=True, **kwargs):
+def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, overwrite=False,
+        roi_expected=False, **kwargs):
 
-    def placeholder_for_top_data(tree):
-        tree._data = None
+    save_active_branches_only = not (overwrite or map_label is None)
 
     def _tessellate_and_infer(self):
 
@@ -273,13 +275,16 @@ def tessellate_and_infer(map_label, sampling_label=None, spt_data=True, **kwargs
             # for data formatting
             any_full_region = False
 
+            if save_active_branches_only:
+                active_labels = defaultdict(set)
+
             with f.autosaving() as tree:
 
                 for r in f.roi.as_support_regions():
 
                     if isinstance(r, FullRegion):
-                        #if roi_expected:
-                        #    continue
+                        if roi_expected:
+                            continue
                         any_full_region = True
                         msg = f"{{}}ing source: '{source_name}'..."
                     else:
@@ -290,42 +295,81 @@ def tessellate_and_infer(map_label, sampling_label=None, spt_data=True, **kwargs
                             op = op[:-1]
                         self.logger.info(msg.format(op))
 
-                    # get the SPT data
-                    df = r.crop()
-
-                    # filter some translocations out
-                    df = r.discard_static_trajectories(df)
-
-                    # tessellate
-                    log('tessellate')
-                    sampling = self.sampler.sample(df)
-
-                    # infer
-                    log('infer')
-                    maps = self.mapper.infer(sampling)
-
-                    dry_run = False
-
-                    # store
-                    try:
-                        sampling.tessellation.freeze()
-                    except AttributeError:
-                        pass
                     if sampling_label is None:
                         label = r.label
+                    elif callable(sampling_label):
+                        label = sampling_label(r.label)
                     else:
                         label = sampling_label
-                    sampling = commit_as_analysis(label, sampling, parent=r)
-                    maps     = commit_as_analysis(map_label, maps, parent=sampling)
+
+                    # control predicates
+                    _tessellate = overwrite or label is None or label not in tree.labels
+                    _infer = _tessellate or overwrite or map_label is None or \
+                            map_label not in tree[label].labels
+
+                    if _tessellate:
+
+                        # get the SPT data
+                        df = r.crop()
+
+                        # filter some translocations out
+                        df = r.discard_static_trajectories(df)
+
+                        # tessellate
+                        log('tessellate')
+                        sampling = self.sampler.sample(df)
+
+                    elif _infer:
+                        sampling = r.get_sampling(sampling_label).data
+
+                    if _infer:
+
+                        # infer
+                        log('infer')
+                        maps = self.mapper.infer(sampling)
+
+                        dry_run = False
+
+                    # store
+                    if _tessellate:
+                        # ... the tessellation
+                        try:
+                            sampling.tessellation.freeze()
+                        except AttributeError:
+                            pass
+                        sampling = commit_as_analysis(label, sampling, parent=r)
+                        #
+                    elif _infer:
+                        sampling = r.get_sampling(sampling_label)
+                    if _infer:
+                        # ... and the inferred maps
+                        maps     = commit_as_analysis(map_label, maps, parent=sampling)
+                        #
+                        assert tree.modified()
+                        if save_active_branches_only:
+                            active_labels[label].add(map_label)
+
+                if save_active_branches_only:
+                    for label0 in list(tree.labels):
+                        if label0 in active_labels:
+                            for label1 in list(tree[label0].labels):
+                                if label1 not in active_labels[label0]:
+                                    tree[label0].comments
+                                    del tree[label0][label1]
+                        else:
+                            tree.comments
+                            del tree[label0]
 
                 if spt_data=='placeholder':
-                    tree.hooks.append(placeholder_for_top_data)
+                    tree.hooks.append(_placeholder_for_root_data)
 
         if dry_run:
             self.logger.info('stage skipped')
             diagnose(self)
 
-    return PipelineStage(_tessellate_and_infer, granularity='roi')
+    return PipelineStage(_tessellate_and_infer,
+            granularity='roi',
+            update_existing_rwa_files=not overwrite)
 
 
 def diagnose(self):

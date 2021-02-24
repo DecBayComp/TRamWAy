@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -23,10 +23,10 @@ from tramway.helper.inference import Infer
 
 class MapperInitializer(Initializer):
     __slots__ = ()
-    def from_plugin(self, plugin):
-        self.specialize( MapperPlugin, plugin )
-    def from_callable(self, cls):
-        self.from_plugin(cls)
+    def from_plugin(self, plugin, **kwargs):
+        self.specialize( MapperPlugin, plugin, **kwargs )
+    def from_callable(self, cls, **kwargs):
+        self.from_plugin(cls, **kwargs)
 
     @property
     def _mpl_impl(self):
@@ -101,8 +101,8 @@ class MapperPlugin(AnalyzerNode):
                 self.time.initialized and not self.time.regularize_in_time:
             distr_kwargs['cell_sampling'] = 'connected'
         cells = helper.distribute(**distr_kwargs)
-        cells = helper.overload_cells(cells)
         helper.name, helper.setup, helper._infer = self.name, self.setup, self._mapper
+        cells = helper.overload_cells(cells)
         maps = helper.infer(cells, **infer_kwargs)
         return maps
     @property
