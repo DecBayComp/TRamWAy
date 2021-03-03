@@ -161,7 +161,7 @@ class Analysis(object):
             rebase = True if append is None else append
         elif not (append is None or append == rebase):
             raise ValueError('`append` and `rebase` do not have compatible values')
-        if rebase and os.path.isfile(filepath):
+        if rebase and os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
             existing_tree = load_rwa(filepath)
             cls.rebase_tree(tree, existing_tree)
         save_rwa(filepath, tree, **kwargs)

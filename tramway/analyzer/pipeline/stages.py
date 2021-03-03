@@ -225,9 +225,9 @@ def restore_spt_data():
     called only when the `tessellate` stage was called before with option
     `spt_data='placeholder'`.
 
-    .. warning:
-
-        This stage requires the original SPT data available as ascii files.
+    This stage was tested with SPT data defined as :class:`~..spt_data.SPTAsciiFiles`
+    or :class:`..spt_data.RWAFiles`.
+    However, with :class:`SPTAsciiFiles`, the `alias` attribute should be defined.
 
     """
     from ..spt_data import RWAFile
@@ -235,8 +235,16 @@ def restore_spt_data():
     def _restore(self):
         for f in self.spt_data:
             if not isinstance(f, RWAFile):
-                f.reload_from_rwa_files()
-                f = single(self.spt_data.filter_by_source(f.source))
+                try:
+                    alias = f.alias
+                except AttributeError:
+                    alias = None
+                if alias is None:
+                    raise NotImplementedError('alias is not defined')
+                #
+                analyzer = self._eldest_parent
+                analyzer.spt_data.reload_from_rwa_files()
+                f = single(analyzer.spt_data.filter_by_source(alias))
             #
             spt_ascii_file = f.analyses.metadata['datafile']
             rwa_file = f.filepath
@@ -246,7 +254,7 @@ def restore_spt_data():
                 restore = no_dataframe = f.dataframe is None
                 if not no_dataframe:
                     cols, cols_ = f.dataframe.columns, df.columns
-                    restore = len(cols)==len(cols__) and all([ c==c_ for c, c_ in zip(cols, cols_) ])
+                    restore = len(cols)==len(cols_) and all([ c==c_ for c, c_ in zip(cols, cols_) ])
                 if restore:
                     with f.autosaving() as tree:
                         f._dataframe = df
@@ -286,13 +294,11 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         if roi_expected:
                             continue
                         any_full_region = True
-                        msg = f"{{}}ing source: '{source_name}'..."
+                        msg = f"{{}} source: '{source_name}'..."
                     else:
                         roi_label = r.label
-                        msg = f"{{}}ing roi: '{roi_label}' (in source '{source_name}')..."
+                        msg = f"{{}} roi: '{roi_label}' (in source '{source_name}')..."
                     def log(op):
-                        if op.endswith('e'):
-                            op = op[:-1]
                         self.logger.info(msg.format(op))
 
                     if sampling_label is None:
@@ -316,7 +322,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         df = r.discard_static_trajectories(df)
 
                         # tessellate
-                        log('tessellate')
+                        log('tessellating')
                         sampling = self.sampler.sample(df)
 
                     elif _infer:
@@ -325,7 +331,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                     if _infer:
 
                         # infer
-                        log('infer')
+                        log('inferring')
                         maps = self.mapper.infer(sampling)
 
                         dry_run = False

@@ -1615,6 +1615,17 @@ notice: job failures are not reported before the stage is complete;
         and tries to collect the resulting files.
 
         This completes the current stage only. Further stages are not run.
+
+        Arguments:
+
+            log (str): log output; progress information can be omitted
+
+            wd (str): location of the working directory on the remote host
+
+            stage_index (*int* or *list*): index of the stage(s) to resume
+
+            job_id (str): Slurm job array ID
+
         """
         if wd is None or stage_index is None or job_id is None:
             if log is None:
@@ -1657,7 +1668,9 @@ notice: job failures are not reported before the stage is complete;
 """.format(wd, job_id))
             if self.job_id is not None:
                 self.wait_for_job_completion()
-            self.collect_results(stage_index=stage_index)
+            stage = self._eldest_parent.pipeline._stage[stage_index[-1]]
+            self.collect_results(stage_index=stage_index,
+                    reload_existing_rwa_files=stage.update_existing_rwa_files)
 
     def pack_temporary_rwa_files(self, log=None, wd=None, stage_index=None, job_id=None):
         """
@@ -1738,7 +1751,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-210222.sif*.
+    The current default Singularity container is *tramway-hpc-210302.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -1752,7 +1765,7 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210222.sif python3.6 -s'
+        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210302.sif python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
@@ -1790,6 +1803,8 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-210125.sif':   'http://dl.pasteur.fr/fop/6Avu9HuV/tramway-hpc-210125.sif',
                 'tramway-hpc-210201.sif':   'http://dl.pasteur.fr/fop/MSRwa8CR/tramway-hpc-210201.sif',
                 'tramway-hpc-210222.sif':   'http://dl.pasteur.fr/fop/rzx2LnjB/tramway-hpc-210222.sif',
+                'tramway-hpc-210301.sif':   'http://dl.pasteur.fr/fop/7jSSZCnb/tramway-hpc-210301.sif',
+                'tramway-hpc-210302.sif':   'http://dl.pasteur.fr/fop/53bfSkmM/tramway-hpc-210302.sif',
                 }.get(container, None)
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)

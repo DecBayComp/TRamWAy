@@ -601,6 +601,7 @@ class TestMisc(object):
         existing_tree['child 1']['grand child 10'] = 4
         existing_tree['child 2'] = 5
         existing_tree['child 2']['grand child 20'] = 6
+        existing_tree['child 2']['grand child 20']['grand grand child 200'] = 10
         _path = tmp_path / 'tree.rwa'
         Analysis.save(_path, existing_tree, force=True)
         #
@@ -624,4 +625,5 @@ class TestMisc(object):
         assert resulting_tree['child 1']['grand child 11'].data == 9
         assert resulting_tree['child 2'].data == 5
         assert resulting_tree['child 2']['grand child 20'].data == 6
+        assert resulting_tree['child 2']['grand child 20']['grand grand child 200'].data == 10
 

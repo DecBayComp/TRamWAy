@@ -207,6 +207,16 @@ tramway.analyzer.pipeline package
     :show-inheritance:
 
 
+tramway.analyzer.pipeline.stages module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This module is exported by the :mod:`tramway.analyzer` package.
+
+.. automodule:: tramway.analyzer.pipeline.stages
+    :members:
+    :show-inheritance:
+
+
 tramway.analyzer.env package
 ----------------------------
 

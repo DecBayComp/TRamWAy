@@ -22,6 +22,8 @@ import pandas as pd
 from collections.abc import Sequence, Set
 from tramway.tessellation.base import Partition
 from rwa.lazy import lazytype
+from collections import defaultdict
+import re
 
 
 class BaseRegion(AnalyzerNode):
@@ -389,17 +391,20 @@ class ROIInitializer(Initializer):
         #
         for suffix, label in extra_suffixes:
             self._eldest_parent.roi.add_collection(label=label, suffix=suffix)
-    def from_dedicated_rwa_record(self, label=None, version=None, _impl=None):
+    def from_dedicated_rwa_record(self, label=None, version=None, **kwargs):
         """
-        See also :class:`v1_ROIRecord`.
+        See also :class:`v1_ROIRecord` and :class:`v2_ROIRecord`.
         """
         if isinstance(self._parent, HasROI):
             if version is None:
                 self._parent.logger.info('set version=1 to ensure constant behavior in the future')
                 version = 1
-            elif version != 1:
+            if version == 1:
+                self.specialize( v1_ROIRecord, label, **kwargs )
+            elif version == 2:
+                self.specialize( v2_ROIRecord, label, **kwargs )
+            else:
                 raise ValueError('version {} not supported'.format(version))
-            self.specialize( v1_ROIRecord, label, _impl )
         else:
             self.from_dedicated_rwa_records(label, version, _impl=_impl)
     def from_dedicated_rwa_records(self, label=None, version=None, _impl=None):
@@ -667,7 +672,7 @@ class BoundingBoxes(SpecializedROI):
             except KeyError:
                 pass
             else:
-                self._eldest_parent.logger.warning("ignoring argument '{}'".format(arg))
+                warnings.warn('ignoring argument `{}`'.format(arg), helper.IgnoredInputWarning)
         bounds.to_csv(filepath, sep='\t', index=False, header=header, float_format=float_format,
                 **kwargs)
 
@@ -956,9 +961,142 @@ class v1_ROIRecord(BoundingBoxes):
                             self._helper.get_bounding_boxes(meta_label=meta_label)
 
 
+class ROIRecoveredFromSampling(BoundingBoxes):
+    """
+    :class:`ROI` class that recovers bounding-box information from
+    the sampling (:class:`Partition` records) found in the analysis tree,
+    provided that the records are labelled the default way, *i.e.*
+    with no label or a static label prefix.
+
+    The bounding boxes are inferred from the data and, if a sliding
+    time window was defined, from the windowing start time.
+    If the SPT data are location or trajectory data, they are converted
+    into translocation data prior to determining the spatial bounding
+    box.
+
+    The resulting bounding boxes may be tighter than the original bounding
+    boxes, but the sampling should not be affected.
+    This may work only if the original ROI were defined with
+    `group_overlapping_roi=False` for the sampling step.
+
+    A major drawback of this approach lies in the fact that ROI centers
+    cannot be recovered, as they are usually implicitly encoded in the
+    bounds (middle point).
+
+    A word of warning, though: the procedure of determining the bounding
+    boxes loads all the data from the *.rwa* files, if the analysis
+    trees are to be loaded from files.
+
+    As the name hints, this class was designed for recovering ROI
+    information in the cases this information is no longer available
+    elsewhere.
+    """
+    __slots__ = ()
+    def __init__(self, label=None, group_overlapping_roi=False, **kwargs):
+        # check input args
+        if label is not None:
+            raise NotImplementedError('cannot load a single ROI collection')
+        if group_overlapping_roi:
+            raise NotImplementedError('ROI grouping is not supported')
+        # init
+        SpecializedROI.__init__(self, **kwargs) # not BoundingBoxes.__init__
+        self._collections = helper.Collections(group_overlapping_roi=False)
+        if label is None:
+            label = ''
+        self._bounding_boxes = {label: None}
+    @property
+    def reified(self):
+        """ *bool*: :const:`True` if the files have been loaded """
+        return not all([ bb is None for bb in self._bounding_boxes.values() ])
+    @property
+    def bounding_boxes(self):
+        # this is enough to make `as_individual_roi` properly work
+        if not self.reified:
+            self.load()
+        return self._bounding_boxes
+    def as_support_regions(self, *args, **kwargs):
+        if not self.reified:
+            self.load()
+        yield from BoundingBoxes.as_support_regions(self, *args, **kwargs)
+    def split_roi_label(self, label):
+        pattern = r'(?P<collection>.*[^0-9])(?P<index>[0-9]+(-[0-9]+)*)'
+        m = re.fullmatch(pattern, label)
+        if m:
+            prefix = m.group('collection').rstrip()
+            indices = m.group('index').split('-')
+            return prefix, indices
+        else:
+            raise KeyError('not all the artefacts below the root SPT dataframe are labelled as ROI')
+    def infer_bounding_box(self, sampling):
+        bb = sampling.bounding_box
+        assert 'x' in bb.columns
+        assert 'y' in bb.columns
+        assert 't' in bb.columns
+        cols = [ col for col in 'xyzt' if col in bb.columns ]
+        try:
+            time_segments = sampling.tessellation.time_lattice
+        except AttributeError:
+            pass
+        else:
+            bb = bb.copy()
+            bb.at['min','t'] = time_segments[0,0]
+            bb.at['max','t'] = time_segments[-1,1]
+        return (bb[cols].loc['min'].values, bb[cols].loc['max'].values)
+    def load(self):
+        analyses = self._parent.analyses
+        labels = list(analyses.labels)
+        collections = defaultdict(dict)
+        ndigits = None
+        for label in labels:
+            collection_label, indices = self.split_roi_label(label)
+            if indices[1:]:
+                raise NotImplementedError('ROI were defined with group_overlapping_roi=True')
+            if ndigits is None:
+                ndigits = len(indices[0])
+                self.set_num_digits(ndigits)
+            index = int(indices[0])
+            bounding_box = self.infer_bounding_box(analyses[label].data)
+            collections[collection_label][index] = bounding_box
+        self._bounding_boxes = {}
+        for label in collections:
+            imax = max(collections[label].keys())
+            ordered_collection, example_bounding_box = [], None
+            for i in range(imax+1):
+                try:
+                    bb = collections[label][i]
+                except KeyError:
+                    if example_bounding_box is None:
+                        raise NotImplementedError('some ROI are missing in the analysis tree') from None
+                    bb = (np.zeros_like(example_bounding_box[0]), np.zeros_like(example_bounding_box[1]))
+                    self._eldest_parent.logger.warning('missing ROI: {}{}'.format(
+                            '' if label=='roi' else label+' ', i))
+                else:
+                    if example_bounding_box is None:
+                        example_bounding_box = bb
+                ordered_collection.append(bb)
+            #
+            if label == 'roi':
+                label = ''
+            self._collections[label] = ordered_collection
+            self._bounding_boxes[label] = ordered_collection
+        if not self._bounding_boxes:
+            raise RuntimeError('no ROI collections found')
+
+v2_ROIRecord = ROIRecoveredFromSampling
+
+
 class ROIRecords(DecentralizedROIManager):
     """
     :class:`ROI` class for the main :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute.
+
+    See also the corresponding item class:
+
+    * ``version=1``: :class:`v1_ROIRecord` for analysis trees with a meta-partition
+        for each ROI collection;
+    * ``version=2``: :class:`v2_ROIRecord` to recover ROI definition from the
+        the sampling/partition records available in the analysis trees without
+        any extra information (no meta-partition).
+
     """
     __slots__ = ()
     def __init__(self, label=None, version=None, _impl=None, **kwargs):
@@ -966,8 +1104,12 @@ class ROIRecords(DecentralizedROIManager):
         if version is None:
             self._parent.logger.info('set version=1 to ensure constant behavior in the future')
             version = 1
+        if version == 1:
+            _kwargs = dict(_impl=_impl)
+        else:
+            _kwargs = {}
         for f in self._parent.spt_data:
-            f.roi.from_dedicated_rwa_record(label, version, _impl=_impl)
+            f.roi.from_dedicated_rwa_record(label, version, **_kwargs)
 
 
 class HasROI(AnalyzerNode):
@@ -1014,5 +1156,6 @@ class HasROI(AnalyzerNode):
 
 __all__ = [ 'ROI', 'ROIInitializer', 'SpecializedROI', 'BoundingBoxes', 'DecentralizedROIManager',
         'BaseRegion', 'FullRegion', 'IndividualROI', 'BoundingBox', 'SupportRegion',
-        'CommonROI', 'HasROI', 'ROIAsciiFile', 'ROIAsciiFiles', 'v1_ROIRecord', 'ROIRecords' ]
+        'CommonROI', 'HasROI', 'ROIAsciiFile', 'ROIAsciiFiles', 'v1_ROIRecord', 'ROIRecords',
+        'ROIRecoveredFromSampling', 'v2_ROIRecord']
 

@@ -133,6 +133,8 @@ class Pipeline(AnalyzerNode):
                 Stages with this argument set to :const:`True` are always run as dependencies.
                 Default is :const:`False`.
 
+            update_existing_rwa_files (bool): see also :class:`PipelineStage`.
+
         """
         self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
     def early_setup(self, **kwargs):
@@ -246,6 +248,9 @@ class Pipeline(AnalyzerNode):
                                 else:
                                     raise NotImplementedError
                         self.logger.info('\njobs ready')
+                        #### IMPORTANT ####
+                        # any change below may be to be also applied to `env.SlurmOverSSH.resume`
+                        ###################
                         try:
                             self.env.submit_jobs()
                             self.logger.info('jobs submitted')
@@ -261,7 +266,7 @@ class Pipeline(AnalyzerNode):
                                 if not ret:
                                     raise
                         self.logger.info('jobs complete')
-                        if self.env.collect_results(stage_index=s):
+                        if self.env.collect_results(stage_index=s, reload_existing_rwa_files=stage.update_existing_rwa_files):
                             self.logger.info('results collected')
             finally:
                 if self.env.submit_side and not self.env.debug:
@@ -303,5 +308,5 @@ Attribute.register(Pipeline)
 
 from . import stages
 
-__all__ = ['Pipeline', 'stages']
+__all__ = ['Pipeline', 'PipelineStage', 'stages']
 
