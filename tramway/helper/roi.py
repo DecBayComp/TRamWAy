@@ -800,7 +800,7 @@ class RoiHelper(Helper):
                 rwa_file = rwa_file[0]
 
         analyses = self.analyses
-        self.analyses = autosaving.Analyses(rwa_file, autosave)
+        self.analyses = autosaving.Analyses(rwa_file=rwa_file, autosave=autosave)
         self.analyses.analyses = analyses
 
         self.meta_label_pattern = meta_label

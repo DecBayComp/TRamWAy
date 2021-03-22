@@ -643,6 +643,8 @@ class Env(AnalyzerNode):
             if output_file not in to_keep:
                 try:
                     os.unlink(output_file)
+                except FileNotFoundError:
+                    pass
                 except PermissionError as e:
                     if os.name == 'nt':
                         logger.debug(str(e))

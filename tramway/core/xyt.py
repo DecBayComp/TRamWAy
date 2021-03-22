@@ -652,6 +652,20 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
     """
     Load SPT data from MatLab V7 file.
 
+    The two pieces of code below are almost equivalent:
+
+    .. code-block:: python
+
+        xyt      = load_mat(my_file, columns=list('txy'), dt=frame_interval)
+
+    .. code-block:: python
+
+        xyt      = load_mat(my_file, columns=['frame_index', 'x', 'y'])
+        xyt['t'] = xyt['frame_index'] * frame_interval
+
+    The only difference resides in the :const:`'frame_index'` column
+    that is missing in the first dataframe.
+
     Arguments:
 
         path (str): file path.
@@ -661,7 +675,11 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
 
         varname (str): record name.
 
-        dt (float): frame interval in seconds.
+        dt (float): frame interval in seconds;
+            if defined together with a 't' column in the data,
+            the original 't' values are considered to be
+            frame indices and are multiplied by dt to transform
+            them into times.
 
         coord_scale (float): convertion factor for spatial coordinates.
 
@@ -672,15 +690,19 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
         pandas.DataFrame: SPT data.
     """
     import h5py
-    with h5py.File(path, 'r') as f:
-        spt_data = f[varname][...]
+    try:
+        with h5py.File(path, 'r') as f:
+            spt_data = f[varname][...].T
+    except OSError:
+        from scipy.io import loadmat
+        spt_data = loadmat(path)[varname]
     if columns is None:
         if spt_data.shape[0]==3:
             columns = list('txy')
         else:
             raise NotImplementedError('cannot infer the column names')
-    spt_data = pd.DataFrame(spt_data.T, columns=columns)
-    if dt is not None:
+    spt_data = pd.DataFrame(spt_data, columns=columns)
+    if dt is not None and 't' in spt_data.columns:
         spt_data['t'] = spt_data['t'] * dt
     if coord_scale is None:
         if pixel_size is not None:
@@ -688,7 +710,8 @@ def load_mat(path, columns=None, varname='plist', dt=None, coord_scale=None, pix
             warnings.warn('attribute pixel_size is deprecated; use coord_scale instead', DeprecationWarning)
             coord_scale = pixel_size
     if coord_scale is not None:
-        spt_data[list('xy')] = spt_data[list('xy')] * coord_scale
+        coords = [ c for c in ['x', 'y', 'z', 'dx', 'dy', 'dz'] if c in spt_data.columns ]
+        spt_data[coords] = spt_data[coords] * coord_scale
     return spt_data
 
 
