@@ -40,7 +40,7 @@ jobs:
       env:
         HOME: ${{ runner.workspace }}
       run: |
-        curl https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip --output hdf5.zip
+        curl -s -o hdf5.zip https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip
         unzip hdf5.zip
         rm hdf5.zip
         .\hdf5*.exe
