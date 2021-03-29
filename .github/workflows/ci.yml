@@ -43,6 +43,12 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+          tests/test_core.py
+          tests/test_analyzer.py::TestSptDataAccess
+          tests/test_analyzer.py::TestTesseller
+          tests/test_analyzer.py::TestIndexer
+          tests/test_analyzer.py::TestAssignment
+          tests/test_analyzer.py::TestSideEffects
 
   coverage:
 
