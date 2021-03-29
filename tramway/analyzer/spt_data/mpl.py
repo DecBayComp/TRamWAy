@@ -231,6 +231,10 @@ class Mpl(AnalyzerNode):
         exception even with explicit styling arguments that would legally apply;
         these elements are simply not drawn.
 
+        In the case multiple roi collections are available,
+        argument `roi_collection` allows to control which
+        collection is drawn.
+
         """
         loc_kwargs, trj_kwargs, roi_kwargs, sup_kwargs = {}, {}, {}, {}
 
@@ -328,7 +332,8 @@ class Mpl(AnalyzerNode):
         if draw_roi:
             x, y = [], []
             from tramway.analyzer.roi import FullRegion, BoundingBox
-            for r in self._parent.roi.as_individual_roi():
+            collection = roi_kwargs.pop('collection', None)
+            for r in self._parent.roi.as_individual_roi(collection=collection):
                 if isinstance(r, FullRegion):
                     break # or, equivalently, continue
                 assert isinstance(r, BoundingBox)

@@ -675,6 +675,13 @@ class BoundingBoxes(SpecializedROI):
                 warnings.warn('ignoring argument `{}`'.format(arg), helper.IgnoredInputWarning)
         bounds.to_csv(filepath, sep='\t', index=False, header=header, float_format=float_format,
                 **kwargs)
+    def add_collection(self, label, bb):
+        if label is None:
+            label = ''
+        if label in self._bounding_boxes:
+            raise KeyError("collection '{}' is already defined".format(label))
+        self._collections[label] = bb
+        self._bounding_boxes[label] = bb
 
 ROI.register(BoundingBoxes)
 

@@ -267,6 +267,35 @@ def group_roi(a, *args, overlap=.75, return_matches_only=False):
     return grouped_roi
 
 
+def distance_to_roi_center(roi_obj, sampling):
+    """
+    Arguments:
+
+        roi_obj (IndividualROI): ROI object
+
+        sampling (Partition or Analysis): tessellation
+
+    Returns:
+
+        ndarray: distance between each cell center and the ROI center
+
+    """
+    a = roi_obj._eldest_parent # parent analyzer object
+    roi_center = (roi_obj.bounding_box[0] + roi_obj.bounding_box[1]) / 2
+    cell_centers = a.time.get_spatial_segmentation(sampling).cell_centers
+    if cell_centers.shape[1] < roi_center.size:
+        if cell_centers.shape[1] == roi_center.size - 1:
+            roi_center = roi_center[:-1]
+        else:
+            raise ValueError('too many dimensions for roi boundaries')
+    r = cell_centers - roi_center[np.newaxis,:]
+    dist = np.sqrt(np.sum(r * r, axis=1))
+    return dist
+
+
+#def iter_maps
+
+
 __all__ = [ 'set_contiguous_time_support_by_count', 'epanechnikov_density', 'density_based_roi',
-        'group_roi' ]
+        'group_roi', 'distance_to_roi_center' ]
 

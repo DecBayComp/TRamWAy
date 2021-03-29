@@ -110,6 +110,18 @@ class DT(object):
     @frame_interval.setter
     def frame_interval(self, dt):
         self.spt_data.frame_interval = dt
+    def get_spatial_segmentation(self, sampling, segment=None):
+        """
+        Returns the spatial tessellation.
+        """
+        if not (segment is None or segment == 0):
+            raise ValueError('multiple time segments expected, but no time segmentation defined')
+        if isinstance(sampling, Analysis):
+            sampling = sampling.data
+        mesh = sampling.tessellation
+        if isinstance(mesh, time.TimeLattice):
+            raise TypeError('time segments found, but no time segmentation defined')
+        return mesh
 
 class TimeInitializer(Initializer, DT):
     """
@@ -136,7 +148,7 @@ class TimeInitializer(Initializer, DT):
         See also :class:`SlidingWindow`.
         """
         self.specialize( SlidingWindow, duration, shift )
-    def from_sampling(self, sampling):
+    def from_sampling(self, sampling=None, verbose=False):
         """
         Extracts the time segmentation parameters stored in a
         :class:`~tramway.tessellation.base.Partition` object
@@ -147,7 +159,14 @@ class TimeInitializer(Initializer, DT):
         This may fail,
         either silently or raising a :class:`ValueError` exception,
         as this method covers only cases of sliding windows.
+
+        If argument `sampling` is not an `Analysis` or `Partition`
+        object, it is taken as the label of an artefact in any
+        analysis tree.
         """
+        if sampling is None or isinstance(sampling, (int, str)) or callable(sampling):
+            label = sampling
+            sampling = first(self._eldest_parent.roi.as_support_regions()).get_sampling(label)
         if isinstance(sampling, Analysis):
             sampling = sampling.data
         segmentation = sampling.tessellation
@@ -181,6 +200,16 @@ class TimeInitializer(Initializer, DT):
         self.specialize( SlidingWindow, duration, shift )
         if start_time is not None:
             self._parent.time.start_time = start_time
+        if verbose:
+            logger = self._parent.logger
+            prm = [('duration', duration)]
+            if shift is not None:
+                prm.append(('shift', shift))
+            if start_time is not None:
+                prm.append(('start_time', start_time))
+            msg = "loading sliding window with parameters:\n - " + \
+                    "\n - ".join([ "{}: {}".format(key, val) for key, val in prm ])
+            logger.info(msg)
 
 
 class SlidingWindow(AnalyzerNode, DT):
