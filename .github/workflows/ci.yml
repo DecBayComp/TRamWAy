@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: Tests and code coverage
+name: Unit tests and code coverage
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  unittests:
 
     runs-on: ${{ matrix.os }}
 
@@ -29,9 +29,13 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Install HDF5 (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install h5utils
     - name: Install dependencies
       run: |
-        #sudo apt-get install h5utils
         python -m pip install --upgrade pip
         python -m pip install pytest
         python -m pip install .[roi]
