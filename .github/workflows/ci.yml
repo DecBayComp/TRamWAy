@@ -31,12 +31,13 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
+        #sudo apt-get install h5utils
         python -m pip install --upgrade pip
         python -m pip install pytest
-        python -m pip install .
+        python -m pip install .[roi]
     - name: Test with pytest
-      run: >
-        pytest 
+      run: >-
+        pytest
         tests/test_core.py
         tests/test_analyzer.py::TestSptDataAccess
         tests/test_analyzer.py::TestTesseller
@@ -55,10 +56,17 @@ jobs:
         python-version: 3.8
     - name: Install dependencies and run tests
       run: |
+        #sudo apt-get install h5utils
         python -m pip install --upgrade pip
         python -m pip install pytest-cov
-        python -m pip install .
-        python -m pytest --cov=./
+        python -m pip install .[roi]
+        python -m pytest --cov=./ \
+          tests/test_core.py \
+          tests/test_analyzer.py::TestSptDataAccess \
+          tests/test_analyzer.py::TestTesseller \
+          tests/test_analyzer.py::TestIndexer \
+          tests/test_analyzer.py::TestAssignment \
+          tests/test_analyzer.py::TestSideEffects
     - uses: codecov/codecov-action@v1
       #with:
       #  fail_ci_if_error: true
