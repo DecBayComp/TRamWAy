@@ -40,10 +40,10 @@ jobs:
       env:
         HOME: ${{ runner.workspace }}
       run: |
-        Invoke-WebRequest -Uri "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip" -OutFile "hdf5.zip"
-        unzip hdf5.zip
-        rm hdf5.zip
-        .\hdf5*.exe
+        Invoke-WebRequest -Uri "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip" -OutFile "hdf.zip"
+        unzip hdf.zip
+        rm hdf.zip
+        hdf\HDF5-1.10.7-win64.msi
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
       run: |
