@@ -18,7 +18,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+            #- macos-latest
           - windows-latest
         python-version: [3.6, 3.7, 3.8, 3.9]
       fail-fast: true
@@ -30,16 +30,31 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install HDF5 (Ubuntu)
-      if: runner.os == 'Linux'
+      if: ${{ runner.os == 'Linux' }}
       run: |
         sudo apt-get update
         sudo apt-get install h5utils
+    - name: Install HDF5 (Windows)
+      if: ${{ runner.os == 'Windows' }}
+      shell: powershell
+      env:
+        HOME: ${{ runner.workspace }}
+      run: |
+        curl -L https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip --output hdf5.zip
+        unzip hdf5.zip
+        rm hdf5.zip
+        & .\hdf5-1.10.7-Std-win10_64-vs16.exe
+    - name: Install HDF5 (macOS)
+      if: ${{ runner.os == 'macOS' }}
+      run: |
+        brew install ninja
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         python -m pip install pytest
         python -m pip install .[roi]
-    - name: Test with pytest
+    - name: Test with pytest (Windows)
+      if: ${{ runner.os == 'Windows' }}
       run: >-
         pytest
         tests/test_core.py
@@ -48,6 +63,12 @@ jobs:
         tests/test_analyzer.py::TestIndexer
         tests/test_analyzer.py::TestAssignment
         tests/test_analyzer.py::TestSideEffects
+    - name: Test with pytest (Linux and macOS)
+      if: ${{ runner.os != 'Windows' }}
+      run: >-
+        pytest
+        tests/test_core.py
+        tests/test_analyzer.py
 
   coverage:
 
@@ -60,17 +81,14 @@ jobs:
         python-version: 3.8
     - name: Install dependencies and run tests
       run: |
-        #sudo apt-get install h5utils
+        sudo apt-get update
+        sudo apt-get install h5utils
         python -m pip install --upgrade pip
         python -m pip install pytest-cov
         python -m pip install .[roi]
         python -m pytest --cov=./ \
           tests/test_core.py \
-          tests/test_analyzer.py::TestSptDataAccess \
-          tests/test_analyzer.py::TestTesseller \
-          tests/test_analyzer.py::TestIndexer \
-          tests/test_analyzer.py::TestAssignment \
-          tests/test_analyzer.py::TestSideEffects
+          tests/test_analyzer.py
     - uses: codecov/codecov-action@v1
       #with:
       #  fail_ci_if_error: true
