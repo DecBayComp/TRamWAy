@@ -38,7 +38,7 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       shell: pwsh
       env:
-        HOME: ${{ runner.workspace }}
+        HDF5_BINDIR: "C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
       run: |
         Try {h5diff.exe --version} Catch {
         Invoke-WebRequest -Uri "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip" -OutFile "${{ github.workspace }}\hdf.zip"
@@ -46,8 +46,9 @@ jobs:
         rm "${{ github.workspace }}\hdf.zip"
         Start-Process -FilePath msiexec.exe -ArgumentList /i, "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi", /qn, /log, "${{ github.workspace }}\msi.log" -Wait
         Try { cat "${{ github.workspace }}\msi.log" } Catch { "log file not found" }
-        setx path "%PATH%;C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
-        Try { h5diff.exe --version } Catch { "h5diff not found" }
+        setx path "%PATH%;%HDF5_BINDIR%"
+        $env:path
+        Try { "%HDF5_BINDIR\h5diff.exe" --version } Catch { "h5diff not found" }
         }
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
@@ -60,7 +61,13 @@ jobs:
         python -m pip install .[roi]
     - name: Test with pytest (Windows)
       if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      env:
+        HDF5_BINDIR: "C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
       run: >-
+        $env:path;
+        setx path "%PATH%;%HDF5_BINDIR%";
+        $env:path;
         pytest
         tests/test_core.py
         tests/test_analyzer.py::TestSptDataAccess
