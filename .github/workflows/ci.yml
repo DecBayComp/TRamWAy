@@ -46,10 +46,8 @@ jobs:
         rm "${{ github.workspace }}\hdf.zip"
         Start-Process -FilePath msiexec.exe -ArgumentList /i, "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi", /qn, /log, "${{ github.workspace }}\msi.log" -Wait
         Try { cat "${{ github.workspace }}\msi.log" } Catch { "log file not found" }
-        # should initiate new shell for the executable to be available
-        #Try { h5diff.exe --version } Catch { "h5diff not found" }
-        $env:path
-        dir "C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
+        setx path "%PATH%;C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
+        Try { h5diff.exe --version } Catch { "h5diff not found" }
         }
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
