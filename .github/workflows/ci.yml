@@ -44,8 +44,8 @@ jobs:
         Invoke-WebRequest -Uri "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip" -OutFile "${{ github.workspace }}\hdf.zip"
         unzip "${{ github.workspace }}\hdf.zip"
         rm "${{ github.workspace }}\hdf.zip"
-        dir "${{ github.workspace }}\hdf"
-        msiexec /i "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi" /qn /norestart /log "${{ github.workspace }}\msi.log"
+        Remove-Item alias:msiexec
+        Start-Process -FilePath msiexec.exe -ArgumentList /i, "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi", /qn, /log, "${{ github.workspace }}\msi.log" -Wait
         Try { cat "${{ github.workspace }}\msi.log" } Catch { "log file not found" }
         Try { h5diff.exe --version } Catch { "h5diff not found" }
         }
