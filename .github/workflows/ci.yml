@@ -15,11 +15,10 @@ jobs:
     strategy:
       matrix:
         os:
-          #- ubuntu-latest
+          - ubuntu-latest
           - macos-latest
-          #- windows-latest
-        #python-version: [3.6, 3.7, 3.8, 3.9]
-        python-version: [3.8]
+          - windows-latest
+        python-version: [3.6, 3.7, 3.8, 3.9]
       fail-fast: true
 
     steps:
@@ -55,22 +54,14 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest dill cloudpickle
+        python -m pip install pytest
         python -m pip install .[roi]
     - name: Test with pytest (Windows)
       if: ${{ runner.os == 'Windows' }}
       run: >-
         pytest
         tests/test_core.py
-        tests/test_analyzer.py::TestSptDataAccess
-        tests/test_analyzer.py::TestTesseller
-        tests/test_analyzer.py::TestIndexer
-        tests/test_analyzer.py::TestAssignment
-        tests/test_analyzer.py::TestSideEffects
-    - name: Test with pytest (macOS)
-      if: ${{ runner.os == 'macOS' }}
-      run: >-
-        pytest tests/test_analyzer.py::TestMapper::test_time_regul
+        tests/test_analyzer.py
     - name: Test with pytest (Linux and macOS)
       if: ${{ runner.os != 'Windows' }}
       run: >-
@@ -78,25 +69,25 @@ jobs:
         tests/test_core.py
         tests/test_analyzer.py
 
-#  coverage:
-#
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#    - uses: actions/checkout@v2
-#    - uses: actions/setup-python@v2
-#      with:
-#        python-version: 3.8
-#    - name: Install dependencies and run tests
-#      run: |
-#        sudo apt-get update
-#        sudo apt-get install h5utils
-#        python -m pip install --upgrade pip
-#        python -m pip install pytest-cov
-#        python -m pip install .[roi]
-#        python -m pytest --cov=./ \
-#          tests/test_core.py \
-#          tests/test_analyzer.py
-#    - uses: codecov/codecov-action@v1
-#      with:
-#        fail_ci_if_error: true
+  coverage:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Install dependencies and run tests
+      run: |
+        sudo apt-get update
+        sudo apt-get install h5utils
+        python -m pip install --upgrade pip
+        python -m pip install pytest-cov
+        python -m pip install .[roi]
+        python -m pytest --cov=./ \
+          tests/test_core.py \
+          tests/test_analyzer.py
+    - uses: codecov/codecov-action@v1
+      with:
+        fail_ci_if_error: true

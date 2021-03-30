@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018-2019, Institut Pasteur
+# Copyright © 2018-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -862,6 +862,17 @@ parallel.abc.VehicleJobStep.register(Component)
 
 def _all(i):
     return None
+def _single(i):
+    return 0
+def _mk_component(m):
+    components = np.arange(m)
+    def _component(k):
+        _i = k % m
+        if _i == 0:
+            np.random.shuffle(components)
+        return components[_i]
+    return _component
+
 def _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace,
         args, bounds, _sum, gradient_sum, gradient_covariate):
     if not callable(fun):
@@ -871,18 +882,10 @@ def _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace
     if not callable(component):
         if isinstance(component, int):
             if component == 0:
-                component = lambda k: 0
+                component = _single
             elif 0 < component:
                 m = component
-                def mk_component(m):
-                    components = np.arange(m)
-                    def _component(k):
-                        _i = k % m
-                        if _i == 0:
-                            np.random.shuffle(components)
-                        return components[_i]
-                    return _component
-                component = mk_component(m)
+                component = _mk_component(m)
             else:
                 raise ValueError('wrong number of components')
         else:
