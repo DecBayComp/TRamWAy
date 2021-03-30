@@ -160,7 +160,10 @@ class Common(object):
         file_b = os.path.join(self.tmpdir, label+'_b.rwa')
         save_rwa(file_a, timefree(tree_a), force=True)
         save_rwa(file_b, timefree(tree_b), force=True)
-        p = subprocess.Popen(('h5diff', file_a, file_b),
+        h5diff = 'h5diff'
+        if os.name == 'nt':
+            h5diff += '.exe'
+        p = subprocess.Popen((h5diff, file_a, file_b),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if err:
