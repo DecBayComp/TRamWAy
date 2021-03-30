@@ -17,9 +17,9 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-latest
-            #- macos-latest
-          - windows-latest
+          #- ubuntu-latest
+          - macos-latest
+          #- windows-latest
         python-version: [3.6, 3.7, 3.8, 3.9]
       fail-fast: true
 
@@ -41,15 +41,17 @@ jobs:
         Try {h5diff.exe --version} Catch {
         Invoke-WebRequest -Uri "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip" -OutFile "${{ github.workspace }}\hdf.zip"
         unzip "${{ github.workspace }}\hdf.zip"
-        rm "${{ github.workspace }}\hdf.zip"
         Start-Process -FilePath msiexec.exe -ArgumentList /i, "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi", /qn, /log, "${{ github.workspace }}\msi.log" -Wait
         Try { cat "${{ github.workspace }}\msi.log" } Catch { "log file not found" }
         echo "C:\Program Files\HDF_Group\HDF5\1.10.7\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        rm "${{ github.workspace }}\hdf.zip"
+        rm "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi"
+        rm "${{ github.workspace }}\msi.log"
         }
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
       run: |
-        brew install ninja
+        brew install hdf5
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
