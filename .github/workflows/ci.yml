@@ -48,7 +48,7 @@ jobs:
         Try { cat "${{ github.workspace }}\msi.log" } Catch { "log file not found" }
         # should initiate new shell for the executable to be available
         #Try { h5diff.exe --version } Catch { "h5diff not found" }
-        path
+        $env:path
         dir "C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
         }
     - name: Install HDF5 (macOS)
