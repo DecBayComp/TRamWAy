@@ -24,11 +24,11 @@ import scipy.spatial.qhull
 from copy import copy
 from collections import OrderedDict
 
-import sys
-if sys.platform.startswith('linux'):
-    from multiprocessing import Pool, Lock
-else:
-    from pathos.multiprocessing import Pool, Lock
+try:
+    import dill
+except ImportError:
+    pass
+from multiprocessing import Pool, Lock
 
 import os # for os.name
 import six

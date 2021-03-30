@@ -12,11 +12,11 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import sys
-if sys.platform.startswith('linux'):
-    import multiprocessing
-else:
-    import pathos.multiprocessing as multiprocessing
+try:
+    import dill
+except ImportError:
+    pass
+import multiprocessing
 try:
     import queue
 except ImportError:
