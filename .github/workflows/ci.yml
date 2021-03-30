@@ -40,11 +40,14 @@ jobs:
       env:
         HOME: ${{ runner.workspace }}
       run: |
+        Try {h5diff.exe --version} Catch {
         Invoke-WebRequest -Uri "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip" -OutFile "hdf.zip"
         unzip hdf.zip
         rm hdf.zip
-        msiexec /i hdf\HDF5-1.10.7-win64.msi /quiet /log hdf\msi.log
-        cat hdf\msi.log
+        msiexec /i "hdf\HDF5-1.10.7-win64.msi" /quiet /log "hdf\msi.log"
+        Try {cat "hdf\msi.log"} Catch {"cannot acces log file"}
+        h5diff.exe --version
+        }
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
       run: |
