@@ -48,7 +48,6 @@ jobs:
         Try { cat "${{ github.workspace }}\msi.log" } Catch { "log file not found" }
         setx path "%PATH%;%HDF5_BINDIR%"
         $env:path
-        Try { "%HDF5_BINDIR\h5diff.exe" --version } Catch { "h5diff not found" }
         }
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
