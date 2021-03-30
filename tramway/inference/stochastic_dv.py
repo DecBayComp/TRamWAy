@@ -545,11 +545,11 @@ def infer_stochastic_DV(cells,
             sbfgs_kwargs['gradient_covariate'] = col2rows
         sbfgs_kwargs['worker_count'] = 0
 
-    if os.name == 'nt':
-        if sbfgs_kwargs.get('worker_count', None):
-            logger.warning('multiprocessing may break on Windows')
-        else:
-            sbfgs_kwargs['worker_count'] = 0
+    #if os.name == 'nt':
+    #    if sbfgs_kwargs.get('worker_count', None):
+    #        logger.warning('multiprocessing may break on Windows')
+    #    else:
+    #        sbfgs_kwargs['worker_count'] = 0
 
     # other arguments
     if verbose:

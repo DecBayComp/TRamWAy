@@ -756,12 +756,14 @@ class Distributed(Local):
 
         if parallel:
             # parallel for-loop over the subsets of cells
-            # if Windows, make the computation sequential
-            if os.name == 'nt':
-                if worker_count is None:
-                    worker_count = 0
-                else:
-                    warn('multiprocessing may break on Windows', RuntimeWarning)
+
+            ## if Windows, make the computation sequential
+            #if os.name == 'nt':
+            #    if worker_count is None:
+            #        worker_count = 0
+            #    else:
+            #        warn('multiprocessing may break on Windows', RuntimeWarning)
+
             # if `worker_count` is `None`, `Pool` will use `multiprocessing.cpu_count()`
             # if `worker_count == 0`, make it single-processing
             if worker_count == 0:
