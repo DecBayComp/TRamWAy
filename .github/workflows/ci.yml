@@ -55,7 +55,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest, pathos
+        python -m pip install pytest pathos
         python -m pip install .[roi]
     - name: Test with pytest (Windows)
       if: ${{ runner.os == 'Windows' }}
@@ -78,25 +78,25 @@ jobs:
         tests/test_core.py
         tests/test_analyzer.py
 
-  coverage:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
-      with:
-        python-version: 3.8
-    - name: Install dependencies and run tests
-      run: |
-        sudo apt-get update
-        sudo apt-get install h5utils
-        python -m pip install --upgrade pip
-        python -m pip install pytest-cov
-        python -m pip install .[roi]
-        python -m pytest --cov=./ \
-          tests/test_core.py \
-          tests/test_analyzer.py
-    - uses: codecov/codecov-action@v1
-      with:
-        fail_ci_if_error: true
+#  coverage:
+#
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#    - uses: actions/checkout@v2
+#    - uses: actions/setup-python@v2
+#      with:
+#        python-version: 3.8
+#    - name: Install dependencies and run tests
+#      run: |
+#        sudo apt-get update
+#        sudo apt-get install h5utils
+#        python -m pip install --upgrade pip
+#        python -m pip install pytest-cov
+#        python -m pip install .[roi]
+#        python -m pytest --cov=./ \
+#          tests/test_core.py \
+#          tests/test_analyzer.py
+#    - uses: codecov/codecov-action@v1
+#      with:
+#        fail_ci_if_error: true
