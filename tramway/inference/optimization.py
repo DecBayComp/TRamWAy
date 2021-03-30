@@ -860,9 +860,10 @@ class Component(LocalSubspaceProxy, parallel.UpdateVehicle):
 parallel.abc.VehicleJobStep.register(Component)
 
 
+def _all(i):
+    return None
 def _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace,
         args, bounds, _sum, gradient_sum, gradient_covariate):
-    _all = None
     if not callable(fun):
         raise TypeError('fun is not callable')
     if not isinstance(x0, np.ndarray):
@@ -889,11 +890,11 @@ def _fun_args(fun, x0, component, covariate, gradient_subspace, descent_subspace
     if not callable(covariate):
         raise TypeError('covariate is not callable')
     if gradient_subspace is None:
-        gradient_subspace = lambda i: _all
+        gradient_subspace = _all
     elif not callable(gradient_subspace):
         raise TypeError('gradient_subspace is not callable')
     if descent_subspace is None:
-        descent_subspace = lambda i: _all
+        descent_subspace = _all
     elif not callable(descent_subspace):
         raise TypeError('descent_subspace is not callable')
     if not callable(_sum):

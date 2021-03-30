@@ -25,10 +25,6 @@ from copy import copy
 from collections import OrderedDict
 
 try:
-    import dill
-except ImportError:
-    pass
-try:
     import cloudpickle
 except ImportError:
     pass
