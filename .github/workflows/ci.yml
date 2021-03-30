@@ -1,5 +1,3 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
 name: Unit tests and code coverage
 
@@ -20,7 +18,8 @@ jobs:
           #- ubuntu-latest
           - macos-latest
           #- windows-latest
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        #python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.8]
       fail-fast: true
 
     steps:
@@ -51,11 +50,12 @@ jobs:
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
       run: |
+        brew update
         brew install hdf5
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest
+        python -m pip install pytest, pathos
         python -m pip install .[roi]
     - name: Test with pytest (Windows)
       if: ${{ runner.os == 'Windows' }}
@@ -67,6 +67,10 @@ jobs:
         tests/test_analyzer.py::TestIndexer
         tests/test_analyzer.py::TestAssignment
         tests/test_analyzer.py::TestSideEffects
+    - name: Test with pytest (macOS)
+      if: ${{ runner.os == 'macOS' }}
+      run: >-
+        pytest tests/test_analyzer.py::TestMapper::test_time_regul
     - name: Test with pytest (Linux and macOS)
       if: ${{ runner.os != 'Windows' }}
       run: >-
@@ -94,5 +98,5 @@ jobs:
           tests/test_core.py \
           tests/test_analyzer.py
     - uses: codecov/codecov-action@v1
-      #with:
-      #  fail_ci_if_error: true
+      with:
+        fail_ci_if_error: true

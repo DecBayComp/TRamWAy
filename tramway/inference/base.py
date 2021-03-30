@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -23,7 +23,13 @@ import scipy.sparse as sparse
 import scipy.spatial.qhull
 from copy import copy
 from collections import OrderedDict
-from multiprocessing import Pool, Lock
+
+import sys
+if sys.platform.startswith('linux'):
+    from multiprocessing import Pool, Lock
+else:
+    from pathos.multiprocessing import Pool, Lock
+
 import os # for os.name
 import six
 from functools import partial

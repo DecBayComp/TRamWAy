@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2019, Institut Pasteur
+# Copyright © 2019-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -12,7 +12,11 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import multiprocessing
+import sys
+if sys.platform.startswith('linux'):
+    import multiprocessing
+else:
+    import pathos.multiprocessing as multiprocessing
 try:
     import queue
 except ImportError:
