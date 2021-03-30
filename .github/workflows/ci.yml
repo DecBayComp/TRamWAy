@@ -38,7 +38,7 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       shell: pwsh
       env:
-        HDF5_BINDIR: "C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
+        HDF5_BINDIR: C:\Program Files\HDF_Group\HDF5\1.10.7\bin
       run: |
         Try {h5diff.exe --version} Catch {
         Invoke-WebRequest -Uri "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/bin/windows/hdf5-1.10.7-Std-win10_64-vs16.zip" -OutFile "${{ github.workspace }}\hdf.zip"
@@ -63,7 +63,7 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       shell: pwsh
       env:
-        HDF5_BINDIR: "C:\Program Files\HDF_Group\HDF5\1.10.7\bin"
+        HDF5_BINDIR: C:\Program Files\HDF_Group\HDF5\1.10.7\bin
       run: >-
         $env:path;
         setx path "%PATH%;%HDF5_BINDIR%";
