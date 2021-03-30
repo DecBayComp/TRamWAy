@@ -28,6 +28,10 @@ try:
     import dill
 except ImportError:
     pass
+try:
+    import cloudpickle
+except ImportError:
+    pass
 from multiprocessing import Pool, Lock
 
 import os # for os.name

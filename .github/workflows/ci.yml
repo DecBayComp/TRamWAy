@@ -55,7 +55,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest dill
+        python -m pip install pytest dill cloudpickle
         python -m pip install .[roi]
     - name: Test with pytest (Windows)
       if: ${{ runner.os == 'Windows' }}
