@@ -36,7 +36,7 @@ jobs:
         sudo apt-get install h5utils
     - name: Install HDF5 (Windows)
       if: ${{ runner.os == 'Windows' }}
-      shell: powershell
+      shell: pwsh
       env:
         HOME: ${{ runner.workspace }}
       run: |
@@ -46,7 +46,10 @@ jobs:
         rm "${{ github.workspace }}\hdf.zip"
         Start-Process -FilePath msiexec.exe -ArgumentList /i, "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi", /qn, /log, "${{ github.workspace }}\msi.log" -Wait
         Try { cat "${{ github.workspace }}\msi.log" } Catch { "log file not found" }
-        Try { h5diff.exe --version } Catch { "h5diff not found" }
+        # should initiate new shell for the executable to be available
+        #Try { h5diff.exe --version } Catch { "h5diff not found" }
+        dir C:\Program Files\HDF_Group\HDF5\1.10.7\bin\
+        path
         }
     - name: Install HDF5 (macOS)
       if: ${{ runner.os == 'macOS' }}
