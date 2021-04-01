@@ -9,7 +9,7 @@ install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
         'roi':  ['polytope', 'cvxopt', 'tqdm'],
-        'webui':    ['bokeh>=2.0.2', 'selenium']}
+        'webui':    ['bokeh >=2.0.2, <2.3.0', 'selenium']}
 tests_require = ['pytest']
 
 

@@ -268,13 +268,16 @@ class Controller(object):
         self.time_slider.on_change('value_throttled', lambda attr, old, new: self.refresh_map())
         return self.time_slider
     def make_space_view(self):
-        self.main_figure = f = figure(disabled=True, toolbar_location=None, active_drag=None,
+        self.main_figure = f = figure(disabled=True, toolbar_location=None,
                 match_aspect=True, tools='pan, wheel_zoom, reset')
+        self.main_figure.toolbar.active_drag = None
         f.background_fill_color = f.border_fill_color = None
         self.colorbar_figure = f = figure(disabled=True, toolbar_location=None,
                 min_border=0, outline_line_color=None, title_location='right', plot_width=112)
         f.background_fill_color = f.border_fill_color = None
         f.title.align = 'center'
+        add_colorbar(self.main_figure, colorbar_figure=f,
+                colormap=self.model.analyzer.browser.colormap)
         #f.visible = False
         self.visibility_controls = CheckboxGroup(disabled=True, labels=['Localizations','Trajectories','Hide map'], active=[])
         def _update(attr, old, new):

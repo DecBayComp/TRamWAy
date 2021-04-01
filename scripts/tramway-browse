@@ -31,12 +31,19 @@ a.env.script = '{}'
         browser)
     script.write(source)
     script.flush()
+    p = subprocess.Popen([sys.executable, script.name],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
-        ret = subprocess.run([sys.executable, script.name], check=True)
+        ret = p.communicate()
     except KeyboardInterrupt:
-        ret = 'interrupted'
+        ret = p.communicate()
     script.close()
-    return ret
+    def tostr(s):
+        if isinstance(s, bytes):
+            s = s.decode('utf8')
+        return s
+    ret = [ tostr(r) for r in ret ]
+    return [ r for r in ret if r ]
 
 
 def main():
@@ -46,7 +53,7 @@ def main():
     parser.add_argument('files', nargs='*', help='for example: *.rwa or */*.rwa')
     parser.add_argument('--browser', default='Firefox', choices=['Firefox','Chrome','Edge','Ie','Opera','Safari','WebKitGTK'])
     parser.add_argument('--colormap', help="Matplotlib colormap name")
-    print(browse(**parser.parse_args().__dict__))
+    [ print(ret) for ret in browse(**parser.parse_args().__dict__) ]
 
 if __name__ == '__main__':
     main()

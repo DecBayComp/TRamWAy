@@ -411,52 +411,85 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
     if colorbar:
         low = clim.get('vmin', vmin)
         high = clim.get('vmax', vmax)
-        if colormap is None:
-            color_map = 'Viridis256'
-        elif colormap.lower() in ('greys','inferno','magma','plasma','viridis','cividis','turbo'):
-            color_map = colormap[0].upper()+colormap[1:].lower()+'256'
+        if False:
+            add_colorbar(figure, colormap, low, high, unit, clabel, colorbar_figure)
         else:
-            try:
-                import colorcet as cc
-            except ImportError:
-                color_map = colormap # let us try anyway...
-            else:
-                try:
-                    color_map = getattr(cc, colormap)
-                except AttributeError:
-                    color_map = colormap
-        try:
-            color_map = LinearColorMapper(palette=color_map, low=low, high=high)
-        except ValueError as e:
-            try:
-                import colorcet
-            except ImportError:
-                raise ValueError('colormap not found; try installing the colorcet package') from e
-            else:
-                raise
-        color_bar = ColorBar(color_mapper=color_map, ticker=BasicTicker(),
-                border_line_color=None, margin=0)
-        color_bar.background_fill_color = None
-        #glyph_renderers.append(color_bar)
-        if unit is None:
-            unit = clabel
-        if colorbar_figure is None:
-            if unit is not None:
-                color_bar.title = unit
-            figure.add_layout(color_bar, place='right')
-        else:
-            if unit is not None:
-                colorbar_figure.title.text = unit
-                colorbar_figure.title_location = 'right'
-                colorbar_figure.title.align = 'center'
-            color_bar.height = colorbar_figure.plot_height
-            if isinstance(colorbar_figure.center[-1], ColorBar):
-                colorbar_figure.center = colorbar_figure.center[:-1]
-            colorbar_figure.add_layout(color_bar, place='center')
-            #print(colorbar_figure.center, colorbar_figure.plot_height, color_bar.width, color_bar.height, color_bar.margin, color_bar.padding)
+            update_colorbar(figure, low, high, unit, clabel, colorbar_figure)
 
     #plt.show(figure)
     return glyph_renderers
+
+
+def add_colorbar(figure, colormap=None, low=0, high=1, unit=None, clabel=None, colorbar_figure=None):
+    if colormap is None:
+        color_map = 'Viridis256'
+    elif colormap.lower() in ('greys','inferno','magma','plasma','viridis','cividis','turbo'):
+        color_map = colormap[0].upper()+colormap[1:].lower()+'256'
+    else:
+        try:
+            import colorcet as cc
+        except ImportError:
+            color_map = colormap # let us try anyway...
+        else:
+            try:
+                color_map = getattr(cc, colormap)
+            except AttributeError:
+                color_map = colormap
+    try:
+        color_map = LinearColorMapper(palette=color_map, low=low, high=high,
+                name='color_mapper')
+    except ValueError as e:
+        try:
+            import colorcet
+        except ImportError:
+            raise ValueError('colormap not found; try installing the colorcet package') from e
+        else:
+            raise
+    color_bar = ColorBar(color_mapper=color_map, ticker=BasicTicker(name='ticker'),
+            border_line_color=None, margin=0, name='color_bar')
+    color_bar.background_fill_color = None
+    #glyph_renderers.append(color_bar)
+    if unit is None:
+        unit = clabel
+    if colorbar_figure is None:
+        if unit is not None:
+            color_bar.title = unit
+        figure.add_layout(color_bar, place='right')
+    else:
+        if unit is not None:
+            colorbar_figure.title.text = unit
+            colorbar_figure.title_location = 'right'
+            colorbar_figure.title.align = 'center'
+        color_bar.height = colorbar_figure.plot_height
+        if isinstance(colorbar_figure.center[-1], ColorBar):
+            colorbar_figure.center = colorbar_figure.center[:-1]
+        colorbar_figure.add_layout(color_bar, place='center')
+        #print(colorbar_figure.center, colorbar_figure.plot_height, color_bar.width, color_bar.height, color_bar.margin, color_bar.padding)
+
+
+def update_colorbar(figure, low=None, high=None, unit=None, clabel=None, colorbar_figure=None):
+    if colorbar_figure is not None:
+        figure = colorbar_figure
+    color_bar = figure.select(name='color_bar')[0]
+    if not (low is None and high is None):
+        color_map = figure.select(name='color_mapper')[0]
+        palette = color_map.palette
+        #color_map.update(low=low, high=high)
+        #palette = 'Greys256'
+        color_map = LinearColorMapper(palette=palette, low=low, high=high,
+                name='color_mapper')
+        color_bar.update(color_mapper=color_map)
+    if unit is None:
+        unit = clabel
+    if colorbar_figure is None:
+        if unit is not None:
+            color_bar.title = unit
+    else:
+        if unit is not None:
+            colorbar_figure.title.text = unit
+        #color_bar.height = colorbar_figure.plot_height
+        #if isinstance(colorbar_figure.center[-1], ColorBar):
+        #    colorbar_figure.center = colorbar_figure.center[:-1]
 
 
 def plot_delaunay(cells, labels=None, color=None, style='-',
@@ -675,5 +708,6 @@ def field_map_2d(cells, values, angular_width=30.0,
 
 
 
-__all__ = ['plot_points', 'plot_trajectories', 'plot_delaunay', 'scalar_map_2d', 'field_map_2d']
+__all__ = ['plot_points', 'plot_trajectories', 'plot_delaunay', 'scalar_map_2d', 'field_map_2d',
+        'add_colorbar']
 
