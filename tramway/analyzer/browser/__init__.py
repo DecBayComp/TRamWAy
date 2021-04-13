@@ -53,19 +53,31 @@ class Browser(AnalyzerNode):
     The showed parameter values can also be exported with the side panel.
     Note that all features are exported together with the spatial bin center coordinates.
     """
-    __slots__ = ('_colormap',)
+    __slots__ = ('_colormap','_clim')
     @property
     def colormap(self):
         """ *str*: Colormap for inferred parameter maps.
 
-        See also :func:`~tramway.plot.bokeh.map.scalar_map_2d`."""
+        See also :func:`~tramway.plot.bokeh.map.scalar_map_2d`.
+        """
         return self._colormap
     @colormap.setter
     def colormap(self, cm):
         self._colormap = cm
+    @property
+    def clim(self):
+        """
+        *dict* of 2-element *array-like*:
+            Color lower and upper values (dict values) for each feature (dict keys)
+        """
+        return self._clim
+    @clim.setter
+    def clim(self, clim):
+        self._clim = clim
     def __init__(self, analyzer):
         AnalyzerNode.__init__(self, parent=analyzer)
         self._colormap = None
+        self._clim = None
     def show_maps(self, **kwargs):
         """ See also :func:`~tramway.plot.bokeh.analyzer.browse_maps`. """
         from tramway.plot.bokeh.analyzer import browse_maps

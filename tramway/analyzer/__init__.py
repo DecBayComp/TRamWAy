@@ -17,7 +17,7 @@ import warnings
 import logging
 
 def report_misplaced_attribute(attr_name, proper_parent_name):
-    warnings.warn('`{}` is an attribute of the initialized `{}` attribute; this warning message can safely be silenced'.format(attr_name, proper_parent_name), MisplacedAttributeWarning)
+    warnings.warn(f'`{attr_name}` is an attribute of the initialized `{proper_parent_name}` attribute; this warning message can safely be silenced', MisplacedAttributeWarning)
 def proper_parent_name(attr_name):
     parent_name = None
     get_conditions, set_conditions = {}, {}

@@ -274,9 +274,14 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
 
     def _tessellate_and_infer(self):
 
+        if not self._eldest_parent.env.initialized:
+            save_active_branches_only = False
+
         dry_run = True
 
         for f in self.spt_data:
+
+            source_dry_run = True
 
             # for logging
             source_name = _spt_source_name(f)
@@ -306,6 +311,8 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                     elif callable(sampling_label):
                         label = sampling_label(r.label)
                     else:
+                        if not source_dry_run:
+                            self.logger.warning("multiple roi bound to single sampling label; make sampling_label callable")
                         label = sampling_label
 
                     # control predicates
@@ -318,8 +325,14 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         # get the SPT data
                         df = r.crop()
 
+                        if df.empty:
+                            raise ValueError(f'not a single displacement in roi {roi_label}')
+
                         # filter some translocations out
                         df = r.discard_static_trajectories(df)
+
+                        if df.empty:
+                            raise ValueError(f'all the trajectories are static in roi {roi_label}')
 
                         # tessellate
                         log('tessellating')
@@ -334,7 +347,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         log('inferring')
                         maps = self.mapper.infer(sampling)
 
-                        dry_run = False
+                        dry_run = source_dry_run = False
 
                     # store
                     if _tessellate:
@@ -351,7 +364,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         # ... and the inferred maps
                         maps     = commit_as_analysis(map_label, maps, parent=sampling)
                         #
-                        assert tree.modified()
+                        assert tree.modified(recursive=True)
                         if save_active_branches_only:
                             active_labels[label].add(map_label)
 

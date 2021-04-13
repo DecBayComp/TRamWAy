@@ -10,6 +10,7 @@ import pandas as pd
 import time
 import warnings
 import traceback
+from collections import defaultdict
 from bokeh.plotting import curdoc, figure
 from bokeh.models import Select, Slider, CheckboxGroup, TextInput, Button, Paragraph
 from bokeh.layouts import row, column
@@ -33,6 +34,7 @@ class Model(object):
         self.current_sampling = None
         self.current_mapping = None
         self.current_feature = None
+        self._clim = None
     def select_spt_data(self, source_name):
         if self.current_spt_data is not None:
             self.release_spt_data()
@@ -107,6 +109,20 @@ class Model(object):
     def n_time_segments(self):
         assert self.has_time_segments()
         return len(self.current_sampling.tessellation.time_lattice)
+    @property
+    def clim(self):
+        if self._clim is None:
+            clim = self.analyzer.browser.clim
+        else:
+            clim = self._clim
+        if not isinstance(clim, dict):
+            _clim = clim
+            clim = defaultdict(lambda: _clim)
+        return clim
+    @clim.setter
+    def clim(self, clim):
+        if self.analyzer.browser.clim is None:
+            self._clim = clim
         
 class Controller(object):
     """
@@ -350,6 +366,8 @@ class Controller(object):
             _cells = _cells[_seg]
             _map = _map[_seg]
             kwargs['clim'] = self.model.clim[feature]
+        elif self.model.clim is not None:
+            kwargs['clim'] = self.model.clim[feature]
         if _map.shape[1] == 2:
             _vector_map = _map
             if feature == 'force':
@@ -531,24 +549,34 @@ def browse_maps(analyzer, **kwargs):
     if not model.spt_data_sources[1:]:
         controller.load_source(model.spt_data_sources[0])
 
-    if not sys.argv[0].endswith('bokeh') and analyzer.env.script and not \
-            (os.path.isabs(analyzer.env.script) and sys.argv[0] == os.path.basename(analyzer.env.script)):
-        print('running bokeh server...\n')
-        import subprocess
-        p = subprocess.Popen([sys.executable, '-m', 'bokeh', 'serve', '--show', analyzer.env.script],
-                cwd=os.getcwd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True,
+    if not sys.argv[0].endswith('bokeh'):
+        if analyzer.env.script and not \
+            (os.path.isabs(analyzer.env.script) and \
+                sys.argv[0] == os.path.basename(analyzer.env.script)):
+            print('running bokeh server...\n')
+            import subprocess
+            p = subprocess.Popen([sys.executable, '-m',
+                    'bokeh', 'serve', '--show', analyzer.env.script],
+                cwd=os.getcwd(),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                close_fds=True,
                 encoding='utf-8')
-        try:
-            out, err = p.communicate()
-        except KeyboardInterrupt:
-            out, err = p.communicate()
-        #out = out.decode('utf-8')
-        for line in out.splitlines():
-            if not line:
-                continue
-            print(line)
-        if err:
-            #print(err.decode('utf-8'))
-            print(err)
-        print('bokeh server shut down')
+            try:
+                out, err = p.communicate()
+            except KeyboardInterrupt:
+                out, err = p.communicate()
+            #out = out.decode('utf-8')
+            for line in out.splitlines():
+                if not line:
+                    continue
+                print(line)
+            if err:
+                #print(err.decode('utf-8'))
+                print(err)
+            print('bokeh server shut down')
+        else:
+            import __main__ as main
+            if not hasattr(main, '__file__'):
+                print('''bokeh map browser cannot run in an interpreter
+without the script attribute set''')
 

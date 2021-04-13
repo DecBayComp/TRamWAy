@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -303,7 +303,11 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
         if not ylim:
             ylim = (xy_min[1], xy_max[1])
     ix = np.arange(xy.shape[0])
-    vertices, cell_vertices, Av = mplt.box_voronoi_2d(cells.tessellation, xlim, ylim)
+    try:
+        vertices, cell_vertices, Av = mplt.box_voronoi_2d(cells.tessellation, xlim, ylim)
+    except AssertionError:
+        warn('could not fix the borders', RuntimeWarning)
+        vertices, cell_vertices, Av = cells.tessellation.vertices, cells.tessellation.cell_vertices, cells.tessellation.vertex_adjacency.tocsr()
     try:
         ok = 0 < cells.location_count
     except (KeyboardInterrupt, SystemExit):
@@ -423,18 +427,17 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
 def add_colorbar(figure, colormap=None, low=0, high=1, unit=None, clabel=None, colorbar_figure=None):
     if colormap is None:
         color_map = 'Viridis256'
-    elif colormap.lower() in ('greys','inferno','magma','plasma','viridis','cividis','turbo'):
-        color_map = colormap[0].upper()+colormap[1:].lower()+'256'
-    else:
-        try:
-            import colorcet as cc
-        except ImportError:
-            color_map = colormap # let us try anyway...
+    elif isinstance(colormap, str):
+        if colormap.lower() in ('greys','inferno','magma','plasma','viridis','cividis','turbo'):
+            color_map = colormap[0].upper()+colormap[1:].lower()+'256'
         else:
-            try:
-                color_map = getattr(cc, colormap)
-            except AttributeError:
-                color_map = colormap
+            color_map = mpl.cm.get_cmap(colormap)
+            color_map = [
+                    "#%02x%02x%02x" % (int(r), int(g), int(b)) \
+                    for r, g, b, _ in 255*color_map(np.linspace(0, 1, 256))
+                    ]
+    else:
+        color_map = colormap
     try:
         color_map = LinearColorMapper(palette=color_map, low=low, high=high,
                 name='color_mapper')

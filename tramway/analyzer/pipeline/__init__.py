@@ -161,7 +161,7 @@ class Pipeline(AnalyzerNode):
             try:
                 self.env.setup(*sys.argv)
                 self.logger.info('setup complete')
-                if self.env.worker_side:
+                if self.env.worker_side and not self.env.submit_side:
                     # a single stage can apply
                     stage_index = self.env.selectors.get('stage_index', 0)
                     if isinstance(stage_index, (tuple,list)):
