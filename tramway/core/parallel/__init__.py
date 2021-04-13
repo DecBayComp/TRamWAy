@@ -63,10 +63,9 @@ class StarQueue(object):
         except IndexError:
             raise RuntimeError('too many consumers')
 
-class StarConn(queue.Queue):
+class StarConn(object):
     __slots__ = 'input', 'output'
     def __init__(self, input_queue=None, output_queues=None):
-        queue.Queue.__init__(self)
         self.input = input_queue
         self.output = output_queues
     @property
