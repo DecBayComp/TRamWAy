@@ -347,6 +347,46 @@ class Mpl(AnalyzerNode):
 
         Extra input arguments are passed to :class:`~matplotlib.animation.FuncAnimation`
         or :class:`PatchCollection` (and :func:`~tramway.plot.map.scalar_map_2d`).
+
+        Notebook example:
+
+        .. code-block::python
+
+            # Cell 1
+            from tramway.analyzer import *
+
+            a          = RWAnalyzer()
+            # ...
+
+            features   = ('diffusivity', 'potential')
+
+        .. code-block::python
+
+            # Cell 2
+            %% capture
+            from matplotlib import pyplot as plt
+
+            roi_obj   = first(a.roi.as_support_regions())
+
+            sampling  = roi_obj.get_sampling()
+            maps      = sampling.get_child()
+
+            fig, axes = plt.subplots(1, len(features), figsize=(15, 5))
+
+            for ax, ftr in zip(axes, features):
+                fig   = a.mapper.mpl.animate(fig, maps,
+                        feature=ftr, unit='std', axes=ax,
+                        overlay_locations=True, composable=True)
+
+            movie     = fig
+
+        .. code-block::python
+
+            # Cell 3
+            from IPython.display import HTML
+
+            HTML(movie.to_jshtml())
+
         """
         if axes is None:
             if isinstance(fig, FuncAnimations):
