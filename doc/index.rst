@@ -79,7 +79,7 @@ Where to start
 * :ref:`Concepts <concepts>`
 * :ref:`Command-line <commandline>`
 * :ref:`Tutorials <tutorials>`
-* :ref:`Reference library <api>`
+* :ref:`Library reference <api>`
 
 
 .. toctree::

@@ -233,7 +233,7 @@ class UnitRegions(SupportRegions):
     #    return m, n
     def iter_regions(self, desc=None):
         return self.__range__(len(self), desc)
-    def crop(self, r, df):
+    def crop(self, r, df, **kwargs):
         n_space_cols = len([ col for col in 'xyz' if col in df.columns ])
         for regions in self.unit_region.values():
             if len(regions) <= r:
@@ -246,9 +246,9 @@ class UnitRegions(SupportRegions):
                     if n_space_cols < _min.size:
                         assert _min.size == n_space_cols + 1
                         df = df[(_min[-1] <= df['t']) & (df['t'] <= _max[-1])]
-                        df = crop(df, np.r_[_min[:-1], _max[:-1]-_min[:-1]])
+                        df = crop(df, np.r_[_min[:-1], _max[:-1]-_min[:-1]], **kwargs)
                     else:
-                        df = crop(df, np.r_[_min,_max-_min])
+                        df = crop(df, np.r_[_min,_max-_min], **kwargs)
                 return df
 
 class GroupedRegions(SupportRegions):
@@ -464,7 +464,8 @@ class GroupedRegions(SupportRegions):
                 done = sum([ len(roi) for roi in unit_roi.values() ])
                 yield r
             done -= 1
-    def crop(self, r, df):
+    def crop(self, r, df, **kwargs):
+        kwargs['preserve_index'] = True
         n_space_cols = len([ col for col in 'xyz' if col in df.columns ])
         loc_indices = set()
         df_r = None
@@ -476,9 +477,10 @@ class GroupedRegions(SupportRegions):
                 if n_space_cols < _min.size:
                     assert _min.size == n_space_cols + 1
                     df_u = df[(_min[-1] <= df['t']) & (df['t'] <= _max[-1])]
-                    df_u = crop(df_u, np.r_[_min[:-1], _max[:-1]-_min[:-1]], preserve_index=True)
+                    df_u = crop(df_u, np.r_[_min[:-1], _max[:-1]-_min[:-1]],
+                            **kwargs)
                 else:
-                    df_u = crop(df, np.r_[_min,_max-_min], preserve_index=True)
+                    df_u = crop(df, np.r_[_min,_max-_min], **kwargs)
             if df_r is None:
                 df_r = df_u
             else:

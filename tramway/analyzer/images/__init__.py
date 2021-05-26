@@ -110,10 +110,10 @@ class _RawImage(AnalyzerNode, ImageParameters):
         return len(self.stack)
     @property
     def width(self):
-        return first(self.stack).shape[2]
+        return first(self.stack).shape[1]
     @property
     def height(self):
-        return first(self.stack).shape[1]
+        return first(self.stack).shape[0]
 
     def as_frames(self, index=None, return_time=False):
         """
@@ -135,8 +135,29 @@ class _RawImage(AnalyzerNode, ImageParameters):
             else:
                 yield frame
 
-    def cropping_bounds(self, bounding_box):
-        lb, ub = [ b / self.pixel_size for b in bounding_box ]
+    def cropping_bounds(self, bounding_box, relative=True):
+        """
+        Discretize bounding box spatial coordinates to clip them
+        onto image pixels.
+
+        Pixels are assumed to be centered on their indices in the array,
+        when plotted.
+
+        Arguments:
+
+            bounding_box (tuple): pair of ndarrays (lower bound, upper bound).
+
+            relative (bool): if ``True``, ignores the coordinate offset if any.
+
+        Returns:
+
+            tuple: pair of ndarrays; pixel-clipped lower bounds and upper bounds.
+
+        """
+        loc_offset = self.loc_offset
+        if loc_offset is None or relative:
+            loc_offset = 0.
+        lb, ub = [ b / self.pixel_size - loc_offset for b in bounding_box ]
         lb = np.floor(lb) * self.pixel_size
         ub = np.ceil(ub) * self.pixel_size
         return lb, ub
@@ -165,7 +186,10 @@ class _RawImage(AnalyzerNode, ImageParameters):
             self.logger.warning('time supports are not supported yet')
             lb, ub = lb[:2], ub[:2]
             bounding_box = (lb, ub)
-        lb, ub = [ b / self.pixel_size - self.loc_offset for b in bounding_box ]
+        loc_offset = self.loc_offset
+        if loc_offset is None:
+            loc_offset = 0.
+        lb, ub = [ b / self.pixel_size - loc_offset for b in bounding_box ]
         lb = np.floor(lb).astype(int)
         ub = np.ceil(ub).astype(int)
         if not np.all(lb <= ub):
@@ -215,12 +239,12 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 with indices :const:`'x'`, :const:`'y'` and :const:`'t'`;
                 `origin` is useful only for overlaying locations or trajectories.
 
-            markersize (int): location marker size in pixels (side).
+            markersize (int): location marker size in pixels (square side).
 
             linecolor (*str* or 3-column float array): color for trajectories;
                 value :const:`None` defaults to red.
 
-            linewidth (float): trajectory line width
+            linewidth (float): trajectory line width (not supported yet)
 
             magnification (*int* or *str*): the original image pixels can be represented as
                 square-patches of `magnification` video pixel side;
@@ -285,7 +309,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
             try:
                 magnification *= self.pixel_size / self._eldest_parent.localization_precision
             except (AttributeError, TypeError):
-                raise ValueError('failed to adjust magnification; pixel_side or localization_precision not defined')
+                raise ValueError('failed to adjust magnification; pixel_size or localization_precision not defined')
             magnification = int(np.round(magnification))
 
         if playback_rate is None:
@@ -300,7 +324,18 @@ class _RawImage(AnalyzerNode, ImageParameters):
         if locations is not None:
             if callable(locations):
                 locations = locations()
-            marker_size_delta = .5*float(markersize-1)
+            if markersize % 2:
+                marker_size_delta = (markersize - 1) / 2
+                def _floor(x):
+                    return np.round(x) - marker_size_delta
+                def _ceil(x):
+                    return np.round(x) + marker_size_delta
+            else:
+                marker_size_delta = markersize / 2 - 1
+                def _floor(x):
+                    return np.floor(x) - marker_size_delta
+                def _ceil(x):
+                    return np.floor(x) + 1 + marker_size_delta
         if trajectories is not None:
             if callable(trajectories):
                 trajectories = trajectories()
@@ -326,7 +361,8 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
         vid = None # will be initialized later
         vid_pxsize = pxsize / magnification
-        vid_offset = offset / magnification
+        mag_offset = .5 * (magnification - 1)
+        vid_offset = offset / magnification - mag_offset
 
         if isinstance(colormap, str):
             colormap = cm.get_cmap(colormap)
@@ -377,13 +413,15 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 if xy0 is None:
                     xy_f = xy[list('xy')].values / vid_pxsize - vid_offset
                 else:
-                    xy_f = (xy[list('xy')].values - xy0) / vid_pxsize
+                    xy_f = (xy[list('xy')].values - xy0) / vid_pxsize + mag_offset
                 for j,i in xy_f:
-                    i = np.array([np.floor(i-marker_size_delta), np.ceil(i+marker_size_delta)], dtype=np.int)
-                    j = np.array([np.floor(j-marker_size_delta), np.ceil(j+marker_size_delta)], dtype=np.int)
+                    i = np.array([_floor(i), _ceil(i)], dtype=np.int)
+                    j = np.array([_floor(j), _ceil(j)], dtype=np.int)
                     if np.any(i<0) or np.any(j<0):
                         continue
-                    i,j = np.meshgrid(np.arange(i[0],i[1]), np.arange(j[0],j[1]), indexing='ij')
+                    i,j = np.meshgrid(
+                            np.arange(i[0],i[1]+1),
+                            np.arange(j[0],j[1]+1), indexing='ij')
                     frame[ii_max-np.ravel(i),np.ravel(j),:] = marker_color
 
             if trajectories is not None:
@@ -404,7 +442,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
                     if xy0 is None:
                         traj = xy_n.values / vid_pxsize - vid_offset
                     else:
-                        traj = (xy_n.values - xy0) / vid_pxsize
+                        traj = (xy_n.values - xy0) / vid_pxsize + mag_offset
                     if np.any(traj < 0): # this may occur with negative offsets
                         continue
                     traj = np.round(traj).astype(np.uint32)
@@ -457,7 +495,10 @@ class _ImageFile(_RawImage):
         self._filepath = fp
     def read(self):
         from skimage import io
-        return io.MultiImage(os.path.expanduser(self.filepath))
+        img = io.MultiImage(os.path.expanduser(self.filepath))
+        if len(img) == 1 and 2<len(img[0].shape):
+            img = img[0]
+        return img
 
 class ImageFile(_ImageFile):
     __slots__ = ()

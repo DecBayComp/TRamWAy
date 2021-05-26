@@ -20,7 +20,7 @@ from copy import deepcopy
 
 from tramway.tessellation.grid import RegularMesh
 
-class Squares(TessellerProxy):
+class Squares(FreeResolutionTesseller):
     """
     Wraps :class:`tramway.tessellation.grid.RegularMesh`.
     """
@@ -68,7 +68,7 @@ class Squares(TessellerProxy):
 
 from tramway.tessellation.hexagon import HexagonalMesh
 
-class Hexagons(TessellerProxy):
+class Hexagons(FreeResolutionTesseller):
     """
     Wraps :class:`tramway.tessellation.hexagon.HexagonalMesh`.
     """
@@ -127,7 +127,7 @@ class Hexagons(TessellerProxy):
 
 from tramway.tessellation.kmeans import KMeansMesh
 
-class KMeans(TessellerProxy):
+class KMeans(FreeResolutionTesseller):
     """
     Wraps :class:`tramway.tessellation.kmeans.KMeansMesh`.
     """
@@ -197,6 +197,7 @@ class GWR(TessellerProxy):
     def __init__(self, **kwargs):
         TessellerProxy.__init__(self, GasMesh, **kwargs)
         self.alg_name = 'gwr'
+        self.min_distance = 0 # differs from default
     def _reset_kwargs(self):
         TessellerProxy._reset_kwargs(self)
         self._tessellate_kwargs = dict(
@@ -216,7 +217,7 @@ class GWR(TessellerProxy):
                 topology           = None, # differs from default
                 )
         self._init_kwargs.update(dict(
-                min_distance = None,
+                min_distance = None, # default overridden in __init__
                 avg_distance = None,
                 max_distance = None,
                 min_probability = None,
@@ -311,7 +312,6 @@ class GWR(TessellerProxy):
         Any of :const:`'approximate density'` and :const:`'displacement length'`
         (default for trajectory/translocation data)
     """
-
     @analysis
     def tessellate(self, spt_dataframe):
         if not isinstance(self._tesseller, tuple):
@@ -331,6 +331,22 @@ class GWR(TessellerProxy):
             tesseller = self.post_processing.post_process(tesseller, spt_dataframe[self.colnames])
         #
         return tesseller
+    @property
+    def resolution(self):
+        if self.ref_distance is None:
+            return None
+        else:
+            return 2. * self.ref_distance
+    @resolution.setter
+    def resolution(self, res):
+        if res is None:
+            self.ref_distance = None
+        else:
+            self.ref_distance = .5 * res
+            try:
+                self.min_probability = 0
+            except AttributeError:
+                pass
 
 
 __all__ = ['Squares', 'Hexagons', 'KMeans', 'GWR']

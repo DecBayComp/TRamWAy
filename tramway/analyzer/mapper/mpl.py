@@ -477,8 +477,10 @@ class Mpl(AnalyzerNode):
             kwargs['title'] = None
         if 'show' not in kwargs:
             kwargs['show'] = False
+        if axes is not None:
+            kwargs['axes'] = axes
         kwargs['aspect'] = aspect
-        map_plot(maps, sampling, feature=feature, axes=axes, **kwargs)
+        map_plot(maps, sampling, feature=feature, **kwargs)
 
         # added in 0.5.2
         if interior_contour:

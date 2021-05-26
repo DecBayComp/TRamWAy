@@ -39,6 +39,8 @@ class Mpl(AnalyzerNode):
             location_options.update(_options)
             kwargs, _kwargs = dict(aspect='equal', show=False), kwargs
             kwargs.update(_kwargs)
+        if axes is not None:
+            kwargs['axes'] = axes
         if isinstance(tessellation, Analysis):
             tessellation = tessellation.data
         if isinstance(tessellation, Partition):
@@ -59,7 +61,7 @@ class Mpl(AnalyzerNode):
                 sampling = Partition(locations, tessellation)
         else:
             raise TypeError('tessellation type not supported: {}'.format(type(tessellation)))
-        return cell_plot(sampling, axes=axes, voronoi=voronoi_options, locations=location_options,
+        return cell_plot(sampling, voronoi=voronoi_options, locations=location_options,
                 delaunay=delaunay_options, **kwargs)
 
     def animate(self, fig, sampling, axes=None,

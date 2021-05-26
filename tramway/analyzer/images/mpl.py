@@ -22,7 +22,7 @@ class Mpl(AnalyzerNode):
     Matplotlib plotting utilities for 2D data; no time support.
     """
     __slots__ = ()
-    def plot(self, x, *args, **kwargs):
+    def plot(self, x, *args, origin=None, frame=None, **kwargs):
         """
         Converts localization data from micrometers to pixels and plots them.
 
@@ -39,12 +39,21 @@ class Mpl(AnalyzerNode):
         except KeyError:
             import matplotlib.pyplot as axes
         img = self._parent
-        x = np.asarray(x) / img.pixel_size
-        y = np.asarray(y) / img.pixel_size
-        if img.loc_offset is not None:
+        if frame is None:
+            height = img.height
+        else:
+            #axes.imshow(frame)
+            height = frame.shape[0]
+        x, y = np.array(x), np.array(y)
+        if origin is not None:
+            x -= origin[0]
+            y -= origin[1]
+        x /= img.pixel_size
+        y /= img.pixel_size
+        if origin is None and img.loc_offset is not None:
             x -= img.loc_offset[0]
             y -= img.loc_offset[1]
-        return axes.plot(x, img.height-y, *args, **kwargs)
+        return axes.plot(x, height-1-y, *args, **kwargs)
 
 
 __all__ = ['Mpl']

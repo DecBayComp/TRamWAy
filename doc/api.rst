@@ -1,6 +1,6 @@
 .. _api:
 
-Reference library
+Library reference
 =================
 
 The :mod:`tramway.helper` package features a few all-in functions and was the highest level API before version *0.5*.

@@ -138,10 +138,18 @@ class TessellerProxy(AnalyzerNode):
         for attr in self._explicit_kwargs:
             if not (attr in self._init_kwargs or attr in self._tessellate_kwargs):
                 yield attr
+    @property
+    def helper_cls(self):
+        """
+            type:
+                Tessellation helper class, inheriting from
+                :class:`tramway.helper.tessellation.Tessellate`
+        """
+        return Tessellate
     def calibrate(self, spt_dataframe):
         if not isinstance(self._tesseller, type):
             self.reset()
-        helper = Tessellate()
+        helper = self.helper_cls()
         helper.prepare_data(spt_dataframe)
         #
         kwargs = dict(self._init_kwargs)
@@ -266,7 +274,29 @@ class TessellerProxy(AnalyzerNode):
 
 Tesseller.register(TessellerProxy)
 
+class FreeResolutionTesseller(TessellerProxy):
+    __slots__ = ()
+    @property
+    def resolution(self):
+        if self.ref_distance is None:
+            return None
+        else:
+            return 2. * self.ref_distance
+    @resolution.setter
+    def resolution(self, res):
+        if res is None:
+            self.ref_distance = None
+        else:
+            self.ref_distance = .5 * res
+            try:
+                self.min_probability = 0
+            except AttributeError:
+                pass
+            try:
+                self.avg_probability = 0
+            except AttributeError:
+                pass
 
 
-__all__ = ['TessellerProxy', 'proxy_property']
+__all__ = ['TessellerProxy', 'proxy_property', 'FreeResolutionTesseller' ]
 

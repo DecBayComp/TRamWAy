@@ -728,7 +728,7 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
 
         Arguments:
 
-            filepath (str): output filepath.
+            filepath (str or Path): output filepath.
 
             columns (sequence of *str*): columns to be exported.
 
@@ -748,7 +748,8 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
                 pass
             else:
                 self.logger.warning("ignoring argument '{}'".format(arg))
-        df.to_csv(filepath, sep='\t', index=False, header=header, float_format=float_format, **kwargs)
+        df.to_csv(str(filepath), sep='\t', index=False, header=header,
+                float_format=float_format, **kwargs)
     def to_rwa_file(self, filepath, **kwargs):
         """
         Exports the analysis tree to file.
@@ -964,9 +965,12 @@ class SPTFile(_SPTDataFrame):
         """
         if match is None:
             match = lambda alias, filepath: alias in os.path.basename(filepath)
-        if self.alias is None:
-            raise AttributeError('alias is not defined')
         analyzer = self._eldest_parent
+        if self.alias is None:
+            try:
+                return single(analyzer.images)
+            except RuntimeError:
+                raise AttributeError('alias is not defined') from None
         any_filepath_defined = False
         for image in analyzer.images:
             if image.filepath: # may raise AttributeError

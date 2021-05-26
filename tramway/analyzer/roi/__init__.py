@@ -103,7 +103,7 @@ class BoundingBox(IndividualROI):
             assert _min.size == n_space_cols + 1
             df = df[(_min[-1] <= df['t']) & (df['t'] <= _max[-1])]
             _min, _max = _min[:-1], _max[:-1]
-        df = crop(df, np.r_[_min, _max-_min])
+        df = crop(df, np.r_[_min, _max-_min], add_deltas='n' in df.columns)
         return df
     @property
     def bounding_box(self):
@@ -132,7 +132,7 @@ class SupportRegion(BaseRegion):
     def crop(self, df=None):
         if df is None:
             df = self._spt_data.dataframe
-        df = self._support_regions.crop(self._sr_index, df)
+        df = self._support_regions.crop(self._sr_index, df, add_deltas='n' in df.columns)
         return df
     @property
     def bounding_box(self):
@@ -263,7 +263,28 @@ class DecentralizedROIManager(AnalyzerNode):
                 if sfilter(rec.source):
                     yield from rec.roi.as_support_regions(index, **kwargs)
     def __iter__(self):
-        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+        if self.group_overlapping_roi is False:
+            yield from self.as_support_regions()
+        else:
+            raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+    @property
+    def group_overlapping_roi(self):
+        group = None
+        for rec in self._records:
+            try:
+                group_ = rec.roi.group_overlapping_roi
+            except AttributeError:
+                return None
+            else:
+                if group is None:
+                    group = group_
+                elif group:
+                    if not group_:
+                        return None
+                else:
+                    if group_:
+                        return None
+        return group
 
 ROI.register(DecentralizedROIManager)
 
@@ -457,7 +478,8 @@ class ROIInitializer(Initializer):
             warnings.warn('ignoring argument `collection`', helper.IgnoredInputWarning)
         return self.as_support_regions(index, source, **kwargs)
     def __iter__(self):
-        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+        yield from self.as_support_regions()
+        #raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
 ROI.register(ROIInitializer)
 
@@ -490,7 +512,8 @@ class CommonROI(AnalyzerNode):
             return
         yield from self._global.as_individual_roi(index, collection, spt_data.source, return_index)
     def __iter__(self):
-        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+        yield from self._global.as_support_regions()
+        #raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
 
 
 class SpecializedROI(AnalyzerNode):
@@ -541,7 +564,16 @@ class SpecializedROI(AnalyzerNode):
                             yield bear_child( SupportRegion, r, self._collections.regions, d )
     as_support_regions.__doc__ = ROI.as_support_regions.__doc__
     def __iter__(self):
-        raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+        if self.group_overlapping_roi is False:
+            yield from self.as_support_regions()
+        else:
+            raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+    @property
+    def group_overlapping_roi(self):
+        try:
+            return isinstance(self._collections.regions, helper.helper.GroupedRegions)
+        except AttributeError:
+            return None
     def get_support_region(self, index, collection=None):
         """
         Returns the :class:`SupportRegion` object corresponding to an individual ROI.
@@ -636,7 +668,7 @@ class BoundingBoxes(SpecializedROI):
 
         Arguments:
 
-            filepath (str): output filepath.
+            filepath (str or Path): output filepath.
 
             collection (str): roi collection label.
 
@@ -672,14 +704,14 @@ class BoundingBoxes(SpecializedROI):
             except KeyError:
                 pass
             else:
-                warnings.warn('ignoring argument `{}`'.format(arg), helper.IgnoredInputWarning)
-        bounds.to_csv(filepath, sep='\t', index=False, header=header, float_format=float_format,
-                **kwargs)
+                warnings.warn(f'ignoring argument `{arg}`', helper.IgnoredInputWarning)
+        bounds.to_csv(str(filepath), sep='\t', index=False, header=header,
+                float_format=float_format, **kwargs)
     def add_collection(self, label, bb):
         if label is None:
             label = ''
         if label in self._bounding_boxes:
-            raise KeyError("collection '{}' is already defined".format(label))
+            raise KeyError(f"collection '{label}' is already defined")
         self._collections[label] = bb
         self._bounding_boxes[label] = bb
 
