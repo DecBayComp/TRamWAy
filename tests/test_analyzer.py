@@ -287,6 +287,8 @@ class TestTesseller(Common):
         a.spt_data.from_ascii_files(all_sptdatafiles)
         a.tesseller.from_callable(tessellers.GWR)
         a.tesseller.topology = 'approximate density'
+        a.tesseller.min_distance = None
+        del a.tesseller._explicit_kwargs['min_distance']
         for f in a.spt_data:
             print(f.source)
             #

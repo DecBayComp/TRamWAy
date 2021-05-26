@@ -1838,7 +1838,7 @@ def distributed(cells, new_cell=None, new_group=FiniteElements, fuzzy=None,
 
         # find (trans-)locations for cell j
         i = fuzzy(cells.tessellation, j, *fuzzy_args, **fuzzy_kwargs)
-        if i.dtype in (bool, np.bool, np.bool8, np.bool_):
+        if i.dtype in (bool, np.bool8, np.bool_):
             _fuzzy[j] = None
         else:
             _fuzzy[j] = i[i != 0]
