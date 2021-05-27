@@ -38,12 +38,13 @@ class NestedTessellations(Tessellation):
     __lazy__ = Tessellation.__lazy__ + ('cell_label', 'cell_adjacency', 'adjacency_label', \
         'cell_centers')
 
-    def __init__(self, scaler=None, parent=None, factory=None, parent_index_arguments={}, **kwargs):
+    def __init__(self, scaler=None, parent=None, factory=None,
+            parent_index_arguments={}, **kwargs):
         Tessellation.__init__(self, scaler)
         self._parent = parent
         self._children = {}
         self.child_factory = factory
-        self.parent_index_arguments = parent_index_arguments
+        self.parent_index_arguments = dict(parent_index_arguments)
         self.child_factory_arguments = kwargs
         self._cell_centers = None
 

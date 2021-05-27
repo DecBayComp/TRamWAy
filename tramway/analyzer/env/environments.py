@@ -1808,6 +1808,7 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-210301.sif':   'http://dl.pasteur.fr/fop/7jSSZCnb/tramway-hpc-210301.sif',
                 'tramway-hpc-210302.sif':   'http://dl.pasteur.fr/fop/53bfSkmM/tramway-hpc-210302.sif',
                 'tramway-hpc-210330.sif':   'http://dl.pasteur.fr/fop/FrDZQBuy/tramway-hpc-210330.sif',
+                'tramway-hpc-210527.sif':   'http://dl.pasteur.fr/fop/7F0LaOEX/tramway-hpc-210527.sif',
                 }.get(container, None)
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)

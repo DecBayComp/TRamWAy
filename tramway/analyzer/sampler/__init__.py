@@ -75,7 +75,8 @@ class VoronoiSampler(BaseSampler):
     Each data point is assigned to exactly one cell/microdomain."""
     __slots__ = ()
     def sample(self, df, segmentation=None):
-        return BaseSampler.sample(self, df, segmentation)
+        parent = super(VoronoiSampler, self)
+        return parent.sample(df, segmentation)
 
 #Sampler.register(VoronoiSampler)
 
@@ -163,7 +164,8 @@ class SphericalSampler(BaseSampler):
     def radius(self, r):
         self._radius = r
     def sample(self, spt_data, segmentation=None):
-        return BaseSampler.sample(self, spt_data, segmentation, radius=self.radius)
+        parent = super(SphericalSampler, self)
+        return parent.sample(spt_data, segmentation, radius=self.radius)
 
 
 class Knn(BaseSampler):
@@ -191,7 +193,8 @@ class Knn(BaseSampler):
     def knn(self, r):
         self._knn = r
     def sample(self, spt_data, segmentation=None):
-        return BaseSampler.sample(self, spt_data, segmentation, knn=self.knn)
+        parent = super(Knn, self)
+        return parent.sample(spt_data, segmentation, knn=self.knn)
 
 
 class TimeKnn(BaseSampler):
@@ -220,7 +223,8 @@ class TimeKnn(BaseSampler):
     def knn(self, r):
         self._knn = r
     def sample(self, spt_data, segmentation=None):
-        return BaseSampler.sample(self, spt_data, segmentation, time_knn=self.knn)
+        parent = super(TimeKnn, self)
+        return parent.sample(spt_data, segmentation, time_knn=self.knn)
 
 
 __all__ = ['Sampler', 'SamplerInitializer', 'BaseSampler', 'VoronoiSampler',

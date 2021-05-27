@@ -231,7 +231,7 @@ class Plugins(object):
         self.modules = None
         self.dirname = dirname
         self.package = package
-        self.lookup = lookup
+        self.lookup = dict(lookup)
         self.force = force
         self.require = require
         self.verbose = verbose

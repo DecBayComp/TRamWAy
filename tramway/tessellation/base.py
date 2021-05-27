@@ -97,7 +97,7 @@ class Partition(Lazy):
     __lazy__ = ('cell_index', 'location_count', 'bounding_box')
 
     def __init__(self, points=None, tessellation=None, cell_index=None, location_count=None, \
-        bounding_box=None, param={}, locations=None, translocations=None):
+        bounding_box=None, param=None, locations=None, translocations=None):
         Lazy.__init__(self)
         exclusivity_violation = ValueError('arguments `points`, `locations` and `translocations` are mutually exclusive')
         if points is None:
@@ -118,7 +118,7 @@ class Partition(Lazy):
         self.cell_index = cell_index
         self._location_count = location_count
         self._bounding_box = bounding_box
-        self.param = param
+        self.param = {} if param is None else param
         self._tessellation = tessellation
 
     @property

@@ -134,7 +134,7 @@ class TimeInitializer(Initializer, DT):
     __slots__ = ()
     def __init__(self, *args, **kwargs):
         Initializer.__init__(self, *args, **kwargs)
-    def from_sliding_window(self, duration, shift=None):
+    def from_sliding_window(self, duration=None, shift=None):
         """
         Defines a sliding time window.
 

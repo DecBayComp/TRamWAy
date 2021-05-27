@@ -77,10 +77,11 @@ class RandomMesh(Voronoi):
         Voronoi.tessellate(self, centroids)
         #
         if not allow_empty_cells:
-            cells = Partition(points, self)
+            import copy
+            cells = Partition(points, copy.deepcopy(self)) # copying new in 0.6
             #cells.cell_index = cells.cell_index(centroids, **kwargs)
             ok = 0 < cells.location_count
-            self.cell_centers = None
+            #self.cell_centers = None # before 0.6; was not enough to reset
             Voronoi.tessellate(self, centroids[ok])
 
 

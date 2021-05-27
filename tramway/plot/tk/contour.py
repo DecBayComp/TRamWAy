@@ -154,7 +154,7 @@ class TkContourEditor(FigureCanvasTkAgg):
 class FileChooser(tk.Frame):
     def __init__(self, parent, filetypes={}, **kwargs):
         tk.Frame.__init__(self, parent, **kwargs)
-        self.filetypes = filetypes
+        self.filetypes = dict(filetypes)
         self.filepath = StringVar()
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)

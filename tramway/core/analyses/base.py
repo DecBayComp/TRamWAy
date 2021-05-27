@@ -583,6 +583,7 @@ coerce_labels = coerce_labels_and_metadata
 def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None,
         metadata=False, annotations={}):
     if isinstance(annotations, dict):
+        annotations = dict(annotations) # copy
         root_annotation = annotations.get('', None)
     elif callable(annotations):
         root_annotation = annotations

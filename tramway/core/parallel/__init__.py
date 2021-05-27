@@ -163,6 +163,7 @@ class Worker(multiprocessing.Process):
         self.update = update_queue
         self.feedback = return_queue
         self.args = args
+        kwargs = dict(kwargs) # copy
         kwargs.update(_kwargs)
         self.kwargs = kwargs
     def get_task(self):
@@ -284,6 +285,7 @@ class Scheduler(object):
             worker_count = multiprocessing.cpu_count() - 1
         elif worker_count < 0:
             worker_count = multiprocessing.cpu_count() + worker_count
+        kwargs = dict(kwargs) # copy
         kwargs.update(_kwargs)
         if worker_count:
             self.task_queue = multiprocessing.Queue()
