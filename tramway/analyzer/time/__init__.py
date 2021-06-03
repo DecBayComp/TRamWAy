@@ -195,13 +195,13 @@ class TimeInitializer(Initializer, DT):
                 if start_time == t0:
                     start_time = None
             else:
-                self._parent.logger.warning('unsupported time segmentation type: '+str(type(segmentation)))
+                self.logger.warning('unsupported time segmentation type: '+str(type(segmentation)))
                 return
         self.specialize( SlidingWindow, duration, shift )
         if start_time is not None:
             self._parent.time.start_time = start_time
         if verbose:
-            logger = self._parent.logger
+            logger = self.logger
             prm = [('duration', duration)]
             if shift is not None:
                 prm.append(('shift', shift))
@@ -380,7 +380,7 @@ class SlidingWindow(AnalyzerNode, DT):
         except KeyError:
             if single_segment_output:
                 if permissive:
-                    self._eldest_parent.logger.warning('not all segments are available; combining aborted')
+                    self.logger.warning('not all segments are available; combining aborted')
                 else:
                     raise KeyError('not all segments are available; combining aborted') from None
             else:

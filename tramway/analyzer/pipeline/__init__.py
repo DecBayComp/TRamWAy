@@ -84,9 +84,6 @@ class Pipeline(AnalyzerNode):
     def analyzer(self):
         return self._parent
     @property
-    def logger(self):
-        return self._parent.logger
-    @property
     def spt_data(self):
         return self._parent.spt_data
     @property
@@ -209,7 +206,7 @@ class Pipeline(AnalyzerNode):
                                 # make the next dispatched stages run this stage again
                                 permanent_stack.append(s)
                                 continue
-                            else:
+                            elif stage.requires_mutability:
                                 raise NotImplementedError('cannot make a dispatched job modify the local analyzer')
                         if self.env.dispatch(stage_index=s, stage_options=stage.options):
                             self.logger.info('stage {:d} dispatched'.format(s))

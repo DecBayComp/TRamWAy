@@ -15,15 +15,37 @@
 from .abc import *
 import numpy as np
 from collections.abc import Iterable, Sequence, Set
+import logging
 
 __all__ = ['GenericAttribute', 'Attribute']
+
+__all__.append('WithLogger')
+class WithLogger(object):
+    __slots__ = ('_logger',)
+    def __init__(self):
+        self._logger = None
+    @property
+    def logger(self):
+        """
+        logging.Logger:
+            logger instance of the module the object is defined in,
+            unless explicitly set
+        """
+        if self._logger is None:
+            return logging.getLogger(type(self).__module__)
+        else:
+            return self._logger
+    @logger.setter
+    def logger(self, logger):
+        self._logger = logger
 
 __analyzer_node_init_args__ = ('parent',)
 
 __all__.append('AnalyzerNode')
-class AnalyzerNode(object):
+class AnalyzerNode(WithLogger):
     __slots__ = ('_parent',)
     def __init__(self, parent=None):
+        WithLogger.__init__(self)
         self._parent = parent
     @property
     def _eldest_parent(self):
@@ -44,6 +66,19 @@ class AnalyzerNode(object):
     @property
     def initialized(self):
         return True
+    @property
+    def logger(self):
+        if self._logger is None:
+            parent = self._eldest_parent
+            if parent is None or parent._logger is None:
+                return WithLogger.logger.fget(self)
+            else:
+                return parent.logger
+        else:
+            return WithLogger.logger.fget(self)
+    @logger.setter
+    def logger(self, logger):
+        WithLogger.logger.fset(self, logger)
 
 
 __all__.append('Initializer')

@@ -248,7 +248,7 @@ class Mpl(AnalyzerNode):
             elif kw.startswith('sup_'):
                 sup_kwargs[kw[4:]] = kwargs[kw]
             else:
-                self._eldest_parent.logger.warning("ignoring argument: '{}'".format(kw))
+                self.logger.warning("ignoring argument: '{}'".format(kw))
 
         for kw in loc_kwargs:
             if kw.startswith('line'):

@@ -48,12 +48,13 @@ a.mapper.from_plugin(infer)
 def fresh_start(self):
     for f in self.spt_data:
         try:
-            os.unlink(f.source[:-3]+'rwa')
+            os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
         except FileNotFoundError:
             pass
 def tessellate(self):
     dry_run = True
     for f in self.spt_data:
+        assert not os.path.exists(os.path.expanduser(f.source[:-3]+'rwa'))
         with f.autosaving() as tree:
             assert tree.autosave
             self.logger.info('autosaving in {{}}...'.format(tree.rwa_file))
@@ -182,7 +183,7 @@ a.mapper.from_plugin(infer)
 def fresh_start(self):
     for f in self.spt_data:
         try:
-            os.unlink(f.source[:-3]+'rwa')
+            os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
         except FileNotFoundError:
             pass
 a.pipeline.append_stage(fresh_start)

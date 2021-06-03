@@ -86,9 +86,6 @@ class ImageParameters(object):
     @dt.setter
     def dt(self, dt):
         self.frame_interval = dt
-    @property
-    def logger(self):
-        return self._eldest_parent.logger
 
 
 class _RawImage(AnalyzerNode, ImageParameters):

@@ -11,6 +11,9 @@ import os.path
 import numpy as np
 from tramway.core import load_xyt
 from collections import defaultdict
+import logging
+
+module_logger = logger = logging.getLogger(__name__)
 
 
 def _spt_source_name(f):
@@ -99,7 +102,7 @@ def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='free
                     df = r.discard_static_trajectories(df)
 
                     # tessellate
-                    self.logger.info(msg)
+                    logger.info(msg)
                     sampling = self.sampler.sample(df)
 
                     dry_run = False
@@ -123,7 +126,7 @@ def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='free
                     # the data in the roi is stored separately and will keep the original precision
 
         if dry_run:
-            self.logger.info('stage skipped')
+            logger.info('stage skipped')
             diagnose(self)
 
     return PipelineStage(_tessellate, granularity='spt data')
@@ -171,7 +174,7 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
 
             with r.autosaving() as tree:
 
-                self.logger.info(msg)
+                logger.info(msg)
                 maps = self.mapper.infer(sampling)
 
                 dry_run = False
@@ -188,7 +191,7 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
                             del tree[sampling_label][label]
 
         if dry_run:
-            self.logger.info('stage skipped')
+            logger.info('stage skipped')
             diagnose(self)
 
     return PipelineStage(_infer, granularity='roi')
@@ -260,9 +263,9 @@ def restore_spt_data():
                         f._dataframe = df
                         tree.flag_as_modified()
                 else:
-                    self.logger.error('column names do not match with file: {}'.format(local_spt_file))
+                    logger.error('column names do not match with file: {}'.format(local_spt_file))
             else:
-                self.logger.error('could not find file: {}'.format(local_spt_file))
+                logger.error('could not find file: {}'.format(local_spt_file))
 
     return PipelineStage(_restore, granularity='spt data')
 
@@ -304,7 +307,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         roi_label = r.label
                         msg = f"{{}} roi: '{roi_label}' (in source '{source_name}')..."
                     def log(op):
-                        self.logger.info(msg.format(op))
+                        logger.info(msg.format(op))
 
                     if sampling_label is None:
                         label = r.label
@@ -312,7 +315,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         label = sampling_label(r.label)
                     else:
                         if not source_dry_run:
-                            self.logger.warning("multiple roi bound to single sampling label; make sampling_label callable")
+                            logger.warning("multiple roi bound to single sampling label; make sampling_label callable")
                         label = sampling_label
 
                     # control predicates
@@ -383,7 +386,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                     tree.hooks.append(_placeholder_for_root_data)
 
         if dry_run:
-            self.logger.info('stage skipped')
+            logger.info('stage skipped')
             diagnose(self)
 
     return PipelineStage(_tessellate_and_infer,
@@ -415,7 +418,7 @@ def diagnose(self):
         available = set([ _normalize(_f.source) for _f in self.spt_data ])
 
     if bool( requested - available ):
-        self.logger.critical(f"""
+        logger.critical(f"""
 The local worker was assigned the following SPT data source(s):
    {requested}
 but listed other sources:

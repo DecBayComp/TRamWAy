@@ -84,12 +84,6 @@ class Env(AnalyzerNode):
         self.pending_jobs = []
         self.debug = False
     @property
-    def logger(self):
-        """
-        Parent analyzer's logger
-        """
-        return self._parent.logger
-    @property
     def working_directory(self):
         """
         *str*: Path of the working directory on the worker side
@@ -1082,6 +1076,8 @@ __remote_host_attrs__ = ('_ssh','_local_data_location','_remote_data_location','
 
 class RemoteHost(object):
     """
+    mixin class.
+
     children classes should define attributes listed in `__remote_host_attrs__`.
 
     minimum base implementation:

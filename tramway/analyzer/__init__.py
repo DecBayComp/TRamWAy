@@ -123,7 +123,13 @@ class BasicLogger(object):
         self.level = lvl
 
 
-class RWAnalyzer(object):
+module_logger = logging.getLogger(__name__)
+if not module_logger.hasHandlers():
+    module_logger.setLevel(logging.INFO)
+    module_logger.addHandler(logging.StreamHandler())
+
+
+class RWAnalyzer(WithLogger):
     """
     A :class:`RWAnalyzer` object gathers the parameters of all the processing steps
     of a standard processing chain, from SPT data loading/generation to
@@ -245,24 +251,8 @@ class RWAnalyzer(object):
     on how to export data and figures while browsing the inferred parameter maps.
 
     """
-    __slots__ = ( '_logger', '_spt_data', '_roi', '_time', '_tesseller', '_sampler', '_mapper',
+    __slots__ = ( '_spt_data', '_roi', '_time', '_tesseller', '_sampler', '_mapper',
             '_env', '_pipeline', '_browser', '_images', '_localizer', '_tracker' )
-
-    @property
-    def logger(self):
-        """
-        """
-        if self._logger is None:
-            #self._logger = BasicLogger()
-            import logging
-            self._logger = logging.getLogger(__name__)
-            if not self._logger.hasHandlers():
-                self._logger.setLevel(logging.INFO)
-                self._logger.addHandler(logging.StreamHandler())
-        return self._logger
-    @logger.setter
-    def logger(self, logger):
-        self._logger = logger
 
     def _get_spt_data(self):
         """
@@ -386,8 +376,8 @@ class RWAnalyzer(object):
     tracker = selfinitializing_property('tracker', _get_tracker, _set_tracker, Tracker)
 
     def __init__(self):
-        self._logger = \
-                self._spt_data = \
+        WithLogger.__init__(self)
+        self._spt_data = \
                 self._roi = \
                 self._tesseller = \
                 self._sampler = \

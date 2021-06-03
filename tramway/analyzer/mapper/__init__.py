@@ -83,7 +83,7 @@ class MapperInitializer(Initializer):
                     setattr(self, attr, val)
                     attrs.append((attr, val))
         if verbose:
-            logger = self._eldest_parent.logger
+            logger = self.logger
             if attrs:
                 logger.info("loading plugin: '{}'\nwith parameters:\n - {}".format(
                     plugin,

@@ -170,7 +170,7 @@ class FullRegion(BaseRegion):
 
         """
         if self.time_support is not None:
-            self._eldest_parent.logger.warning('time cropping is not supported yet')
+            self.logger.warning('time cropping is not supported yet')
         yield from self._spt_data.as_frames(**kwargs)
 
 
@@ -187,7 +187,7 @@ class DecentralizedROIManager(AnalyzerNode):
             self._register_decentralized_roi(first_record)
     def _register_decentralized_roi(self, has_roi):
         if isinstance(has_roi.roi, ROIInitializer):
-            self._parent.logger.warning('cannot register an uninitialized ROI attribute')
+            self.logger.warning('cannot register an uninitialized ROI attribute')
             return
         self._records.add(has_roi)
         has_roi.roi._global = self
@@ -418,7 +418,7 @@ class ROIInitializer(Initializer):
         """
         if isinstance(self._parent, HasROI):
             if version is None:
-                self._parent.logger.info('set version=1 to ensure constant behavior in the future')
+                self.logger.info('set version=1 to ensure constant behavior in the future')
                 version = 1
             if version == 1:
                 self.specialize( v1_ROIRecord, label, **kwargs )
@@ -798,7 +798,7 @@ class ROIAsciiFile(BoundingBoxes):
                         lower_bounds = roi[['t min']].values
                         upper_bounds = roi[['t max']].values
                         if self._size is not None:
-                            self._eldest_parent.logger.debug('ROI size is defined but no spatial coordinates were found')
+                            self.logger.debug('ROI size is defined but no spatial coordinates were found')
                 else:
                     raise ValueError('center and bound information both available at the same time')
             else:
@@ -807,7 +807,7 @@ class ROIAsciiFile(BoundingBoxes):
                 lower_bounds = roi[[ col+' min' for col in bound_cols ]].values
                 upper_bounds = roi[[ col+' max' for col in bound_cols ]].values
                 if self._size is not None:
-                    self._eldest_parent.logger.debug('ROI size does not apply to bounds-defined regions')
+                    self.logger.debug('ROI size does not apply to bounds-defined regions')
         else:
             coords = center_cols
             lower_bounds = roi[coords].values - .5 * self.size
@@ -869,7 +869,7 @@ class ROIAsciiFiles(DecentralizedROIManager):
         first = True
         for f in self._parent.spt_data:
             if f.source is None or not os.path.isfile(f.source):
-                self._parent.logger.warning('cannot identify or find SPT data source: {}'.format(f.source))
+                self.logger.warning('cannot identify or find SPT data source: {}'.format(f.source))
                 continue
             filepath, _ = os.path.splitext(f.source)
             if first:
@@ -883,7 +883,7 @@ class ROIAsciiFiles(DecentralizedROIManager):
                         break
                 if not found:
                     if skip_missing:
-                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        self.logger.info('skipping roi file for source: '+str(f.source))
                         continue
                     raise FileNotFoundError('{}{}{}'.format(
                             os.path.basename(filepath),
@@ -895,7 +895,7 @@ class ROIAsciiFiles(DecentralizedROIManager):
                 filepath = filepath + self._suffix
                 if not os.path.isfile(os.path.expanduser(filepath)):
                     if skip_missing:
-                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        self.logger.info('skipping roi file for source: '+str(f.source))
                         continue
                     raise FileNotFoundError('{}{}{}'.format(
                             os.path.basename(filepath),
@@ -926,7 +926,7 @@ class ROIAsciiFiles(DecentralizedROIManager):
                         break
                 if not found:
                     if skip_missing:
-                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        self.logger.info('skipping roi file for source: '+str(f.source))
                         continue
                     raise FileNotFoundError('{}{}{}'.format(
                             os.path.basename(_filepath),
@@ -939,7 +939,7 @@ class ROIAsciiFiles(DecentralizedROIManager):
                 _filepath, filepath = filepath, filepath + _suffix
                 if not os.path.isfile(os.path.expanduser(filepath)):
                     if skip_missing:
-                        self._parent.logger.info('skipping roi file for source: '+str(f.source))
+                        self.logger.info('skipping roi file for source: '+str(f.source))
                         continue
                     raise FileNotFoundError('{}{}{}'.format(
                             os.path.basename(_filepath),
@@ -1107,7 +1107,7 @@ class ROIRecoveredFromSampling(BoundingBoxes):
                     if example_bounding_box is None:
                         raise NotImplementedError('some ROI are missing in the analysis tree') from None
                     bb = (np.zeros_like(example_bounding_box[0]), np.zeros_like(example_bounding_box[1]))
-                    self._eldest_parent.logger.warning('missing ROI: {}{}'.format(
+                    self.logger.warning('missing ROI: {}{}'.format(
                             '' if label=='roi' else label+' ', i))
                 else:
                     if example_bounding_box is None:
@@ -1141,7 +1141,7 @@ class ROIRecords(DecentralizedROIManager):
     def __init__(self, label=None, version=None, _impl=None, **kwargs):
         DecentralizedROIManager.__init__(self, **kwargs)
         if version is None:
-            self._parent.logger.info('set version=1 to ensure constant behavior in the future')
+            self.logger.info('set version=1 to ensure constant behavior in the future')
             version = 1
         if version == 1:
             _kwargs = dict(_impl=_impl)

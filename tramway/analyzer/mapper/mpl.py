@@ -461,6 +461,10 @@ class Mpl(AnalyzerNode):
 
         May be reworked in the future to remove the :mod:`~tramway.helper` dependency.
 
+        To overlay the locations, try passing *e.g.*
+        ``point_style=dict(color='r', alpha=.1)``.
+        This may change in the future.
+
         *new in 0.5.2*:
         argument *interior_contour* is a :class`dict` with the following keys allowed:
         *margin*, *linestyle*, *linewidth* and *color*.

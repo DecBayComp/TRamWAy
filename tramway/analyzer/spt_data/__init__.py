@@ -148,12 +148,6 @@ class SPTParameters(object):
     def dt(self, dt):
         self.frame_interval = dt
     dt.__doc__ = time_step.__doc__
-    @property
-    def logger(self):
-        """
-        Logger of the parent :class:`~tramway.analyzer.RWAnalyzer`
-        """
-        return self._eldest_parent.logger
     def set_precision(self, precision):
         """
         Sets the numerical precision of the raw data.
