@@ -474,8 +474,15 @@ class RWAnalyzer(WithLogger):
         else:
             parent_name, _, set_conditions = proper_parent_name(attrname)
             if parent_name is None:
-                getattr(self, attrname) # raises AttributeError if no such attribute is found
-                raise AttributeError('attribute `{}` is read-only'.format(attrname))
+                proper_parent = getattr(self, attrname) # raises AttributeError if no such attribute is found
+                if proper_parent.initialized:
+                    raise AttributeError('attribute `{}` is read-only'.format(attrname))
+                else:
+                    # new in 0.6: handle orphan specialized attribute
+                    #             if not specialized yet
+                    assert isinstance(proper_parent, Initializer)
+                    obj._parent = proper_parent._parent
+                    proper_parent._specialize(obj)
             else:
                 report_misplaced_attribute(attrname, parent_name)
                 proper_parent = getattr(self, parent_name)
