@@ -1229,6 +1229,7 @@ class SBFGSScheduler(parallel.Scheduler):
         # new in 0.6
         self.low_df = set()
         self.low_dg = set()
+        self.failures = set()
 
     @property
     def low_df_count(self):
@@ -1274,11 +1275,15 @@ class SBFGSScheduler(parallel.Scheduler):
         #       the epoch-wise criteria however are ignored during the first epoch.
         new_epoch = (k + 1) % ncomponents == 0
 
-        n = ncomponents# - len(self.paused)
+        n = ncomponents - len(self.failures)
 
         if ncomponents <= k: # first epoch ignores the following criterion
             if status.get('ls_failure', None):
                 self.ls_failure_count += 1
+                # new in 0.6
+                self.failures.add(i)
+            else:
+                self.failures.discard(i)
             # relocate the blocks below in Worker.target
             if False:#status.get('ls_failure', None):
                 # try fixing problematic components
