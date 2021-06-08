@@ -514,6 +514,21 @@ class CommonROI(AnalyzerNode):
     def __iter__(self):
         yield from self._global.as_support_regions()
         #raise AttributeError(type(self).__name__+' object is not iterable; call methods as_support_regions() or as_individual_roi()')
+    def to_ascii_file(self, filepath, collection=None, **kwargs):
+        """
+        Exports the regions of interest to a text file.
+
+        Arguments:
+
+            filepath (str or Path): output filepath.
+
+            collection (str): roi collection label.
+
+        All keyword arguments are passed to the common ROI
+        object's `to_ascii_file` method.
+        See for example :meth:`BoundingBoxes.to_ascii_file`.
+        """
+        self._global.to_ascii_file(filepath, collection, **kwargs)
 
 
 class SpecializedROI(AnalyzerNode):

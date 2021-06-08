@@ -77,7 +77,7 @@ The associated Fokker-Planck equation, which governs the temporal evolution of t
 
 There is no general analytic solution to the above equation for arbitrary diffusion coefficient :math:`D` and potential energy :math:`V`.
 However if we consider a small enough space cell over a short enough time segment, we may assume constant :math:`D` and :math:`V` in each cell, 
-upon which the general solution to that equation is a Gaussian distribution described in:
+upon which the general solution to that equation leads to the following likelihood:
 
 .. math::
 
@@ -89,15 +89,15 @@ The probability of the local parameters :math:`D_i` and :math:`V_i` is calculate
 
 .. math::
 
-	P( D_i, V_i | T_i ) = \frac{P( T_i | D_i, V_i ) P( D_i, V_i )}{P(T_i)}
+	P( D, V | T ) = \frac{P( T | D, V ) P( D, V )}{P(T)}
 
-and assuming:
+and, introducing the mapping hypothesis to decompose the likelihood:
 
 .. math::
 
-	P( T_i | D_i, V_i ) = \prod_j P( \Delta\textbf{r}_j, \Delta t_j | D_i, V_i )
+	P( T | D, V ) = \prod_i P( T_i | D_i, V_i ) = \prod_i \prod_j P( \Delta\textbf{r}_j, \Delta t_j | D_i, V_i )
 
-:math:`P(D,V|T)` is the *posterior probability*, :math:`P(D,V)` is the *prior probability* and :math:`P(T)` is the evidence which is treated as a normalization constant.
+:math:`P(D,V|T)` is the *posterior probability*, :math:`P(D,V)` is the *prior probability* and :math:`P(T)` is the *evidence*, that can be ignored when maximizing the posterior.
 
 Models other than :ref:`DV <inference_dv>` follow the same rule, with :math:`V` substituted by other model parameters.
 
@@ -158,15 +158,15 @@ Some of them are listed below:
 ^^^^^^^^^^^^^
 
 This inference mode estimates solely the diffusion coefficient in each cell independently, resulting in a rapid computation.
-The posterior probability used to infer the diffusivity :math:`D_i` in cell :math:`i` given the corresponding set of translocations :math:`T_i = {(\Delta\textbf{r}_j, \Delta t_j)}_j` is given by:
+The likelihood used to infer the local diffusivity :math:`D_i` in cell :math:`i` given the corresponding set of translocations :math:`T_i = {(\Delta\textbf{r}_j, \Delta t_j)}_j` is given by:
 
 .. math::
 
-	P(D_i | T_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\Delta\textbf{r}_j^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+	P(T_i | D_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\Delta\textbf{r}_j^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
 
 The *D* inference mode is well-suited to freely diffusing molecules and the rapid characterization of the diffusivity.
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *d* or *standard.d* mode instead of *degraded.d*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>`.
 
 .. _inference_dd:
 
@@ -176,22 +176,19 @@ This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:
 *DD* stands for *Diffusivity and Drift*.
 
 This mode is very similar to the :ref:`DF mode <inference_df>` mode. 
-The whole drift :math:`\frac{\textbf{F}}{\gamma}` is optimized instead of the force :math:`\textbf{F}`. 
+The whole drift :math:`\textbf{a} = \frac{\textbf{F}}{\gamma}` is optimized instead of the force :math:`\textbf{F}`. 
 This may offer increased stability in the optimization. 
 Indeed the contribution of the drift to the objective function does not depend directly on the simultaneously estimated diffusivity.
 
-The maximized posterior probability is given by:
+The likelihood is given by:
 
 .. math::
 
-	P(D_i, \frac{\textbf{F}_i}{\gamma_i} | T_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \frac{\textbf{F}_i}{\gamma_i}\Delta t_j/k_BT\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
-
-Although the force :math:`\textbf{F}_i` and friction coefficient :math:`\gamma_i` appear in the above expression, they are not explicitly evaluated. 
-The drift :math:`\frac{\textbf{F}_i}{\gamma_i}` is treated as an indivisible variable.
+	P(T_i | D_i, \textbf{a}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \textbf{a}_i\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
 
 The *DD* inference mode is well-suited to active processes (e.g. active transport phenomena).
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`, and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *dd* or *standard.dd* mode instead of *degraded.dd*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`, and the :ref:`diffusivity smoothing prior <inference_smoothing>`.
 
 .. _inference_df:
 
@@ -201,16 +198,16 @@ This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`, and the :ref
 This inference mode estimates the diffusivity and force.
 It takes advantage of the assumption :math:`D(\textbf{r}) \propto \frac{1}{\gamma(\textbf{r})}`.
 
-The posterior probability used to infer the local diffusivity :math:`D_i` and force :math:`\textbf{F}_i` is given by:
+The likelihood used to infer the local diffusivity :math:`D_i` and force :math:`\textbf{F}_i` is given by:
 
 .. math::
 
-	P(D_i, \textbf{F}_i | T_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \frac{D_i\textbf{F}_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+	P(T_i | D_i, \textbf{F}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \frac{D_i\textbf{F}_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
 
 The *DF* inference mode is well-suited to mapping local force components, especially in the presence of non-potential forces (e.g. a rotational component).
 This mode allows for the rapid characterization of the diffusivity and directional biases of the trajectories.
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>` using the *df* or *standard.df* mode instead of *degraded.df*.
+This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>`.
 
 
 .. _inference_dv:
@@ -218,43 +215,29 @@ This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:
 *DV* inference
 ^^^^^^^^^^^^^^
 
-The total posterior probability used to infer the local diffusivities :math:`\textbf{D}` and potential energies :math:`\textbf{V}` is given by:
+Building up on the *DF* model, this model introduces an additional assumption on the shape of the directional biases, and explains the local drifts as resulting from an effective potential :math:`\textbf{V}`.
+The likelihood becomes:
 
 .. math::
 
-	P(\textbf{D}, \textbf{V} | T) \propto \prod_i\prod_{j \in T_i} \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + \frac{D_i\nabla V_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}P_S(\textbf{D})P_S(\textbf{V})
+	P(T_i | D_i, V_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + \frac{D_i\nabla V_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
 
-:math:`P_S(\textbf{D})` and :math:`P_S(\textbf{V})` are smoothing factors for the diffusivity and potential energy respectively.
-The :math:`P_S(\textbf{D})` smoothing factor is also available for the other inference modes.
-These factors are described in a :ref:`dedicated section <inference_smoothing>`.
+Because this model requires access to the neighbour cells/bins for estimating the local potential gradient :math:`\nabla V_i`,
+the overall posterior probability is maximized necessarily optimizing all the spatially distributed parameters simultaneously.
 
-This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`.
+As a consequence, this method is slow but smoothing priors can be introduced at little extra computational cost.
+The smoothing factors are described in a :ref:`dedicated section <inference_smoothing>`.
+
+This mode also supports the :ref:`Jeffreys' prior <inference_jeffreys>`.
 
 More information can be found about :ref:`gradient calculation <gradient>`.
-
-Variants
-^^^^^^^^
-
-The four major modes above feature variants.
-
-For example :ref:`D <inference_d>`, :ref:`DD <inference_dd>` and :ref:`DF <inference_df>` feature a *standard* and a *degraded* variant, available in infer as *standard.d* and *degraded.d* respectively for mode *D*.
-
-The *standard* inference modes optimize the total posterior :math:`P(\textbf{D},...|T) = \prod_i P(D,...|T)`.
-The optimization considers all the cells and corresponding parameters at the same time.
-This is anyway required when smoothing is on.
-
-In the *degraded* mode, :math:`P(D,...|T)` is optimized for each cell independently.
-This can be done only when smoothing is off.
-
-The default *D*, *DD* and *DF* modes (case-insensitive) automatically select either the *degraded* or the *standard* variant depending on smoothing priors.
-If *diffusivity_prior*/*diffusion_prior* (in *D*, *DD* and *DF*), *drift_prior* (*DD*) or *force_prior* (*DF*) are defined (not ``None``), then the *standard* variant is run.
 
 Stochastic DV
 """""""""""""
 
 A key variant of the default *DV* mode is the *stochastic.dv* mode, which randomly picks and chooses a cell at each iteration and performs a gradient descent step on the associated parameters considering the neighbour cells instead of the full tessellation.
 
-It is showcased in the following `notebook <https://github.com/DecBayComp/COMPARE19/blob/master/1.%20Simulated%20data/2.%20dynamic%20inference.ipynb>`_ in the specific context of dynamic maps with temporal smoothing.
+It is showcased in most of the tutorial notebooks, *e.g.* `basic/inference.ipynb <https://github.com/DecBayComp/TRamWAy/blob/master/notebooks/basic/inference.ipynb>`_ and `RWAnalyzer tour.ipynb <https://github.com/DecBayComp/TRamWAy/blob/master/notebooks/RWAnalyzer%20tour.ipynb>`_, and is especially useful for inferring dynamic maps with temporal smoothing.
 
 
 .. _inference_parameters:
@@ -347,7 +330,7 @@ The maximized probability becomes:
 
 	P^*(\textbf{D}, ... | T) = P_S(\textbf{D}) \prod_i P(D_i, ... | T_i)
 
-with:
+with, for example:
 
 .. math::
 

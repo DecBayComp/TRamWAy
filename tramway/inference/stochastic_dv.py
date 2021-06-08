@@ -578,7 +578,8 @@ def infer_stochastic_DV(cells,
     #if ls_step_max_decay:
     #    sbfgs_kwargs['ls_step_max_decay'] /= float(m)
     if 'ftol' not in sbfgs_kwargs:
-        sbfgs_kwargs['ftol'] = 1e-5
+        sbfgs_kwargs['ftol'] = 1e-3
+        sbfgs_kwargs['low_df_rate'] = 1
     if 'gtol' not in sbfgs_kwargs:
         sbfgs_kwargs['gtol'] = None
     if debug:

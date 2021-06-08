@@ -103,6 +103,15 @@ class MapperInitializer(Initializer):
         """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
         return self._mpl_impl(self)
 
+    @property
+    def _plotly_impl(self):
+        from .plotly import Plotly
+        return Plotly
+    @property
+    def plotly(self):
+        """ tramway.analyzer.mapper.plotly.Plotly: Plotly utilities """
+        return self._plotly_impl(self)
+
 
 class MapperPlugin(AnalyzerNode):
     __slots__ = ('_name','_module','_setup','_mapper','_kwargs')
@@ -183,6 +192,15 @@ class MapperPlugin(AnalyzerNode):
     def mpl(self):
         """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
         return self._mpl_impl(self)
+
+    @property
+    def _plotly_impl(self):
+        from .plotly import Plotly
+        return Plotly
+    @property
+    def plotly(self):
+        """ tramway.analyzer.mapper.plotly.Plotly: Plotly utilities """
+        return self._plotly_impl(self)
 
 Mapper.register(MapperPlugin)
 

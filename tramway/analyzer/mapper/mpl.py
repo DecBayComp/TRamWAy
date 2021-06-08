@@ -277,7 +277,17 @@ class FuncAnimations(animation.FuncAnimation):
 
 
 class Mpl(AnalyzerNode):
-    """  """
+    """
+    Matplotlib interface for maps.
+
+    It does not access other attributes of the :class:`RWAnalyzer`,
+    and thus can be safely used from any :class:`RWAnalyzer` object:
+
+        from tramway.analyzer import *
+
+        RWAnalyzer().mapper.mpl.plot(...)
+
+    """
     __slots__ = ()
     @property
     def plotter(self):

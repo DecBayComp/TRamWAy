@@ -1215,7 +1215,7 @@ class SBFGSScheduler(parallel.Scheduler):
         self.low_df_rate = low_df_rate
         self.low_dg_rate = low_dg_rate
         self.ls_failure_rate = ls_failure_rate
-        self.ls_failure_count = self.low_df_count = self.low_dg_count = 0
+        self.ls_failure_count = 0
         self.fix_ls = fix_ls
         self.fix_ls_trigger = fix_ls_trigger
         self.recurrent_ls_failure_count = {}
@@ -1226,6 +1226,18 @@ class SBFGSScheduler(parallel.Scheduler):
         self.err_history = [] if 'err' in returns else None
         self.diagnoses = [] if 'diagnosis' in returns else None
         self.paused = dict()
+        # new in 0.6
+        self.low_df = set()
+        self.low_dg = set()
+
+    @property
+    def low_df_count(self):
+        """ deprecated """
+        return len(self.low_df)
+    @property
+    def low_df_count(self):
+        """ deprecated """
+        return len(self.low_dg)
 
     @property
     def worker(self):
@@ -1262,6 +1274,8 @@ class SBFGSScheduler(parallel.Scheduler):
         #       the epoch-wise criteria however are ignored during the first epoch.
         new_epoch = (k + 1) % ncomponents == 0
 
+        n = ncomponents# - len(self.paused)
+
         if ncomponents <= k: # first epoch ignores the following criterion
             if status.get('ls_failure', None):
                 self.ls_failure_count += 1
@@ -1284,7 +1298,7 @@ class SBFGSScheduler(parallel.Scheduler):
                 except KeyError:
                     pass
             if new_epoch:
-                stop = self.ls_failure_rate * ncomponents <= self.ls_failure_count
+                stop = self.ls_failure_rate * n <= self.ls_failure_count
                 if stop:
                     self.resolution = 'LINE SEARCH FAILED'
                     ncalls = status.get('ncalls', 0)
@@ -1324,16 +1338,18 @@ class SBFGSScheduler(parallel.Scheduler):
                     self.diagnoses.append(diag)
             if self.ftol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if df < self.ftol:
-                    self.low_df_count += 1
-                    if df <= .1 * self.ftol:
+                    self.low_df.add(i)
+                    if 0 < self.low_df_rate and df <= .1 * self.ftol:
                         if not self.pause(i, 1):
                             self.resolution = 'CONVERGENCE: DELTA F <= FTOL/10'
                             return True
                 #if new_epoch:
-                    stop = self.low_df_rate * ncomponents <= self.low_df_count
+                    stop = self.low_df_rate * n <= len(self.low_df)
                     if stop:
                         self.resolution = 'CONVERGENCE: DELTA F < FTOL'
-                        return stop
+                        return True
+                else:
+                    self.low_df.discard(i)
 
         # check for convergence based on g
         try:
@@ -1345,20 +1361,21 @@ class SBFGSScheduler(parallel.Scheduler):
                 self.dg_history.append((i, proj))
             if self.gtol is not None and ncomponents <= k: # first epoch ignores this criterion
                 if proj < self.gtol:
-                    self.low_dg_count += 1
+                    self.low_dg.add(i)
                     if proj <= .1 * self.gtol:
                         if not self.pause(i, max(self.paused.get(i, 0), 1)):
                             self.resolution = 'CONVERGENCE: PROJ G <= GTOL/10'
                             return True
                 #if new_epoch:
-                    stop = self.low_dg_rate * ncomponents <= self.low_dg_count
+                    stop = self.low_dg_rate * n <= len(self.low_dg)
                     if stop:
                         self.resolution = 'CONVERGENCE: PROJ G < GTOL'
-                        return stop
+                        return True
+                else:
+                    self.low_dg.discard(i)
 
         if new_epoch:
             self.ls_failure_count = 0
-            self.low_df_count = self.low_dg_count = len(self.paused)
 
         return parallel.Scheduler.stop(self, k, i, status)
 
