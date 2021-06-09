@@ -121,7 +121,15 @@ so that the changes are reported in the .ipynb file
                 caller_cell = caller_cells[0]
             else:
                 notebook_cell_index = self.this_notebook_cell_only
-                _, caller_cell = script_content[notebook_cell_index]
+                try:
+                    _, caller_cell = script_content[notebook_cell_index]
+                except IndexError:
+                    for i, cell in enumerate(script_content):
+                        print(f'notebook cell {i}:\n')
+                        print(''.join(cell[1]))
+                    raise
+                else:
+                    self.logger.debug(f'notebook cell index {notebook_cell_index}:\n\n'+''.join(caller_cell))
             condensed_code = []
             for line in caller_cell:
                 line = line.split('#')[0].strip()
@@ -143,6 +151,7 @@ so that the changes are reported in the .ipynb file
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     close_fds=True,
                     encoding='utf-8')
+                self.logger.info('interrupt the kernel to stop bokeh and proceed back in the notebook')
                 try:
                     out, err = p.communicate()
                 except KeyboardInterrupt:
@@ -173,13 +182,17 @@ def split_cells(script):
     cells = []
     cell_index = None
     cell = []
+    match = True
     for line in script:
         line_ = line.rstrip()
-        match = re.fullmatch(r'# In\[(?P<cell_index>[1-9][0-9]*)\]:', line_)
+        match_with_index = re.fullmatch(r'# In\[(?P<cell_index>[1-9][0-9]*)\]:', line_)
+        match_without_index = line_ == r'# In[ ]:'
+        match = match_with_index or match_without_index
         if match:
             if cells or cell_index is not None or cell:
                 cells.append((cell_index, cell))
-            cell_index = int(match.group('cell_index'))
+            if match_with_index:
+                cell_index = int(match_with_index.group('cell_index'))
             cell = []
         cell.append(line)
     if not match:
