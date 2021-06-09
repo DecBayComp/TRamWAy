@@ -179,6 +179,9 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
         verbose (bool):
             print message about missing edges
 
+        axes (matplotlib.axes.Axes):
+            figure axes
+
     Returns:
 
         tuple: list of handles of the plotted edges,
@@ -309,7 +312,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
             negative labels
 
         axes (matplotlib.axes.Axes):
-            axes where to plot
+            figure axes
 
         linewidth (int):
             line width
@@ -511,7 +514,7 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
     return edges, vertices, arrows
 
 
-def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
+def plot_cell_indices(cells, font_size=12, shift_indices=False, axes=None, **kwargs):
     """
     Plot cell indices at the cell centers.
 
@@ -526,13 +529,18 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
         shift_indices (bool):
             first cell is numbered 1 instead of 0
 
+        axes (matplotlib.axes.Axes):
+            figure axes; *new in 0.6*
+
     Returns:
 
         list: handles of the individual text elements
 
     Trailing keyword arguments are passed to :func:`~matplotlib.pyplot.text`.
     """
-    import matplotlib.pyplot as plt
+    if axes is None:
+        import matplotlib.pyplot as plt
+        axes = plt
     kwargs['fontsize'] = kwargs.get('fontsize', font_size)
     handles = []
     if isinstance(cells, Partition):
@@ -547,7 +555,7 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, **kwargs):
             import warnings
             warnings.warn('inf coordinate', RuntimeWarning)
             return
-        h = plt.text(x, y, str(i+1 if shift_indices else i), **kwargs)
+        h = axes.text(x, y, str(i+1 if shift_indices else i), **kwargs)
         handles.append(h)
     # Partition and Tessellation
     if isinstance(cells, Tessellation):

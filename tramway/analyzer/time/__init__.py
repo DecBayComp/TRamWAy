@@ -15,6 +15,7 @@
 from ..attribute import *
 from ..artefact import analysis, Analysis
 from .abc import Time
+import tramway.tessellation.time as time
 import tramway.tessellation.window as window
 import numpy as np
 import pandas as pd
@@ -174,7 +175,6 @@ class TimeInitializer(Initializer, DT):
             duration, shift, start_time = segmentation.duration, segmentation.shift, segmentation.start_time
         else:
             # experimental!
-            import tramway.tessellation.time as time
             if isinstance(segmentation, time.TimeLattice):
                 segments = segmentation.time_lattice
                 if segments is None or len(segments)==0:

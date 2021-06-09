@@ -1201,6 +1201,24 @@ class Delaunay(Tessellation):
         #if isinstance(points, pd.DataFrame):
         #       point_count = max(point_count, points.index.max()+1) # NO!
         # point indices are row indices and NOT row labels
+
+        # new in 0.6; could be done at an earlier step
+        if self.cell_label is not None and \
+                self.cell_label.dtype in (bool, np.bool_):
+            if isinstance(K, tuple):
+                active_cell_indices = np.flatnonzero(self.cell_label)
+                I, J = K
+                ok = np.zeros(I.size, dtype=bool)
+                for j in active_cell_indices:
+                    ok[J==j] = True
+                K = (I[ok], J[ok])
+            elif isinstance(K, np.ndarray):
+                inactive_cell_indices = np.flatnonzero(~self.cell_label)
+                for k in inactive_cell_indices:
+                    K[K==k] = -1
+            else:
+                raise TypeError(type(K))
+
         return format_cell_index(K, format=format, select=select,
             shape=(point_count, ncells))
 

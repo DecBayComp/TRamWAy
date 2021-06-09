@@ -125,6 +125,41 @@ class Mpl(AnalyzerNode):
         return animation.FuncAnimation(fig, draw_segment, init_func=init,
                 frames=_iter(sampling, return_times=True), **anim_kwargs)
 
+    def plot_cell_indices(self, tessellation, axes=None,
+            voronoi_options=dict(), delaunay_options=None,
+            aspect='equal', title=None, **kwargs):
+        from tramway.plot.mesh import plot_delaunay, plot_voronoi, plot_cell_indices
+        try:
+            voronoi_options = dict(centroid_style=None, color='rrrr') | voronoi_options
+        except TypeError: # Python < 3.9
+            voronoi_options, _options = dict(centroid_style=None, color='rrrr'), voronoi_options
+            voronoi_options.update(_options)
+        if isinstance(tessellation, Analysis):
+            tessellation = tessellation.data
+        if isinstance(tessellation, Partition):
+            sampling = tessellation
+            tessellation = sampling.tessellation
+        else:
+            sampling = None
+        if isinstance(tessellation, TimeLattice):
+            if tessellation.spatial_mesh is None:
+                raise TypeError('no tessellation found; only time segments')
+            tessellation = tessellation.spatial_mesh
+        if isinstance(tessellation, Voronoi):
+            if sampling is None:
+                sampling = Partition(locations, tessellation)
+        else:
+            raise TypeError('tessellation type not supported: {}'.format(type(tessellation)))
+        if delaunay_options:
+            plot_delaunay(sampling, axes=axes, **delaunay_options)
+        if voronoi_options:
+            plot_voronoi(sampling, axes=axes, **voronoi_options)
+        plot_cell_indices(tessellation, axes=axes, **kwargs)
+        if title:
+            axes.set_title(title)
+        if aspect:
+            axes.set_aspect(aspect)
+
 
 __all__ = ['Mpl']
 
