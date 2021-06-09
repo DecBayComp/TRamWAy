@@ -27,6 +27,8 @@ def proper_parent_name(attr_name):
         parent_name = 'spt_data'
     elif attr_name in ('scaler', 'resolution'):
         parent_name = 'tesseller'
+    elif attr_name in ('script',):
+        parent_name = 'env'
     return parent_name, get_conditions, set_conditions
 
 warnings.filterwarnings('error', category=SideEffectWarning)

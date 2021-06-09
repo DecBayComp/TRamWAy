@@ -53,7 +53,7 @@ class Browser(AnalyzerNode):
     The showed parameter values can also be exported with the side panel.
     Note that all features are exported together with the spatial bin center coordinates.
     """
-    __slots__ = ('_colormap','_clim')
+    __slots__ = ('_colormap','_clim','_this_notebook_cell_only')
     @property
     def colormap(self):
         """ *str*: Colormap for inferred parameter maps.
@@ -78,12 +78,113 @@ class Browser(AnalyzerNode):
         AnalyzerNode.__init__(self, parent=analyzer)
         self._colormap = None
         self._clim = None
+        self._this_notebook_cell_only = None
+    @property
+    def script(self):
+        return self._parent.script
+    @script.setter
+    def script(self, path):
+        self._parent.script = path
+    @property
+    def this_notebook_cell_only(self):
+        return self._this_notebook_cell_only
+    @this_notebook_cell_only.setter
+    def this_notebook_cell_only(self, cell_index):
+        self._this_notebook_cell_only = cell_index
     def show_maps(self, **kwargs):
         """ See also :func:`~tramway.plot.bokeh.analyzer.browse_maps`. """
-        from tramway.plot.bokeh.analyzer import browse_maps
-        browse_maps(self._eldest_parent, **kwargs)
+        if self.this_notebook_cell_only and \
+                self.script is not None and \
+                self.script.endswith('.ipynb'):
+            self.logger.info("""\
+the designated .ipynb file will be exported;
+be sure to save the notebook after any modification
+so that the changes are reported in the .ipynb file
+""")
+            # export the .ipynb file to a Python script
+            script_path = self.script
+            script_content = import_ipynb(script_path)
+            # discard the other code cells
+            script_content = split_cells(script_content)
+            if isinstance(self.this_notebook_cell_only, bool):
+                caller_cells = []
+                for _, cell in script_content:
+                    for line in cell:
+                        line = line.split('#')[0]
+                        if '.browser.show_maps(' in line:
+                            # a cell may appear several times
+                            caller_cells.append(cell)
+                if not caller_cells:
+                    raise RuntimeError("cannot find an expression calling `browser.show_maps`")
+                if caller_cells[1:]:
+                    raise RuntimeError('multiple `browser.show_maps` calls found; please specify the index of the notebook cell')
+                caller_cell = caller_cells[0]
+            else:
+                notebook_cell_index = self.this_notebook_cell_only
+                _, caller_cell = script_content[notebook_cell_index]
+            condensed_code = []
+            for line in caller_cell:
+                line = line.split('#')[0].strip()
+                if line and \
+                        'script' not in line and \
+                        'this_notebook_cell_only' not in line:
+                    condensed_code.append(line+'\n')
+            # run bokeh serve on the exported notebook cell
+            import tempfile, os, subprocess, sys
+            f, tmpfile = tempfile.mkstemp(suffix='.py')
+            try:
+                for line in condensed_code:
+                    os.write(f, line.encode('utf-8'))
+                os.close(f)
+                self.logger.info(f'running: python -m bokeh serve --show {tmpfile}')
+                p = subprocess.Popen([sys.executable, '-m',
+                        'bokeh', 'serve', '--show', tmpfile],
+                    cwd=os.getcwd(),
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    close_fds=True,
+                    encoding='utf-8')
+                try:
+                    out, err = p.communicate()
+                except KeyboardInterrupt:
+                    out, err = p.communicate()
+                if err:
+                    self.logger.error(err)
+                else:
+                    if out:
+                        self.logger.debug(out)
+            finally:
+                try:
+                    os.unlink(tmpfile)
+                except FileNotFoundError:
+                    pass
+        else:
+            from tramway.plot.bokeh.analyzer import browse_maps
+            browse_maps(self._eldest_parent, **kwargs)
 
 Attribute.register(Browser)
+
+
+def import_ipynb(path):
+    from tramway.analyzer.env.environments import Env
+    return Env().import_ipynb(path)
+
+def split_cells(script):
+    import re
+    cells = []
+    cell_index = None
+    cell = []
+    for line in script:
+        line_ = line.rstrip()
+        match = re.fullmatch(r'# In\[(?P<cell_index>[1-9][0-9]*)\]:', line_)
+        if match:
+            if cells or cell_index is not None or cell:
+                cells.append((cell_index, cell))
+            cell_index = int(match.group('cell_index'))
+            cell = []
+        cell.append(line)
+    if not match:
+        cells.append((cell_index, cell))
+    return cells
 
 
 __all__ = ['Browser']
