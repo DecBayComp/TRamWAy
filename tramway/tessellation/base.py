@@ -871,7 +871,7 @@ class Delaunay(Tessellation):
 
     def cell_index(self, points, format=None, select=None, knn=None, radius=None,
         min_location_count=None, metric='euclidean', filter=None,
-        filter_descriptors_only=False, **kwargs):
+        filter_descriptors_only=False, fast_min_nn=True, **kwargs):
         """
         See :meth:`Tessellation.cell_index`.
 
@@ -883,6 +883,9 @@ class Delaunay(Tessellation):
         value *force array* that acts like ``format='array', select=nearest_cell(...)``.
         The implementation however is more straight-forward and simply ignores
         the minimum number of nearest neighbours if provided.
+
+        *new in 0.6*: `fast_min_nn` fixes a bug and should be set to ``False``;
+        default is ``True`` for backward-compatibility.
 
         Arguments:
             points: see :meth:`Tessellation.cell_index`.
@@ -915,6 +918,11 @@ class Delaunay(Tessellation):
                 included in the labeling.
             filter_descriptors_only (bool): whether `filter` should get points as
                 descriptors only.
+            fast_min_nn (bool):
+                *new in 0.6* if ``True``, the initial assignment for small
+                cells is overriden by the extension ball; if ``False``, the
+                initial assignment is included even if the extension ball
+                is smaller.
 
         Returns:
             see :meth:`Tessellation.cell_index`.
@@ -1071,6 +1079,17 @@ class Delaunay(Tessellation):
                             if D is None:
                                 raise memory_error
                             Ic = np.argsort(D[:,c])[:_min]
+                            # new in 0.6
+                            if not fast_min_nn:
+                                Ic_ball = Ic
+                                orig = K == c
+                                if np.sum(orig[Ic_ball]) < np.sum(orig):
+                                    # some originally assigned points lie
+                                    # outside the extension ball
+                                    Ic = np.flatnonzero(orig)
+                                    Ic_comp = Ic_ball[~orig[Ic_ball]]
+                                    n_comp = min_nn - Ic.size
+                                    Ic = np.r_[Ic, Ic_comp[:n_comp]]
                         I.append(Ic)
                         n.append(len(Ic))
                     if any_small:
@@ -1098,8 +1117,22 @@ class Delaunay(Tessellation):
                             J = np.tile(np.arange(ncells), n)
                             K = (I, J)
                         else:
-                            I = np.argsort(D[:,small], axis=0)[:min_nn].flatten()
-                            small, = small.nonzero()
+                            I = np.argsort(D[:,small], axis=0)[:min_nn]
+                            small = np.flatnonzero(small)
+                            # new in 0.6
+                            if not fast_min_nn:
+                                for c in range(I.shape[1]):
+                                    Ic_ball = I[:,c]
+                                    orig = K == small[c]
+                                    if np.sum(orig[Ic_ball]) < np.sum(orig):
+                                        # some originally assigned points lie
+                                        # outside the extension ball
+                                        Ic = np.flatnonzero(orig)
+                                        Ic_comp = Ic_ball[~orig[Ic_ball]]
+                                        n_comp = min_nn - Ic.size
+                                        Ic = np.r_[Ic, Ic_comp[:n_comp]]
+                                        I[:,c] = Ic
+                            I = I.flatten()
                             J = np.tile(small, min_nn) # cell indices
                             assert I.size == J.size
                             # large-enough cells

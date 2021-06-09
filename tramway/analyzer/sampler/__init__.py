@@ -194,7 +194,8 @@ class Knn(BaseSampler):
         self._knn = r
     def sample(self, spt_data, segmentation=None):
         parent = super(Knn, self)
-        return parent.sample(spt_data, segmentation, knn=self.knn)
+        return parent.sample(spt_data, segmentation, knn=self.knn,
+                fast_min_nn=False)
 
 
 class TimeKnn(BaseSampler):
