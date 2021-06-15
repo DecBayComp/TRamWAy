@@ -623,6 +623,24 @@ class BoundingBoxes(SpecializedROI):
         self._collections = helper.Collections(group_overlapping_roi)
         if label is None:
             label = ''
+        if isinstance(bb, pd.DataFrame):
+            # new in 0.6
+            coord = []
+            for c in 'xyzt':
+                min_ = c+' min' in bb.columns
+                max_ = c+' max' in bb.columns
+                if min_ and max_:
+                    coord.append(c)
+                elif c in 'xy':
+                    if min_ or max_ or c in bb.columns:
+                        raise ValueError(f"expected column names: '{c} min', '{c} max'")
+                    else:
+                        raise ValueError("x or y coordinates not found")
+            bb = [tuple(np.array([
+                    bb.at[r,' '.join((c,b))] \
+                        for c in coord]) \
+                        for b in ('min','max')) \
+                        for r in bb.index]
         self._collections[label] = bb
         self._bounding_boxes = {label: bb}
     @property

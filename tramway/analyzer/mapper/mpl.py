@@ -99,7 +99,10 @@ class PatchCollection(object):
         
             tuple: sequence of updated glyphs.
         """
-        values = np.full(max(map.index.max(), self.bin_indices.max())+1, np.nan, dtype=np.float)
+        n = self.bin_indices.max()
+        if map.index.size:
+            n = max(map.index.max(), n)
+        values = np.full(n+1, np.nan, dtype=np.float)
         values[map.index] = map.values
         self.glyphs.set_array(values[self.bin_indices])
         ret = [self.glyphs]
@@ -279,14 +282,6 @@ class FuncAnimations(animation.FuncAnimation):
 class Mpl(AnalyzerNode):
     """
     Matplotlib interface for maps.
-
-    It does not access other attributes of the :class:`RWAnalyzer`,
-    and thus can be safely used from any :class:`RWAnalyzer` object:
-
-        from tramway.analyzer import *
-
-        RWAnalyzer().mapper.mpl.plot(...)
-
     """
     __slots__ = ()
     @property
@@ -323,6 +318,8 @@ class Mpl(AnalyzerNode):
 
         Vector features are represented as amplitude,
         and especially force as log. amplitude.
+
+        The `RWAnalyzer.time` attribute is accessed.
 
         Arguments:
 
@@ -396,6 +393,9 @@ class Mpl(AnalyzerNode):
             from IPython.display import HTML
 
             HTML(movie.to_jshtml())
+
+        Note: the above example seems to work equally well without
+        ``composable=True``.
 
         """
         if axes is None:
@@ -479,6 +479,20 @@ class Mpl(AnalyzerNode):
         argument *interior_contour* is a :class`dict` with the following keys allowed:
         *margin*, *linestyle*, *linewidth* and *color*.
         The default value for *margin* (or *relative_margin*) is `0.01`.
+
+        `plot` does not access any analyzer attributes and can be safely
+        called from any analyzer:
+
+            from tramway.analyzer import RWAnalyzer
+
+            RWAnalyzer().mapper.mpl.plot(...)
+
+        or instanciating an `Mpl` object:
+
+            from tramway.analyzer.mapper.mpl import Mpl
+
+            Mpl().plot(...)
+
         """
         from tramway.helper.inference import map_plot
         if isinstance(maps, Analysis):

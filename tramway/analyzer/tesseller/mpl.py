@@ -27,6 +27,13 @@ class Mpl(AnalyzerNode):
     def plot(self, tessellation, locations=None, axes=None,
             voronoi_options=dict(), delaunay_options=None,
             location_options=dict(), **kwargs):
+        """
+        Plot the particle locations and the Voronoi graph
+        (or tessellation).
+
+        `plot` does not access any `RWAnalyzer` attribute
+        and can be safely called with no side effect.
+        """
         from tramway.helper.tessellation import cell_plot
         try:
             voronoi_options = dict(centroid_style=None, color='rrrr') | voronoi_options
@@ -68,6 +75,8 @@ class Mpl(AnalyzerNode):
             voronoi_options=dict(), location_options=dict(), **kwargs):
         """
         As this method is of limited interest, it has been poorly tested.
+
+        The `RWAnalyzer.time` attribute is accessed.
         """
         from matplotlib import animation
         from tramway.plot import mesh as tplt
@@ -128,6 +137,11 @@ class Mpl(AnalyzerNode):
     def plot_cell_indices(self, tessellation, axes=None,
             voronoi_options=dict(), delaunay_options=None,
             aspect='equal', title=None, **kwargs):
+        """
+        Plot the Voronoi graph and Voronoi cell indices.
+
+        The placement of the text elements is not optimized.
+        """
         from tramway.plot.mesh import plot_delaunay, plot_voronoi, plot_cell_indices
         try:
             voronoi_options = dict(centroid_style=None, color='rrrr') | voronoi_options

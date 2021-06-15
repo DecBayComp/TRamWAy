@@ -35,15 +35,21 @@ class Plotly(AnalyzerNode):
     It does not access other attributes of the :class:`RWAnalyzer`,
     and thus can be safely used from any :class:`RWAnalyzer` object:
 
-        from tramway.analyzer import *
+        from tramway.analyzer import RWAnalyzer
 
         RWAnalyzer().mapper.plotly.plot_surface(...)
+
+    or:
+
+        from tramway.analyzer.mapper.plotly import Plotly
+
+        Plotly.plot_surface(...)
 
     """
 
     def plot_surface(self, maps, feature, sampling=None, fig=None,
             row=None, col=None, colormap='viridis', title=None,
-            colorbar=None, **kwargs):
+            colorbar=None, resolution=200, **kwargs):
         """
         Plot a 2D map as a colored 3D surface.
         """
@@ -84,7 +90,7 @@ class Plotly(AnalyzerNode):
             pass
 
         xlim, ylim = sampling.bounding_box[['x', 'y']].values.T
-        step = max(xlim[1] - xlim[0], ylim[1] - ylim[0]) / 50
+        step = max(xlim[1] - xlim[0], ylim[1] - ylim[0]) / resolution
         x = np.arange(xlim[0], xlim[1], step)
         y = np.arange(ylim[0], ylim[1], step)
         x, y = np.meshgrid(x, y)

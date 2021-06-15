@@ -321,6 +321,7 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
             else:
                 for f in new_self:
                     roi_central._register_decentralized_roi(f)
+        return new_self
     def reload_from_rwa_files(self, skip_missing=False):
         """
         Reloads the SPT data and analysis tree from the corresponding rwa files.
@@ -337,7 +338,7 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
             aliases should be favored when identifying or filtering SPT data items.
 
         """
-        RWAFiles.reload_from_rwa_files(self, skip_missing=skip_missing)
+        return RWAFiles.reload_from_rwa_files(self, skip_missing=skip_missing)
     def set_precision(self, precision):
         for f in self:
             f.set_precision(precision)
@@ -482,8 +483,9 @@ class StandaloneDataItem(object):
             else:
                 for f in new_self:
                     roi_central._register_decentralized_roi(f)
+        return new_self
     def reload_from_rwa_files(self, skip_missing=False):
-        StandaloneRWAFile.reload_from_rwa_files(self, skip_missing=skip_missing)
+        return StandaloneRWAFile.reload_from_rwa_files(self, skip_missing=skip_missing)
 
 
 class HasAnalysisTree(HasROI):
@@ -1293,7 +1295,7 @@ class StandaloneRWAFile(_RWAFile, StandaloneDataItem):
         if skip_missing:
             self.logger.error('cannot omit the only rwa file; ignoring skip_missing')
         cls = type(self) if isinstance(self, StandaloneRWAFile) else StandaloneRWAFile
-        self.self_update( cls.__reload__(self) )
+        return self.self_update( cls.__reload__(self) )
 
 SPTData.register(StandaloneRWAFile)
 
@@ -1309,7 +1311,7 @@ class RWAFiles(SPTFiles):
     def reload_from_rwa_files(self, skip_missing=False):
         cls = type(self) if isinstance(self, RWAFiles) else RWAFiles
         assert cls is RWAFiles
-        self.self_update( cls.__reload__(self, skip_missing=skip_missing) )
+        return self.self_update( cls.__reload__(self, skip_missing=skip_missing) )
     @classmethod
     def __reload__(cls, self, skip_missing=False, parent=None):
         if isinstance(self, cls):

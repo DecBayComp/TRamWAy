@@ -4,6 +4,7 @@ Standard analysis steps for RWAnalyzer.pipeline
 """
 
 from ..roi import FullRegion
+from ..spt_data import _RWAFile
 from . import PipelineStage
 from ..attribute import single
 from ..artefact import commit_as_analysis
@@ -271,9 +272,19 @@ def restore_spt_data():
 
 
 def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, overwrite=False,
-        roi_expected=False, **kwargs):
+        roi_expected=False, load_rwa_files=None, **kwargs):
+    """
+    Combines `tessellate` and `infer` at roi granularity.
+
+    *new in 0.6*: unless ``overwrite=True`` or ``load_rwa_files=False``,
+    *.rwa* files are loaded if the SPT data source has not already
+    been loaded from such files.
+    """
 
     save_active_branches_only = not (overwrite or map_label is None)
+
+    if load_rwa_files is None and overwrite:
+        load_rwa_files = False
 
     def _tessellate_and_infer(self):
 
@@ -293,6 +304,17 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
 
             if save_active_branches_only:
                 active_labels = defaultdict(set)
+
+            # new in 0.6
+            if not (load_rwa_files is False or isinstance(f, _RWAFile)):
+                try:
+                    rwa_file = os.path.splitext(f.source)[0]+'.rwa'
+                except Exception: # Exception excludes KeyboardInterrupt and SystemExit
+                    pass
+                else:
+                    if os.path.isfile(os.path.expanduser(rwa_file)):
+                        logger.info(f"loading .rwa file for source: {source_name}...")
+                        f = f.reload_from_rwa_files()
 
             with f.autosaving() as tree:
 
@@ -402,7 +424,10 @@ def diagnose(self):
     """
     from ..spt_data import _normalize
 
-    sources = self.env.selectors['source']
+    try:
+        sources = self.env.selectors['source']
+    except AttributeError:
+        sources = ()
     if isinstance(sources, str):
         sources = (sources,)
 

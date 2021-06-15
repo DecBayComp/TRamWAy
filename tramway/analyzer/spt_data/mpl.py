@@ -162,6 +162,9 @@ class Mpl(AnalyzerNode):
 
         Set ``xlim=None`` to let the axes as is, otherwise axis limits are adjusted to
         the data extent.
+
+        The parent `SPTDataItem` object and the `RWAnalyzer.time` attribute
+        may be accessed.
         """
         if trajs is None:
             trajs = self._parent.dataframe
@@ -234,6 +237,8 @@ class Mpl(AnalyzerNode):
         In the case multiple roi collections are available,
         argument `roi_collection` allows to control which
         collection is drawn.
+
+        The `RWAnalyzer.spt_data` and `RWAnalyzer.roi` attributes may be accessed.
 
         """
         loc_kwargs, trj_kwargs, roi_kwargs, sup_kwargs = {}, {}, {}, {}
