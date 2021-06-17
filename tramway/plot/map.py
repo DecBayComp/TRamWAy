@@ -587,7 +587,8 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         aspect=None, figure=None, axes=None,
         cell_arrow_ratio=None,
         markercolor='y', markeredgecolor='k', markeralpha=0.8, markerlinewidth=None,
-        transform=None, inferencemap=False,
+        transform=None,
+        inferencemap=False, arrow_size=None, arrow_quantile_size=.1,
         **kwargs):
     """
     Plot a 2D field (vector) map as arrows.
@@ -624,6 +625,12 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
             transform applied to the amplitudes as a NumPy array
 
         inferencemap (bool): if ``True``, the arrow length only depends on the cell size
+
+        arrow_size (str): *new in 0.6*; can be :const:`'constant'`
+
+        arrow_quantile_size (float): *new in 0.6*; applies if
+            ``arrow_size=='constant'``; the base arrow size is set equal to a
+            quantile of the inter-cell distance
 
     Extra keyword arguments are passed to :func:`scalar_map_2d` if called.
 
@@ -685,7 +692,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         A = cells.adjacency
     elif isinstance(cells, Partition) and isinstance(cells.tessellation, Delaunay):
         A = cells.tessellation.cell_adjacency
-    if inferencemap:
+    if inferencemap or arrow_size == 'constant':
         if cell_arrow_ratio is None:
             cell_arrow_ratio = 1.
         A = A.tocsr()
@@ -699,6 +706,11 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
                 inter_cell_distance = pts_i - pts_j
                 inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
                 scale[i] = np.nanmean(inter_cell_distance)
+        if arrow_size == 'constant':
+            s = np.nanquantile(scale, arrow_quantile_size) / cell_arrow_ratio
+            scale = np.full_like(scale, s)
+        else:
+            scale /= cell_arrow_ratio
     else:
         if cell_arrow_ratio is None:
             cell_arrow_ratio = .4 # backward compatibility
@@ -719,7 +731,7 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
     for i in values.index:
         center = pts[i]
         radius = force_amplitude[i]
-        if inferencemap:
+        if inferencemap or arrow_size == 'constant':
             f = np.asarray(values.loc[i])
             f *= scale[i] / max(1e-16, np.sqrt(np.sum(f * f)))
         else:

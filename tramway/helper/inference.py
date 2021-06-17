@@ -1217,20 +1217,27 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             extra = name
         else:
             main = name
-        if title:
+
+        if title and not use_bokeh:
             if isinstance(title, str):
                 _title = title
             else:
-                if mode:
-                    if extra:
-                        extra += ' - {} mode'.format(mode)
-                    else:
-                        extra = '{} mode'.format(mode)
-                if extra:
-                    _title = '{} ({})'.format(main, extra)
-                else:
-                    _title = main
-            mplt.title(_title)
+                #if mode:
+                #    if extra:
+                #        extra += ' - {} mode'.format(mode)
+                #    else:
+                #        extra = '{} mode'.format(mode)
+                #if extra:
+                #    _title = '{} ({})'.format(main, extra)
+                #else:
+                #    _title = main
+                _title = name
+            try:
+                axes = kwargs['axes']
+            except KeyError:
+                mplt.title(_title)
+            else:
+                axes.set_title(_title)
 
         if print_figs and not use_bokeh:
             if maps.shape[1] == 1:

@@ -465,15 +465,11 @@ class Mpl(AnalyzerNode):
                 frames=_iter(sampling, maps, return_times=True), **anim_kwargs)
 
     def plot(self, maps, feature, sampling=None, axes=None, aspect='equal',
-            interior_contour=None, **kwargs):
+            interior_contour=None, overlay_locations=False, **kwargs):
         """
         Calls :func:`~tramway.helper.inference.map_plot`.
 
         May be reworked in the future to remove the :mod:`~tramway.helper` dependency.
-
-        To overlay the locations, try passing *e.g.*
-        ``point_style=dict(color='r', alpha=.1)``.
-        This may change in the future.
 
         *new in 0.5.2*:
         argument *interior_contour* is a :class`dict` with the following keys allowed:
@@ -508,6 +504,10 @@ class Mpl(AnalyzerNode):
         if axes is not None:
             kwargs['axes'] = axes
         kwargs['aspect'] = aspect
+        if overlay_locations is not False:
+            if overlay_locations is True:
+                overlay_locations = dict(color='r', alpha=.1)
+            kwargs['point_style'] = overlay_locations
         map_plot(maps, sampling, feature=feature, **kwargs)
 
         # added in 0.5.2

@@ -266,14 +266,13 @@ Jeffreys' prior
 ^^^^^^^^^^^^^^^
 
 All the methods described here also feature an optional Jeffreys' prior on the diffusivity. 
-It is a non-informative prior used to ensure that the posterior probability distribution is invariant by re-parametrization.
+It is a non-informative prior used to make the posterior probability distribution less sensitive to re-parametrization of diffusivity :math:`D`.
 
-This prior - referred to as :math:`P_J(D_i)` - multiplies with the original expression of the posterior probability.
-The maximized probability becomes:
+This prior - referred to as :math:`P_J(D_i)` - modifies the maximized posterior probability:
 
 .. math::
 
-	P^*(D_i, ... | T_i) = P(D_i, ... | T_i) P_J(D_i)
+	P^*(D_i, ... | T_i) \propto P(T_i | D_i, ...) P_J(D_i)
 
 Its value varies depending on the inference mode. Compare:
 
@@ -328,7 +327,7 @@ The maximized probability becomes:
 
 .. math::
 
-	P^*(\textbf{D}, ... | T) = P_S(\textbf{D}) \prod_i P(D_i, ... | T_i)
+	P^*(\textbf{D}, ... | T) = P_S(\textbf{D}) \prod_i P(T_i | D_i, ...)
 
 with, for example:
 
