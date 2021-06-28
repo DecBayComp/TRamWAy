@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2018-2019, Institut Pasteur
+# Copyright © 2018-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at

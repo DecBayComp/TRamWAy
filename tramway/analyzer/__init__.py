@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020, Institut Pasteur
+# Copyright © 2020-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -507,6 +507,7 @@ __all__ = ['RWAnalyzer',
         'mapper',
         'images', 'tracker',
         'tessellers', 'cell_mergers',
+        'models',
         'Analysis', 'commit_as_analysis',
         'environments',
         'first', 'single',

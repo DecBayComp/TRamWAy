@@ -60,6 +60,9 @@ class Partition(Lazy):
 
     See also :meth:`Tessellation.cell_index`.
 
+    *new in 0.6*: the :meth:`__len__` method returns the number of assigned
+    points, counted as many times as the number of cells they are assigned to.
+
 
     Attributes:
 
@@ -290,6 +293,17 @@ class Partition(Lazy):
             pass
         s = '\n'.join([ '{}:{}{}'.format(k, ' '*(l-len(k)), v) for k, v in attrs.items() ])
         return s
+
+    def __len__(self):
+        ix = self.cell_index
+        if isinstance(ix, tuple):
+            pts, cells = ix
+            assert np.all(0 <= cells) # not totally sure this is always True
+            return len(pts)
+        elif sparse.issparse(ix):
+            raise NotImplementedError
+        else:
+            return np.sum(0 <= ix)
 
 
 CellStats = Partition # for backward compatibility

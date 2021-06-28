@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import tramway.inference.degraded_d as degraded_d
+import tramway.inference.unsmooth_d as degraded_d
 import tramway.inference.standard_d as standard_d
 
 

@@ -81,9 +81,17 @@ def wolfe_line_search(f, x, p, g, subspace=None, args_f=(), args_g=None, args=No
             return None, 'not a descent direction'
         else:
             return None#raise ValueError('not a descent direction')
-    if step_max:
+    if isinstance(step_max, np.ndarray):
+        norm = np.abs(p)
+        relative_excess = (norm * eta_max - step_max) / step_max
+        k = np.argmax(relative_excess)
+        if 0 < relative_excess[k]:
+            eta_max *= step_max[k] / norm[k]
+    elif step_max:
         norm = np.max(np.abs(p))
         if step_max < norm * eta_max:
+            #module_logger.debug('step throttled: %f < %f',
+            #        step_max, norm * eta_max)
             eta_max *= step_max / norm
     f_prev = f0
     if weight_regul:
@@ -937,7 +945,7 @@ def _ls_args(step_scale, ls_step_max, ls_iter_max, ls_armijo_max, ls_wolfe, newt
     if step_scale <= 0 or 1 < step_scale:
         raise ValueError('expected: 0 < step_scale <= 1')
     ls_kwargs = {}
-    if ls_step_max:
+    if ls_step_max is not None:
         ls_kwargs['step_max'] = ls_step_max
     if ls_iter_max:
         ls_kwargs['iter_max'] = ls_iter_max
@@ -1417,6 +1425,10 @@ class SBFGSWorker(parallel.Worker):
         try:
             while True:
                 k, c = self.get_task()
+                if c is None:
+                    #logger.debug('get_task returned None')
+                    break
+
                 i = c.i
                 info = dict()
                 __global__.ncalls = 0

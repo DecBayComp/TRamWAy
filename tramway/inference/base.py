@@ -423,17 +423,19 @@ class Distributed(Local):
         """
         return grad1(self, i, X, index_map, **kwargs)
 
-    def grad_sum(self, i, grad, index_map=None):
+    def grad_sum(self, i, grad2, index_map=None):
         """
-        Mixing operator for the gradient at a given cell.
+        Sum for local penalties (*e.g.* local gradient vector with squared
+        elements) at a given cell.
 
         Arguments:
 
             i (int):
                 cell index.
 
-            grad (numpy.ndarray):
-                local gradient.
+            grad2 (numpy.ndarray):
+                local penalties (*e.g.* local gradient vector with squared
+                elements).
 
             index_map (numpy.ndarray):
                 index mapping, useful to convert cell indices to positional indices in
@@ -442,14 +444,14 @@ class Distributed(Local):
         Returns:
 
             float:
-                weighted sum of the elements of `grad`.
+                weighted sum of the elements of `grad2`.
 
         """
         cell = self.cells[i]
         if cell.volume:
-            return cell.volume * np.sum(grad)
+            return cell.volume * np.sum(grad2)
         else:
-            return np.sum(grad)
+            return np.sum(grad2)
 
     def local_variation(self, i, X, index_map=None, **kwargs):
         """

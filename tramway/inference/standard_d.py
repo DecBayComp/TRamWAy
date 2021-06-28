@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -19,10 +19,10 @@ from math import pi, log
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 
 
-setup = {'name': ('standard.d', 'smooth.d'),
+setup = {'name': ('standard.d', 'smooth.d', 'regularized.d'),
     'provides': 'd',
     'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
@@ -34,6 +34,33 @@ setup = {'name': ('standard.d', 'smooth.d'),
         ('tol',             dict(type=float, help='tolerance for scipy minimizer')))),
     'cell_sampling': 'group'}
 setup_with_grad_arguments(setup)
+
+
+Result = namedtuple('Result', 'result success message ncalls')
+
+def interruptible_minimize(func, prms, args, **kwargs):
+    callback_cache = dict(
+            ncalls = 0,
+            )
+
+    def caching_callback(x, *args):
+        callback_cache['result'] = x
+        callback_cache['ncalls'] += 1
+        return False
+
+    kwargs['callback'] = caching_callback
+
+    try:
+        return minimize(func, prms, args=args, **kwargs)
+
+    except KeyboardInterrupt:
+        if 'result' in callback_cache:
+            res = callback_cache['result']
+            ctr = callback_cache['ncalls']
+            ret = Result(res, False, 'interrupted', ctr)
+            return ret
+        else:
+            raise
 
 
 def smooth_d_neg_posterior(diffusivity, cells, sigma2, diffusivity_prior, \
@@ -180,7 +207,7 @@ def infer_smooth_D(cells, diffusivity_prior=None, jeffreys_prior=None, \
     args = (cells, localization_error, diffusivity_prior, jeffreys_prior, dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
 
     # run the optimization
-    result = minimize(fun, D_initial, args=args, **kwargs)
+    result = interruptible_minimize(fun, D_initial, args=args, **kwargs)
     if not (result.success or verbose):
         warn('{}'.format(result.message), OptimizationWarning)
 

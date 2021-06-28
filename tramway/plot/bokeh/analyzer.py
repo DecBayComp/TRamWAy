@@ -333,13 +333,13 @@ class Controller(object):
             kwargs = dict(kwargs)
             unit = dict(
                     diffusivity=r'$\mu\rm{m}^2\rm{s}^{-1}$',
-                    potential=r'$k_{\rm{B}}T$',
+                    potential=r'$[k_{\rm{B}}T]$',
                     force='Log. amplitude',
                     drift=r'$\mu\rm{m}\rm{s}^{-1}$',
                     ) # LaTeX not supported yet
             unit = dict(
                     diffusivity='µm²/s',
-                    potential='kT',
+                    potential='[kT]',
                     force='Log. amplitude',
                     drift='µm/s',
                     )

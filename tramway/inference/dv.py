@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -15,11 +15,12 @@
 from tramway.core import ChainArray
 from .base import *
 from .gradient import *
+from .standard_d import interruptible_minimize
 from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+#from scipy.optimize import minimize
 from collections import OrderedDict
 import time
 
@@ -278,6 +279,7 @@ def dv_neg_posterior1(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
     return result - y0
 
 
+
 def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
     export_centers=False, verbose=True, compatibility=False, \
@@ -335,6 +337,12 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
         V_bounds = [(None, None)] * V_initial.size
         bounds = D_bounds + V_bounds
         options = dict(default_lBFGSb_options)
+    _kwargs = {}
+    for k in ('jac',):
+        try:
+            _kwargs[k] = kwargs.pop(k)
+        except KeyError:
+            pass
     options.update(kwargs.pop('options', {}))
     options.update(**kwargs) # for backward compatibility
     if max_iter:
@@ -342,9 +350,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     if verbose:
         options['disp'] = verbose
     if options:
-        _kwargs = dict(options = options)
-    else:
-        _kwargs = {}
+        _kwargs['options'] = options
 
     # posterior function
     if rgrad in ('delta','delta0','delta1'):
@@ -366,7 +372,7 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     args = args + (y0, 1 < int(verbose), posteriors)
 
     # run the optimization routine
-    result = minimize(fun, dv.combined, args=args, bounds=bounds, **_kwargs)
+    result = interruptible_minimize(fun, dv.combined, args=args, bounds=bounds, **_kwargs)
     if not (result.success or verbose):
         warn('{}'.format(result.message), OptimizationWarning)
 

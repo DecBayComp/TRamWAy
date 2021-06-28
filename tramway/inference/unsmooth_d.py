@@ -21,7 +21,7 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name':    'degraded.d',
+setup = {'name':    ('unsmooth.d', 'degraded.d'),
         'provides': 'd',
         'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
@@ -70,6 +70,14 @@ def d_neg_posterior(diffusivity, cell, sigma2, jeffreys_prior, dt_mean, \
 
 
 def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivity=None, **kwargs):
+    """
+    Infer the local diffusivity in each cell.
+
+    This function is similar to `infer_smooth_D` without the smoothing prior on
+    the diffusivity.
+    The problem could be solved analytically, instead of minimizing a cost
+    function [TODO].
+    """
     if isinstance(cells, Distributed): # multiple cells
         localization_error = cells.get_localization_error(kwargs, 0.03, True, \
                 localization_error=localization_error)

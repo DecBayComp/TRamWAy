@@ -305,7 +305,7 @@ class Mpl(AnalyzerNode):
                     scale = lambda u: u
                 unit = dict(
                         diffusivity=scale('$\mu\\rm{m}^2\\rm{s}^{-1}$'),
-                        potential=scale('$k_{\\rm{B}}T$'),
+                        potential=scale('$[k_{\\rm{B}}T]$'),
                         force='Amplitude' if logscale is False else 'Log. amplitude',
                         drift=scale('$\mu\\rm{m}\\rm{s}^{-1}$'),
                     ).get(feature, None)

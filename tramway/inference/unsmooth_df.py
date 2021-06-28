@@ -22,7 +22,7 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name':    'degraded.df',
+setup = {'name':    ('unsmooth.df', 'degraded.df'),
         'provides': 'df',
         'arguments': OrderedDict((
         ('localization_error',  ('-e', dict(type=float, help='localization precision (see sigma; default is 0.03)'))),

@@ -929,7 +929,7 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     unit = kwargs.pop('unit', None)
     if unit == 'std':
         unit = {'diffusivity': r'$\mu\rm{m}^2\rm{s}^{-1}$',
-                'potential': r'$k_{\rm{B}}T$',
+                'potential': r'$[k_{\rm{B}}T]$',
                 #'force': r'$k_{\rm{B}}T$', # depends on the model
                 'drift': r'$\mu\rm{m}\rm{s}^{-1}$',
                }

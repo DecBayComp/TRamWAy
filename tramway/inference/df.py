@@ -12,7 +12,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 
-import tramway.inference.degraded_df as degraded_df
+import tramway.inference.unsmooth_df as degraded_df
 import tramway.inference.standard_df as standard_df
 
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2019, Institut Pasteur
+# Copyright © 2017-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -15,11 +15,12 @@
 from tramway.core import ChainArray
 from .base import *
 from .gradient import *
+from .standard_d import interruptible_minimize
 from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+#from scipy.optimize import minimize
 from collections import OrderedDict
 
 
@@ -154,7 +155,7 @@ def infer_smooth_DD(cells, diffusivity_prior=None, drift_prior=None, jeffreys_pr
     #cell.cache = None # no cache needed
     args = (dd, cells, localization_error, diffusivity_prior, drift_prior, jeffreys_prior, \
             dt_mean, min_diffusivity, index, reverse_index, grad_kwargs)
-    result = minimize(fun, dd.combined, args=args, **kwargs)
+    result = interruptible_minimize(fun, dd.combined, args=args, **kwargs)
     if not (result.success or verbose):
         warn('{}'.format(result.message), OptimizationWarning)
 
