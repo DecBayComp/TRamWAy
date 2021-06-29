@@ -60,6 +60,9 @@ def infer_DV(cells, *args, **kwargs):
     D0 = DV0['diffusivity'].values
     V0 = DV0['potential'].values
 
+    if info0['resolution'] == 'interrupted':
+        return DV0, info0
+
     ## non-stochastic fine-tuning
 
     kwargs['stochastic'] = False
