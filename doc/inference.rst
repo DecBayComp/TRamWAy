@@ -148,7 +148,7 @@ Some of them are listed below:
        | force [#b]_
 
 
-.. [#a] the amplitude of directional biases is expressed in numbers of :math:`k_BT`
+.. [#a] the amplitude of directional biases can be expressed in :math:`k_{\textrm{B}}T`, using the conversion factor, for a given temperature
 .. [#b] not a direct product of optimizing; derived from the potential energy
 
 
@@ -202,7 +202,7 @@ The likelihood used to infer the local diffusivity :math:`D_i` and force :math:`
 
 .. math::
 
-	P(T_i | D_i, \textbf{F}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \frac{D_i\textbf{F}_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+	P(T_i | D_i, \textbf{F}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - D_i\textbf{F}_i\Delta t_j\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
 
 The *DF* inference mode is well-suited to mapping local force components, especially in the presence of non-potential forces (e.g. a rotational component).
 This mode allows for the rapid characterization of the diffusivity and directional biases of the trajectories.
@@ -220,7 +220,7 @@ The likelihood becomes:
 
 .. math::
 
-	P(T_i | D_i, V_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + \frac{D_i\nabla V_i\Delta t_j}{k_BT}\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+	P(T_i | D_i, V_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + D_i\nabla V_i\Delta t_j\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
 
 Because this model requires access to the neighbour cells/bins for estimating the local potential gradient :math:`\nabla V_i`,
 the overall posterior probability is maximized necessarily optimizing all the spatially distributed parameters simultaneously.
@@ -230,7 +230,12 @@ The smoothing factors are described in a :ref:`dedicated section <inference_smoo
 
 This mode also supports the :ref:`Jeffreys' prior <inference_jeffreys>`.
 
-More information can be found about :ref:`gradient calculation <gradient>`.
+If space is measured in :math:`\mum`, the estimated effective potential is expressed in :math:`\mum^{-1}`.
+
+Following `InferenceMAP`_, we may also express this quantity in :math:`k_{\textrm{B}}T`, as a synonym of :math:`\mum^{-1}`, with no conversion factor, which is not correct.
+However, the plotting utilities admit a `temperature` argument to make the conversion to proper :math:`k_{\textrm{B}}T`.
+
+More information can also be found about :ref:`gradient calculation <gradient>`.
 
 Stochastic DV
 """""""""""""

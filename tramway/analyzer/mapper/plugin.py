@@ -19,8 +19,8 @@ from tramway.inference import plugins
 from tramway.helper.inference import Infer
 
 class MapperAttribute(object):
-    """ Mixin class for accessing the `localization_precision` and
-    `localization_error` attributes.
+    """ Mixin class for accessing the `localization_precision`,
+    `localization_error` and `temperature` attributes.
     """
     __slots__ = ()
 
@@ -37,6 +37,13 @@ class MapperAttribute(object):
     @localization_error.setter
     def localization_error(self, sigma2):
         self._parent.localization_error = sigma2
+
+    @property
+    def temperature(self):
+        return self._parent.temperature
+    @temperature.setter
+    def temperature(self, T):
+        self._parent.temperature = T
 
 
 class MapperPlugin(AnalyzerNode, MapperAttribute):

@@ -23,7 +23,8 @@ def proper_parent_name(attr_name):
     get_conditions, set_conditions = {}, {}
     set_conditions['initialized'] = True
     if attr_name in ('dt', 'time_step', 'frame_interval',
-            'localization_error', 'localization_precision', 'columns'):
+            'localization_error', 'localization_precision', 'columns',
+            'temperature'):
         parent_name = 'spt_data'
     elif attr_name in ('scaler', 'resolution'):
         parent_name = 'tesseller'

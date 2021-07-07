@@ -51,6 +51,12 @@ class BaseTracker(AnalyzerNode):
     @localization_precision.setter
     def localization_precision(self, sigma):
         self.spt_data.localization_precision = sigma
+    @property
+    def temperature(self):
+        return self.spt_data.temperature
+    @temperature.setter
+    def temperature(self, T):
+        self.spt_data.temperature = T
 
 
 class SingleParticleTracker(BaseTracker):

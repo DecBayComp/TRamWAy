@@ -130,7 +130,7 @@ class Controller(object):
 
     Note: time browsing is not supported yet.
     """
-    def __init__(self, model, side_panel=None, webdriver=None):
+    def __init__(self, model, side_panel=None, webdriver=None, **map_kwargs):
         """
         Arguments:
 
@@ -157,6 +157,10 @@ class Controller(object):
         self.show_side_panel = webdriver is not None if side_panel is None else side_panel
         self.selenium_webdriver = webdriver
         self.figure_export_width = self.figure_export_height = None
+        # units may not be displayed on the colorbar, depending on bokeh
+        # version
+        self.map_kwargs = dict(unit='std')
+        self.map_kwargs.update(map_kwargs)
     def load_source(self, source_name):
         if self.model.current_spt_data is not None:
             self.unload_source()
@@ -310,7 +314,6 @@ class Controller(object):
             elif 2 not in old and 2 in new:
                 self.set_map_visibility(False)
         self.visibility_controls.on_change('active', _update)
-        self.map_kwargs = dict(unit='std')
         return row(self.main_figure, self.colorbar_figure, self.visibility_controls)
     def disable_space_view(self):
         self.main_figure.disabled = True
@@ -328,18 +331,20 @@ class Controller(object):
         assert 0<self.time_slider.start
         self.time_slider.value = 1
     def draw_map(self, feature):
-        kwargs = self.map_kwargs
+        kwargs = dict(self.map_kwargs)
+        temperature = kwargs.pop('temperature', None)
         if kwargs.get('unit', None) == 'std':
-            kwargs = dict(kwargs)
             unit = dict(
                     diffusivity=r'$\mu\rm{m}^2\rm{s}^{-1}$',
-                    potential=r'$[k_{\rm{B}}T]$',
+                    potential=r'$k_{\rm{B}}T$',
                     force='Log. amplitude',
                     drift=r'$\mu\rm{m}\rm{s}^{-1}$',
                     ) # LaTeX not supported yet
             unit = dict(
                     diffusivity='µm²/s',
-                    potential='[kT]',
+                    potential='µm⁻¹  ~kT' \
+                            if temperature is None \
+                            else 'kT',
                     force='Log. amplitude',
                     drift='µm/s',
                     )
@@ -368,6 +373,9 @@ class Controller(object):
             kwargs['clim'] = self.model.clim[feature]
         elif self.model.clim is not None:
             kwargs['clim'] = self.model.clim[feature]
+        if temperature:
+            # convert from µm^-1 (inferenceMAP kT) to true kT
+            _map /= 6.950348e-5 * temperature
         if _map.shape[1] == 2:
             _vector_map = _map
             if feature == 'force':

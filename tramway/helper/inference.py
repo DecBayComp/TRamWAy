@@ -781,6 +781,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     """
     Plot scalar/vector 2D maps.
 
+    For consistency with *InferenceMAP*, the effective potential is showed
+    in :math:`µm^{-1}` while -- using ``unit='std'`` -- the colorbar
+    mentions :math:`k_{B}T`, whereas no conversion factor is applied.
+
     Arguments:
 
         maps (str or tramway.core.analyses.base.Analyses or pandas.DataFrame or Maps):
@@ -843,6 +847,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
             applies only to scalar maps that are consequently plotted in 3D
 
         clim (array-like): min and max values for the colormap; this argument is keyworded only
+
+        unit (str): colorbar label; can be :const:`'std'` to take usual units,
+            with space coordinates in *µm* and and times in *s*
+
+        temperature (float): temperature in K, to display the potential in *kT*
 
     Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d`,
     :func:`~tramway.plot.map.field_map_2d` and :func:`scalar_map_3d`.
@@ -926,10 +935,17 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 columns=['x', 'y']),
             cells.tessellation)
 
+    temperature = kwargs.pop('temperature', None)
+    if temperature is not None and 'potential' in maps.features:
+        import copy
+        maps = copy.deepcopy(maps)
+        maps['potential'] /= 6.950348e-5 * temperature
+
     unit = kwargs.pop('unit', None)
     if unit == 'std':
         unit = {'diffusivity': r'$\mu\rm{m}^2\rm{s}^{-1}$',
-                'potential': r'$[k_{\rm{B}}T]$',
+                'potential': r'$\mu\rm{m}^{-1}$  ~$k_{\rm{B}}T$' \
+                        if temperature is None else r'$k_{\rm{B}}T$',
                 #'force': r'$k_{\rm{B}}T$', # depends on the model
                 'drift': r'$\mu\rm{m}\rm{s}^{-1}$',
                }

@@ -74,10 +74,17 @@ def glob(pattern):
 
 
 class SPTParameters(object):
-    """ Children classes should define the :attr:`_frame_interval` and :attr:`_localization_error`
-        attributes, or implement the :attr:`frame_interval` and :attr:`localization_error` properties.
+    """
+    Mixin class for storing common experimental parameters, including the
+    localization error, time interval and temperature.
 
-        Default values should be :const:`None`."""
+    Children classes should define the :attr:`_frame_interval`,
+    :attr:`_localization_error` and :attr:`_temperature` attributes,
+    or overload the :attr:`frame_interval`, :attr:`localization_error`
+    and :attr:`temperature` properties.
+
+    Default values should be :const:`None`.
+    """
     __slots__ = ()
     def __init__(self, localization_precision=None, localization_error=None):
         if localization_precision is None:
@@ -148,6 +155,24 @@ class SPTParameters(object):
     def dt(self, dt):
         self.frame_interval = dt
     dt.__doc__ = time_step.__doc__
+    @property
+    def temperature(self):
+        """ *float*: Temperature in *K*; can be set as a *value*-*unit* pair,
+            with *unit* any of :const:`'K'`, :const:`'C'` and :const:`'F'`
+        """
+        return self._temperature
+    @temperature.setter
+    def temperature(self, T):
+        if isinstance(T, (tuple, list)):
+            T, unit = T
+            if T is not None:
+                if unit == 'C':
+                    T = 273 + T
+                elif unit == 'F':
+                    T = 273 + (T - 32) / 1.8
+                elif unit != 'K':
+                    raise ValueError(f"temperature unit not supported: '{unit}'")
+        self._temperature = T
     def set_precision(self, precision):
         """
         Sets the numerical precision of the raw data.
@@ -170,7 +195,8 @@ def _normalize(p):
 class SPTDataIterator(AnalyzerNode, SPTParameters):
     """ Partial implementation for multi-item :class:`SPTData`.
 
-    Children classes must implement the :meth:`__iter__` method. """
+    Children classes must implement the :meth:`__iter__` method.
+    """
     __slots__ = ('_bounds',)
     def __init__(self, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
@@ -224,11 +250,29 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
     @time_step.setter
     def time_step(self, dt):
         self.frame_interval = dt
+    @property
+    def temperature(self):
+        it = iter(self)
+        T = next(it).temperature
+        while True:
+            try:
+                _T = next(it).temperature
+            except StopIteration:
+                break
+            else:
+                if T != _T:
+                    raise AttributeError('not all the data blocks share the same temperature')
+        return T
+    @temperature.setter
+    def temperature(self, T):
+        for f in self:
+            f.temperature = T
     def as_dataframes(self, source=None, return_index=False):
         """ Generator function; yields :class:`pandas.DataFrame` objects.
         
         `source` can be a source name (filepath) or a boolean function
-        that takes a source string as input argument."""
+        that takes a source string as input argument.
+        """
         for f in self.filter_by_source(source, return_index):
             yield f.dataframe
     def filter_by_source(self, source_filter, return_index=False):
@@ -492,9 +536,12 @@ class HasAnalysisTree(HasROI):
     """
     Partial implementation for :class:`SPTData` that complements :class:`SPTParameters`.
     """
-    __slots__ = ('_analyses','_frame_interval_cache','_localization_error_cache')
+    __slots__ = ('_analyses', '_frame_interval_cache',
+            '_localization_error_cache', '_temperature_cache')
     def __init__(self, df=None, **kwargs):
-        self._frame_interval_cache = self._localization_error_cache = None
+        self._frame_interval_cache = None
+        self._localization_error_cache = None
+        self._temperature_cache = None
         HasROI.__init__(self, **kwargs)
         self._analyses = None
         self.analyses = Analyses(df, standard_metadata(), autosave=True)
@@ -515,6 +562,14 @@ class HasAnalysisTree(HasROI):
         self._localization_error_cache = err
         if not islazy(self._dataframe) and self._dataframe is not None:
             self._dataframe.localization_error = err
+    @property
+    def _temperature(self):
+        return self._temperature_cache
+    @_temperature.setter
+    def _temperature(self, T):
+        self._temperature_cache = T
+        if not islazy(self._dataframe) and self._dataframe is not None:
+            self._dataframe.temperature = T
     def commit_cache(self, autoload=False):
         """
         Pushes the cached parameters into the :attr:`dataframe` object.
@@ -524,11 +579,14 @@ class HasAnalysisTree(HasROI):
                 raise RuntimeError('the SPT data has not been loaded')
         self.dataframe.frame_interval = self._frame_interval_cache
         self.dataframe.localization_error = self._localization_error_cache
+        self.dataframe.temperature = self._temperature_cache
     def clear_cache(self):
         """
         Clears the cached values and reads from the :attr:`dataframe` object.
         """
-        self._frame_interval_cache = self._localization_error_cache = None
+        self._frame_interval_cache = None
+        self._localization_error_cache = None
+        self._temperature_cache = None
         if not islazy(self._dataframe) and self._dataframe is not None:
             try:
                 self._frame_interval_cache = self._dataframe.frame_interval
@@ -536,6 +594,10 @@ class HasAnalysisTree(HasROI):
                 pass
             try:
                 self._localization_error_cache = self._dataframe.localization_error
+            except AttributeError:
+                pass
+            try:
+                self._temperature_cache = self._dataframe.temperature
             except AttributeError:
                 pass
     def check_cache(self, _raise=AttributeError):
@@ -584,6 +646,16 @@ class HasAnalysisTree(HasROI):
                         raise _raise from None
                     else:
                         return not _return
+            try:
+                ok = self._temperature_cache == self._dataframe.temperature
+            except AttributeError:
+                pass
+            else:
+                if not ok:
+                    if _return is None: # _raise is not None
+                        raise _raise from None
+                    else:
+                        return not _return
         # the cache is alright
         if _return is not None:
             return _return
@@ -612,6 +684,7 @@ class HasAnalysisTree(HasROI):
         #
         err_cache = self._localization_error_cache
         dt_cache = self._frame_interval_cache
+        T_cache = self._temperature_cache
         if islazy(tree._data):
             store = tree._data.store
             record = store.getRecord(tree._data.locator, store.store)
@@ -623,8 +696,16 @@ class HasAnalysisTree(HasROI):
                 dt = store.peek('frame_interval', record)
             except KeyError:
                 dt = None
+            try:
+                T = store.peek('temperature', record)
+            except KeyError:
+                T = None
         else:
             df = tree.data
+            try:
+                T = df.temperature
+            except AttributeError:
+                T = None
             try:
                 dt = df.frame_interval
             except AttributeError:
@@ -641,6 +722,10 @@ class HasAnalysisTree(HasROI):
             if not (dt_cache is None or dt_cache == dt):
                 self.logger.warning("frame interval does not match with record: {} != {}".format(dt_cache, dt))
             self._frame_interval_cache = dt
+        if T is not None:
+            if not (T_cache is None or T_cache == T):
+                self.logger.warning(f"temperature does not match with record: {T_cache} != {T}")
+            self._temperature_cache = T
     @property
     def analyses(self):
         return self._analyses
@@ -1523,6 +1608,7 @@ class TrackerOutput(SPTDataFrames):
         siblings = self._dataframes[0]
         df.frame_interval = siblings.frame_interval
         df.localization_error = siblings.localization_error
+        df.temperature = siblings.temperature
         if isinstance(siblings.dataframe, _FakeSPTData):
             assert not self._dataframes[1:]
             self._dataframes = [ df ]
