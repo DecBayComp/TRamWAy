@@ -1,9 +1,9 @@
 
 from . import *
-from ..attribute import InitializerMethod
+from ..attribute import initializer_method
 
-from_voronoi                = InitializerMethod( SamplerInitializer.from_voronoi                )
-from_spheres                = InitializerMethod( SamplerInitializer.from_spheres                )
-from_nearest_neighbors      = InitializerMethod( SamplerInitializer.from_nearest_neighbors      )
-from_nearest_time_neighbors = InitializerMethod( SamplerInitializer.from_nearest_time_neighbors )
+from_voronoi                = initializer_method( SamplerInitializer.from_voronoi                )
+from_spheres                = initializer_method( SamplerInitializer.from_spheres                )
+from_nearest_neighbors      = initializer_method( SamplerInitializer.from_nearest_neighbors      )
+from_nearest_time_neighbors = initializer_method( SamplerInitializer.from_nearest_time_neighbors )
 

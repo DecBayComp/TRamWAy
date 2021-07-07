@@ -5,8 +5,8 @@ from . import proxy
 from . import proxied
 from . import plugin
 from . import post
-from ..attribute import InitializerMethod
+from ..attribute import initializer_method
 
-from_plugin   = InitializerMethod( TessellerInitializer.from_plugin   )
-from_callable = InitializerMethod( TessellerInitializer.from_callable )
+from_plugin   = initializer_method( TessellerInitializer.from_plugin   )
+from_callable = initializer_method( TessellerInitializer.from_callable )
 

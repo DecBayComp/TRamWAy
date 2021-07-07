@@ -25,7 +25,7 @@ setup(
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
-    author = 'François Laurent',
+    author = 'Institut Pasteur, François Laurent',
     author_email = 'francois.laurent@pasteur.fr',
     license = 'CECILL-2.1',
     classifiers = [

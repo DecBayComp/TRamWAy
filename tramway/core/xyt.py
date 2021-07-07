@@ -214,7 +214,7 @@ def iter_frames(points, asslice=False, as_trajectory_slices=False, dt=None, skip
                 if not np.isclose(traj_ts[row_ix], t):
                     traj_dt = np.diff(traj_ts)
                     ok = np.isclose(traj_dt , dt)
-                    if np.any(ok):
+                    if np.any(ok) or len(traj)==2:
                         raise ValueError('a trajectory is not contiguous in time:\n{}'.format(points[traj[0]:traj[1]]))
                     else:
                         raise ValueError('dt may not be properly set: {}'.format(dt))

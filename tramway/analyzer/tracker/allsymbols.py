@@ -1,7 +1,7 @@
 
 from . import *
-from ..attribute import InitializerMethod
+from ..attribute import initializer_method
 
-from_single_particle = InitializerMethod( TrackerInitializer.from_single_particle )
-from_non_tracking    = InitializerMethod( TrackerInitializer.from_non_tracking    )
+from_single_particle = initializer_method( TrackerInitializer.from_single_particle )
+from_non_tracking    = initializer_method( TrackerInitializer.from_non_tracking    )
 

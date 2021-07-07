@@ -16,6 +16,7 @@ from .abc import *
 import numpy as np
 from collections.abc import Iterable, Sequence, Set
 import logging
+import functools
 
 __all__ = ['GenericAttribute', 'Attribute']
 
@@ -357,4 +358,16 @@ class InitializerMethod(object):
         # TODO: add a freset method to the properties returned by selfinitializing_property
         attr.fset(parent_analyzer, cls)
         self.assign( parent_analyzer )
+
+__all__.append('initializer_method')
+def initializer_method(method, attrname=None):
+    """
+    Properly set the docstring for the wrapped method.
+    """
+    meth = InitializerMethod(method, attrname)
+    @functools.wraps(method)
+    def wrapped_method(*args, **kwargs):
+        return meth(*args, **kwargs)
+    return wrapped_method
+
 

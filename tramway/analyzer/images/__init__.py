@@ -204,7 +204,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
 
     def to_color_movie(self, output_file=None, fourcc='VP80', colormap='gray',
             locations=None, trajectories=None, frames=None, origin=None,
-            markersize=2, linecolor='many', linewidth=1,
+            markersize=2, linecolor='many', linewidth=None,
             magnification=None, playback_rate=None, light_intensity=1.):
         """
         Generates a movie of the images with overlaid locations or trajectories.
@@ -241,7 +241,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
             linecolor (*str* or 3-column float array): color for trajectories;
                 value :const:`None` defaults to red.
 
-            linewidth (float): trajectory line width (not supported yet)
+            linewidth (int or float): trajectory line width
 
             magnification (*int* or *str*): the original image pixels can be represented as
                 square-patches of `magnification` video pixel side;
@@ -261,7 +261,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
         import cv2
         # TODO: support PIL as an optional replacement for skimage
         from skimage.util import img_as_ubyte
-        from skimage import draw
+        from . import draw
         from matplotlib import cm, colors
 
         if output_file is None:
@@ -405,23 +405,11 @@ class _RawImage(AnalyzerNode, ImageParameters):
             if magnification:
                 frame = np.repeat(np.repeat(frame, magnification, axis=0), magnification, axis=1)
 
-            if locations is not None:
-                xy = locations[ isclose(locations['t'], t) ]
-                if xy0 is None:
-                    xy_f = xy[list('xy')].values / vid_pxsize - vid_offset
-                else:
-                    xy_f = (xy[list('xy')].values - xy0) / vid_pxsize + mag_offset
-                for j,i in xy_f:
-                    i = np.array([_floor(i), _ceil(i)], dtype=np.int)
-                    j = np.array([_floor(j), _ceil(j)], dtype=np.int)
-                    if np.any(i<0) or np.any(j<0):
-                        continue
-                    i,j = np.meshgrid(
-                            np.arange(i[0],i[1]+1),
-                            np.arange(j[0],j[1]+1), indexing='ij')
-                    frame[ii_max-np.ravel(i),np.ravel(j),:] = marker_color
-
             if trajectories is not None:
+                # anti-aliasing
+                lw = 0 if linewidth is None else linewidth
+                aa = bool(linewidth)
+
                 # get the ids of the active trajectories for frame f
                 active_trajectories = trajectories['n'][ isclose(trajectories['t'], t) ]
                 assert all_unique(active_trajectories)
@@ -442,15 +430,15 @@ class _RawImage(AnalyzerNode, ImageParameters):
                         traj = (xy_n.values - xy0) / vid_pxsize + mag_offset
                     if np.any(traj < 0): # this may occur with negative offsets
                         continue
-                    traj = np.round(traj).astype(np.uint32)
+                    if not aa:
+                        traj = np.round(traj).astype(np.uint32)
                     trajs_f.append((n, traj))
 
                 # overlay the truncated trajectories
                 if trajs_f:
-                    # TODO: draw a proper polyline with unique ii and jj and max(kk)
                     jj, ii, kk, nn = zip(*[ append_n(n,
-                            draw.line_aa(traj[p,0], traj[p,1], traj[p+1,0], traj[p+1,1])
-                        ) for n, traj in trajs_f for p in range(traj.shape[0]-1) ])
+                        draw.multiline_aa(traj[:,0], traj[:,1], thickness=lw)
+                        ) for n, traj in trajs_f ])
                     ii = np.concatenate(ii)
                     jj = np.concatenate(jj)
                     ok = (0<=ii)&(ii<=ii_max)&(0<=jj)&(jj<=jj_max)
@@ -460,6 +448,25 @@ class _RawImage(AnalyzerNode, ImageParameters):
                         nn = np.concatenate(nn)[ok]
                         lc = line_color[nn % len(line_color)]
                     frame[ii_max-ii,jj,:] = (1.-kk) * frame[ii_max-ii,jj,:] + kk * lc
+
+            if locations is not None:
+                xy = locations[ isclose(locations['t'], t) ]
+                if xy0 is None:
+                    xy_f = xy[list('xy')].values / vid_pxsize - vid_offset
+                else:
+                    xy_f = (xy[list('xy')].values - xy0) / vid_pxsize + mag_offset
+                for j,i in xy_f:
+                    i = np.array([_floor(i), _ceil(i)], dtype=np.int)
+                    j = np.array([_floor(j), _ceil(j)], dtype=np.int)
+                    if np.any(i<0) or np.any(j<0):
+                        continue
+                    i,j = np.meshgrid(
+                            np.arange(i[0],i[1]+1),
+                            np.arange(j[0],j[1]+1), indexing='ij')
+                    try:
+                        frame[ii_max-np.ravel(i),np.ravel(j),:] = marker_color
+                    except IndexError:
+                        pass
 
             vid.write(img_as_ubyte(frame)[:,:,::-1])
         vid.release()

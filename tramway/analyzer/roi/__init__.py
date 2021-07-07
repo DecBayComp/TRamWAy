@@ -345,10 +345,16 @@ class ROIInitializer(Initializer):
         self.specialize( BoundingBoxes, bb, label, group_overlapping_roi )
     def from_squares(self, centers, side, label=None, group_overlapping_roi=False):
         """
-        Defines ROI as centers for squares/cubes of uniform size.
+        Defines spatial ROI as centers for squares/cubes of uniform size.
+
+        Centers should be provided as a sequence of :class:`ndarray`
+        or an NxD matrix, with D the number of spatial dimensions.
 
         See also :meth:`from_bounding_boxes`.
         """
+        if isinstance(centers, np.ndarray) and not \
+                (centers.shape[1:] and 1<centers.shape[1]):
+            raise ValueError('ROI centers are not a NxD matrix')
         bb = [ (center-.5*side, center+.5*side) for center in centers ]
         self.from_bounding_boxes(bb, label, group_overlapping_roi)
     def from_ascii_file(self, filepath, size=None,
