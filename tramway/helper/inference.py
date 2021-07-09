@@ -851,8 +851,6 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         unit (str): colorbar label; can be :const:`'std'` to take usual units,
             with space coordinates in *µm* and and times in *s*
 
-        temperature (float): temperature in K, to display the potential in *kT*
-
     Extra keyword arguments may be passed to :func:`~tramway.plot.map.scalar_map_2d`,
     :func:`~tramway.plot.map.field_map_2d` and :func:`scalar_map_3d`.
     They can be dictionnaries with feature names as keys and the corresponding values for the
@@ -935,18 +933,11 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
                 columns=['x', 'y']),
             cells.tessellation)
 
-    temperature = kwargs.pop('temperature', None)
-    if temperature is not None and 'potential' in maps.features:
-        import copy
-        maps = copy.deepcopy(maps)
-        maps['potential'] /= 6.950348e-5 * temperature
-
     unit = kwargs.pop('unit', None)
     if unit == 'std':
         unit = {'diffusivity': r'$\mu\rm{m}^2\rm{s}^{-1}$',
-                'potential': r'$\mu\rm{m}^{-1}$  ~$k_{\rm{B}}T$' \
-                        if temperature is None else r'$k_{\rm{B}}T$',
-                #'force': r'$k_{\rm{B}}T$', # depends on the model
+                'potential': r'$k_{\rm{B}}T$',
+                'force': r'$k_{\rm{B}}T\mu\rm{m}^{-1}$',
                 'drift': r'$\mu\rm{m}\rm{s}^{-1}$',
                }
 

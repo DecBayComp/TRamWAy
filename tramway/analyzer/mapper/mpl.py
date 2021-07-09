@@ -287,8 +287,7 @@ class Mpl(AnalyzerNode):
     @property
     def plotter(self):
         return PatchCollection
-    def clabel(self, feature, map_kwargs, kwargs, logscale=None,
-            temperature=None):
+    def clabel(self, feature, map_kwargs, kwargs, logscale=None):
         """
         Extracts from `kwargs` arguments related to the colorbar label
         and adds a :const:`'unit'` or :const:`clabel` argument to `map_kwargs`
@@ -306,16 +305,16 @@ class Mpl(AnalyzerNode):
                     scale = lambda u: u
                 unit = dict(
                         diffusivity=scale(r'$\mu\rm{m}^2\rm{s}^{-1}$'),
-                        potential=scale(r'$\mu\rm{m}^{-1}$  ~$k_{\rm{B}}T$' \
-                                if temperature is None else r'$k_{\rm{B}}T$'),
-                        force='Amplitude' if logscale is False else 'Log. amplitude',
+                        potential=scale(r'$k_{\rm{B}}T$'),
+                        force=('Log. ' if logscale else '')+\
+                            r'$k_{\rm{B}}T\mu\rm{m}^{-1}$',
                         drift=scale(r'$\mu\rm{m}\rm{s}^{-1}$'),
                     ).get(feature, None)
             if unit is not None:
                 map_kwargs['unit'] = unit
     def animate(self, fig, maps, feature, sampling=None,
             overlay_locations=False, axes=None, aspect='equal', logscale=None,
-            composable=True, temperature=None, **kwargs):
+            composable=True, **kwargs):
         """
         Animates the time-segmented inference parameters.
 
@@ -350,9 +349,6 @@ class Mpl(AnalyzerNode):
                 object that can be passed in place of argument `fig` in later
                 calls to :meth:`animate` so to stack animations on
                 different axes (`axes`) of a same figure (`fig`).
-
-            temperature (float): temperature in K, for converting potentials to
-                *kT*
 
         Returns:
 
@@ -444,15 +440,13 @@ class Mpl(AnalyzerNode):
                 else:
                     maps = maps.pow(2).sum(1).apply(np.sqrt)
         else:
-            if temperature and feature == 'potential':
-                maps = maps / (6.950348e-5 * temperature)
             if logscale:
                 maps = maps.apply(np.log)
             maps = maps[feature] # to Series
         assert isinstance(maps, pd.Series)
         clim = [maps.min(), maps.max()]
         map_kwargs = dict(clim=clim, aspect=aspect)
-        self.clabel(feature, map_kwargs, kwargs, logscale, temperature)
+        self.clabel(feature, map_kwargs, kwargs, logscale)
         map_kwargs.update(kwargs)
         map_kwargs['overlay_locations'] = overlay_locations
         #

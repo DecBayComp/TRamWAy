@@ -332,20 +332,11 @@ class Controller(object):
         self.time_slider.value = 1
     def draw_map(self, feature):
         kwargs = dict(self.map_kwargs)
-        temperature = kwargs.pop('temperature', None)
         if kwargs.get('unit', None) == 'std':
             unit = dict(
-                    diffusivity=r'$\mu\rm{m}^2\rm{s}^{-1}$',
-                    potential=r'$k_{\rm{B}}T$',
-                    force='Log. amplitude',
-                    drift=r'$\mu\rm{m}\rm{s}^{-1}$',
-                    ) # LaTeX not supported yet
-            unit = dict(
                     diffusivity='µm²/s',
-                    potential='µm⁻¹  ~kT' \
-                            if temperature is None \
-                            else 'kT',
-                    force='Log. amplitude',
+                    potential='kT',
+                    force='Log. [kT/µm]',
                     drift='µm/s',
                     )
             kwargs['unit'] = unit.get(feature, None)

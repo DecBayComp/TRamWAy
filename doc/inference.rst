@@ -62,18 +62,18 @@ The motion of single particles is modeled with an overdamped Langevin equation:
 
 with :math:`\textbf{r}` the particle location, 
 :math:`\textbf{F}(\textbf{r})` the local force (or directional bias), 
-:math:`\gamma(\textbf{r})` the local friction coefficient or viscosity, 
+:math:`\gamma(\textbf{r})` the local friction, proportional to the viscosity, 
 :math:`D` the local diffusion coefficient and 
 :math:`\xi(t)` a Gaussian noise term.
 
-The :ref:`DV <inference_dv>` model additionally assumes :math:`\textbf{F}(\textbf{r}) = - \nabla V(\textbf{r})` 
-with :math:`V(\textbf{r})` the local potential energy.
+The :ref:`DV <inference_dv>` model additionally assumes :math:`\textbf{F}(\textbf{r}) = - \frac{\nabla V(\textbf{r})}{V_0}` 
+with :math:`V(\textbf{r})` the local potential energy and :math:`V_0` a reference potential level that grants :math:`V` a dimension.
 
 The associated Fokker-Planck equation, which governs the temporal evolution of the particle transition probability :math:`P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1)` is given by:
 
 .. math::
 
-	\frac{dP(\textbf{r}_2, t_2 | \textbf{r}_1, t_1)}{dt} = - \nabla\cdot\left(-\frac{\nabla V(\textbf{r}_1)}{\gamma(\textbf{r}_1)} P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1) - \nabla (D(\textbf{r}_1) P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1))\right)
+	\frac{dP(\textbf{r}_2, t_2 | \textbf{r}_1, t_1)}{dt} = - \nabla\cdot\left(-\frac{\nabla V(\textbf{r}_1)}{V_0\gamma(\textbf{r}_1)} P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1) - \nabla (D(\textbf{r}_1) P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1))\right)
 
 There is no general analytic solution to the above equation for arbitrary diffusion coefficient :math:`D` and potential energy :math:`V`.
 However if we consider a small enough space cell over a short enough time segment, we may assume constant :math:`D` and :math:`V` in each cell, 
@@ -81,7 +81,7 @@ upon which the general solution to that equation leads to the following likeliho
 
 .. math::
 
-	P((\textbf{r}_2, t_2 | \textbf{r}_1, t_1) | D_i, V_i) = \frac{\textrm{exp} \left(- \frac{\left(\textbf{r}_2 - \textbf{r}_1 + \frac{\nabla V_i (t_2 - t_1)}{\gamma_i}\right)^2}{4 \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}\right)}{4 \pi \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}
+	P((\textbf{r}_2, t_2 | \textbf{r}_1, t_1) | D_i, V_i) = \frac{\textrm{exp} \left(- \frac{\left(\textbf{r}_2 - \textbf{r}_1 + \frac{\nabla V_i (t_2 - t_1)}{v_0\gamma_i}\right)^2}{4 \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}\right)}{4 \pi \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}
 
 with :math:`i` the index for the cell, :math:`(\textbf{r}_1, t_1)` and :math:`(\textbf{r}_2, t_2)` two points in cell :math:`i` and :math:`\sigma` the experimental localization error.
 
@@ -126,7 +126,7 @@ Some of them are listed below:
 
    * - :ref:`DD <inference_dd>`
      - | :math:`D`
-       | :math:`\frac{\textbf{F}}{\gamma}` [#a]_
+       | :math:`\frac{\textbf{F}}{\gamma}`
      - fast
      - | diffusivity
        | drift
@@ -148,7 +148,7 @@ Some of them are listed below:
        | force [#b]_
 
 
-.. [#a] the amplitude of directional biases can be expressed in :math:`k_{\textrm{B}}T`, using the conversion factor, for a given temperature
+.. [#a] the potentials and magnitudes of directional biases can be expressed as :math:`k_{\textrm{B}}T` and :math:`k_{\textrm{B}}T\mu m^{-1}` respectively, if space is measured as :math:`\mu m^{-1}`
 .. [#b] not a direct product of optimizing; derived from the potential energy
 
 
@@ -184,7 +184,9 @@ The likelihood is given by:
 
 .. math::
 
-	P(T_i | D_i, \textbf{a}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \textbf{a}_i\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+	P(T_i | D_i, \textbf{a}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - \textbf{a}_i\Delta t_j\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+
+If space (:math:`\textbf{r}`) is measured as :math:`\mu m`, the unit for the drift magnitude is :math:`\mu m s^{-1}`.
 
 The *DD* inference mode is well-suited to active processes (e.g. active transport phenomena).
 
@@ -196,31 +198,39 @@ This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>`, and the :ref
 ^^^^^^^^^^^^^^
 
 This inference mode estimates the diffusivity and force.
-It takes advantage of the assumption :math:`D(\textbf{r}) \propto \frac{1}{\gamma(\textbf{r})}`.
+It takes advantage of the assumption that :math:`D(\textbf{r}) = \frac{k_{\textrm{B}}T}{\gamma(\textbf{r})}`.
 
 The likelihood used to infer the local diffusivity :math:`D_i` and force :math:`\textbf{F}_i` is given by:
 
 .. math::
 
-	P(T_i | D_i, \textbf{F}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - D_i\textbf{F}_i\Delta t_j\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+	P(T_i | D_i, \textbf{F}_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j - D_i\frac{\textbf{F}_i}{k_{\textrm{B}}T}\Delta t_j\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
 
 The *DF* inference mode is well-suited to mapping local force components, especially in the presence of non-potential forces (e.g. a rotational component).
 This mode allows for the rapid characterization of the diffusivity and directional biases of the trajectories.
 
 This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:`diffusivity smoothing prior <inference_smoothing>`.
 
+Following `InferenceMAP`_, TRamWAy estimates the scaled force :math:`\frac{\textbf{F}}{k_{\textrm{B}}T}`.
+As a consequence, force components and magnitude can be expressed as :math:`k_{\textrm{B}}T\mu m^{-1}`, using :math:`k_{\textrm{B}}T` as a unit for energy, and :math:`\mu m` the unit for space (in the case :math:`\textbf{r}` is expressed as :math:`\mu m`).
+
+Note anyway that forces are often best displayed as logarithms or square roots.
 
 .. _inference_dv:
 
 *DV* inference
 ^^^^^^^^^^^^^^
 
-Building up on the *DF* model, this model introduces an additional assumption on the shape of the directional biases, and explains the local drifts as resulting from an effective potential :math:`\textbf{V}`.
+Building up on the *DF* model, this model introduces an additional assumption on the distribution of the directional biases, and considers conservative forces only :math:`\textbf{F}=-\nabla V`, with :math:`V` the effective potential.
+
 The likelihood becomes:
 
 .. math::
 
-	P(T_i | D_i, V_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + D_i\nabla V_i\Delta t_j\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+	P(T_i | D_i, V_i) \propto \prod_j \frac{\textrm{exp}\left(-\frac{\left(\Delta\textbf{r}_j + D_i\frac{\nabla V_i}{k_{\textrm{B}}T}\Delta t_j\right)^2}{4\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}\right)}{4\pi\left(D_i+\frac{\sigma^2}{\Delta t_j}\right)\Delta t_j}
+
+Following `InferenceMAP`_, TRamWAy estimates the dimension-less ratio :math:`\frac{V}{k_{\textrm{B}}T}`.
+As such, :math:`V` can be expressed as :math:`k_{\textrm{B}}T`.
 
 Because this model requires access to the neighbour cells/bins for estimating the local potential gradient :math:`\nabla V_i`,
 the overall posterior probability is maximized necessarily optimizing all the spatially distributed parameters simultaneously.
@@ -229,11 +239,6 @@ As a consequence, this method is slow but smoothing priors can be introduced at 
 The smoothing factors are described in a :ref:`dedicated section <inference_smoothing>`.
 
 This mode also supports the :ref:`Jeffreys' prior <inference_jeffreys>`.
-
-If space is measured in :math:`\mum`, the estimated effective potential is expressed in :math:`\mum^{-1}`.
-
-Following `InferenceMAP`_, we may also express this quantity in :math:`k_{\textrm{B}}T`, as a synonym of :math:`\mum^{-1}`, with no conversion factor, which is not correct.
-However, the plotting utilities admit a `temperature` argument to make the conversion to proper :math:`k_{\textrm{B}}T`.
 
 More information can also be found about :ref:`gradient calculation <gradient>`.
 
