@@ -214,7 +214,7 @@ This mode supports the :ref:`Jeffreys' prior <inference_jeffreys>` and the :ref:
 Following `InferenceMAP`_, TRamWAy estimates the scaled force :math:`\frac{\textbf{F}}{k_{\textrm{B}}T}`.
 As a consequence, force components and magnitude can be expressed as :math:`k_{\textrm{B}}T\mu m^{-1}`, using :math:`k_{\textrm{B}}T` as a unit for energy, and :math:`\mu m` the unit for space (in the case :math:`\textbf{r}` is expressed as :math:`\mu m`).
 
-Note anyway that forces are often best displayed as logarithms or square roots.
+Note anyway that forces are often best displayed as logarithms.
 
 .. _inference_dv:
 

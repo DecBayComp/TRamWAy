@@ -333,12 +333,16 @@ class Controller(object):
     def draw_map(self, feature):
         kwargs = dict(self.map_kwargs)
         if kwargs.get('unit', None) == 'std':
+            # standard units are defined at multiple locations:
+            # * tramway.plot.bokeh.analyzer.Controller.draw_map
+            # * tramway.helper.inference.map_plot
+            # * tramway.analyzer.mapper.mpl.Mpl.clabel
             unit = dict(
                     diffusivity='µm²/s',
                     potential='kT',
-                    force='Log. [kT/µm]',
+                    force='log. kT/µm',
                     drift='µm/s',
-                    )
+                    ) # LaTeX is not supported
             kwargs['unit'] = unit.get(feature, None)
         if self.model.analyzer.browser.colormap is not None:
             kwargs['colormap'] = self.model.analyzer.browser.colormap

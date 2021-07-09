@@ -935,6 +935,10 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
 
     unit = kwargs.pop('unit', None)
     if unit == 'std':
+        # standard units are defined at multiple locations:
+        # * tramway.plot.bokeh.analyzer.Controller.draw_map
+        # * tramway.helper.inference.map_plot
+        # * tramway.analyzer.mapper.mpl.Mpl.clabel
         unit = {'diffusivity': r'$\mu\rm{m}^2\rm{s}^{-1}$',
                 'potential': r'$k_{\rm{B}}T$',
                 'force': r'$k_{\rm{B}}T\mu\rm{m}^{-1}$',

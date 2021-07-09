@@ -303,6 +303,10 @@ class Mpl(AnalyzerNode):
                     scale = lambda u: f'log. {u}'
                 else:
                     scale = lambda u: u
+                # standard units are defined at multiple locations:
+                # * tramway.plot.bokeh.analyzer.Controller.draw_map
+                # * tramway.helper.inference.map_plot
+                # * tramway.analyzer.mapper.mpl.Mpl.clabel
                 unit = dict(
                         diffusivity=scale(r'$\mu\rm{m}^2\rm{s}^{-1}$'),
                         potential=scale(r'$k_{\rm{B}}T$'),
