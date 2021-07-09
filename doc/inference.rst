@@ -66,14 +66,14 @@ with :math:`\textbf{r}` the particle location,
 :math:`D` the local diffusion coefficient and 
 :math:`\xi(t)` a Gaussian noise term.
 
-The :ref:`DV <inference_dv>` model additionally assumes :math:`\textbf{F}(\textbf{r}) = - \frac{\nabla V(\textbf{r})}{V_0}` 
-with :math:`V(\textbf{r})` the local potential energy and :math:`V_0` a reference potential level that grants :math:`V` a dimension.
+The :ref:`DV <inference_dv>` model additionally assumes :math:`\textbf{F}(\textbf{r}) = -\nabla V(\textbf{r})` 
+with :math:`V(\textbf{r})` the local potential energy.
 
 The associated Fokker-Planck equation, which governs the temporal evolution of the particle transition probability :math:`P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1)` is given by:
 
 .. math::
 
-	\frac{dP(\textbf{r}_2, t_2 | \textbf{r}_1, t_1)}{dt} = - \nabla\cdot\left(-\frac{\nabla V(\textbf{r}_1)}{V_0\gamma(\textbf{r}_1)} P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1) - \nabla (D(\textbf{r}_1) P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1))\right)
+	\frac{dP(\textbf{r}_2, t_2 | \textbf{r}_1, t_1)}{dt} = - \nabla\cdot\left(-\frac{\nabla V(\textbf{r}_1)}{\gamma(\textbf{r}_1)} P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1) - \nabla (D(\textbf{r}_1) P(\textbf{r}_2, t_2 | \textbf{r}_1, t_1))\right)
 
 There is no general analytic solution to the above equation for arbitrary diffusion coefficient :math:`D` and potential energy :math:`V`.
 However if we consider a small enough space cell over a short enough time segment, we may assume constant :math:`D` and :math:`V` in each cell, 
@@ -81,7 +81,7 @@ upon which the general solution to that equation leads to the following likeliho
 
 .. math::
 
-	P((\textbf{r}_2, t_2 | \textbf{r}_1, t_1) | D_i, V_i) = \frac{\textrm{exp} \left(- \frac{\left(\textbf{r}_2 - \textbf{r}_1 + \frac{\nabla V_i (t_2 - t_1)}{v_0\gamma_i}\right)^2}{4 \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}\right)}{4 \pi \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}
+	P((\textbf{r}_2, t_2 | \textbf{r}_1, t_1) | D_i, V_i) = \frac{\textrm{exp} \left(- \frac{\left(\textbf{r}_2 - \textbf{r}_1 + \frac{\nabla V_i (t_2 - t_1)}{\gamma_i}\right)^2}{4 \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}\right)}{4 \pi \left(D_i + \frac{\sigma^2}{t_2 - t_1}\right)(t_2 - t_1)}
 
 with :math:`i` the index for the cell, :math:`(\textbf{r}_1, t_1)` and :math:`(\textbf{r}_2, t_2)` two points in cell :math:`i` and :math:`\sigma` the experimental localization error.
 
@@ -148,7 +148,7 @@ Some of them are listed below:
        | force [#b]_
 
 
-.. [#a] the potentials and magnitudes of directional biases can be expressed as :math:`k_{\textrm{B}}T` and :math:`k_{\textrm{B}}T\mu m^{-1}` respectively, if space is measured as :math:`\mu m^{-1}`
+.. [#a] the potentials and forces are estimated as :math:`\frac{V}{k_{\textrm{B}}T}` and :math:`\frac{\textbf{F}}{k_{\textrm{B}}T}` respectively
 .. [#b] not a direct product of optimizing; derived from the potential energy
 
 
