@@ -18,62 +18,75 @@ from tramway.core.xyt import crop
 import warnings
 
 
-def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
+def random_walk(diffusivity=None, force=None, friction=None, drift=None,
         trajectory_mean_count=100, trajectory_count_sd=0, turnover=None,
         initial_trajectory_count=None, new_trajectory_count=None,
         lifetime_tau=None, lifetime=None, single=False,
         box=(0., 0., 1., 1.), duration=10., time_step=.05, minor_step_count=99,
-        reflect=False, full=False, count_outside_trajectories=None):
+        reflect=False, full=False, count_outside_trajectories=None,
+        viscosity=None):
     r"""
     Generate random walks.
 
     Consider also the alternative generator
     :func:`~tramway.helper.simulation.categoricaltrap.random_walk_2d`.
 
-    The `trajectory_mean_count` and `trajectory_count_sd` arguments are not compatible with
-    the `initial_trajectory_count` and `new_trajectory_count` arguments.
+    The `trajectory_mean_count` and `trajectory_count_sd` arguments are not
+    compatible with the `initial_trajectory_count` and `new_trajectory_count`
+    arguments.
     Use either pair of arguments.
+
+    *new in 0.6*: argument `friction` replaces `viscosity`, and a warning is
+    issued if `viscosity` is used.
+
+    The units for `force` and `friction` can be adapted as long as the ratio
+    of force over friction is expressed as :math:`\mu m s^{-1}` (and drift is
+    not defined).
 
     Arguments:
 
         diffusivity (callable or float): if callable, takes a coordinate vector
-            (:class:`~numpy.ndarray`) and time (float),
-            and returns the local diffusivity (float) in :math:`\mu m^2.s^{-1}`
+            (:class:`~numpy.ndarray`) and time (float), and returns the local
+            diffusivity (float) with :math:`\mu m^2.s^{-1}` as a unit
 
-        force (callable): takes a coordinate vector (:class:`~numpy.ndarray`) and time (float)
-            and returns the local force vector (:class:`~numpy.ndarray`)
+        force (callable): takes a coordinate vector (:class:`~numpy.ndarray`)
+            and time (float) and returns the local force vector
+            (:class:`~numpy.ndarray`) with :math:`k_{\rm{B}}T\mu m^{-1}` as a
+            unit
 
-        viscosity (callable or float): if callable, takes a coordinate vector
-            (:class:`~numpy.ndarray`) and time (float),
-            and returns the local viscosity (float) that divides the local force;
-            the default viscosity ensures equilibrium conditions
+        friction (callable or float): if callable, takes a coordinate vector
+            (:class:`~numpy.ndarray`) and time (float), and returns the local
+            friction (float) divided by :math:`k_{\rm{B}}T`,
+            equal to the inverse of the diffusivity under equilibrium
 
-        drift (callable): takes a coordinate vector (:class:`~numpy.ndarray`) and time (float)
-            if `force` is not defined,
+        drift (callable): takes a coordinate vector (:class:`~numpy.ndarray`)
+            and time (float) if `force` is not defined,
             or the same two arguments plus the diffusivity (float) and force
             (:class:`~numpy.ndarray`) otherwise, and returns the local drift;
-            this lets `viscosity` unevaluated
+            this lets `friction` unevaluated
 
-        trajectory_mean_count (int or float): average number of active trajectories at any time
+        trajectory_mean_count (int or float): average number of active
+            trajectories at any time
 
-        trajectory_count_sd (int or float): standard deviation of the number of active
-            trajectories
+        trajectory_count_sd (int or float): standard deviation of the number of
+            active trajectories
 
-        turnover (float): fraction of trajectories that will end at each time step;
-            **deprecated**
+        turnover (float): fraction of trajectories that will end at each time
+            step; **deprecated**
 
         initial_trajectory_count (int): initial number of active trajectories
 
-        new_trajectory_count (int or callable): number of newly generated trajectories;
-            if `new_trajectory_count` is ``callable``, then it takes the time of a step as input
-            and returns the count for this step as an ``int``
+        new_trajectory_count (int or callable): number of newly generated
+            trajectories; if `new_trajectory_count` is ``callable``, then it
+            takes the time of a step as input and returns the count for this
+            step as an ``int``
 
         lifetime_tau (float): trajectory lifetime constant in seconds
 
         lifetime (callable or float): trajectory lifetime in seconds;
             if `lifetime` is a ``float``, then it acts like `lifetime_tau`;
-            if `lifetime` is ``callable``, then it takes as input the initial time of
-            the trajectory
+            if `lifetime` is ``callable``, then it takes as input the initial
+            time of the trajectory
 
         single (bool): allow single-point trajectories
 
@@ -85,14 +98,15 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
 
         minor_step_count (int): number of intermediate unobserved steps
 
-        reflect (bool): reflect the minor steps that would otherwise leave the bounding box
+        reflect (bool): reflect the minor steps that would otherwise leave the
+            bounding box
 
-        full (bool): include locations that are outside the bounding box and times that are
-            posterior to `duration`
+        full (bool): include locations that are outside the bounding box and
+            times that are posterior to `duration`
 
-        count_outside_trajectories (bool): include trajectories that have left the bounding box
-            in determining the number of trajectories at each observation step;
-            **deprecated**
+        count_outside_trajectories (bool): include trajectories that have left
+            the bounding box in determining the number of trajectories at each
+            observation step; **deprecated**
 
     Returns:
 
@@ -121,6 +135,12 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         diffusivity = lambda x, t: _D
     else:
         raise ValueError('`diffusivity` must be callable or a positive float')
+    if viscosity is not None:
+        if friction is None:
+            friction = viscosity
+            warnings.warn(r"argument name 'viscosity' is misleading as it actually represents the friction divided by kT")
+        else:
+            warnings.warn(r"argument 'viscosity' is ignored")
     if force and not callable(force):
         raise TypeError('`force` must be callable')
     if drift:
@@ -130,14 +150,14 @@ def random_walk(diffusivity=None, force=None, viscosity=None, drift=None,
         else:
             drift = lambda x, t, D: _drift(x, t)
     elif force:
-        if viscosity is None:
+        if friction is None:
             drift = lambda x, t, D: D * force(x, t)
-        elif callable(viscosity):
-            drift = lambda x, t, D: force(x, t) / viscosity(x, t)
-        elif np.isscalar(viscosity) and 0 < viscosity:
-            drift = lambda x, t, D: force(x, t) / viscosity
+        elif callable(friction):
+            drift = lambda x, t, D: force(x, t) / friction(x, t)
+        elif np.isscalar(friction) and 0 < friction:
+            drift = lambda x, t, D: force(x, t) / friction
         else:
-            raise ValueError('`viscosity` must be callable or a positive float')
+            raise ValueError('`friction` must be callable or a positive float')
     else:
         drift = lambda x, t, D: 0
     #

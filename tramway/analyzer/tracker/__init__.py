@@ -116,12 +116,15 @@ class NonTrackingTracker(BaseTracker):
     def track(self, locations, register=False, source=None):
         import tramway.tracking.track_non_track.file_processing_loc as nt
         images = self._eldest_parent.images
+        extra_cols = None
         if isinstance(locations, str):
             loc_file = locations
             locations = load_xyt(loc_file, columns=list('xyt'))
         else:
             loc_file = None
+            loc = locations
             locations = locations[list('xyt')]
+            extra_cols = [ col for col in loc if col not in locations ]
 
         movie_per_frame, n_unique = nt.convert_to_list(locations.values)
         dt_theo = self.dt
@@ -218,12 +221,22 @@ class NonTrackingTracker(BaseTracker):
         trajectories = pd.DataFrame(trajectory_indices, columns=['n']).join(
                 pd.DataFrame(trajectory_coordinates, columns=list('xyt')))
 
+        if extra_cols:
+            trajectories = join_by_values(trajectories, loc, list('xyt'))
+
         if register:
             self.spt_data.add_tracked_data(trajectories, filepath=loc_file if source is None else source)
 
         return trajectories
 
 Tracker.register(NonTrackingTracker)
+
+
+def join_by_values(sample, full, join_cols):
+    assert not any([ col in full for col in sample if col not in join_cols ])
+    ret = sample.merge(full, on=join_cols, how='left', validate='1:1')
+    assert len(ret) == len(sample)
+    return ret
 
 
 class TrackerInitializer(Initializer):

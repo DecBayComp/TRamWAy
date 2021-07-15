@@ -55,6 +55,37 @@ class Mpl(AnalyzerNode):
             y -= img.loc_offset[1]
         return axes.plot(x, height-1-y, *args, **kwargs)
 
+    def roi(self, frame, origin, *args, axes=None, colormap='gray', **kwargs):
+        """
+        Plots a frame corresponding to a region of interest.
+
+        `origin` should be provided by :meth:`cropping_bounds`,
+        if `frame` is given by :meth:`crop_frames`.
+
+        Extra input arguments are passed to the :func:`imshow` function.
+
+        This method works in combination with :meth:`spt_data.mpl.Mpl.plot`.
+        """
+        m, n = frame.shape
+        px = self._parent.pixel_size
+        x0, y0 = origin[0] - .5 * px, origin[1] - .5 * px
+        x1, y1 = origin[0] + (m - .5) * px, origin[1] + (n - .5) * px
+        try:
+            colormap = kwargs.pop('cmap')
+        except KeyError:
+            pass
+        for arg in ('origin', 'extent'):
+            try:
+                kwargs.pop(arg)
+            except KeyError:
+                pass
+            else:
+                self.logger.warning(f"argument '{arg}' ignored")
+        if axes is None:
+            import matplotlib.pyplot as axes
+        return axes.imshow(frame, cmap=colormap, extent=[x0, x1, y0, y1],
+                **kwargs)
+
 
 __all__ = ['Mpl']
 

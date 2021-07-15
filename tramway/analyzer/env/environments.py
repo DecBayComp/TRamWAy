@@ -1072,7 +1072,7 @@ class Slurm(Env):
             raise
 
 
-__remote_host_attrs__ = ('_ssh','_local_data_location','_remote_data_location','_directory_mapping','_remote_dependencies')
+__remote_host_attrs__ = ('_ssh','_local_data_location','_remote_data_location','_directory_mapping')
 
 class RemoteHost(object):
     """
@@ -1119,7 +1119,6 @@ class RemoteHost(object):
         self._local_data_location = None
         self._remote_data_location = None
         self._directory_mapping = {}
-        self._remote_dependencies = None
     @property
     def ssh(self):
         """
@@ -1176,15 +1175,6 @@ class RemoteHost(object):
         Paths should not have slashes at the end.
         """
         return self._directory_mapping
-    @property
-    def remote_dependencies(self):
-        """
-        Command to be run before batch submission.
-        """
-        return self._remote_dependencies
-    @remote_dependencies.setter
-    def remote_dependencies(self, deps):
-        self._remote_dependencies = deps
     @property
     def collection_interpreter(self):
         return self.interpreter
@@ -1252,10 +1242,13 @@ class RemoteHost(object):
             self.script = dest
             self.logger.info('Python script location: '+dest)
             return True
+    @classmethod
+    def remote_dependencies(cls):
+        return None
     def exec_inline_python(self, inline_code):
         python = []
-        if self.remote_dependencies:
-            python.append(self.remote_dependencies)
+        if self.remote_dependencies():
+            python.append(self.remote_dependencies())
         python.append(self.collection_interpreter)
         python = '; '.join(python)
         return self.ssh.exec('{} -c "{}"'.format(python, inline_code.replace('"', r'\"')), shell=True, logger=self.logger)
@@ -1324,8 +1317,10 @@ print('{}'+';'.join(files))\
         attrs = self.ssh.put(local_script, remote_script, confirm=True)
         self.logger.debug(attrs)
         log_file = os.path.splitext(remote_script)[0]+'.log'
-        cmd = '{}{} {}; rm {}'.format(
-                '' if self.remote_dependencies is None else self.remote_dependencies+'; ',
+        remote_deps = self.remote_dependencies()
+        if remote_deps and not remote_deps.rstrip().endswith(';'):
+            remote_deps = remote_deps+'; '
+        cmd = '{}{} {}; rm {}'.format(remote_deps,
                 self.collection_interpreter, remote_script, remote_script)
         out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
         out, err = out.rstrip(), err.rstrip()
@@ -1489,8 +1484,8 @@ class SlurmOverSSH(Slurm, RemoteHost):
         self.logger.info('sbatch script transferred to: '+dest)
         #self.logger.info('running: module load singularity')
         #out, err = self.ssh.exec('module load singularity')
-        if self.remote_dependencies:
-            cmd = self.remote_dependencies+'; sbatch '+dest
+        if self.remote_dependencies():
+            cmd = self.remote_dependencies()+'; sbatch '+dest
         else:
             cmd = 'sbatch '+dest
         self.logger.info('running: '+cmd)
@@ -1749,7 +1744,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-210628.sif*.
+    The current default Singularity container is *tramway-hpc-210715.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -1761,9 +1756,16 @@ class SingularitySlurm(SlurmOverSSH):
     @classmethod
     def scratch(cls, username):
         raise NotImplementedError
+    @classmethod
+    def singularity_options(cls):
+        return ''
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
-        self.interpreter = 'singularity exec -H $HOME -B /pasteur tramway-hpc-210628.sif python3.6 -s'
+        singularity_options = self.singularity_options()
+        if singularity_options and singularity_options[0] != ' ':
+            singularity_options = ' '+singularity_options
+        default_container = self.default_container()
+        self.interpreter = f'singularity exec -H $HOME{singularity_options} {default_container} python3.6 -s'
         self.ssh.host = self.hostname()
     @property
     def username(self):
@@ -1807,7 +1809,11 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-210527.sif':   'http://dl.pasteur.fr/fop/7F0LaOEX/tramway-hpc-210527.sif',
                 'tramway-hpc-210608.sif':   'http://dl.pasteur.fr/fop/5LCsGe80/tramway-hpc-210608.sif',
                 'tramway-hpc-210628.sif':   'http://dl.pasteur.fr/fop/Cr969IPb/tramway-hpc-210628.sif',
+                'tramway-hpc-210715.sif':   'http://dl.pasteur.fr/fop/lzFiPalM/tramway-hpc-210715.sif',
                 }.get(container, None)
+    @classmethod
+    def default_container(cls):
+        return 'tramway-hpc-210715.sif'
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)
         if self.submit_side:
@@ -1835,9 +1841,12 @@ class Tars(SingularitySlurm):
     @classmethod
     def scratch(cls, username):
         return os.path.join('/pasteur/scratch/users', username)
-    def __init__(self, **kwargs):
-        SingularitySlurm.__init__(self, **kwargs)
-        self.remote_dependencies = 'module load singularity'
+    @classmethod
+    def singularity_options(cls):
+        return ' -B /pasteur'
+    @classmethod
+    def remote_dependencies(cls):
+        return 'module load singularity'
 
 
 class GPULab(SingularitySlurm):
@@ -1865,9 +1874,12 @@ class Maestro(SingularitySlurm):
     @classmethod
     def scratch(cls, username):
         return os.path.join('/pasteur/sonic/scratch/users', username)
-    def __init__(self, **kwargs):
-        SingularitySlurm.__init__(self, **kwargs)
-        self.remote_dependencies = 'module load singularity'
+    @classmethod
+    def singularity_options(cls):
+        return ' -B /pasteur'
+    @classmethod
+    def remote_dependencies(cls):
+        return 'module load singularity'
 
 
 __all__ = ['Environment', 'LocalHost', 'SlurmOverSSH', 'Tars', 'GPULab', 'Maestro']
