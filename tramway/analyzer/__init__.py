@@ -34,6 +34,8 @@ def proper_parent_name(attr_name):
 
 warnings.filterwarnings('error', category=SideEffectWarning)
 
+_emulate_undefined_from_callable = False
+
 
 from .attribute import *
 from .artefact  import *
@@ -472,8 +474,21 @@ class RWAnalyzer(WithLogger):
                 attr = getattr(self, attrname)
                 try:
                     attr.from_callable(obj)
-                except AttributeError:
-                    raise AttributeError('attribute is read-only')
+                except AttributeError as e:
+                    if isinstance(attr, Initializer):
+                        msg = f"shouldn't you call the value passed to attribute '{attrname}' beforehands?"
+                        if not _emulate_undefined_from_callable:
+                            raise ValueError(msg)
+                        try:
+                            setattr(self, attrname, obj() )
+                        except (KeyboardInterrupt, SystemExit):
+                            raise
+                        except:
+                            raise e
+                        else:
+                            warnings.warn(msg)
+                    else:
+                        raise AttributeError(f"attribute '{attrname}' is already initialized") from None
         else:
             parent_name, _, set_conditions = proper_parent_name(attrname)
             if parent_name is None:

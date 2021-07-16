@@ -807,6 +807,9 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         """
         Exports the data to text file.
 
+        Beware: whitespaces in the column names should be avoided with
+        ``header=True``
+
         Arguments:
 
             filepath (str or Path): output filepath.
@@ -829,6 +832,8 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
                 pass
             else:
                 self.logger.warning("ignoring argument '{}'".format(arg))
+        if header and any([ ' ' in col for col in df.columns ]):
+            self.logger.warning('whitespaces in the column names')
         df.to_csv(str(filepath), sep='\t', index=False, header=header,
                 float_format=float_format, **kwargs)
     def to_rwa_file(self, filepath, **kwargs):

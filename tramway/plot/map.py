@@ -621,8 +621,9 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
 
         markerlinewidth (float): line width of the border of the arrows
 
-        transform ('log' or callable): if `overlay` is ``False``,
-            transform applied to the amplitudes as a NumPy array
+        transform ('log', 'log10' or callable): if `overlay` is ``False``,
+            transform applied to the amplitudes as a NumPy array;
+            affects only the color-coded background map
 
         inferencemap (bool): if ``True``, the arrow length only depends on the cell size
 
@@ -652,6 +653,14 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         figure = plt.gcf()
     if axes is None:
         axes = figure.gca()
+    #
+    if transform is None:
+        transform = lambda a: a
+    elif transform == 'log':
+        transform = np.log
+    elif transform == 'log10':
+        transform = np.log10
+    #
     if overlay:
         if markercolor is None and 'color' in kwargs:
             markercolor = kwargs['color']
@@ -662,10 +671,6 @@ def field_map_2d(cells, values, angular_width=30.0, overlay=False,
         if markerlinewidth is None and 'linewidth' in kwargs:
             markerlinewidth = kwargs['linewidth']
     else:
-        if transform is None:
-            transform = lambda a: a
-        elif transform == 'log':
-            transform = np.log
         obj = scalar_map_2d(cells, transform(force_amplitude),
             figure=figure, axes=axes, **kwargs)
     if aspect is not None:

@@ -142,6 +142,13 @@ class SamplerInitializer(Initializer):
     @property
     def _sampler(self):
         return self._parent.sampler
+    @property
+    def min_location_count(self):
+        raise AttributeError("'SamplerInitializer' object has no attribute 'min_location_count'")
+    @min_location_count.setter
+    def min_location_count(self, n):
+        self.from_voronoi()
+        self._sampler.min_location_count = n
 
 
 class SphericalSampler(BaseSampler):

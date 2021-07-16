@@ -287,7 +287,10 @@ class Mpl(AnalyzerNode):
     @property
     def plotter(self):
         return PatchCollection
-    def clabel(self, feature, map_kwargs, kwargs, logscale=None):
+    @property
+    def default_log(self):
+        return 'log'
+    def clabel(self, feature, kwargs, logscale=None, map_kwargs=None):
         """
         Extracts from `kwargs` arguments related to the colorbar label
         and adds a :const:`'unit'` or :const:`clabel` argument to `map_kwargs`
@@ -296,34 +299,46 @@ class Mpl(AnalyzerNode):
         try:
             unit = kwargs.pop('unit')
         except KeyError:
-            pass
+            unit = None
         else:
             if unit == 'std':
                 if logscale is True:
-                    scale = lambda u: f'log. {u}'
+                    logscale = self.default_log
+                if logscale == 'natural':
+                    logscale = 'log'
+                if logscale:
+                    if logscale.startswith('log'):
+                        if logscale == 'log':
+                            scale = lambda u: f'$\\rm{{log}}. {u}$'
+                        else:
+                            base = logscale[3:]
+                            scale = lambda u: f'$\\rm{{log_{{{base}}}}}. {u}$'
+                    else:
+                        scale = lambda u: f'$\\rm{{{logscale}}}. {u}$'
                 else:
-                    scale = lambda u: u
+                    scale = lambda u: f'${u}$'
                 # standard units are defined at multiple locations:
                 # * tramway.plot.bokeh.analyzer.Controller.draw_map
                 # * tramway.helper.inference.map_plot
                 # * tramway.analyzer.mapper.mpl.Mpl.clabel
                 unit = dict(
-                        diffusivity=scale(r'$\mu\rm{m}^2\rm{s}^{-1}$'),
-                        potential=scale(r'$k_{\rm{B}}T$'),
-                        force=('Log. ' if logscale else '')+\
-                            r'$k_{\rm{B}}T\mu\rm{m}^{-1}$',
-                        drift=scale(r'$\mu\rm{m}\rm{s}^{-1}$'),
+                        diffusivity=scale(r'\mu\rm{m}^2\rm{s}^{-1}'),
+                        potential=scale(r'k_{\rm{B}}T'),
+                        force=scale(r'k_{\rm{B}}T\mu\rm{m}^{-1}'),
+                        drift=scale(r'\mu\rm{m}\rm{s}^{-1}'),
                     ).get(feature, None)
             if unit is not None:
+                if map_kwargs is None:
+                    map_kwargs = kwargs
                 map_kwargs['unit'] = unit
+        return unit
     def animate(self, fig, maps, feature, sampling=None,
-            overlay_locations=False, axes=None, aspect='equal', logscale=None,
+            overlay_locations=False, axes=None, aspect='equal', logscale=False,
             composable=True, **kwargs):
         """
         Animates the time-segmented inference parameters.
 
-        Vector features are represented as amplitude,
-        and especially force as log. amplitude.
+        Vector features are represented as amplitude.
 
         The `RWAnalyzer.time` attribute is accessed.
 
@@ -346,8 +361,8 @@ class Mpl(AnalyzerNode):
 
             aspect (*str* or None): aspect ratio.
 
-            logscale (bool): transform the color-coded values in natural logarithm;
-                default is :const:`False` but for force amplitude.
+            logscale (*bool* or *str*): transform the color-coded values in
+                natural logarithm; can also be 'log', 'natural' or 'log10'.
 
             composable (bool): returns an overloaded :class:`FuncAnimation`
                 object that can be passed in place of argument `fig` in later
@@ -430,27 +445,31 @@ class Mpl(AnalyzerNode):
                 if kw == 'interval' and arg in ('rt', 'realtime', 'real-time'):
                     arg = self._eldest_parent.time.window_shift * 1e3
                 anim_kwargs[kw] = arg
-        #
         maps = maps[feature]
+        #
+        if logscale is True:
+            logscale = self.default_log
+        if logscale:
+            if logscale in ('log', 'natural'):
+                log = np.log
+            elif logscale == 'log10':
+                log = np.log10
+            elif logscale:
+                raise NotImplementedError(f"logscale='{logscale}'")
+        #
         if maps.shape[1] == 2:
-            if feature == 'force':
-                if logscale is False:
-                    maps = maps.pow(2).sum(1).apply(np.sqrt)
-                else:
-                    maps = maps.pow(2).sum(1).apply(np.log)*.5
+            if logscale:
+                maps = maps.pow(2).sum(1).apply(log)*.5
             else:
-                if logscale is True:
-                    maps = maps.pow(2).sum(1).apply(np.log)*.5
-                else:
-                    maps = maps.pow(2).sum(1).apply(np.sqrt)
+                maps = maps.pow(2).sum(1).apply(np.sqrt)
         else:
             if logscale:
-                maps = maps.apply(np.log)
+                maps = maps.apply(log)
             maps = maps[feature] # to Series
         assert isinstance(maps, pd.Series)
         clim = [maps.min(), maps.max()]
         map_kwargs = dict(clim=clim, aspect=aspect)
-        self.clabel(feature, map_kwargs, kwargs, logscale)
+        self.clabel(feature, kwargs, logscale, map_kwargs)
         map_kwargs.update(kwargs)
         map_kwargs['overlay_locations'] = overlay_locations
         #
@@ -471,11 +490,14 @@ class Mpl(AnalyzerNode):
                 frames=_iter(sampling, maps, return_times=True), **anim_kwargs)
 
     def plot(self, maps, feature, sampling=None, axes=None, aspect='equal',
-            interior_contour=None, overlay_locations=False, **kwargs):
+            interior_contour=None, overlay_locations=False, logscale=None,
+            **kwargs):
         """
         Calls :func:`~tramway.helper.inference.map_plot`.
 
         May be reworked in the future to remove the :mod:`~tramway.helper` dependency.
+
+        `logscale` applies only to the color-coded background of field maps.
 
         *new in 0.5.2*:
         argument *interior_contour* is a :class`dict` with the following keys allowed:
@@ -514,6 +536,21 @@ class Mpl(AnalyzerNode):
             if overlay_locations is True:
                 overlay_locations = dict(color='r', alpha=.1)
             kwargs['point_style'] = overlay_locations
+        #
+        if logscale == 'natural':
+            logscale = 'log'
+        tr = kwargs.get('transform', None)
+        if tr:
+            if logscale:
+                raise ValueError("both `logscale` and `transform` are defined")
+            if tr in ('log', 'log10'):
+                logscale = tr
+            elif kwargs.get('unit', None) == 'std':
+                self.logger.warning("units do not account for argument 'transform'")
+        elif logscale:
+            kwargs['transform'] = logscale if isinstance(logscale, str) else self.default_log
+        self.clabel(feature, kwargs, logscale) # modifies `kwargs` inplace
+        #
         map_plot(maps, sampling, feature=feature, **kwargs)
 
         # added in 0.5.2

@@ -288,8 +288,10 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
 
     def _tessellate_and_infer(self):
 
-        if not self._eldest_parent.env.initialized:
-            save_active_branches_only = False
+        if self._eldest_parent.env.initialized:
+            _save_active_branches_only = save_active_branches_only
+        else:
+            _save_active_branches_only = False
 
         dry_run = True
 
@@ -302,7 +304,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
             # for data formatting
             any_full_region = False
 
-            if save_active_branches_only:
+            if _save_active_branches_only:
                 active_labels = defaultdict(set)
 
             # new in 0.6
@@ -390,10 +392,10 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         maps     = commit_as_analysis(map_label, maps, parent=sampling)
                         #
                         assert tree.modified(recursive=True)
-                        if save_active_branches_only:
+                        if _save_active_branches_only:
                             active_labels[label].add(map_label)
 
-                if save_active_branches_only:
+                if _save_active_branches_only:
                     for label0 in list(tree.labels):
                         if label0 in active_labels:
                             for label1 in list(tree[label0].labels):
