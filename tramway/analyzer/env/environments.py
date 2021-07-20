@@ -1797,7 +1797,7 @@ class SingularitySlurm(SlurmOverSSH):
         if container is None:
             container = self.container
         return {
-                'tramway-hpc-200928.sif':   'http://dl.pasteur.fr/fop/VsJygkxP/tramway-hpc-200928.sif',
+                'tramway-hpc-200928.sif':   'http://dl.pasteur.fr/fop/0G0Tnjd8/tramway-hpc-200928.sif',
                 'tramway-hpc-210112.sif':   'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif',
                 'tramway-hpc-210114.sif':   'http://dl.pasteur.fr/fop/cZWZqsDW/tramway-hpc-210114.sif',
                 'tramway-hpc-210125.sif':   'http://dl.pasteur.fr/fop/6Avu9HuV/tramway-hpc-210125.sif',

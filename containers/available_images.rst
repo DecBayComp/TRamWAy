@@ -1,44 +1,13 @@
 Available singularity images are:
 
-* `tramway-hpc-200928.sif <http://dl.pasteur.fr/fop/VsJYgkxP/tramway-hpc-200928.sif>`_
+* `tramway-hpc-210720.sif <http://dl.pasteur.fr/fop/rb4blYsf/tramway-hpc-210720.sif>`_
 
-  minimal TRamWAy installation with target *roi* plus *tqdm*, *paramiko* and *scikit-learn*.
-  Python is available as *python3.6* and the run command admits option *-s* to be passed to Python,
-  resulting in command ``python3.6 -s -m tramway $@``.
-  Available until 2021-03-12.
-
-* `tramway-hpc-210125.sif <http://dl.pasteur.fr/fop/6Avu9HuV/tramway-hpc-210125.sif>`_
-
-  similar to tramway-hpc-200928.sif with *tramway0.5* and additional dependency *stopit*.
-  Available until 2021-03-12.
-
-* `tramway-hpc-210201.sif <http://dl.pasteur.fr/fop/MSRwa8CR/tramway-hpc-210201.sif>`_
-
-  *tramway0.5.1* image with target *roi* and *animate*, plus a few optional dependencies
-  including *paramiko*, *scikit-learn* and *stopit*.
+  *tramway0.6* image with target *roi* and *animate* similar to previous images.
   Python is available as *python3.6* and the run command admits option *-s*, passed to Python,
   resulting in command ``python3.6 -s -m tramway $@``.
-
-* `tramway-hpc-210222.sif <http://dl.pasteur.fr/fop/rzx2LnjB/tramway-hpc-210222.sif>`_
-
-  pre-*tramway0.5.2* image with target *roi* and *animate*, plus a few optional dependencies
-  including *paramiko*, *scikit-learn* and *stopit*.
-  Python is available as *python3.6* and the run command admits option *-s*, passed to Python,
-  resulting in command ``python3.6 -s -m tramway $@``.
-
-* `tramway-hpc-210302.sif <http://dl.pasteur.fr/fop/53bfSkmM/tramway-hpc-210302.sif>`_
-
-  *tramway0.5.2* image with target *roi* and *animate*, plus a few optional dependencies
-  including *paramiko*, *scikit-learn* and *stopit*.
-  Python is available as *python3.6* and the run command admits option *-s*, passed to Python,
-  resulting in command ``python3.6 -s -m tramway $@``.
-
-* `tramway-hpc-210720.sif <>`_
-
-  *tramway0.6* image similar to previous images.
   The included Python dependencies are the following:
 
-  ```
+```
 bcrypt==3.2.0
 cached-property==1.5.2
 cffi==1.14.6
@@ -76,4 +45,4 @@ stopit==1.1.2
 threadpoolctl==2.2.0
 tifffile==2020.9.3
 tqdm==4.61.2
-  ```
+```

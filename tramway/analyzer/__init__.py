@@ -160,7 +160,33 @@ class RWAnalyzer(WithLogger):
     :attr:`~tramway.analyzer.RWAnalyzer.spt_data`) and then,
     once any such initializer method is called,
     they specialize into a new attribute and exhibit specific attributes depending
-    on the chosen initializer.
+    on the chosen initializer:
+
+    .. code-block:: python
+
+        from tramway.analyzer import *
+        a = RWAnalyzer()
+        a.spt_data.from_ascii_files('my_data_repository/*.txt')
+
+    The more conventional assignment form is also available using functions
+    of modules exported by the ``tramway.analyzer`` subpackage.
+    These modules are named following the attribute they are dedicated to:
+
+    .. code-block:: python
+
+        a = RWAnalyzer()
+        a.spt_data = spt_data.from_ascii_files('my_data_repository/*.txt')
+
+    In most cases, a third form is also available, with a class constructor:
+
+    .. code-block:: python
+
+        a = RWAnalyzer()
+        a.spt_data = spt_data.SPTAsciiFiles('my_data_repository/*.txt')
+
+    Anyway, most of the attributes of an :class:`RWAnalyzer` object
+    are properties that perform various checks and may raise exceptions
+    if misused.
 
     Specialized attributes can also exhibit self-morphing attributes.
     For example, regions of interest can be defined globally using the main
@@ -190,9 +216,16 @@ class RWAnalyzer(WithLogger):
 
     .. code-block:: python
 
-        for roi in a.roi.as_support_regions():
-            roi_spt_data = roi.crop()
+        for r in a.roi:
+            roi_spt_data = r.crop()
 
+    The ROI object is denoted ``r`` here.
+    Name ``roi`` already exists if the :mod:`~tramway.analyzer` module is
+    imported with ``from tramway.analyzer import *``.
+    In this case, ``roi`` points to the :mod:`~tramway.analyzer.roi` module.
+
+    Note there exists multiple iterators for the collections of ROI.
+    In the further examples of iterated ROI, the preferred iterator is made explicit.
     See the documentation for the :attr:`~tramway.analyzer.RWAnalyzer.roi` attribute
     for more information about the available iterators.
 
@@ -209,8 +242,8 @@ class RWAnalyzer(WithLogger):
     .. code-block:: python
 
         a.tesseller.from_plugin('kmeans')
-        for roi in a.roi.as_support_regions():
-            roi_spt_data = roi.crop()
+        for r in a.roi.as_support_regions():
+            roi_spt_data = r.crop()
             tessellation = a.tesseller.tessellate(roi_spt_data)
 
     Similarly, the :attr:`~tramway.analyzer.RWAnalyzer.images` attribute defines data location,
@@ -228,9 +261,11 @@ class RWAnalyzer(WithLogger):
 
     Last but not least, the :class:`RWAnalyzer` features plotting utilities.
     Some of them are available through the *mpl* sub-attribute of some
-    main :class:`RWAnalyzer` attributes or items
-    (for example :attr:`~.images._RawImage.mpl`, :attr:`~.spt_data._SPTDataFrame.mpl`,
-    :attr:`~.tesseller.TessellerInitializer.mpl`, :attr:`~.mapper.MapperInitializer.mpl`).
+    main :class:`RWAnalyzer` attributes or items,
+    for example :attr:`images.mpl` (:class:`~.images.mpl.Mpl`),
+    :attr:`spt_data.mpl` (:class:`~.spt_data.mpl.Mpl`),
+    :attr:`tesseller.mpl` (:class:`~.tesseller.mpl.Mpl`),
+    :attr:`mapper.mpl` (:class:`~.mapper.mpl.Mpl`).
     In addition, the :attr:`~tramway.analyzer.RWAnalyzer.browser` attribute
     can plot the inferred parameter maps from a Jupyter notebook,
     or calling the ``bokeh serve`` command:

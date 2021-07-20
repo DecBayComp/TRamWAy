@@ -13,6 +13,11 @@ try:
 except ImportError: # torch
     pass
 
+"""
+Using this module or subpackage is strongly discouraged,
+as this code does not properly implement all of the featured measurements.
+"""
+
 import warnings
 _msg = '''\
 using the tramway.feature.single_traj module is strongly discouraged,
