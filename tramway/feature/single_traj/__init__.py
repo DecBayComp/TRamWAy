@@ -12,3 +12,10 @@ try:
     from .utils_supervised import *
 except ImportError: # torch
     pass
+
+import warnings
+_msg = '''\
+using the tramway.feature.single_traj module is strongly discouraged,
+as this code does not properly implement all of the featured measurements\
+'''
+warnings.warn(_msg, FutureWarning)

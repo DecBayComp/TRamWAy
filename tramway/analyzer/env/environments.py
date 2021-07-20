@@ -1810,6 +1810,7 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-210608.sif':   'http://dl.pasteur.fr/fop/5LCsGe80/tramway-hpc-210608.sif',
                 'tramway-hpc-210628.sif':   'http://dl.pasteur.fr/fop/Cr969IPb/tramway-hpc-210628.sif',
                 'tramway-hpc-210715.sif':   'http://dl.pasteur.fr/fop/lzFiPalM/tramway-hpc-210715.sif',
+                'tramway-hpc-210720.sif':   'http://dl.pasteur.fr/fop/rb4blYsf/tramway-hpc-210720.sif',
                 }.get(container, None)
     @classmethod
     def default_container(cls):
@@ -1840,7 +1841,7 @@ class Tars(SingularitySlurm):
         return 'tars.pasteur.fr'
     @classmethod
     def scratch(cls, username):
-        return os.path.join('/pasteur/scratch/users', username)
+        return '/'.join(('/pasteur/scratch/users', username))
     @classmethod
     def singularity_options(cls):
         return ' -B /pasteur'
@@ -1858,7 +1859,7 @@ class GPULab(SingularitySlurm):
         return 'adm.inception.hubbioit.pasteur.fr'
     @classmethod
     def scratch(cls, username):
-        return os.path.join('/master/home', username, 'scratch')
+        return '/'.join(('/master/home', username, 'scratch'))
     def __init__(self, **kwargs):
         SingularitySlurm.__init__(self, **kwargs)
         self.interpreter = self.interpreter.replace('-B /pasteur ', '')
@@ -1873,7 +1874,7 @@ class Maestro(SingularitySlurm):
         return 'maestro.pasteur.fr'
     @classmethod
     def scratch(cls, username):
-        return os.path.join('/pasteur/sonic/scratch/users', username)
+        return '/'.join(('/pasteur/sonic/scratch/users', username))
     @classmethod
     def singularity_options(cls):
         return ' -B /pasteur'
