@@ -7,7 +7,7 @@ Available singularity images are:
   resulting in command ``python3.6 -s -m tramway $@``.
   The included Python dependencies are the following:
 
-```
+``
 bcrypt==3.2.0
 cached-property==1.5.2
 cffi==1.14.6
@@ -45,4 +45,4 @@ stopit==1.1.2
 threadpoolctl==2.2.0
 tifffile==2020.9.3
 tqdm==4.61.2
-```
+``
