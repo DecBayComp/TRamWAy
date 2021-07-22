@@ -1244,7 +1244,7 @@ class RemoteHost(object):
             return True
     @classmethod
     def remote_dependencies(cls):
-        return None
+        return ''
     def exec_inline_python(self, inline_code):
         python = []
         if self.remote_dependencies():
@@ -1814,7 +1814,7 @@ class SingularitySlurm(SlurmOverSSH):
                 }.get(container, None)
     @classmethod
     def default_container(cls):
-        return 'tramway-hpc-210715.sif'
+        return 'tramway-hpc-210720.sif'
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)
         if self.submit_side:

@@ -140,6 +140,15 @@ class _RawImage(AnalyzerNode, ImageParameters):
         Pixels are assumed to be centered on their indices in the array,
         when plotted.
 
+        .. note::
+
+            `cropping_bounds` is supposed to work well in combination with
+            `crop_frames`.
+            However, a notable exception is out-of-bounds indices.
+            `crop_frames` adjusts the size of the pixel matrix wrt the image,
+            while `cropping_bounds` does not min-max the returned indices wrt
+            the natural bounds of the image.
+
         Arguments:
 
             bounding_box (tuple): pair of ndarrays (lower bound, upper bound).
@@ -164,6 +173,10 @@ class _RawImage(AnalyzerNode, ImageParameters):
         Generator function; iterates and crops the image frames, similarly to
         :meth:`as_frames`.
 
+        .. note::
+
+            Time bounds are not supported yet.
+
         Arguments:
 
             bounding_box (tuple): pair of NumPy arrays (lower bound, upper bound).
@@ -172,10 +185,6 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 frame filter; see also :func:`~tramway.analyzer.attribute.indexer`.
 
             return_time (bool): return time along with cropped image frames, as first item.
-
-        .. note::
-
-            Time bounds are not supported yet.
 
         """
         lb, ub = bounding_box
@@ -241,7 +250,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
             linecolor (*str* or 3-column float array): color for trajectories;
                 value :const:`None` defaults to red.
 
-            linewidth (int or float): trajectory line width
+            linewidth (*int* or *float*): trajectory line width.
 
             magnification (*int* or *str*): the original image pixels can be represented as
                 square-patches of `magnification` video pixel side;
