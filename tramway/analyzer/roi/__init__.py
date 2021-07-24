@@ -121,14 +121,17 @@ class SupportRegion(BaseRegion):
     """
     Union of overlapping ROI.
     """
-    __slots__ = ('_sr_index','_support_regions')
+    __slots__ = ('_sr_index','_all_roi')
     def __init__(self, r, regions, spt_data, **kwargs):
         BaseRegion.__init__(self,
                 spt_data,
-                r if isinstance(r, str) else regions.region_label(r),
+                r if isinstance(r, str) else regions.regions.region_label(r),
                 **kwargs)
         self._sr_index = r
-        self._support_regions = regions
+        self._all_roi = regions
+    @property
+    def _support_regions(self):
+        return self._all_roi.regions
     def crop(self, df=None):
         if df is None:
             df = self._spt_data.dataframe
@@ -150,6 +153,41 @@ class SupportRegion(BaseRegion):
         :meth:`~tramway.analyzer.images.Images.crop_frames` method.
         """
         yield from BoundingBox.crop_frames(self, **kwargs)
+    def add_metadata(self, sampling, inplace=False):
+        """
+        Modifies `sampling` or returns a modified copy of `sampling`.
+
+        In both cases, returns the resulting :class:`Partition` object.
+        """
+        if not inplace:
+            import copy
+            sampling = copy.copy(sampling)
+            sampling.param = copy.copy(sampling.param)
+        metadata = dict(
+                label=self.label,
+                bounding_box=self._all_roi.bounding_boxes(self._sr_index),
+                )
+        try:
+            self._parent.add_metadata(metadata)
+        except AttributeError:
+            pass
+        try:
+            sampling.param['roi'].update(metadata)
+        except KeyError:
+            sampling.param['roi'] = metadata
+        return sampling
+    def add_sampling(self, sampling, label=None, comment=None, metadata='inplace'):
+        """
+        If ``metadata=='inplace'`` (default), `sampling` is modified to store
+        ROI-related information.
+
+        Pass ``metadata=True`` instead to store a copy of `sampling` in the
+        analysis tree.
+        Note however that `sampling` is copied only if modified.
+        """
+        if metadata:
+            sampling = self.add_metadata(sampling, metadata == 'inplace')
+        super().add_sampling(sampling, label, comment)
 
 class FullRegion(BaseRegion):
     """
@@ -565,7 +603,7 @@ class SpecializedROI(AnalyzerNode):
                 warnings.warn('ignoring argument `source`', helper.IgnoredInputWarning)
             spt_data = self._parent
             for r, _ in indexer(index, self._collections.regions, has_keys=True, return_index=True):
-                yield bear_child( SupportRegion, r, self._collections.regions, spt_data )
+                yield bear_child( SupportRegion, r, self._collections, spt_data )
         else:
             # roi manager (one set of regions, multiple sources)
             if isinstance(spt_data, Initializer):
@@ -573,7 +611,7 @@ class SpecializedROI(AnalyzerNode):
             if source is None:
                 for d in spt_data:
                     for r, _ in indexer(index, self._collections.regions, has_keys=True, return_index=True):
-                        yield bear_child( SupportRegion, r, self._collections.regions, d )
+                        yield bear_child( SupportRegion, r, self._collections, d )
             else:
                 if callable(source):
                     sfilter = source
@@ -582,7 +620,7 @@ class SpecializedROI(AnalyzerNode):
                 for d in spt_data:
                     if sfilter(d.source):
                         for r, _ in indexer(index, self._collections.regions, has_keys=True, return_index=True):
-                            yield bear_child( SupportRegion, r, self._collections.regions, d )
+                            yield bear_child( SupportRegion, r, self._collections, d )
     as_support_regions.__doc__ = ROI.as_support_regions.__doc__
     def __iter__(self):
         if self.group_overlapping_roi is False:

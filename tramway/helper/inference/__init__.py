@@ -17,16 +17,18 @@ from tramway.core.hdf5 import *
 from tramway.core.exceptions import SideEffectWarning
 import tramway.core.analyses.abc as abc
 from tramway.inference import *
-from .base import *
+from ..base import *
 import tramway.inference as inference # inference.plugins
 import tramway.tessellation.time
 import tramway.inference.time
 from tramway.helper.tessellation import *
 from warnings import warn
-import os
+import os.path
 import time
 import collections
 import traceback
+from .old import *
+_clip
 # no module-wide matplotlib import for head-less usage of `infer`
 # in the case matplotlib's backend is interactive
 
@@ -773,7 +775,7 @@ def infer0(cells, mode='D', output_file=None, partition={}, verbose=False, \
         return x
 
 
-def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
+def map_plot1(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     figsize=None, dpi=None, aspect=None, show=None, verbose=False, \
     alpha=None, point_style=None, feature=None, variable=None, segment=None, \
     label=None, input_label=None, mode=None, title=True, inferencemap=False, \
@@ -857,6 +859,8 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
     parameters.
 
     """
+    # transitional function; may diverge from map_plot0
+
     # get cells and maps objects from the first input argument
     input_file = None
     if isinstance(maps, tuple):
@@ -1282,56 +1286,6 @@ def map_plot(maps, cells=None, clip=None, output_file=None, fig_format=None, \
         return figs
 
 
-def _clip(m, q):
-    if q <= 0:
-        return m
-    amplitude = m.pow(2)
-    if m.shape[1:]:
-        amplitude = amplitude.sum(1)
-        columns = m.columns
-    amplitude = amplitude.apply(np.sqrt)
-    if q < 1:
-        amax = amplitude.quantile(q)
-    else:
-        amax = amplitude.quantile(.5) + q * (amplitude.quantile(.75) - amplitude.quantile(.25))
-        amax = amplitude[amplitude<=amax].max()
-    amplitude = amplitude.values
-    exceed = amplitude > amax
-    factor = amax / amplitude[exceed]
-    M, index, m = type(m), m.index, np.array(m.values)
-    if m.shape[1:]:
-        m[exceed, :] = m[exceed, :] * factor[:, np.newaxis]
-        m = M(m, columns=columns, index=index)
-    else:
-        m[exceed] = m[exceed] * factor
-        m = M(m, index=index)
-    return m
-
-
-def box_crop(maps, bounding_box, tessellation):
-    centers = tessellation.cell_centers[maps.index]
-    try:
-        vertices = tessellation.vertices
-    except (KeyboardInterrupt, SystemExit):
-        raise
-    except:
-        vertices = None
-    dims = columns(tessellation.descriptors(bounding_box))
-    for col, dim in enumerate(dims):
-        lower, upper = bounding_box[dim]
-        _in = (lower <= centers[:,col]) & (centers[:,col] <= upper)
-        if vertices is not None:
-            _v_in = (lower <= vertices[:,col]) & (vertices[:,col] <= upper)
-            for i, j in enumerate(maps.index):
-                if _in[i]:
-                    continue
-                vs = tessellation.cell_vertices[j]
-                _in[i] = np.any(_v_in[vs])
-        if col == 0:
-            inside = _in
-        else:
-            inside &= _in
-    return maps[inside]
-
 infer = infer1
+map_plot = map_plot1
 

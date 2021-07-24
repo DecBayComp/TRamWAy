@@ -316,6 +316,9 @@ class Proxy(object):
     def _parent(self, par):
         self._proxied._parent = par
     def __getattr__(self, attrname):
+        if attrname == '_proxied':
+            # prevent copy.copy from entering infinite recursion
+            return
         return getattr(self._proxied, attrname)
     def __setattr__(self, attrname, val):
         if attrname == '_proxied':

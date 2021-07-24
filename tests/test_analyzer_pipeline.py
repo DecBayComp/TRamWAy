@@ -224,6 +224,91 @@ a.env.script = __file__
 """)
     #
 
+
+def run_script2(tmpdir, dynamicmesh, env='', options='', overwrite=False, script1_ran_before=True):
+    tmpdir = tmpdir.strpath
+    fd, script_name = tempfile.mkstemp(suffix='.py', dir=tmpdir)
+    os.close(fd)
+
+    def script(env='', options=''):
+        #
+        return """\
+from tramway.analyzer import *
+from tramway.analyzer import BasicLogger
+import tempfile
+import os
+import numpy
+import pandas
+a=RWAnalyzer()
+logger = a.logger
+a._logger = BasicLogger() # let subprocess.check_output catch the log output
+assert os.path.isfile(os.path.expanduser('{input}'))
+a.spt_data.from_ascii_file('{input}')
+a.spt_data.localization_precision = 1e-4
+roi = [[.2,-.1],[-.3,.3],[0.,.1],[-.2,-0.]]
+a.roi.from_squares(numpy.array(roi), .2, group_overlapping_roi=True)
+assert len(list(a.roi.as_support_regions()))==2
+a.tesseller = tessellers.Hexagons
+a.time.from_sliding_window(30)
+def infer(cells):
+    i, n = zip(*[ (cell.index, len(cell)) for cell in cells.values() ])
+    return pandas.DataFrame(dict(n=list(n)), index=list(i))
+a.mapper.from_plugin(infer)
+{env}
+def fresh_start(self):
+    for f in self.spt_data:
+        try:
+            os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
+        except FileNotFoundError:
+            pass
+a.pipeline.append_stage(stages.tessellate_and_infer(map_label='n', overwrite={overwrite}))
+""".format(input=dynamicmesh.replace('\\','/'), env=env, options=options,
+        overwrite=overwrite)
+        #
+
+    #
+    test = """
+a.spt_data.reload_from_rwa_files()
+a.logger.info(str(a.spt_data.analyses))
+"""
+    #
+    env = env + """
+a.env.worker_count = 4
+a.env.script = __file__
+"""
+    #
+
+    with open(script_name, 'w') as f:
+        f.write(script(env))
+        f.write('a.run()\n')
+    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=120)
+    logger.info(out)
+    with open(script_name, 'w') as f:
+        f.write(script())
+        f.write(test)
+    out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=60)
+    logger.info(out)
+
+    #
+    if script1_ran_before:
+        assert out.endswith("""\
+<class 'pandas.core.frame.DataFrame'>
+	'gwr' <class 'tramway.tessellation.base.Partition'>
+		'traj. features' <class 'tramway.inference.base.Maps'>
+	'roi000-002-003' <class 'tramway.tessellation.base.Partition'>
+		'n' <class 'tramway.inference.base.Maps'>
+	'roi001' <class 'tramway.tessellation.base.Partition'>
+		'n' <class 'tramway.inference.base.Maps'>
+""")
+    else:
+        assert out.endswith("""\
+<class 'pandas.core.frame.DataFrame'>
+	'roi000-002-003' <class 'tramway.tessellation.base.Partition'>
+		'n' <class 'tramway.inference.base.Maps'>
+	'roi001' <class 'tramway.tessellation.base.Partition'>
+		'n' <class 'tramway.inference.base.Maps'>
+""")
+
 class TestPipeline(object):
 
     def test_LocalHost0(self, tmpdir, dynamicmesh):
@@ -295,4 +380,39 @@ a.env.sbatch_options.update(dict(p='dbc'))\
         #
         input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
         run_script1(tmpdir, input_file, env)
+
+    def test_LocalHost2(self, tmpdir, dynamicmesh):
+        env = "a.env = environments.LocalHost"
+        run_script2(tmpdir, dynamicmesh, env)
+
+    def test_Maestro2(self, tmpdir, dynamicmesh):
+        with open(os.path.join(os.path.dirname(__file__), 'maestro.credentials'), 'r') as f:
+            username = f.readline().rstrip()
+            password = f.readline().rstrip()
+        #
+        env = """\
+a.env = environments.Maestro
+a.env.username = '{username}'
+a.env.ssh._password = '{password}'
+#a.env.sbatch_options.update(dict(p='dbc'))\
+""".format(username=username, password=password)
+        #
+        input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
+        input_file = '~/github/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
+        run_script2(tmpdir, input_file, env)
+
+    def test_GPULab2(self, tmpdir, dynamicmesh):
+        with open(os.path.join(os.path.dirname(__file__), 'gpulab.credentials'), 'r') as f:
+            username = f.readline().rstrip()
+            password = f.readline().rstrip()
+        #
+        env = """\
+a.env = environments.GPULab
+a.env.username = '{username}'
+a.env.ssh._password = '{password}'
+a.env.sbatch_options.update(dict(p='dbc'))\
+""".format(username=username, password=password)
+        #
+        input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
+        run_script2(tmpdir, input_file, env)
 

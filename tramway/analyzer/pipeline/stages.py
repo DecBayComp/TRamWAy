@@ -4,7 +4,7 @@ Standard analysis steps for RWAnalyzer.pipeline
 """
 
 from ..roi import FullRegion
-from ..spt_data import _RWAFile
+from ..spt_data import _RWAFile, StandaloneDataItem, RWAFiles
 from . import PipelineStage
 from ..attribute import single
 from ..artefact import commit_as_analysis
@@ -283,8 +283,11 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
 
     save_active_branches_only = not (overwrite or map_label is None)
 
-    if load_rwa_files is None and overwrite:
-        load_rwa_files = False
+    if overwrite:
+        if load_rwa_files is None:
+            load_rwa_files = False
+        elif load_rwa_files is True:
+            raise ValueError('overwrite and load_rwa_files are both True')
 
     def _tessellate_and_infer(self):
 
@@ -294,6 +297,19 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
             _save_active_branches_only = False
 
         dry_run = True
+
+        # added in 0.6.1; useful only without environment?
+        if not (load_rwa_files is False or \
+                isinstance(self.spt_data, (StandaloneDataItem, RWAFiles))):
+            _load_rwa_files = load_rwa_files
+            if load_rwa_files is None:
+                for f in self.spt_data:
+                    if f.source:
+                        rwa_file = os.path.splitext(f.source)[0]+'.rwa'
+                        _load_rwa_files = os.path.isfile(rwa_file)
+                    break
+            if _load_rwa_files:
+                self.spt_data.reload_from_rwa_files(skip_missing=True)
 
         for f in self.spt_data:
 
@@ -307,7 +323,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
             if _save_active_branches_only:
                 active_labels = defaultdict(set)
 
-            # new in 0.6
+            # new in 0.6; actually works only with StandaloneDataItem
             if not (load_rwa_files is False or isinstance(f, _RWAFile)):
                 try:
                     rwa_file = os.path.splitext(f.source)[0]+'.rwa'
@@ -316,7 +332,12 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                 else:
                     if os.path.isfile(os.path.expanduser(rwa_file)):
                         logger.info(f"loading .rwa file for source: {source_name}...")
-                        f = f.reload_from_rwa_files()
+                        try:
+                            f = f.reload_from_rwa_files()
+                        except AttributeError as e:
+                            if e.args[0].endswith("'reload_from_rwa_files'"):
+                                logger.warning('existing .rwa file found; none of `overwrite` or `load_rwa_files` is True')
+                            raise
 
             with f.autosaving() as tree:
 
@@ -383,6 +404,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                             sampling.tessellation.freeze()
                         except AttributeError:
                             pass
+                        r.add_metadata(sampling, inplace=True)
                         sampling = commit_as_analysis(label, sampling, parent=r)
                         #
                     elif _infer:

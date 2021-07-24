@@ -535,10 +535,12 @@ class Env(AnalyzerNode):
                 continue
             try:
                 source = __analyses.metadata['datafile']
+                if source is None:
+                    raise KeyError
             except KeyError:
                 logger.debug(str(__analyses))
                 logger.debug('metadata: ',__analyses.metadata)
-                logger.critical('key `datafile` not found in the metadata')
+                logger.critical('key `datafile` undefined in metadata')
                 #analyses = {}; break
                 continue
             try:
@@ -599,6 +601,7 @@ class Env(AnalyzerNode):
 
             # flush the combined data
             if original_files[source][1:]:
+                assert analyses[source] is not None
                 try:
                     Analysis.save(os.path.expanduser(rwa_file), analyses[source], force=True,
                             rebase=reload_existing_rwa_files)
@@ -616,7 +619,8 @@ class Env(AnalyzerNode):
                             rebase=reload_existing_rwa_files)
                     rwa_file = (remote_rwa_file, local_rwa_file)
             elif not inplace:
-                analyses[source]._data.store.close() # close the file descriptor
+                if analyses[source]._data is not None:
+                    analyses[source]._data.store.close() # close the file descriptor
                 original_file = original_files[source][0]
                 # copy original_file to rwa_file
                 try:
@@ -1744,7 +1748,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-210715.sif*.
+    The current default Singularity container is *tramway-hpc-210722.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -1811,10 +1815,11 @@ class SingularitySlurm(SlurmOverSSH):
                 'tramway-hpc-210628.sif':   'http://dl.pasteur.fr/fop/Cr969IPb/tramway-hpc-210628.sif',
                 'tramway-hpc-210715.sif':   'http://dl.pasteur.fr/fop/lzFiPalM/tramway-hpc-210715.sif',
                 'tramway-hpc-210720.sif':   'http://dl.pasteur.fr/fop/rb4blYsf/tramway-hpc-210720.sif',
+                'tramway-hpc-210722.sif':   'http://dl.pasteur.fr/fop/kxCZAcy0/tramway-hpc-210722.sif',
                 }.get(container, None)
     @classmethod
     def default_container(cls):
-        return 'tramway-hpc-210720.sif'
+        return 'tramway-hpc-210722.sif'
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)
         if self.submit_side:

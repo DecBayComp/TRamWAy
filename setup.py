@@ -61,6 +61,7 @@ setup(
         'tramway.plot.bokeh',
         'tramway.plot.tk',
         'tramway.helper',
+        'tramway.helper.inference',
         'tramway.helper.simulation',
         'tramway.utils',
         'tramway.analyzer',
