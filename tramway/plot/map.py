@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2017-2020, Institut Pasteur
+# Copyright © 2017-2021, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -131,7 +131,68 @@ def cell_to_polygon(c, X, voronoi=None, bounding_box=None, region_point=None, re
         return vertices
 
 
+def cell_to_polygon_(i, vertices, cell_vertices, Av, xlim=None, ylim=None,
+        try_fix_corners=True):
+    ret = []
+    vs = cell_vertices[i].tolist()
+    # order the vertices so that they draw a polygon
+    v0 = v = vs[0]
+    vs = set(vs)
+    _vertices = []
+    #vvs = [] # debug
+    while True:
+        _vertices.append(vertices[v])
+        #vvs.append(v)
+        vs.remove(v)
+        if not vs:
+            break
+        ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
+        if not ws:
+            ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
+            if ws:
+                _vertices = _vertices[::-1]
+            else:
+                #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
+                warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
+                if try_fix_corners:
+                    vs = vertices[cell_vertices[i]]
+                    if len(vs) != 3:
+                        _min = vs.min(axis=0) == np.r_[xlim[0],ylim[0]]
+                        _max = vs.max(axis=0) == np.r_[xlim[1],ylim[1]]
+                        if _min[0]:
+                            vx = v0x = xlim[0]
+                            v1x = vs[:,0].max()
+                        elif _max[0]:
+                            vx = v0x = xlim[1]
+                            v1x = vs[:,0].min()
+                        else:
+                            vx = None
+                        if _min[1]:
+                            vy = v1y = ylim[0]
+                            v0y = vs[:,1].max()
+                        elif _max[1]:
+                            vy = v1y = ylim[1]
+                            v0y = vs[:,1].min()
+                        else:
+                            vy = None
+                        if vx is None or vy is None:
+                            vs = None
+                        else:
+                            vs = np.array([[v0x,v0y],[vx,vy],[v1x,v1y]])
+                    if vs is not None:
+                        ret.append((i, vs))
+                break
+        v = ws.pop()
+    #
+    if _vertices:
+        _vertices = np.vstack(_vertices)
+        ret.append((i, _vertices))
+    #
+    return ret
+
+
 def box_voronoi_2d(tessellation, xlim, ylim):
+    # TODO: turn AssertionErrors into proper runtime errors
     not_a_vertex = -1
     points = tessellation.cell_centers
     vertices0 = tessellation.vertices
@@ -415,61 +476,11 @@ def scalar_map_2d(cells, values, aspect=None, clim=None, figure=None, axes=None,
         ok[np.logical_not(map_defined)] = False
         ok[ok] = np.logical_not(np.isnan(values.loc[ix[ok]].values))
         for i in ix[ok]:
-            vs = cell_vertices[i].tolist()
-            # order the vertices so that they draw a polygon
-            v0 = v = vs[0]
-            vs = set(vs)
-            _vertices = []
-            #vvs = [] # debug
-            while True:
-                _vertices.append(vertices[v])
-                #vvs.append(v)
-                vs.remove(v)
-                if not vs:
-                    break
-                ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
-                if not ws:
-                    ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
-                    if ws:
-                        _vertices = _vertices[::-1]
-                    else:
-                        #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
-                        warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
-                        if try_fix_corners:
-                            vs = vertices[cell_vertices[i]]
-                            if len(vs) != 3:
-                                _min = vs.min(axis=0) == np.r_[xlim[0],ylim[0]]
-                                _max = vs.max(axis=0) == np.r_[xlim[1],ylim[1]]
-                                if _min[0]:
-                                    vx = v0x = xlim[0]
-                                    v1x = vs[:,0].max()
-                                elif _max[0]:
-                                    vx = v0x = xlim[1]
-                                    v1x = vs[:,0].min()
-                                else:
-                                    vx = None
-                                if _min[1]:
-                                    vy = v1y = ylim[0]
-                                    v0y = vs[:,1].max()
-                                elif _max[1]:
-                                    vy = v1y = ylim[1]
-                                    v0y = vs[:,1].min()
-                                else:
-                                    vy = None
-                                if vx is None or vy is None:
-                                    vs = None
-                                else:
-                                    vs = np.array([[v0x,v0y],[vx,vy],[v1x,v1y]])
-                            if vs is not None:
-                                polygons.append(Polygon(vs, True))
-                                ids.append(i)
-                        break
-                v = ws.pop()
-            #
-            if _vertices:
-                _vertices = np.vstack(_vertices)
-                polygons.append(Polygon(_vertices, True))
-                ids.append(i)
+            extra_polygons = cell_to_polygon_(i, vertices, cell_vertices, Av,
+                    xlim, ylim, try_fix_corners)
+            for extra_ix, extra_vs in extra_polygons:
+                ids.append(extra_ix)
+                polygons.append(Polygon(extra_vs, True))
     else:
         _type = repr(type(cells))
         if _type.endswith("'>"):
@@ -932,5 +943,6 @@ def scalar_map_3d(cells, values, aspect=None, clim=None, figure=None, axes=None,
 
 
 
-__all__ = ['cell_to_polygon', 'scalar_map_2d', 'field_map_2d', 'scalar_map_3d']
+__all__ = ['cell_to_polygon', 'cell_to_polygon_', 'box_voronoi_2d',
+        'scalar_map_2d', 'field_map_2d', 'scalar_map_3d']
 
