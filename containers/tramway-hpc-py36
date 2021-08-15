@@ -1,0 +1,85 @@
+Bootstrap: docker
+From: ubuntu:xenial
+
+%help
+TRamWAy is available in the python3.6 environment:
+    python3.6 -m tramway
+The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
+
+%setup
+
+    #echo "fr_FR.UTF-8 UTF-8" > ${SINGULARITY_ROOTFS}/etc/locale.gen
+    echo "en_GB.UTF-8 UTF-8" > ${SINGULARITY_ROOTFS}/etc/locale.gen
+    if ! [ -f ${SINGULARITY_ROOTFS}/root/get-pip.py ]; then
+        wget -P ${SINGULARITY_ROOTFS}/root/ -- https://bootstrap.pypa.io/get-pip.py
+    fi
+
+    # TRamWAy can be installed in any of the following 3 ways:
+    # 1. using `pip install tramway` (stable release)
+    # 2. using `git clone`+`pip install .` (git version, default)
+    # 3. copying your own copy of TRamWAy into the container (local version)
+
+    # (3.) test local changes that have not been committed yet:
+    LOCAL=/path/to/local/TRamWAy
+    if [ -d $LOCAL ]; then
+       CONTAINED=${SINGULARITY_ROOTFS}/root/TRamWAy
+       mkdir -p ${CONTAINED}
+       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/requirements.txt ${LOCAL}/README.rst
+       cp -ru -t ${CONTAINED}/ ${LOCAL}/tramway ${LOCAL}/scripts
+    fi
+
+%post
+
+    ln -sf /usr/share/zoneinfo/Europe/Paris /etc/localtime
+    apt-get update -y
+    apt-get install -y --no-install-recommends locales
+    locale-gen
+    apt-get install -y --no-install-recommends libhdf5-10 ffmpeg
+
+    # Python 2.7
+    #apt-get install -y --no-install-recommends \
+    #   python python-pip python-numpy python-scipy
+    #apt-get install -y --no-install-recommends \
+    #   python-h5py python-tables python-pandas python-matplotlib
+    apt-get install -y --no-install-recommends \
+        build-essential git software-properties-common python-software-properties
+    #apt-get install -y --no-install-recommends \
+    #   python-setuptools python-wheel python-dev
+
+    # Python 3.6
+    add-apt-repository -y ppa:deadsnakes/ppa
+    apt-get update -y
+        apt-get install -y --no-install-recommends python3.6 python3.6-venv
+    python3.6 /root/get-pip.py
+    export LC_ALL=C
+    #pip3.6 install --upgrade pip
+    pip3.6 uninstall -qy tramway || true
+
+    # (2.) and (3.)
+    cd /root
+    if ! [ -d TRamWAy ]; then
+        git clone git://github.com/DecBayComp/TRamWAy -b master
+    fi
+    cd TRamWAy
+    pip3.6 install .[hpc-minimal,animate]
+
+    # (1.)
+    #pip3.6 install tramway[hpc-minimal,animate]
+
+    pip3.6 install scikit-learn
+
+    mkdir -p /pasteur
+
+    # if any such limit exists, it should not be set by the contained OS
+    ulimit -n 1048576
+
+%runscript
+
+    cmd="tramway"
+    python="python3.6"
+    if [ -n "$1" -a "$1" = "-s" ]; then
+       cmd="${python} -s -m tramway"
+       shift
+    fi
+    exec $cmd $@
+

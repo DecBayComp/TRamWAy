@@ -14,18 +14,23 @@
 
 import numpy as np
 import pandas as pd
-try:
-    import polytope as pt
-except ImportError:
-    pt = None
 import copy
 from tramway.core.xyt import crop, reindex_trajectories
 import tramway.core.analyses.auto as autosaving
+#from tramway.helper import infer, tessellate, rc, Helper, AutosaveCapable
 from tramway.helper import *
 import re
 import itertools
 from collections import defaultdict, OrderedDict
 
+try:
+    import polytope as pt
+except ImportError:
+    import logging
+    logger = logging.getLogger()
+    logger.warning("module 'polytope' not found")
+else:
+    rc.__available_packages__.add('polytope')
 
 try:
     from tqdm import tqdm
@@ -886,12 +891,12 @@ class RoiHelper(Helper):
             if len(space_cols) < _min.size:
                 if xyt is None:
                     xyt = trajectories[space_cols+['t']].values
-                pt = xyt
+                _pt = xyt
             else:
                 if xy is None:
                     xy = trajectories[space_cols].values
-                pt = xy
-            i, = np.nonzero(np.all((_min[np.newaxis,:] <= pt) & (pt <= _max[np.newaxis,:]), axis=1))
+                _pt = xy
+            i, = np.nonzero(np.all((_min[np.newaxis,:] <= _pt) & (_pt <= _max[np.newaxis,:]), axis=1))
             I.append(i)
         J = np.repeat(np.arange(len(I)), [ len(i) for i in I])
         I = np.concatenate(I)

@@ -285,7 +285,7 @@ class Env(AnalyzerNode):
                 #self.logger.debug('selecting source: '+', '.join((sources,) if isinstance(sources, str) else sources))
             #
             for f in self.analyzer.spt_data: # TODO: check why self.spt_data_selector(..) does not work
-                f._analyses.rwa_file = self.make_temporary_file(suffix='.rwa', output=True)
+                f._analyses.rwa_file = lambda: self.make_temporary_file(suffix='.rwa', output=True)
                 f._analyses.autosave = True
         elif self.script is None:
             # not tested!
@@ -421,6 +421,37 @@ class Env(AnalyzerNode):
         """
         assert self.submit_side
         self.wd = self.make_temporary_file(directory=True)
+    @classmethod
+    def _mk_temp_file(cls, *args, logger=None, **kwargs):
+        """
+        Low level method that makes a temporary file, closes the file
+        descriptor and returns the filepath.
+
+        In the case of `'Too many open files'` exceptions, tries to run OS
+        command `lsof` and log the output.
+        """
+        try:
+            fd, tmpfile = tempfile.mkstemp(*args, **kwargs)
+            os.close(fd)
+        except OSError as e:
+            # unfortunately subprocess will hit the same error..
+            #if e.errno == 24:
+            #    try:
+            #        out = subprocess.run(
+            #                'lsof | grep -E ^python.*$USER',
+            #                stdout=subprocess.PIPE,
+            #                shell=True).stdout.decode('utf8')
+            #    except (SystemExit, KeyboardInterrupt):
+            #        raise
+            #    except:
+            #        raise e
+            #    else:
+            #        if logger is None:
+            #            print(out)
+            #        else:
+            #            logger.debug('lsof listing:\n'+out)
+            raise
+        return tmpfile
     def make_temporary_file(self, output=False, directory=False, **kwargs):
         """
         Arguments:
@@ -439,8 +470,7 @@ class Env(AnalyzerNode):
         if directory:
             tmpfile = tempfile.mkdtemp(dir=parent_dir)
         else:
-            fd, tmpfile = tempfile.mkstemp(dir=parent_dir, **kwargs)
-            os.close(fd)
+            tmpfile = self._mk_temp_file(dir=parent_dir, **kwargs)
         if not output:
             self._temporary_files.append(tmpfile)
         return tmpfile
@@ -507,7 +537,7 @@ class Env(AnalyzerNode):
         self.pending_jobs.append(tuple(command_options))
     @classmethod
     def _combine_analyses(cls, wd, data_location, logger, *args, directory_mapping={},
-            inplace=False, reload_existing_rwa_files=False):
+            inplace=False, reload_existing_rwa_files=False, lazy=True):
         """
         Loads the generated interim rwa files, combines them and returns the list
         of the resulting files.
@@ -528,7 +558,7 @@ class Env(AnalyzerNode):
             logger.info('reading file: {}'.format(output_file))
             try:
                 __analyses = load_rwa(output_file,
-                        lazy=True, force_load_spt_data=False)
+                        lazy=lazy, force_load_spt_data=False)
             except:
                 logger.critical(traceback.format_exc())
                 #raise
@@ -574,8 +604,8 @@ class Env(AnalyzerNode):
             if inplace:
                 if original_files[source][1:]:
                     if inplace:
-                        fd, rwa_file = tempfile.mkstemp(dir=wd, suffix='.rwa')
-                        os.close(fd)
+                        rwa_file = cls._mk_temp_file(dir=wd, suffix='.rwa',
+                                logger=logger)
                 else:
                     rwa_file = None
             elif os.path.isabs(rwa_file):
@@ -612,8 +642,8 @@ class Env(AnalyzerNode):
                         raise
                     logger.warning('writing file failed: {}'.format(rwa_file))
                     local_rwa_file = rwa_file
-                    fd, remote_rwa_file = tempfile.mkstemp(dir=wd, suffix='.rwa')
-                    os.close(fd)
+                    remote_rwa_file = cls._mk_temp_file(dir=wd, suffix='.rwa',
+                            logger=logger)
                     logger.info('writing file: {}...'.format(remote_rwa_file))
                     Analysis.save(remote_rwa_file, analyses[source], force=True,
                             rebase=reload_existing_rwa_files)
@@ -757,6 +787,12 @@ class Env(AnalyzerNode):
 class LocalHost(Env):
     """
     Runs jobs in local **python** processes.
+
+    Because of a design limitation in `tramway.analyzer.pipeline` (type check),
+    Every class that similarly implements local-only parallel processing should
+    ideally be derived from this class.
+    This may not be critical, as failure to do so will only make
+    `run_everywhere` stages to run twice instead of once.
     """
     __slots__ = ('running_jobs',)
     def __init__(self, **kwargs):
@@ -1744,11 +1780,17 @@ notice: job failures are not reported before the stage is complete;
 Environment.register(SlurmOverSSH)
 
 
+def select_python_version(major, minor, *args):
+    if major == 3:
+        minor = min(9, minor)
+    return major, minor
+PYVER = '{}{}'.format(*select_python_version(*sys.version_info))
+
 class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-210722.sif*.
+    The current default Singularity container is *tramway-hpc-210815-py3?.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -1769,8 +1811,77 @@ class SingularitySlurm(SlurmOverSSH):
         if singularity_options and singularity_options[0] != ' ':
             singularity_options = ' '+singularity_options
         default_container = self.default_container()
-        self.interpreter = f'singularity exec -H $HOME{singularity_options} {default_container} python3.6 -s'
+        self._interpreter = f'singularity exec -H $HOME{singularity_options} {default_container} PYTHON -s'
         self.ssh.host = self.hostname()
+    @property
+    def interpreter(self):
+        if 'PYTHON' in self._interpreter:
+            parts = self._interpreter.split()
+            p = parts.index('PYTHON')
+            container = ' '.join(parts[:p])
+            script = self._mk_temp_file(suffix='.sh', text=True)
+            try:
+                with open(script, 'w') as f:
+                    f.write(r"""#!/bin/bash
+
+for ((minor=10;6<=minor;minor--)); do
+py=python3.$minor
+if [ -x "$(command -v $py)" ]; then
+if [ -z "$($py -m pip show -q tramway 2>&1)" ]; then
+echo $py
+exit 0
+fi
+fi
+done
+
+py=python2.7
+if [ -x "$(command -v $py)" ]; then
+if [ -z "$($py -m pip show -q tramway 2>&1)" ]; then
+echo $py
+exit 0
+fi
+fi
+
+exit 1
+""")
+                dest = '/'.join((self.wd, os.path.basename(script)))
+                out = self.ssh.put(script, dest)
+                if out:
+                    self.logger.debug(out)
+                self.logger.info('introspection script transferred to: '+dest)
+                if self.remote_dependencies():
+                    deps = self.remote_dependencies()+'; '
+                else:
+                    deps = ''
+                cmd = f'{deps}chmod +x {dest}; {container} {dest}; rm -f {dest}'
+                #self.logger.debug('running: '+cmd) # ssh.exec also logs in debug mode
+                out, err = self.ssh.exec(cmd, shell=True, logger=self.logger)
+                if err:
+                    self.logger.warning(err)
+                if out and out.startswith('python'):
+                    python = out.rstrip()
+                else:
+                    if out:
+                        self.logger.debug(out)
+                    #self.logger.warning(f'cannot find python in the container {container}')
+                    python = 'python3'
+            except (SystemExit, KeyboardInterrupt):
+                raise
+            except:
+                raise
+                python = 'python3'
+            finally:
+                try:
+                    os.unlink(script)
+                except:
+                    pass
+            self.logger.info(f"in container {parts[p-1]}: selecting python command: '{python}'")
+            interpreter = ' '.join([container,python]+parts[p+1:])
+            self._interpreter = interpreter
+        return self._interpreter
+    @interpreter.setter
+    def interpreter(self, cmd):
+        self._interpreter = cmd
     @property
     def username(self):
         try:
@@ -1790,36 +1901,28 @@ class SingularitySlurm(SlurmOverSSH):
                 self.wd = self.scratch(name)
     @property
     def container(self):
-        parts = self.interpreter.split()
-        return parts[parts.index('python3.6')-1]
+        parts = self._interpreter.split()
+        try:
+            p = parts.index('PYTHON')
+        except ValueError:
+            p = parts.index('python')
+        return parts[p-1]
     @container.setter
     def container(self, path):
-        parts = self.interpreter.split()
-        p = parts.index('python3.6')
+        parts = self._interpreter.split()
+        try:
+            p = parts.index('PYTHON')
+        except ValueError:
+            p = parts.index('python')
         self.interpreter = ' '.join(parts[:p-1]+[path]+parts[p:])
     def get_container_url(self, container=None):
         if container is None:
             container = self.container
-        return {
-                'tramway-hpc-200928.sif':   'http://dl.pasteur.fr/fop/0G0Tnjd8/tramway-hpc-200928.sif',
-                'tramway-hpc-210112.sif':   'http://dl.pasteur.fr/fop/tVZe8prV/tramway-hpc-210112.sif',
-                'tramway-hpc-210114.sif':   'http://dl.pasteur.fr/fop/cZWZqsDW/tramway-hpc-210114.sif',
-                'tramway-hpc-210125.sif':   'http://dl.pasteur.fr/fop/6Avu9HuV/tramway-hpc-210125.sif',
-                'tramway-hpc-210201.sif':   'http://dl.pasteur.fr/fop/MSRwa8CR/tramway-hpc-210201.sif',
-                'tramway-hpc-210222.sif':   'http://dl.pasteur.fr/fop/rzx2LnjB/tramway-hpc-210222.sif',
-                'tramway-hpc-210301.sif':   'http://dl.pasteur.fr/fop/7jSSZCnb/tramway-hpc-210301.sif',
-                'tramway-hpc-210302.sif':   'http://dl.pasteur.fr/fop/53bfSkmM/tramway-hpc-210302.sif',
-                'tramway-hpc-210330.sif':   'http://dl.pasteur.fr/fop/FrDZQBuy/tramway-hpc-210330.sif',
-                'tramway-hpc-210527.sif':   'http://dl.pasteur.fr/fop/7F0LaOEX/tramway-hpc-210527.sif',
-                'tramway-hpc-210608.sif':   'http://dl.pasteur.fr/fop/5LCsGe80/tramway-hpc-210608.sif',
-                'tramway-hpc-210628.sif':   'http://dl.pasteur.fr/fop/Cr969IPb/tramway-hpc-210628.sif',
-                'tramway-hpc-210715.sif':   'http://dl.pasteur.fr/fop/lzFiPalM/tramway-hpc-210715.sif',
-                'tramway-hpc-210720.sif':   'http://dl.pasteur.fr/fop/rb4blYsf/tramway-hpc-210720.sif',
-                'tramway-hpc-210722.sif':   'http://dl.pasteur.fr/fop/kxCZAcy0/tramway-hpc-210722.sif',
-                }.get(container, None)
+        from .containers import singularity_containers
+        return singularity_containers.get(container, None)
     @classmethod
-    def default_container(cls):
-        return 'tramway-hpc-210722.sif'
+    def default_container(cls, python_version=PYVER):
+        return f'tramway-hpc-210815-py{python_version}.sif'
     def setup(self, *argv, **kwargs):
         SlurmOverSSH.setup(self, *argv, **kwargs)
         if self.submit_side:
@@ -1867,7 +1970,7 @@ class GPULab(SingularitySlurm):
         return '/'.join(('/master/home', username, 'scratch'))
     def __init__(self, **kwargs):
         SingularitySlurm.__init__(self, **kwargs)
-        self.interpreter = self.interpreter.replace('-B /pasteur ', '')
+        self.interpreter = self._interpreter.replace('-B /pasteur ', '')
 
 
 class Maestro(SingularitySlurm):

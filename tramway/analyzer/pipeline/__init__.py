@@ -25,10 +25,18 @@ class PipelineStage(object):
     `requires_mutability` defaults to :const:`False`.
 
     `update_existing_rwa_files` defaults to :const:`False` as of version *5.2*.
+
+    *new in 0.6.2*: boolean argument and attribute `run_everywhere`.
+    The main difference with `requires_mutability` is that the `run_everywhere`
+    stage runs at most once on each host.
+
+    A *fresh_start* stage will typically set `run_everywhere` to :const:`True`, while
+    a *reload* stage will set `requires_mutability` to :const:`True` instead.
     """
-    __slots__ = ('_run','_granularity','_mutability','options','update_existing_rwa_files')
+    __slots__ = ('_run','_granularity','_mutability','options',
+            'update_existing_rwa_files','_run_everywhere')
     def __init__(self, run, granularity=None, requires_mutability=None,
-            update_existing_rwa_files=None, **options):
+            update_existing_rwa_files=None, run_everywhere=None, **options):
         if isinstance(run, PipelineStage):
             self._run = run._run
             self._granularity = run._granularity if granularity is None else granularity
@@ -37,12 +45,14 @@ class PipelineStage(object):
             self.options.update(options)
             self.update_existing_rwa_files = run.update_existing_rwa_files \
                     if update_existing_rwa_files is None else update_existing_rwa_files
+            self._run_everywhere = run._run_everywhere if run_everywhere is None else run_everywhere
         else:
             self._run = run
             self._granularity = granularity
             self._mutability = False if requires_mutability is None else requires_mutability
             self.options = options
             self.update_existing_rwa_files = update_existing_rwa_files
+            self._run_everywhere = run_everywhere
     @property
     def granularity(self):
         """
@@ -55,6 +65,12 @@ class PipelineStage(object):
         *bool*: See :meth:`Pipeline.append_stage`
         """
         return self._mutability
+    @property
+    def run_everywhere(self):
+        """
+        *bool*: Run once on every host, both local and remote
+        """
+        return self._run_everywhere or (self._run_everywhere is None and self.requires_mutability)
     @property
     def name(self):
         """
@@ -125,12 +141,25 @@ class Pipeline(AnalyzerNode):
                 :const:`'region of interest'`,
                 :const:`'time'` or equivalently :const:`'segment'` or :const:`'time segment'`
                 (case-insensitive).
+                *new in 0.6.2*: granularity can be prefixed with :const:`min:`
 
             requires_mutability (bool): callable object `stage` alters input argument `self`.
                 Stages with this argument set to :const:`True` are always run as dependencies.
                 Default is :const:`False`.
 
             update_existing_rwa_files (bool): see also :class:`PipelineStage`.
+
+            run_everywhere (bool): *new in 0.6.2*; see also :class:`PipelineStage`.
+
+        *new in 0.6.2*: the :const:`min:` prefix for granularity can be passed
+        to prevent flexible-level stages to be combined with others of
+        incompatible granularity.
+        For example, a *fresh_start* stage should operate no below
+        :const:`source`, because it may delete source-level files, which is not
+        compatible with a roi-level stage that may be split into multiple jobs
+        working on the same source file.
+        Note however that passing ``run_everywhere=True`` to a *fresh_start*
+        stage is preferred as this is more portable.
 
         """
         self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
@@ -192,17 +221,25 @@ class Pipeline(AnalyzerNode):
                     assert self.env.submit_side
                     if self.env.dispatch():
                         self.logger.info('initial dispatch done')
+                    from ..env.environments import LocalHost
                     stack = []
                     permanent_stack = []
                     for s, stage in enumerate(self._stage):
+                        run_locally = stage.run_everywhere and not isinstance(self.env, LocalHost)
+                        if run_locally:
+                            self.logger.debug('[submit] stage {:d} ready'.format(s))
+                            stage(self)
+                            self.logger.debug('[submit] stage {:d} done'.format(s))
                         granularity = '' if stage.granularity is None \
                                 else stage.granularity.lower().replace('-',' ').replace('_',' ')
                         if stage.requires_mutability:
-                            if not granularity or granularity in ('coarsest','full dataset'):
-                                # run locally
-                                self.logger.debug('[submit] stage {:d} ready'.format(s))
-                                stage(self)
-                                self.logger.debug('[submit] stage {:d} done'.format(s))
+                            if not granularity or \
+                                    granularity in ('coarsest','full dataset') or \
+                                    granularity.startswith('min:'):
+                                if not run_locally: # else, already done
+                                    self.logger.debug('[submit] stage {:d} ready'.format(s))
+                                    stage(self)
+                                    self.logger.debug('[submit] stage {:d} done'.format(s))
                                 # make the next dispatched stages run this stage again
                                 permanent_stack.append(s)
                                 continue
@@ -211,9 +248,11 @@ class Pipeline(AnalyzerNode):
                         if self.env.dispatch(stage_index=s, stage_options=stage.options):
                             self.logger.info('stage {:d} dispatched'.format(s))
                         if stack or permanent_stack:
-                            s = sorted(permanent_stack+stack+[s])
+                            s = _filter(sorted(permanent_stack+stack+[s]),
+                                    granularity, self._stage, self.logger)
                             stack = []
-                        if not granularity or granularity in ('coarsest','full dataset'):
+                        if not granularity or granularity in ('coarsest','full dataset') or \
+                                granularity.startswith('min:'):
                             self.env.make_job(stage_index=s)
                         else:
                             try:
@@ -301,6 +340,32 @@ class Pipeline(AnalyzerNode):
             proc(**kwargs)
 
 Attribute.register(Pipeline)
+
+
+def _enum(granularity):
+    if granularity in ('coarsest','full dataset'):
+        return 0
+    elif granularity.endswith('source') or granularity.startswith('spt data'):
+        return 1
+    elif granularity in ('roi','region of interest'):
+        return 2
+    elif granularity in ('time', 'segment', 'time segment'):
+        return 3
+    else:
+        raise NotImplementedError
+def _lt(g1, g2):
+    return _enum(g1) > _enum(g2)
+def _filter(stage_ids, granularity, stages, logger):
+    ids = []
+    for s in stage_ids:
+        stage = stages[s]
+        if stage.granularity and \
+                stage.granularity.startswith('min:') and \
+                _lt(stage.granularity[4:].lstrip(), granularity):
+            logger.debug(f'excluding stage: {s}')
+        else:
+            ids.append(s)
+    return ids
 
 
 from . import stages

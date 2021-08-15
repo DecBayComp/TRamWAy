@@ -945,7 +945,7 @@ class ROIAsciiFiles(DecentralizedROIManager):
         import os.path
         first = True
         for f in self._parent.spt_data:
-            if f.source is None or not os.path.isfile(f.source):
+            if f.source is None or not os.path.isfile(os.path.expanduser(f.source)):
                 self.logger.warning('cannot identify or find SPT data source: {}'.format(f.source))
                 continue
             filepath, _ = os.path.splitext(f.source)

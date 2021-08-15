@@ -14,5 +14,7 @@ else
   SINGULARITY=$1
 fi
 
-$SINGULARITY exec "$CONTAINER" python3.6 -m pip freeze
+PYTHON=$($SINGULARITY exec "$CONTAINER" ./detect_python.sh)
+
+$SINGULARITY exec "$CONTAINER" $PYTHON -s -m pip freeze
 

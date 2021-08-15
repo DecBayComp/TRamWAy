@@ -87,7 +87,7 @@ def map(self):
     if dry_run:
         self.logger.info('stage skipped')
         assert False
-a.pipeline.append_stage(fresh_start)
+a.pipeline.append_stage(fresh_start, run_everywhere=True)
 a.pipeline.append_stage(tessellate, granularity='roi')
 a.pipeline.append_stage(reload, requires_mutability=True)
 a.pipeline.append_stage(map, granularity='time segment'{options})
@@ -186,7 +186,7 @@ def fresh_start(self):
             os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
         except FileNotFoundError:
             pass
-a.pipeline.append_stage(fresh_start)
+a.pipeline.append_stage(fresh_start, run_everywhere=True)
 a.pipeline.append_stage(stages.tessellate(label='gwr'))
 a.pipeline.append_stage(stages.reload())
 a.pipeline.append_stage(stages.infer('traj. features', sampling_label='gwr'))
@@ -328,7 +328,7 @@ a.env.ssh._password = '{password}'
 """.format(username=username, password=password)
         #
         input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
-        input_file = '~/github/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
+        input_file = '~/Projects/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
         run_script0(tmpdir, input_file, env)
 
     def test_GPULab0(self, tmpdir, dynamicmesh):
@@ -398,7 +398,7 @@ a.env.ssh._password = '{password}'
 """.format(username=username, password=password)
         #
         input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
-        input_file = '~/github/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
+        input_file = '~/Projects/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
         run_script2(tmpdir, input_file, env)
 
     def test_GPULab2(self, tmpdir, dynamicmesh):

@@ -19,8 +19,12 @@ from tramway.inference import plugins
 from tramway.helper.inference import Infer
 
 class MapperAttribute(object):
-    """ Mixin class for accessing the `localization_precision`,
+    """
+    Mixin class for accessing the `localization_precision`,
     `localization_error` and `temperature` attributes.
+
+    Also features side functionalities that are expected in both the
+    initializer and specialized mapper attributes.
     """
     __slots__ = ()
 
@@ -44,6 +48,50 @@ class MapperAttribute(object):
     @temperature.setter
     def temperature(self, T):
         self._parent.temperature = T
+
+    def to_ascii_file(self, filepath, maps, add_coordinates=False, tessellation=None,
+            index=True, header=True, float_format='%.4f', **kwargs):
+        df = maps
+        try:
+            # unwrap from Analysis
+            df = df.data
+        except AttributeError:
+            pass
+        try:
+            # unwrap from Maps
+            df = df.maps
+        except AttributeError:
+            pass
+        if add_coordinates:
+            if tessellation is None:
+                try:
+                    tessellation = maps.get_parent().data.tessellation
+                except AttributeError:
+                    raise TypeError('additional coordinate information is requested but the tessellation is not provided; load the maps with `Analysis.get_analysis(analysis_tree, sampling_label).get_child(map_label)` to wrap the maps together with its analysis path, or pass argument `tessellation`')
+            xy = tessellation.cell_centers
+            import pandas as pd
+            xy = pd.DataFrame(xy, columns=list('xyz'[:min(3, xy.shape[1])]))
+            df = df.join(xy.loc[df.index])
+        df.to_csv(str(filepath), sep='\t', index=index, header=header,
+                float_format=float_format, **kwargs)
+
+    @property
+    def _mpl_impl(self):
+        from .mpl import Mpl
+        return Mpl
+    @property
+    def mpl(self):
+        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
+        return self._mpl_impl(self)
+
+    @property
+    def _plotly_impl(self):
+        from .plotly import Plotly
+        return Plotly
+    @property
+    def plotly(self):
+        """ tramway.analyzer.mapper.plotly.Plotly: Plotly utilities """
+        return self._plotly_impl(self)
 
 
 class MapperPlugin(AnalyzerNode, MapperAttribute):
@@ -120,24 +168,6 @@ class MapperPlugin(AnalyzerNode, MapperAttribute):
     @property
     def time(self):
         return self._parent.time
-
-    @property
-    def _mpl_impl(self):
-        from .mpl import Mpl
-        return Mpl
-    @property
-    def mpl(self):
-        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
-        return self._mpl_impl(self)
-
-    @property
-    def _plotly_impl(self):
-        from .plotly import Plotly
-        return Plotly
-    @property
-    def plotly(self):
-        """ tramway.analyzer.mapper.plotly.Plotly: Plotly utilities """
-        return self._plotly_impl(self)
 
 Mapper.register(MapperPlugin)
 

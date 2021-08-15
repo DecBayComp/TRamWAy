@@ -867,7 +867,11 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         return Analysis.get_analysis(self.analyses, label)
     def autosaving(self, *args, overwrite=True, **kwargs):
         assert isinstance(self.analyses, AutosaveCapable)
-        if not self.analyses.rwa_file:
+        rwa_file = self.analyses.rwa_file
+        if rwa_file:
+            if callable(rwa_file):
+                self.analyses.rwa_file = rwa_file()
+        else:
             if self.source:
                 self.analyses.rwa_file = os.path.splitext(self.source)[0]+'.rwa'
                 if self.analyses.rwa_file == self.source:

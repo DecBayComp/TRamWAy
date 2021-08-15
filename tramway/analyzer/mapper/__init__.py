@@ -90,23 +90,5 @@ class MapperInitializer(Initializer, MapperAttribute):
             else:
                 logger.info("plugin:\t'{}'\nwith no parameters".format(plugin))
 
-    @property
-    def _mpl_impl(self):
-        from .mpl import Mpl
-        return Mpl
-    @property
-    def mpl(self):
-        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
-        return self._mpl_impl(self)
-
-    @property
-    def _plotly_impl(self):
-        from .plotly import Plotly
-        return Plotly
-    @property
-    def plotly(self):
-        """ tramway.analyzer.mapper.plotly.Plotly: Plotly utilities """
-        return self._plotly_impl(self)
-
 __all__ = [ 'Mapper', 'MapperInitializer', 'MapperPlugin', 'models' ]
 

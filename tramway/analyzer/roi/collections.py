@@ -1,6 +1,7 @@
 
 import tramway.helper.roi as helper
-from tramway.helper.roi import IgnoredInputWarning, UnitRegions, GroupedRegions
+from tramway.helper import IgnoredInputWarning
+from tramway.helper.roi import UnitRegions, GroupedRegions
 
 """
 This transition module wraps some functionalities from the :mod:`tramway.helper.roi` module.

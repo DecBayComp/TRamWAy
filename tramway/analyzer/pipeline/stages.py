@@ -276,39 +276,51 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
     """
     Combines `tessellate` and `infer` at roi granularity.
 
-    *new in 0.6*: unless ``overwrite=True`` or ``load_rwa_files=False``,
-    *.rwa* files are loaded if the SPT data source has not already
-    been loaded from such files.
+    See :func:`infer` for important notes on `overwrite` argument.
+
+    *new in 0.6*: unless ``load_rwa_files=False``, *.rwa* files are loaded if
+    the SPT data source has not already been loaded from such files.
     """
+
+    # about load_rwa_files and overwrite:
+
+    # * if `overwrite` is true, the `update_existing_rwa_files` option to
+    #   `PipelineStage` will do the job for `load_rwa_files`
+    #   **if and only if** `env` has been initialized
+    #   (`update_existing_rwa_files` applies in `env.collect_results`)
+
+    # * if `overwrite` is false, `load_rwa_files` is not false and the spt
+    #   files are not rwa files, the associated rwa files must be loaded first
+    #   so that existing analysis labels can be identified and the
+    #   corresponding analyses skipped.
+    #   exception: `map_label` is not defined; in that case, no existing
+    #              analysis will match anyway
 
     save_active_branches_only = not (overwrite or map_label is None)
 
-    if overwrite:
-        if load_rwa_files is None:
-            load_rwa_files = False
-        elif load_rwa_files is True:
-            raise ValueError('overwrite and load_rwa_files are both True')
-
     def _tessellate_and_infer(self):
 
-        if self._eldest_parent.env.initialized:
+        with_env = self._eldest_parent.env.initialized
+        if with_env:
             _save_active_branches_only = save_active_branches_only
         else:
+            # `PipelineStage.reload_existing_rwa_files` does not apply
             _save_active_branches_only = False
 
         dry_run = True
 
-        # added in 0.6.1; useful only without environment?
-        if not (load_rwa_files is False or \
+        # added in 0.6.1
+        if not (_save_active_branches_only or load_rwa_files is False or \
                 isinstance(self.spt_data, (StandaloneDataItem, RWAFiles))):
             _load_rwa_files = load_rwa_files
             if load_rwa_files is None:
                 for f in self.spt_data:
                     if f.source:
                         rwa_file = os.path.splitext(f.source)[0]+'.rwa'
-                        _load_rwa_files = os.path.isfile(rwa_file)
+                        _load_rwa_files = os.path.isfile(os.path.expanduser(rwa_file))
                     break
             if _load_rwa_files:
+                logger.info("loading all .rwa files...")
                 self.spt_data.reload_from_rwa_files(skip_missing=True)
 
         for f in self.spt_data:
@@ -324,7 +336,9 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                 active_labels = defaultdict(set)
 
             # new in 0.6; actually works only with StandaloneDataItem
-            if not (load_rwa_files is False or isinstance(f, _RWAFile)):
+            if not (_save_active_branches_only or \
+                    load_rwa_files is False or \
+                    isinstance(f, _RWAFile)):
                 try:
                     rwa_file = os.path.splitext(f.source)[0]+'.rwa'
                 except Exception: # Exception excludes KeyboardInterrupt and SystemExit
@@ -332,12 +346,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                 else:
                     if os.path.isfile(os.path.expanduser(rwa_file)):
                         logger.info(f"loading .rwa file for source: {source_name}...")
-                        try:
-                            f = f.reload_from_rwa_files()
-                        except AttributeError as e:
-                            if e.args[0].endswith("'reload_from_rwa_files'"):
-                                logger.warning('existing .rwa file found; none of `overwrite` or `load_rwa_files` is True')
-                            raise
+                        f = f.reload_from_rwa_files()
 
             with f.autosaving() as tree:
 
@@ -437,7 +446,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
 
     return PipelineStage(_tessellate_and_infer,
             granularity='roi',
-            update_existing_rwa_files=not overwrite)
+            update_existing_rwa_files=load_rwa_files is not False)
 
 
 def diagnose(self):

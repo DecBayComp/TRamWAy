@@ -311,6 +311,8 @@ class Analyses(LazyAnalysesProxy, AutosaveCapable):
         for hook in self.hooks:
             hook(self.analyses)
         if self.rwa_file:
+            if callable(self.rwa_file):
+                self.rwa_file = self.rwa_file()
             from tramway.core.hdf5.store import save_rwa
             save_rwa(os.path.expanduser(self.rwa_file), self.analyses.statefree(), **self.save_options)
             self.analyses.reset_modification_flag(True)
