@@ -316,6 +316,8 @@ class GasMesh(Voronoi):
 
     def freeze(self):
         self.gas = None
+        # new in 0.6.2
+        self.residuals = None
 
 
 

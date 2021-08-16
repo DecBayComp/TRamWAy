@@ -371,6 +371,10 @@ class Gas(Graph):
                 2. stops if the average residual for the current batch is greater than
                    that of the previous batch.
 
+        Returns:
+
+            ndarray: residuals for the points as they were sampled (with
+                replacement, in batches)
 
         """
         ## TODO: clarify the code
@@ -441,7 +445,7 @@ class Gas(Graph):
                 r = self.batch_train(sample[batch], eta_square[batch], radius[batch], **batch_kwargs)
             else:
                 r = self.batch_train(sample[batch], **batch_kwargs)
-            residuals += r
+            residuals.append(np.asarray(r))
             l_prev = l
             l = self.size
             txt = l
@@ -508,7 +512,7 @@ class Gas(Graph):
                                     np.std(t) * 1e3))
         if grab is not None and (max_frames is None or max_frames < sample.shape[0]):
             self.grab_completion(grab, sample, **kwargs)
-        return residuals
+        return np.concatenate(residuals)
 
     def boxed_radius(self, sample, knn, rmin, rmax, verbose=False, plot=False):
         #plot = True

@@ -34,7 +34,7 @@ Using Conda
 
 ::
 
-        conda install tramway
+        conda install tramway -c conda-forge
 
 Compared with the bare package `pip` installs (with no installation targets), the `conda` package specifies some optional dependencies as required, so that the above command installs them.
 However, many other optional dependencies are omitted.

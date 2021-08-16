@@ -16,10 +16,22 @@ import tarfile
 import traceback
 import random
 
+"""
+These tests do not master the hdf5 library.
+The *.rwa* files periodically change whereas the RWA-python/TRamWAy content
+does not, and the tests do not ignore these changes.
 
-py2_hash, py3_hash = 'MGtbXz14', 'O45mmhMH'#, '5dKCVRiC'#, 'sYCBf80j'
+Analysis artefacts are checked with `tramway show cells` and `tramway show map`
+in the temporary pytest directories to compare the expected and actual files
+for each commandline test.
+
+If the tests fail but no noticeable change can be found, the data archive
+should be updated.
+"""
+
+py2_hash, py3_hash = 'MGtbXz14', 'MYJg7Cy6'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '210628'#'210126'#'200909'
+data_update = '210816'#'210628'#'210126'#'200909'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
