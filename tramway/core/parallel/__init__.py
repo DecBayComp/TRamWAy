@@ -272,6 +272,11 @@ class Scheduler(object):
                 *new in 0.5b5*.
 
         """
+        try:
+            # in Python 3.8.10, daemon mode was default
+            multiprocessing.process.current_process()._config['daemon'] = False
+        except Exception:
+            warn('failed to force-disable daemon mode')
         self.workspace = workspace
         self.task = tasks
         self.active = dict()
@@ -479,6 +484,7 @@ class Scheduler(object):
             return ret
 
         for w in self.workers.values():
+            #assert not w.daemon
             w.start()
         self.init_resource_lock()
         if self.global_timeout:
