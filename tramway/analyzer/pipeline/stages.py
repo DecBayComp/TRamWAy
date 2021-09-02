@@ -157,8 +157,17 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
 
         for r in self.roi.as_support_regions(**asr_filters):
 
+            if sampling_label is None:
+                input_label = r.label
+            elif callable(sampling_label):
+                input_label = sampling_label(r.label)
+            else:
+                if not dry_run:
+                    logger.warning("multiple roi bound to single sampling label; make sampling_label callable")
+                input_label = sampling_label
+
             # get the input data
-            sampling = r.get_sampling(sampling_label)
+            sampling = r.get_sampling(input_label)
 
             if not overwrite and map_label in sampling.subtree:
                 # skip the already-processed data
@@ -184,12 +193,12 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
                 maps.commit_as_analysis(map_label)
 
                 if single_path:
-                    for label in tree:
-                        if label != sampling_label:
+                    for label in list(tree.labels):
+                        if label != input_label:
                             del tree[label]
-                    for label in tree[sampling_label]:
+                    for label in list(tree[input_label].labels):
                         if label != map_label:
-                            del tree[sampling_label][label]
+                            del tree[input_label][label]
 
         if dry_run:
             logger.info('stage skipped')

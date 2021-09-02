@@ -368,9 +368,6 @@ class Controller(object):
             kwargs['clim'] = self.model.clim[feature]
         elif self.model.clim is not None:
             kwargs['clim'] = self.model.clim[feature]
-        if temperature:
-            # convert from µm^-1 (inferenceMAP kT) to true kT
-            _map /= 6.950348e-5 * temperature
         if _map.shape[1] == 2:
             _vector_map = _map
             if feature == 'force':

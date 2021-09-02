@@ -18,4 +18,8 @@ singularity_containers = {
         'tramway-hpc-210815-py37.sif':  'http://dl.pasteur.fr/fop/IMQjAQij/tramway-hpc-210815-py37.sif',
         'tramway-hpc-210815-py38.sif':  'http://dl.pasteur.fr/fop/npQot1tM/tramway-hpc-210815-py38.sif',
         'tramway-hpc-210815-py39.sif':  'http://dl.pasteur.fr/fop/eCItSICS/tramway-hpc-210815-py39.sif',
+        'tramway-hpc-210902-py36.sif':  'http://dl.pasteur.fr/fop/XLrSl3jX/tramway-hpc-210902-py36.sif',
+        'tramway-hpc-210902-py37.sif':  'http://dl.pasteur.fr/fop/xWrWWsEA/tramway-hpc-210902-py37.sif',
+        'tramway-hpc-210902-py38.sif':  'http://dl.pasteur.fr/fop/VTRrmm3o/tramway-hpc-210902-py38.sif',
+        'tramway-hpc-210902-py39.sif':  'http://dl.pasteur.fr/fop/xywwERaD/tramway-hpc-210902-py39.sif',
         }

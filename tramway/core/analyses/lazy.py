@@ -134,6 +134,17 @@ class Analyses(base.Analyses):
             return ok
         _terminate(self)
 
+    def __delitem__(self, label):
+        if rwa.islazy(self._instances):
+            self._instances = self._instances.shallow()
+        if rwa.islazy(self._comments):
+            self._comments = self._comments.deep()
+        self._instances.__delitem__(label)
+        try:
+            self._comments.__delitem__(label)
+        except KeyError:
+            pass
+
 
 
 def label_paths(analyses, filter, lazy=False):
