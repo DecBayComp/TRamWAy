@@ -129,3 +129,88 @@ threadpoolctl==2.2.0
 tifffile==2021.8.8
 tqdm==4.62.1
 ``
+
+
+* [tramway-hpc-210902-py36.sif](http://dl.pasteur.fr/fop/XLrSl3jX/tramway-hpc-210902-py36.sif)
+
+  *tramway0.6.3* image with targets *hpc-minimal* and *animate*, and *scikit-learn* as an additional package.
+  Python is available as *python3.6* and the run command admits option *-s*, passed to Python,
+  resulting in command `python3.6 -s -m tramway $@`.
+  The included Python dependencies are the following:
+
+``
+cached-property==1.5.2
+cvxopt==1.2.6
+cycler==0.10.0
+decorator==4.4.2
+h5py==3.1.0
+imageio==2.9.0
+joblib==1.0.1
+kiwisolver==1.3.1
+matplotlib==3.3.4
+networkx==2.5.1
+numpy==1.19.5
+opencv-python==4.5.3.56
+pandas==1.1.5
+Pillow==8.3.2
+polytope==0.2.3
+pycurl==7.43.0
+PyGObject==3.20.0
+pyparsing==2.4.7
+python-apt==1.1.0b1+ubuntu0.16.4.12
+python-dateutil==2.8.2
+pytz==2021.1
+PyWavelets==1.1.1
+rwa-python==0.8.5
+scikit-image==0.17.2
+scikit-learn==0.24.2
+scipy==1.5.4
+six==1.16.0
+stopit==1.1.2
+threadpoolctl==2.2.0
+tifffile==2020.9.3
+tqdm==4.62.2
+``
+
+
+* tramway-hpc-210902-py3{[7](http://dl.pasteur.fr/fop/xWrWWsEA/tramway-hpc-210902-py37.sif),[8](http://dl.pasteur.fr/fop/VTRrmm3o/tramway-hpc-210902-py38.sif),[9](http://dl.pasteur.fr/fop/xywwERaD/tramway-hpc-210902-py39.sif)}.sif
+
+  *tramway0.6.3* image with targets *hpc-minimal* and *animate*, and *scikit-learn* as an additional package.
+  Python is available as *python3.x*, with *x* any of *7*, *8*, *9*, depending on the container file.
+  The run command admits option *-s*, passed to Python,
+  resulting in command (e.g.) `python3.8 -s -m tramway $@`.
+  The included Python dependencies are the following:
+
+``
+cached-property==1.5.2  # py37 only
+cvxopt==1.2.6
+cycler==0.10.0
+h5py==3.4.0
+imageio==2.9.0
+joblib==1.0.1
+kiwisolver==1.3.2
+matplotlib==3.4.3
+networkx==2.6.2
+numpy==1.21.2
+opencv-python==4.5.3.56
+pandas==1.3.2
+Pillow==8.3.2
+polytope==0.2.3
+pycurl==7.43.0
+PyGObject==3.20.0
+pyparsing==2.4.7
+python-apt==1.1.0b1+ubuntu0.16.4.12
+python-dateutil==2.8.2
+pytz==2021.1
+PyWavelets==1.1.1
+rwa-python==0.8.5
+scikit-image==0.18.3
+scikit-learn==0.24.2
+scipy==1.7.1
+six==1.16.0
+stopit==1.1.2
+threadpoolctl==2.2.0
+tifffile==2021.8.30
+tqdm==4.62.2
+``
+
