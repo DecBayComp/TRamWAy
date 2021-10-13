@@ -22,7 +22,7 @@ Steps to reproduce the behavior:
 A clear and concise description of what you expected to happen.
 
 **Screenshots**
-If applicable, add screenshots to help explain your problem. If an error message is printed in the console, be sure to copy-paste it.
+If applicable, add screenshots to help explain your problem. If an error message is printed in the console, be sure to copy-paste it. Add triple backticks (```) before and after such copy-pasted text, to properly format it.
 
 **System**
  - Operating System: 
