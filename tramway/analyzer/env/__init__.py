@@ -35,38 +35,45 @@ class EnvironmentInitializer(Initializer):
 
     See :class:`~.environments.LocalHost` and :class:`~.environments.SlurmOverSSH`.
     """
-    __slots__ = ('_script',)
+
+    __slots__ = ("_script",)
+
     def __init__(self, attribute_setter, parent=None):
         Initializer.__init__(self, attribute_setter, parent=parent)
         self._script = None
+
     def from_callable(self, env):
         if issubclass(env, Environment):
-            self.specialize( env )
+            self.specialize(env)
         else:
-            raise TypeError('env is not an Environment')
+            raise TypeError("env is not an Environment")
+
     @property
     def script(self):
         """
         *str*: Path to the local script; this compatibility attribute
             is actually used by the :attr:`~tramway.analyzer.RWAnalyzer.browser`
         """
-        #return None
+        # return None
         return self._script
+
     @script.setter
     def script(self, filename):
-        #pass
+        # pass
         self._script = filename
+
     @property
     def collectibles(self):
-        """ set: Compatilibity attribute; not used """
+        """set: Compatilibity attribute; not used"""
         return set()
+
     @property
     def submit_side(self):
         return False
+
     @property
     def worker_side(self):
         return False
 
 
-__all__ = ['Environment', 'EnvironmentInitializer', 'environments']
-
+__all__ = ["Environment", "EnvironmentInitializer", "environments"]

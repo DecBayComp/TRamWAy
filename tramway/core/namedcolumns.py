@@ -18,6 +18,7 @@ import re
 import sys
 import collections
 
+
 def isstructured(x):
     """
     Check for named columns.
@@ -38,6 +39,7 @@ def isstructured(x):
             return bool(x.dtype.names)
         except AttributeError:
             return False
+
 
 def columns(x):
     """
@@ -62,39 +64,42 @@ def columns(x):
     elif x.dtype.names:
         return x.dtype.names
     else:
-        raise ValueError('not structured')
+        raise ValueError("not structured")
+
 
 def splitcoord(varnames, asstr=True):
     if asstr and sys.version_info[0] < 3:
+
         def _str(s):
-            return s.encode('utf-8') if isinstance(s, unicode) else s
+            return s.encode("utf-8") if isinstance(s, unicode) else s
+
     else:
         _str = lambda s: s
-    coord = re.compile('[a-z]?[0-9]*$')
+    coord = re.compile("[a-z]?[0-9]*$")
     vs = collections.defaultdict(list)
     for v in varnames:
-        u = [ w[::-1] for w in v[::-1].split(None, 1) ]
+        u = [w[::-1] for w in v[::-1].split(None, 1)]
         if u[1:] and coord.match(u[0]):
             vs[_str(u[1])].append(v)
         else:
             vs[_str(v)].append(v)
     return vs
 
+
 def expandcoord(varname, dim):
     if dim < 1:
-        raise ValueError('`dim` is lower than 1')
+        raise ValueError("`dim` is lower than 1")
     elif dim == 1:
         return [varname]
     elif dim <= 3:
-        return [ '{} {}'.format(varname, c) for c in 'xyz'[:dim] ]
+        return ["{} {}".format(varname, c) for c in "xyz"[:dim]]
     else:
-        return [ '{} x{:d}'.format(varname, c) for c in range(dim) ]
+        return ["{} x{:d}".format(varname, c) for c in range(dim)]
 
 
 __all__ = [
-    'isstructured',
-    'columns',
-    'splitcoord',
-    'expandcoord',
-    ]
-
+    "isstructured",
+    "columns",
+    "splitcoord",
+    "expandcoord",
+]

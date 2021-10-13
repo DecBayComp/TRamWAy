@@ -15,7 +15,14 @@
 from .exception import *
 from .base import *
 import numpy as np
-from scipy.sparse import csc_matrix, csr_matrix, bsr_matrix, dok_matrix, coo_matrix, dia_matrix
+from scipy.sparse import (
+    csc_matrix,
+    csr_matrix,
+    bsr_matrix,
+    dok_matrix,
+    coo_matrix,
+    dia_matrix,
+)
 
 
 class DictGraph(Graph):
@@ -23,18 +30,19 @@ class DictGraph(Graph):
     with frequent modifications to its structure, but possibly computationally slow for :class:`Gas`.
 
     Consider using alternative implementations in module :mod:`.graph.alloc`."""
+
     def __init__(self, node_defaults, edge_defaults):
         Graph.__init__(self, node_defaults, edge_defaults)
-        self.nodes = dict([ (attr, {}) for attr in node_defaults ])
+        self.nodes = dict([(attr, {}) for attr in node_defaults])
         self._node_counter = 0
         self.neighbors = {}
-        self.edges = dict([ (attr, {}) for attr in edge_defaults ])
+        self.edges = dict([(attr, {}) for attr in edge_defaults])
         self._edge_counter = 0
 
     def connect(self, n1, n2, **kwargs):
         if self.has_node(n1) and self.has_node(n2):
-            e = [ e for e, n in self.neighbors[n1] if n is n2 ]
-            if e: # if nodes are already connected
+            e = [e for e, n in self.neighbors[n1] if n is n2]
+            if e:  # if nodes are already connected
                 e = e[0]
             else:
                 e = self._edge_counter
@@ -43,31 +51,37 @@ class DictGraph(Graph):
                 self._edge_counter += 1
             for attr, default in self.edge_defaults.items():
                 self.edges[attr][e] = kwargs.get(attr, default)
-        else:   raise MissingNodeError((n1, n2))
+        else:
+            raise MissingNodeError((n1, n2))
         return e
 
     def disconnect(self, n1, n2, edge=None):
         if self.has_node(n1) and self.has_node(n2):
             e = edge
             if e is None:
-                e = [ e for e, n in self.neighbors[n2] if n is n1]
-                if e: e = e[0]
-                else: e = None
-            if e is None: # e can be 0
-                #raise MissingEdgeError((n1, n2))
+                e = [e for e, n in self.neighbors[n2] if n is n1]
+                if e:
+                    e = e[0]
+                else:
+                    e = None
+            if e is None:  # e can be 0
+                # raise MissingEdgeError((n1, n2))
                 pass
-            else: # if nodes are connected
+            else:  # if nodes are connected
                 self.neighbors[n1].remove((e, n2))
                 self.neighbors[n2].remove((e, n1))
                 for attr in self.edges:
                     del self.edges[attr][e]
-        else:   raise MissingNodeError((n1, n2))
+        else:
+            raise MissingNodeError((n1, n2))
 
     def find_edge(self, n1, n2):
         if self.has_node(n1):
-            e = [ e for e, n in self.neighbors[n1] if n is n2 ]
-            if e: return e[0]
-            else: return None
+            e = [e for e, n in self.neighbors[n1] if n is n2]
+            if e:
+                return e[0]
+            else:
+                return None
         else:
             return None
 
@@ -77,15 +91,18 @@ class DictGraph(Graph):
         except KeyError:
             if attr in self.nodes:
                 raise MissingNodeError(n)
-            else:   raise NodeAttributeError(n)
+            else:
+                raise NodeAttributeError(n)
 
     def set_node_attr(self, n, **kwargs):
         for attr, val in kwargs.items():
             if attr in self.nodes:
                 if n in self.nodes[attr]:
                     self.nodes[attr][n] = val
-                else:   raise MissingNodeError(n)
-            else: raise NodeAttributeError(attr)
+                else:
+                    raise MissingNodeError(n)
+            else:
+                raise NodeAttributeError(attr)
 
     def get_edge_attr(self, e, attr):
         try:
@@ -93,7 +110,8 @@ class DictGraph(Graph):
         except KeyError:
             if attr in self.edges:
                 raise MissingEdgeError(e)
-            else:   raise EdgeAttributeError(attr)
+            else:
+                raise EdgeAttributeError(attr)
 
     def set_edge_attr(self, e, **kwargs):
         for attr, val in kwargs.items():
@@ -133,7 +151,8 @@ class DictGraph(Graph):
             del self.neighbors[n]
             for attr in self.nodes:
                 del self.nodes[attr][n]
-        else:   raise MissingNodeError(n)
+        else:
+            raise MissingNodeError(n)
 
     @property
     def size(self):
@@ -142,11 +161,16 @@ class DictGraph(Graph):
     def iter_nodes(self):
         return self.neighbors.keys()
 
-    def export(self, sparse='csr'):
-        matrix = dict(csc=csc_matrix, csr=csr_matrix, bsr=bsr_matrix, coo=coo_matrix, \
-            dok=lambda x: coo_matrix(x).todok(), \
-            dia=lambda x: coo_matrix(x).todia())
-            #lil=lambda x: coo_matrix(x).tolil(), \ # lil does not support explicit zeros
+    def export(self, sparse="csr"):
+        matrix = dict(
+            csc=csc_matrix,
+            csr=csr_matrix,
+            bsr=bsr_matrix,
+            coo=coo_matrix,
+            dok=lambda x: coo_matrix(x).todok(),
+            dia=lambda x: coo_matrix(x).todia(),
+        )
+        # lil=lambda x: coo_matrix(x).tolil(), \ # lil does not support explicit zeros
         any_attr = list(self.node_defaults.keys())[0]
         node_order = list(self.nodes[any_attr].keys())
         node_map = np.zeros(self._node_counter)
@@ -155,8 +179,9 @@ class DictGraph(Graph):
         edge_order = list(self.edges[any_attr].keys())
         edge_map = np.zeros(self._edge_counter)
         edge_map[edge_order] = np.arange(0, len(edge_order))
-        edges, nodes1, nodes2 = zip(*[ (e, n1, n2) for n1, ns in self.neighbors.items() \
-                                for e, n2 in ns ])
+        edges, nodes1, nodes2 = zip(
+            *[(e, n1, n2) for n1, ns in self.neighbors.items() for e, n2 in ns]
+        )
         edges = edge_map[np.asarray(edges)]
         nodes1 = node_map[np.asarray(nodes1)]
         nodes2 = node_map[np.asarray(nodes2)]
@@ -175,9 +200,11 @@ class DictGraph(Graph):
         x = np.vstack(self.nodes[attr].values())
         d = np.sum(x * x, axis=1) + eta2 - 2.0 * np.dot(x, eta)
         n = list(self.iter_nodes())
+
         def index_to_node(i):
             if isinstance(i, int):
                 return n[i]
-            else:   return [ n[j] for j in i ]
-        return (d, index_to_node)
+            else:
+                return [n[j] for j in i]
 
+        return (d, index_to_node)

@@ -14,49 +14,60 @@
 
 from abc import *
 
+
 class Analyses(metaclass=ABCMeta):
     @property
     @abstractmethod
     def data(self):
         pass
+
     @data.setter
     @abstractmethod
     def data(self, d):
         pass
+
     @property
     @abstractmethod
     def artefact(self):
         pass
+
     @artefact.setter
     @abstractmethod
     def artefact(self, a):
         pass
+
     @property
     @abstractmethod
     def metadata(self):
         pass
+
     @metadata.setter
     @abstractmethod
     def metadata(self, d):
         pass
+
     @property
     @abstractmethod
     def instances(self):
         pass
+
     @property
     @abstractmethod
     def comments(self):
         pass
+
     @property
     @abstractmethod
     def labels(self):
         pass
+
     @abstractmethod
     def autoindex(self, pattern=None):
         pass
+
     @abstractmethod
     def add(self, analysis, label=None, comment=None, raw=False):
         pass
 
-__all__ = ['Analyses']
 
+__all__ = ["Analyses"]

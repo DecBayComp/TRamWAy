@@ -19,13 +19,16 @@ from tramway.tessellation import Partition
 
 
 class BaseSampler(AnalyzerNode):
-    """ wraps the `Partition.cell_index` logics that readily implements
+    """wraps the `Partition.cell_index` logics that readily implements
     all the possibilities mentioned in this module.
     """
-    __slots__ = ('_min_location_count',)
+
+    __slots__ = ("_min_location_count",)
+
     def __init__(self, **kwargs):
         AnalyzerNode.__init__(self, **kwargs)
         self._min_location_count = 0
+
     @property
     def min_location_count(self):
         """
@@ -35,14 +38,16 @@ class BaseSampler(AnalyzerNode):
             are marked as disabled and are excluded from further analyses
         """
         return self._min_location_count
+
     @min_location_count.setter
     def min_location_count(self, n):
         self._min_location_count = n
-    @analysis(2, 'segmentation')
+
+    @analysis(2, "segmentation")
     def sample(self, spt_dataframe, segmentation=None, **kwargs):
         df = spt_dataframe
         if self.min_location_count is not None:
-            kwargs['min_location_count'] = self.min_location_count
+            kwargs["min_location_count"] = self.min_location_count
         if segmentation is None:
             if self.tesseller.initialized:
                 segmentation = self.tesseller.tessellate(spt_dataframe)
@@ -58,31 +63,38 @@ class BaseSampler(AnalyzerNode):
         except AttributeError:
             pass
         if kwargs:
-            sample.param['partition'] = kwargs
+            sample.param["partition"] = kwargs
         return sample
+
     @property
     def tesseller(self):
         return self._parent.tesseller
+
     @property
     def time(self):
         return self._parent.time
 
+
 Sampler.register(BaseSampler)
 
+
 class VoronoiSampler(BaseSampler):
-    """ nearest neighbor assignment.
-    
+    """nearest neighbor assignment.
+
     Each data point is assigned to exactly one cell/microdomain."""
+
     __slots__ = ()
+
     def sample(self, df, segmentation=None):
         parent = super(VoronoiSampler, self)
         return parent.sample(df, segmentation)
 
-#Sampler.register(VoronoiSampler)
+
+# Sampler.register(VoronoiSampler)
 
 
 class SamplerInitializer(Initializer):
-    """ Initializer class for the :class:`~tramway.analyzer.RWAnalyzer`
+    """Initializer class for the :class:`~tramway.analyzer.RWAnalyzer`
     :attr:`~tramway.analyzer.RWAnalyzer.sampler` main attribute.
 
     The :attr:`~tramway.analyzer.RWAnalyzer.sampler` attribute self-modifies
@@ -97,16 +109,19 @@ class SamplerInitializer(Initializer):
         a.sampler.from_voronoi()
 
     """
+
     __slots__ = ()
+
     def from_voronoi(self):
-        """ default sampler.
+        """default sampler.
 
         The data points are assigned to the nearest cell/microdomain.
-        
+
         See also :class:`VoronoiSampler`."""
-        self.specialize( VoronoiSampler )
+        self.specialize(VoronoiSampler)
+
     def from_spheres(self, radius):
-        """ nearest neighbor assignment by distance.
+        """nearest neighbor assignment by distance.
 
         Voronoi assignment is applied first and then, for each microdomain,
         the maximum distance of the assigned points to the center of the cell is considered.
@@ -115,36 +130,44 @@ class SamplerInitializer(Initializer):
         If the most distant assigned point is out of the specified bounds,
         additional points are selected (or assigned points are discarded)
         in order of distance from the corresponding cell center.
-        
+
         See also :class:`SphericalSampler`."""
-        self.specialize( SphericalSampler, radius )
+        self.specialize(SphericalSampler, radius)
+
     def from_nearest_neighbors(self, knn):
-        """ nearest neighbor assignment by count.
+        """nearest neighbor assignment by count.
 
         The Voronoi assignment is applied first.
         The `knn` argument defines a lower and/or upper bound(s) on the number of neighbors.
         For each microdomain, if the number that results from Voronoi assignment is
         out of the specified bounds, additional points are selected (or assigned points are
         discarded) in order of distance from the corresponding cell center.
-        
+
         See also :class:`Knn`."""
-        self.specialize( Knn, knn )
+        self.specialize(Knn, knn)
+
     def from_nearest_time_neighbors(self, knn):
-        """ similar to `from_nearest_neighbors` but cell/microdomain size is adjusted in time
+        """similar to `from_nearest_neighbors` but cell/microdomain size is adjusted in time
         instead of space.
-        
+
         See also :class:`TimeKnn`."""
-        self.specialize( TimeKnn, knn )
+        self.specialize(TimeKnn, knn)
+
     def sample(self, spt_data, segmentation=None):
-        """ main processing method. """
+        """main processing method."""
         self.from_voronoi()
         return self._sampler.sample(spt_data, segmentation)
+
     @property
     def _sampler(self):
         return self._parent.sampler
+
     @property
     def min_location_count(self):
-        raise AttributeError("'SamplerInitializer' object has no attribute 'min_location_count'")
+        raise AttributeError(
+            "'SamplerInitializer' object has no attribute 'min_location_count'"
+        )
+
     @min_location_count.setter
     def min_location_count(self, n):
         self.from_voronoi()
@@ -152,11 +175,14 @@ class SamplerInitializer(Initializer):
 
 
 class SphericalSampler(BaseSampler):
-    """ nearest neighbor selection by distance."""
-    __slots__ = ('_radius',)
+    """nearest neighbor selection by distance."""
+
+    __slots__ = ("_radius",)
+
     def __init__(self, radius, **kwargs):
         BaseSampler.__init__(self, **kwargs)
         self._radius = radius
+
     @property
     def radius(self):
         """
@@ -167,23 +193,28 @@ class SphericalSampler(BaseSampler):
             microdomain (takes the microdomain index as input argument)
         """
         return self._radius
+
     @radius.setter
     def radius(self, r):
         self._radius = r
+
     def sample(self, spt_data, segmentation=None):
         parent = super(SphericalSampler, self)
         return parent.sample(spt_data, segmentation, radius=self.radius)
 
 
 class Knn(BaseSampler):
-    """ nearest neighbor selection by count."""
-    __slots__ = ('_knn',)
+    """nearest neighbor selection by count."""
+
+    __slots__ = ("_knn",)
+
     def __init__(self, knn, **kwargs):
         BaseSampler.__init__(self, **kwargs)
         self._knn = knn
+
     @property
     def knn(self):
-        """ 
+        """
         *int* or *(int, int)* or *callable*:
             Lower bound or (lower bound, upper bound) pair on the number of data points
             which, if Voronoi assignment yields a number out of these bounds,
@@ -196,21 +227,25 @@ class Knn(BaseSampler):
             returns either an `int` or a pair of `int` or :const:`None`
         """
         return self._knn
+
     @knn.setter
     def knn(self, r):
         self._knn = r
+
     def sample(self, spt_data, segmentation=None):
         parent = super(Knn, self)
-        return parent.sample(spt_data, segmentation, knn=self.knn,
-                fast_min_nn=False)
+        return parent.sample(spt_data, segmentation, knn=self.knn, fast_min_nn=False)
 
 
 class TimeKnn(BaseSampler):
-    """ nearest neighbor selection by count across time."""
-    __slots__ = ('_knn',)
+    """nearest neighbor selection by count across time."""
+
+    __slots__ = ("_knn",)
+
     def __init__(self, knn, **kwargs):
         BaseSampler.__init__(self, **kwargs)
         self._knn = knn
+
     @property
     def knn(self):
         """
@@ -227,14 +262,22 @@ class TimeKnn(BaseSampler):
             returns either an `int` or a pair of `int` or :const:`None`
         """
         return self._knn
+
     @knn.setter
     def knn(self, r):
         self._knn = r
+
     def sample(self, spt_data, segmentation=None):
         parent = super(TimeKnn, self)
         return parent.sample(spt_data, segmentation, time_knn=self.knn)
 
 
-__all__ = ['Sampler', 'SamplerInitializer', 'BaseSampler', 'VoronoiSampler',
-        'SphericalSampler', 'Knn', 'TimeKnn']
-
+__all__ = [
+    "Sampler",
+    "SamplerInitializer",
+    "BaseSampler",
+    "VoronoiSampler",
+    "SphericalSampler",
+    "Knn",
+    "TimeKnn",
+]

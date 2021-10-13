@@ -48,17 +48,31 @@ class KohonenMesh(Voronoi):
 
     """
 
-    __slots__ = ('_step_size', '_neighbourhood_weight', 'pass_count',
-        'initial_mesh', 'initial_mesh_init_kwargs', 'initial_mesh_tessellate_kwargs')
+    __slots__ = (
+        "_step_size",
+        "_neighbourhood_weight",
+        "pass_count",
+        "initial_mesh",
+        "initial_mesh_init_kwargs",
+        "initial_mesh_tessellate_kwargs",
+    )
 
-    def __init__(self, scaler=None, step_size=None, neighbourhood_weight=None, pass_count=None,
-        initial_mesh=None, initial_mesh_tessellate_kwargs={}, **initial_mesh_init_kwargs):
+    def __init__(
+        self,
+        scaler=None,
+        step_size=None,
+        neighbourhood_weight=None,
+        pass_count=None,
+        initial_mesh=None,
+        initial_mesh_tessellate_kwargs={},
+        **initial_mesh_init_kwargs
+    ):
         Voronoi.__init__(self, scaler)
         if step_size is None:
-            step_size = (.1, .01, .55)
+            step_size = (0.1, 0.01, 0.55)
         self._step_size = step_size
         if neighbourhood_weight is None:
-            neighbourhood_weight = (1., .1)
+            neighbourhood_weight = (1.0, 0.1)
         self._neighbourhood_weight = neighbourhood_weight
         if pass_count is None:
             pass_count = 5
@@ -70,29 +84,30 @@ class KohonenMesh(Voronoi):
     def tessellate(self, points, **kwargs):
         # build initial mesh
         if self.initial_mesh is None:
-            #from tramway.tessellation.grid import RegularMesh
-            #self.initial_mesh = RegularMesh
+            # from tramway.tessellation.grid import RegularMesh
+            # self.initial_mesh = RegularMesh
             from tramway.tessellation.gwr.gas import Gas
-            avg_probability = self.initial_mesh_init_kwargs['avg_probability']
-            knn = 10#round(avg_probability * points.shape[0])
-            rmin = self.initial_mesh_init_kwargs['min_distance'] * .01
-            rmax = self.initial_mesh_init_kwargs['max_distance']
+
+            avg_probability = self.initial_mesh_init_kwargs["avg_probability"]
+            knn = 10  # round(avg_probability * points.shape[0])
+            rmin = self.initial_mesh_init_kwargs["min_distance"] * 0.01
+            rmax = self.initial_mesh_init_kwargs["max_distance"]
             if rmax is None:
-                rmax = self.initial_mesh_init_kwargs['avg_distance'] * 2.
+                rmax = self.initial_mesh_init_kwargs["avg_distance"] * 2.0
             X = np.asarray(self._preprocess(points))
-            #if 10000 < X.shape[0]:
+            # if 10000 < X.shape[0]:
             #    X = X[np.random.randint(0, X.shape[0], 10000)]
             radius = Gas(X).boxed_radius(X, knn, rmin, rmax)
-            density = 1. / radius
+            density = 1.0 / radius
             density /= np.sum(density)
             P = np.r_[0, np.cumsum(density)]
-            p = np.sort(np.random.rand(int(round(1./avg_probability))))
+            p = np.sort(np.random.rand(int(round(1.0 / avg_probability))))
             i, j = [], 0
             for q in p:
                 while P[j] <= q:
                     j += 1
-                i.append(j-1)
-            #i = [ ((P[:-1] <= _p) & (_p < P[1:])).nonzero()[0][0].tolist() for _p in p ]
+                i.append(j - 1)
+            # i = [ ((P[:-1] <= _p) & (_p < P[1:])).nonzero()[0][0].tolist() for _p in p ]
             self.initial_mesh = Voronoi(self.scaler)
             if isinstance(points, pd.DataFrame):
                 X = points.loc[i]
@@ -100,27 +115,29 @@ class KohonenMesh(Voronoi):
                 X = points[i]
             self.initial_mesh.tessellate(X)
         if callable(self.initial_mesh):
-            self.initial_mesh = self.initial_mesh(self.scaler, **self.initial_mesh_init_kwargs)
+            self.initial_mesh = self.initial_mesh(
+                self.scaler, **self.initial_mesh_init_kwargs
+            )
             self.initial_mesh.tessellate(points, **self.initial_mesh_tessellate_kwargs)
             ## copy a few pointers
             self._cell_centers = self.initial_mesh._cell_centers
             self._cell_label = self.initial_mesh.cell_label
-            #self._cell_adjacency = self.initial_mesh.cell_adjacency
-            #self._adjacency_label = self.initial_mesh.adjacency_label
+            # self._cell_adjacency = self.initial_mesh.cell_adjacency
+            # self._adjacency_label = self.initial_mesh.adjacency_label
         elif isinstance(self.initial_mesh, Delaunay):
             ## copy a few pointers
             self._cell_centers = self.initial_mesh._cell_centers
             self._cell_label = self.initial_mesh.cell_label
-            #self._cell_adjacency = self.initial_mesh.cell_adjacency
-            #self._adjacency_label = self.initial_mesh.adjacency_label
+            # self._cell_adjacency = self.initial_mesh.cell_adjacency
+            # self._adjacency_label = self.initial_mesh.adjacency_label
             pass
         else:
             raise NotImplementedError
         # step size
         T = points.shape[0]
         eps_0, eps_T, gamma = self._step_size
-        c = (eps_T / eps_0) ** (-1. / gamma)
-        b = float(T) / (c - 1.)
+        c = (eps_T / eps_0) ** (-1.0 / gamma)
+        b = float(T) / (c - 1.0)
         a = eps_0 / (b ** (-gamma))
         self._step_size = (a, b, gamma)
         # learn
@@ -196,28 +213,42 @@ class KohonenMesh(Voronoi):
 
 
 setup = {
-    'make_arguments': OrderedDict((
-        ('min_distance', ()),
-        ('avg_distance', ()),
-        ('max_distance', ()),
-        ('avg_probability', ()),
-        # avg_location_count allows to control avg_probability from the commandline
-        ('avg_location_count', dict(args=('-c', '--location-count'), kwargs=dict(type=int, default=80, help='average number of locations per cell'), translate=True)),
-        )),
-    }
+    "make_arguments": OrderedDict(
+        (
+            ("min_distance", ()),
+            ("avg_distance", ()),
+            ("max_distance", ()),
+            ("avg_probability", ()),
+            # avg_location_count allows to control avg_probability from the commandline
+            (
+                "avg_location_count",
+                dict(
+                    args=("-c", "--location-count"),
+                    kwargs=dict(
+                        type=int,
+                        default=80,
+                        help="average number of locations per cell",
+                    ),
+                    translate=True,
+                ),
+            ),
+        )
+    ),
+}
 
 
-__all__ = ['setup', 'KohonenMesh']
+__all__ = ["setup", "KohonenMesh"]
 
 import sys
+
 if sys.version_info[0] < 3:
 
     import rwa
     import tramway.core.hdf5 as rules
+
     kohonen_mesh_exposes = rules.voronoi_exposes + list(KohonenMesh.__slots__)
     rwa.hdf5_storable(
-        rwa.default_storable(KohonenMesh, exposes=kohonen_mesh_exposes),
-        agnostic=True)
+        rwa.default_storable(KohonenMesh, exposes=kohonen_mesh_exposes), agnostic=True
+    )
 
-    __all__.append('kohonen_mesh_exposes')
-
+    __all__.append("kohonen_mesh_exposes")

@@ -17,9 +17,10 @@ import importlib
 import copy
 import os
 import re
+
 try:
     fullmatch = re.fullmatch
-except AttributeError: # Py2
+except AttributeError:  # Py2
     fullmatch = re.match
 from warnings import warn
 import traceback
@@ -27,22 +28,26 @@ import traceback
 
 def list_plugins(dirname, package, lookup={}, force=False, require=None, verbose=False):
     if verbose:
-        _pre = 'loading: '
-        _post = '...'
-        _success = '[done]'
-        _failure = '[failed]'
+        _pre = "loading: "
+        _post = "..."
+        _success = "[done]"
+        _failure = "[failed]"
     if not require:
         require = ()
     elif isinstance(require, str):
         require = (require,)
-    pattern = re.compile(r'[a-zA-Z0-9].*([.]py)?')
-    candidate_modules = set([ os.path.splitext(fn)[0] \
-        for fn in os.listdir(dirname) \
-        if fullmatch(pattern, fn) is not None ])
+    pattern = re.compile(r"[a-zA-Z0-9].*([.]py)?")
+    candidate_modules = set(
+        [
+            os.path.splitext(fn)[0]
+            for fn in os.listdir(dirname)
+            if fullmatch(pattern, fn) is not None
+        ]
+    )
     modules = {}
     provided = {}
     for name in candidate_modules:
-        path = '{}.{}'.format(package, name)
+        path = "{}.{}".format(package, name)
         # load module
         try:
             module = importlib.import_module(path)
@@ -50,8 +55,8 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None, verbose
             raise
         except:
             if verbose:
-                print('{}{}{}\t{}'.format(_pre, path, _post, _failure))
-                print(traceback.format_exc(), end='')
+                print("{}{}{}\t{}".format(_pre, path, _post, _failure))
+                print(traceback.format_exc(), end="")
             continue
         # ensure that all the required attributes are available
         _continue = False
@@ -59,16 +64,17 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None, verbose
             if not hasattr(module, required):
                 _continue = True
                 break
-        if _continue:   continue
+        if _continue:
+            continue
         elif verbose:
-            print('{}{}{}'.format(_pre, path, _post), end='\t')
+            print("{}{}{}".format(_pre, path, _post), end="\t")
         # parse setup
-        if hasattr(module, 'setup'):
+        if hasattr(module, "setup"):
             setup = module.setup
             try:
-                name = setup['name']
+                name = setup["name"]
             except KeyError:
-                setup['name'] = name
+                setup["name"] = name
         else:
             setup = dict(name=name)
         # parse other attributes
@@ -92,8 +98,7 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None, verbose
                     if ok:
                         matches.append(var)
             else:
-                matches = [ var for var in namespace
-                    if fullmatch(ref, var) is not None ]
+                matches = [var for var in namespace if fullmatch(ref, var) is not None]
             if matches:
                 if matches[1:]:
                     conflicting = key
@@ -105,11 +110,23 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None, verbose
                 if not force:
                     break
         if conflicting:
-            warning.append(("multiple matches in module '{}' for key '{}'".format(path, conflicting), ImportWarning))
+            warning.append(
+                (
+                    "multiple matches in module '{}' for key '{}'".format(
+                        path, conflicting
+                    ),
+                    ImportWarning,
+                )
+            )
             if not force:
                 continue
         if missing:
-            warning.append(("no match in module '{}' for key '{}'".format(path, missing), ImportWarning))
+            warning.append(
+                (
+                    "no match in module '{}' for key '{}'".format(path, missing),
+                    ImportWarning,
+                )
+            )
             if verbose:
                 if force:
                     print(_success)
@@ -130,7 +147,7 @@ def list_plugins(dirname, package, lookup={}, force=False, require=None, verbose
             for name in names:
                 modules[name] = plugin
         try:
-            provides = setup['provides']
+            provides = setup["provides"]
         except KeyError:
             pass
         else:
@@ -150,7 +167,7 @@ def add_arguments(parser, arguments, name=None):
     for arg, options in arguments.items():
         if not options:
             continue
-        long_arg = '--' + arg.replace('_', '-')
+        long_arg = "--" + arg.replace("_", "-")
         has_options = False
         if isinstance(options, (tuple, list)):
             args = list(options)
@@ -159,7 +176,7 @@ def add_arguments(parser, arguments, name=None):
         else:
             args = []
             try:
-                _parse = options['parse']
+                _parse = options["parse"]
             except KeyError:
                 pass
             else:
@@ -167,26 +184,28 @@ def add_arguments(parser, arguments, name=None):
                     translations.append((arg, _parse))
                     has_options = True
             try:
-                kwargs = options['kwargs']
+                kwargs = options["kwargs"]
             except KeyError:
                 if has_options or not options:
                     continue
                 kwargs = options
-                options = None # should not be used anymore
+                options = None  # should not be used anymore
             else:
                 has_options = True
                 try:
-                    args = list(options.get('args'))
+                    args = list(options.get("args"))
                 except KeyError:
                     pass
-        if has_options and options.get('translate', False):
+        if has_options and options.get("translate", False):
             try:
                 _arg = args[1]
             except IndexError:
                 _arg = args[0]
-            _arg = _arg.lstrip('-').replace('-', '_')
+            _arg = _arg.lstrip("-").replace("-", "_")
+
             def _translate(**_kwargs):
                 return _kwargs.get(_arg, None)
+
             translations.append((arg, _translate))
         elif long_arg not in args:
             if args:
@@ -211,8 +230,8 @@ def short_options(arguments):
         if args:
             if isinstance(args, (tuple, list)):
                 args = args[0]
-            elif 'args' in args:
-                args = args['args']
+            elif "args" in args:
+                args = args["args"]
             else:
                 continue
             if not isinstance(args, (tuple, list)):
@@ -225,9 +244,20 @@ def short_options(arguments):
 
 class Plugins(object):
 
-    __slots__ = ('modules', 'dirname', 'package', 'lookup', 'force', 'require', 'verbose', 'post_load')
+    __slots__ = (
+        "modules",
+        "dirname",
+        "package",
+        "lookup",
+        "force",
+        "require",
+        "verbose",
+        "post_load",
+    )
 
-    def __init__(self, dirname, package, lookup={}, force=False, require=None, verbose=False):
+    def __init__(
+        self, dirname, package, lookup={}, force=False, require=None, verbose=False
+    ):
         self.modules = None
         self.dirname = dirname
         self.package = package
@@ -246,12 +276,15 @@ class Plugins(object):
                 self.force,
                 self.require,
                 self.verbose,
-                )
+            )
             if self.post_load:
                 self.post_load(self)
 
     def __repr__(self):
-        return 'Plugins{{in \'{}\'}}{}'.format(self.package, '{(not loaded)}' if self.modules is None else repr(self.modules))
+        return "Plugins{{in '{}'}}{}".format(
+            self.package,
+            "{(not loaded)}" if self.modules is None else repr(self.modules),
+        )
 
     def __nonzero__(self):
         self.__load__()
@@ -300,14 +333,13 @@ class Plugins(object):
     def update(self, plugins):
         self.__load__()
         if not isinstance(plugins, dict):
-            raise TypeError('not a `dict`')
+            raise TypeError("not a `dict`")
         self.modules.update(plugins)
 
 
 __all__ = [
-    'list_plugins',
-    'add_arguments',
-    'short_options',
-    'Plugins',
-    ]
-
+    "list_plugins",
+    "add_arguments",
+    "short_options",
+    "Plugins",
+]

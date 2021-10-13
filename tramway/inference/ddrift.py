@@ -16,19 +16,40 @@ import tramway.inference.unsmooth_ddrift as degraded_dd
 import tramway.inference.standard_ddrift as standard_dd
 
 
-setup = dict(standard_dd.setup) # copy
-setup['name'] = ('dd', 'ddrift')
-del setup['provides']
-setup['infer'] = 'infer_DD'
+setup = dict(standard_dd.setup)  # copy
+setup["name"] = ("dd", "ddrift")
+del setup["provides"]
+setup["infer"] = "infer_DD"
 
 
-def infer_DD(cells, diffusivity_prior=None, drift_prior=None, jeffreys_prior=False,
-        min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
+def infer_DD(
+    cells,
+    diffusivity_prior=None,
+    drift_prior=None,
+    jeffreys_prior=False,
+    min_diffusivity=None,
+    max_iter=None,
+    epsilon=None,
+    rgrad=None,
+    **kwargs
+):
 
     if diffusivity_prior is None and drift_prior is None:
-        return degraded_dd.infer_DD(cells, jeffreys_prior=jeffreys_prior,
-                min_diffusivity=min_diffusivity, **kwargs)
+        return degraded_dd.infer_DD(
+            cells,
+            jeffreys_prior=jeffreys_prior,
+            min_diffusivity=min_diffusivity,
+            **kwargs
+        )
     else:
-        return standard_dd.infer_smooth_DD(cells, diffusivity_prior, drift_prior, jeffreys_prior,
-                min_diffusivity, max_iter, epsilon, rgrad, **kwargs)
-
+        return standard_dd.infer_smooth_DD(
+            cells,
+            diffusivity_prior,
+            drift_prior,
+            jeffreys_prior,
+            min_diffusivity,
+            max_iter,
+            epsilon,
+            rgrad,
+            **kwargs
+        )

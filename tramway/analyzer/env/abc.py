@@ -14,11 +14,13 @@
 
 from ..attribute.abc import Attribute, abstractmethod
 
+
 class Environment(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.env` attribute
     of an :class:`~tramway.analyzer.RWAnalyzer` object.
     """
+
     @property
     @abstractmethod
     def script(self):
@@ -26,9 +28,11 @@ class Environment(Attribute):
         *str*: Path to the local script; usually a filename
         """
         pass
+
     @abstractmethod
     def setup(self):
         pass
+
     @abstractmethod
     def dispatch(self, **kwargs):
         """
@@ -42,16 +46,21 @@ class Environment(Attribute):
 
         """
         pass
+
     @abstractmethod
-    def make_job(self, stage_index=None, source=None, region_label=None, segment_index=None):
+    def make_job(
+        self, stage_index=None, source=None, region_label=None, segment_index=None
+    ):
         pass
+
     @abstractmethod
     def submit_jobs(self):
         pass
+
     @abstractmethod
     def wait_for_job_completion(self):
         pass
+
     @abstractmethod
     def collect_results(self):
         pass
-

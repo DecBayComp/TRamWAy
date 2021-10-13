@@ -17,5 +17,5 @@ As of version 0.4.7, this package is frozen and is only affected by minor fixes.
 
 from .tessellation import *
 from .inference import *
-#from .feature import *
 
+# from .feature import *

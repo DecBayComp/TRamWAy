@@ -14,12 +14,13 @@
 
 from ..attribute.abc import Attribute, abstractmethod
 
+
 class Tracker(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute
     of an :class:`~tramway.analyzer.RWAnalyzer` object.
     """
+
     @abstractmethod
     def track(self, locations):
         pass
-

@@ -20,7 +20,8 @@ import scipy.sparse as sparse
 
 
 class DynamicTranslocations(Translocations):
-    __slots__ = ('center_t',)
+    __slots__ = ("center_t",)
+
     def __init__(self, index, translocations, center=None, span=None, boundary=None):
         Translocations.__init__(self, index, translocations, center, span, boundary)
         rt = self.center
@@ -31,7 +32,9 @@ class DynamicTranslocations(Translocations):
         try:
             self.center_t = rt[t_pos].tolist()
         except IndexError:
-            raise RuntimeError('missing time column; was the tessellation made with defined time_dimension?')
+            raise RuntimeError(
+                "missing time column; was the tessellation made with defined time_dimension?"
+            )
         others = np.ones(rt.size, dtype=bool)
         others[t_pos] = False
         self.center_r = rt[others]
@@ -39,26 +42,46 @@ class DynamicTranslocations(Translocations):
     @property
     def center_r(self):
         return self.center
+
     @center_r.setter
     def center_r(self, r):
         self.center = r
 
 
 class DynamicCells(Distributed):
-
-    def __init__(self, cells, adjacency, index=None, center=None, span=None, central=None,
-        boundary=None, spatial_adjacency=None, temporal_adjacency=None, time_adjacency=None):
-        Distributed.__init__(self, cells, adjacency, index, center, span, central, boundary)
+    def __init__(
+        self,
+        cells,
+        adjacency,
+        index=None,
+        center=None,
+        span=None,
+        central=None,
+        boundary=None,
+        spatial_adjacency=None,
+        temporal_adjacency=None,
+        time_adjacency=None,
+    ):
+        Distributed.__init__(
+            self, cells, adjacency, index, center, span, central, boundary
+        )
         if time_adjacency is None:
             time_adjacency = temporal_adjacency
-        if time_adjacency is None and spatial_adjacency is None and \
-                adjacency.dtype not in (bool, np.bool_):
+        if (
+            time_adjacency is None
+            and spatial_adjacency is None
+            and adjacency.dtype not in (bool, np.bool_)
+        ):
             # separate spatial adjacency and temporal adjacency
             A = adjacency.tocoo()
             ok = 1 < A.data
-            time_adjacency = sparse.csr_matrix((np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape)
+            time_adjacency = sparse.csr_matrix(
+                (np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape
+            )
             ok = A.data == 1
-            spatial_adjacency = sparse.csr_matrix((np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape)
+            spatial_adjacency = sparse.csr_matrix(
+                (np.ones(np.sum(ok), dtype=bool), (A.row[ok], A.col[ok])), shape=A.shape
+            )
         self.spatial_adjacency = spatial_adjacency
         self.time_adjacency = time_adjacency
 
@@ -82,7 +105,9 @@ class DynamicCells(Distributed):
             numpy.ndarray: indices of the neighbour cells of cell *i*.
 
         """
-        return self.spatial_adjacency.indices[self.spatial_adjacency.indptr[i]:self.spatial_adjacency.indptr[i+1]]
+        return self.spatial_adjacency.indices[
+            self.spatial_adjacency.indptr[i] : self.spatial_adjacency.indptr[i + 1]
+        ]
 
     def time_neighbours(self, i):
         """
@@ -97,7 +122,9 @@ class DynamicCells(Distributed):
             numpy.ndarray: indices of the neighbour cells of cell *i*.
 
         """
-        return self.time_adjacency.indices[self.time_adjacency.indptr[i]:self.time_adjacency.indptr[i+1]]
+        return self.time_adjacency.indices[
+            self.time_adjacency.indptr[i] : self.time_adjacency.indptr[i + 1]
+        ]
 
     def time_derivative(self, i, X, index_map=None, na=np.nan, **kwargs):
         cell = self.cells[i]
@@ -107,18 +134,18 @@ class DynamicCells(Distributed):
         if not isinstance(cell.cache, dict):
             cell.cache = {}
         try:
-            i, adjacent, t = cell.cache['time_derivative']
+            i, adjacent, t = cell.cache["time_derivative"]
         except KeyError:
             A = self.time_adjacency
-            adjacent = _adjacent = A.indices[A.indptr[i]:A.indptr[i+1]]
+            adjacent = _adjacent = A.indices[A.indptr[i] : A.indptr[i + 1]]
             if index_map is not None:
                 adjacent = index_map[_adjacent]
                 ok = 0 <= adjacent
                 assert np.all(ok)
-                #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+                # adjacent, _adjacent = adjacent[ok], _adjacent[ok]
             if _adjacent.size:
-                t = np.array([ self.cells[j].center_t for j in _adjacent ])
-                before, after = t<t0, t0<t
+                t = np.array([self.cells[j].center_t for j in _adjacent])
+                before, after = t < t0, t0 < t
 
                 # pre-compute the "t" term
                 u, v = before, after
@@ -131,9 +158,9 @@ class DynamicCells(Distributed):
                     if v is None:
                         t = None
                     else:
-                        t = 1. / (t0 - np.mean(t[v]))
+                        t = 1.0 / (t0 - np.mean(t[v]))
                 elif v is None:
-                    t = 1. / (t0 - np.mean(t[u]))
+                    t = 1.0 / (t0 - np.mean(t[u]))
                 else:
                     t = np.r_[t0, np.mean(t[u]), np.mean(t[v])]
 
@@ -145,7 +172,7 @@ class DynamicCells(Distributed):
 
             if index_map is not None:
                 i = index_map[i]
-            cell.cache['time_derivative'] = (i, adjacent, t)
+            cell.cache["time_derivative"] = (i, adjacent, t)
 
         if t is None:
             return None
@@ -154,7 +181,7 @@ class DynamicCells(Distributed):
 
         # compute the derivative
         u, v, t = t
-        #u, v, t= before, after, t term
+        # u, v, t= before, after, t term
         if u is None:
             if v is None:
                 deriv = na
@@ -168,7 +195,7 @@ class DynamicCells(Distributed):
 
         return deriv
 
-    def time_variation(self, i, X, index_map=None, na=0., **kwargs):
+    def time_variation(self, i, X, index_map=None, na=0.0, **kwargs):
         cell = self.cells[i]
         t0 = cell.center_t
 
@@ -176,18 +203,18 @@ class DynamicCells(Distributed):
         if not isinstance(cell.cache, dict):
             cell.cache = {}
         try:
-            i, adjacent, t = cell.cache['time_derivative']
+            i, adjacent, t = cell.cache["time_derivative"]
         except KeyError:
             A = self.time_adjacency
-            adjacent = _adjacent = A.indices[A.indptr[i]:A.indptr[i+1]]
+            adjacent = _adjacent = A.indices[A.indptr[i] : A.indptr[i + 1]]
             if index_map is not None:
                 adjacent = index_map[_adjacent]
                 ok = 0 <= adjacent
                 assert np.all(ok)
-                #adjacent, _adjacent = adjacent[ok], _adjacent[ok]
+                # adjacent, _adjacent = adjacent[ok], _adjacent[ok]
             if _adjacent.size:
-                t = np.array([ self.cells[j].center_t for j in _adjacent ])
-                before, after = t<t0, t0<t
+                t = np.array([self.cells[j].center_t for j in _adjacent])
+                before, after = t < t0, t0 < t
 
                 # pre-compute the "t" term
                 u, v = before, after
@@ -200,9 +227,9 @@ class DynamicCells(Distributed):
                     if v is None:
                         t = None
                     else:
-                        t = 1. / (t0 - np.mean(t[v]))
+                        t = 1.0 / (t0 - np.mean(t[v]))
                 elif v is None:
-                    t = 1. / (t0 - np.mean(t[u]))
+                    t = 1.0 / (t0 - np.mean(t[u]))
                 else:
                     t = np.r_[t0, np.mean(t[u]), np.mean(t[v])]
 
@@ -214,7 +241,7 @@ class DynamicCells(Distributed):
 
             if index_map is not None:
                 i = index_map[i]
-            cell.cache['time_derivative'] = (i, adjacent, t)
+            cell.cache["time_derivative"] = (i, adjacent, t)
 
         if t is None:
             return None
@@ -223,7 +250,7 @@ class DynamicCells(Distributed):
 
         # compute the derivative
         u, v, t = t
-        #u, v, t= before, after, t term
+        # u, v, t= before, after, t term
         if u is None:
             if v is None:
                 delta = np.r_[na, na]
@@ -237,8 +264,8 @@ class DynamicCells(Distributed):
             delta = np.r_[
                 (x0 - np.mean(x[u])) / (t0 - tu),
                 (x0 - np.mean(x[v])) / (t0 - tv),
-                ]
-            #delta = np.abs(delta)
+            ]
+            # delta = np.abs(delta)
 
         return delta
 
@@ -255,5 +282,4 @@ class DynamicCells(Distributed):
         return self.local_variation(*args, **kwargs)
 
 
-__all__ = ['DynamicTranslocations', 'DynamicCells']
-
+__all__ = ["DynamicTranslocations", "DynamicCells"]

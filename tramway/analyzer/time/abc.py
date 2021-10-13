@@ -14,11 +14,13 @@
 
 from ..attribute.abc import Attribute, abstractmethod
 
+
 class Time(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.time` attribute
     of an :class:`~tramway.analyzer.RWAnalyzer` object.
     """
+
     @abstractmethod
     def segment(self, spt_dataframe, tessellation=None):
         """
@@ -26,9 +28,12 @@ class Time(Attribute):
         and returns a :class:`~tramway.tessellation.time.TimeLattice` object.
         """
         pass
+
     @abstractmethod
-    def as_time_segments(self, sampling, maps=None, index=None, return_index=False, return_times=True):
-        """ Generator function; yields single-segment sampling and map objects.
+    def as_time_segments(
+        self, sampling, maps=None, index=None, return_index=False, return_times=True
+    ):
+        """Generator function; yields single-segment sampling and map objects.
 
         Slices `sampling` and `maps` and yields tuples with elements in the following order:
 
@@ -42,6 +47,7 @@ class Time(Attribute):
         and returns a *bool*.
         """
         pass
+
     @property
     @abstractmethod
     def dt(self):
@@ -49,8 +55,8 @@ class Time(Attribute):
         *float*: See :attr:`~tramway.analyzer.spt_data.SPTParameters.dt`
         """
         pass
+
     @dt.setter
     @abstractmethod
     def dt(self, dt):
         pass
-

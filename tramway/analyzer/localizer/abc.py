@@ -14,11 +14,12 @@
 
 from ..attribute.abc import Attribute, abstractmethod
 
+
 class Localizer(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.localizer` attribute
     of an :class:`~tramway.analyzer.RWAnalyzer` object.
     """
+
     def localize(self, stack):
         pass
-

@@ -19,20 +19,24 @@ from tramway.tessellation import Voronoi, Partition
 from scipy.spatial import ConvexHull
 
 
-setup = {'name':        'srtesseler.density',
-         'provides':    'density',
-         'input_type':  'Partition'}
+setup = {"name": "srtesseler.density", "provides": "density", "input_type": "Partition"}
 
 
-def convex_hull(vertices=None, vertex_indices=None, points=None, point_assigned=None,
-        partition=None, cell_index=None):
+def convex_hull(
+    vertices=None,
+    vertex_indices=None,
+    points=None,
+    point_assigned=None,
+    partition=None,
+    cell_index=None,
+):
     # recover the vertices of the Voronoi cell
     if vertex_indices is None:
         vertex_indices = partition.tessellation.cell_vertices[cell_index]
         if vertices is None:
             vertices = partition.tessellation.vertices
     if np.any(vertex_indices < 0):
-        valid_indices = vertex_indices[0<=vertex_indices]
+        valid_indices = vertex_indices[0 <= vertex_indices]
         vertices = vertices[valid_indices]
         # for cells with missing vertices (to the infinite),
         # consider some inner points to possibly push the hull outward
@@ -74,8 +78,9 @@ def infer_srtesseler_density(cells, volume_weighted=True, rank=0, **kwargs):
 
     """
     points = cells.locations
-    is_densest_tessellation = isinstance(cells.tessellation, Voronoi) and \
-        cells.number_of_cells == len(points)
+    is_densest_tessellation = isinstance(
+        cells.tessellation, Voronoi
+    ) and cells.number_of_cells == len(points)
     if is_densest_tessellation:
         tessellation = cells.tessellation
         partition = cells
@@ -83,10 +88,11 @@ def infer_srtesseler_density(cells, volume_weighted=True, rank=0, **kwargs):
         tessellation = Voronoi()
         # TODO: try 3D
         # coords = [ col for col in 'xyz' if col in points.columns ]
-        if 'z' in points.columns:
+        if "z" in points.columns:
             import warnings
+
             warnings.warn("ignoring coordinate 'z'")
-        tessellation.tessellate(points[['x','y']])
+        tessellation.tessellate(points[["x", "y"]])
         partition = Partition(points, tessellation)
     # estimate the density at each point
     polygons_required = not is_densest_tessellation and volume_weighted
@@ -99,14 +105,16 @@ def infer_srtesseler_density(cells, volume_weighted=True, rank=0, **kwargs):
         indices.append(i)
         surface_areas.append(surface_area)
         if polygons_required:
-            polygons.append(p.Polytope(hull.equations[:,[0,1]], -hull.equations[:,2]))
+            polygons.append(
+                p.Polytope(hull.equations[:, [0, 1]], -hull.equations[:, 2])
+            )
     indices, surface_areas = np.array(indices), np.array(surface_areas)
     if rank:
         if 1 < rank:
-            raise NotImplementedError('rank > 1')
+            raise NotImplementedError("rank > 1")
         index_map = np.full(tessellation.number_of_cells, len(indices))
         index_map[indices] = indices
-        extended_areas = np.array(surface_areas) # copy
+        extended_areas = np.array(surface_areas)  # copy
         ncells = np.ones_like(surface_areas)
         regions = [[p] for p in polygons]
         for i in indices:
@@ -119,10 +127,10 @@ def infer_srtesseler_density(cells, volume_weighted=True, rank=0, **kwargs):
                         regions[i].append(polygons[j])
                 except IndexError:
                     pass
-        polygons = [ p.Region(ps) for ps in regions ]
+        polygons = [p.Region(ps) for ps in regions]
         local_density = ncells / extended_areas
     else:
-        local_density = 1./ surface_areas
+        local_density = 1.0 / surface_areas
     local_density = pd.Series(index=indices, data=local_density)
     # sum the estimates within each spatial bin
     if is_densest_tessellation:
@@ -136,7 +144,7 @@ def infer_srtesseler_density(cells, volume_weighted=True, rank=0, **kwargs):
                 polygons_i = pt_ids[cell_ids == i]
                 if polygons_i.size == 0:
                     indices.append(i)
-                    densities.append(0.)
+                    densities.append(0.0)
                     continue
                 assigned = np.zeros(len(points), dtype=bool)
                 assigned[polygons_i] = True
@@ -144,9 +152,9 @@ def infer_srtesseler_density(cells, volume_weighted=True, rank=0, **kwargs):
                 assigned = cells.cell_index == i
                 if not np.any(assigned):
                     indices.append(i)
-                    densities.append(0.)
+                    densities.append(0.0)
                     continue
-                polygons_i, = np.nonzero(assigned)
+                (polygons_i,) = np.nonzero(assigned)
             average_density = local_density[polygons_i].mean()
             indices.append(i)
             densities.append(average_density)
@@ -154,13 +162,21 @@ def infer_srtesseler_density(cells, volume_weighted=True, rank=0, **kwargs):
     return pd.DataFrame(dict(density=density))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import os.path
     from tramway.helper import load_rwa, map_plot1
     from matplotlib import pyplot as plt
-    analysis_tree = load_rwa(os.path.join(
-        os.path.dirname(__file__), '..', '..', 'tests',
-        'test_commandline_py3_210816', 'tessellation_output_gwr0.rwa'))
+
+    analysis_tree = load_rwa(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "tests",
+            "test_commandline_py3_210816",
+            "tessellation_output_gwr0.rwa",
+        )
+    )
     sampling = analysis_tree[0].data
     simple_map1 = infer_srtesseler_density(sampling, rank=1)
     map_plot1(simple_map1, sampling)
@@ -170,5 +186,4 @@ if __name__ == '__main__':
     plt.show()
 
 
-__all__ = ['infer_srtesseler_density', 'setup']
-
+__all__ = ["infer_srtesseler_density", "setup"]

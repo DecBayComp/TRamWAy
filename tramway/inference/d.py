@@ -16,19 +16,38 @@ import tramway.inference.unsmooth_d as degraded_d
 import tramway.inference.standard_d as standard_d
 
 
-setup = dict(standard_d.setup) # copy
-setup['name'] = 'd'
-del setup['provides']
-setup['infer'] = 'infer_D'
+setup = dict(standard_d.setup)  # copy
+setup["name"] = "d"
+del setup["provides"]
+setup["infer"] = "infer_D"
 
 
-def infer_D(cells, diffusivity_prior=None, jeffreys_prior=None, min_diffusivity=None,
-        max_iter=None, epsilon=None, rgrad=None, **kwargs):
+def infer_D(
+    cells,
+    diffusivity_prior=None,
+    jeffreys_prior=None,
+    min_diffusivity=None,
+    max_iter=None,
+    epsilon=None,
+    rgrad=None,
+    **kwargs
+):
 
     if diffusivity_prior is None:
-        return degraded_d.infer_D(cells, jeffreys_prior=jeffreys_prior,
-                min_diffusivity=min_diffusivity, **kwargs)
+        return degraded_d.infer_D(
+            cells,
+            jeffreys_prior=jeffreys_prior,
+            min_diffusivity=min_diffusivity,
+            **kwargs
+        )
     else:
-        return standard_d.infer_smooth_D(cells, diffusivity_prior, jeffreys_prior,
-                min_diffusivity, max_iter, epsilon, rgrad, **kwargs)
-
+        return standard_d.infer_smooth_D(
+            cells,
+            diffusivity_prior,
+            jeffreys_prior,
+            min_diffusivity,
+            max_iter,
+            epsilon,
+            rgrad,
+            **kwargs
+        )

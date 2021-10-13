@@ -15,28 +15,32 @@
 from abc import *
 from ..attribute.abc import Attribute, abstractmethod
 
+
 class Images(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.images` attribute
     of an :class:`~tramway.analyzer.RWAnalyzer` object.
     """
+
     def as_frames(self, index=None, return_time=False):
-        """ Generator function; yields frames as arrays.
+        """Generator function; yields frames as arrays.
 
-        See for example :meth:`~tramway.analyzer.images._RawImage.as_frames`. """
+        See for example :meth:`~tramway.analyzer.images._RawImage.as_frames`."""
         pass
+
     def crop_frames(self, bounding_box, index=None, return_time=False):
-        """ Generator function similar to :meth:`as_frames`, with ROI cropping.
+        """Generator function similar to :meth:`as_frames`, with ROI cropping.
 
-        See for example :meth:`~tramway.analyzer.images._RawImage.crop_frames`. """
+        See for example :meth:`~tramway.analyzer.images._RawImage.crop_frames`."""
         pass
+
 
 class Image(metaclass=ABCMeta):
     """
     Abstract base class for single image stacks an :class:`Images` object contains.
     """
+
     pass
 
 
-__all__ = ['Images', 'Image']
-
+__all__ = ["Images", "Image"]

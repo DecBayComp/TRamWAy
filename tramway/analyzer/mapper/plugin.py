@@ -18,6 +18,7 @@ from .abc import *
 from tramway.inference import plugins
 from tramway.helper.inference import Infer
 
+
 class MapperAttribute(object):
     """
     Mixin class for accessing the `localization_precision`,
@@ -26,11 +27,13 @@ class MapperAttribute(object):
     Also features side functionalities that are expected in both the
     initializer and specialized mapper attributes.
     """
+
     __slots__ = ()
 
     @property
     def localization_precision(self):
         return self._parent.localization_precision
+
     @localization_precision.setter
     def localization_precision(self, sigma):
         self._parent.localization_precision = sigma
@@ -38,6 +41,7 @@ class MapperAttribute(object):
     @property
     def localization_error(self):
         return self._parent.localization_error
+
     @localization_error.setter
     def localization_error(self, sigma2):
         self._parent.localization_error = sigma2
@@ -45,12 +49,22 @@ class MapperAttribute(object):
     @property
     def temperature(self):
         return self._parent.temperature
+
     @temperature.setter
     def temperature(self, T):
         self._parent.temperature = T
 
-    def to_ascii_file(self, filepath, maps, add_coordinates=False, tessellation=None,
-            index=True, header=True, float_format='%.4f', **kwargs):
+    def to_ascii_file(
+        self,
+        filepath,
+        maps,
+        add_coordinates=False,
+        tessellation=None,
+        index=True,
+        header=True,
+        float_format="%.4f",
+        **kwargs
+    ):
         df = maps
         try:
             # unwrap from Analysis
@@ -67,35 +81,49 @@ class MapperAttribute(object):
                 try:
                     tessellation = maps.get_parent().data.tessellation
                 except AttributeError:
-                    raise TypeError('additional coordinate information is requested but the tessellation is not provided; load the maps with `Analysis.get_analysis(analysis_tree, sampling_label).get_child(map_label)` to wrap the maps together with its analysis path, or pass argument `tessellation`')
+                    raise TypeError(
+                        "additional coordinate information is requested but the tessellation is not provided; load the maps with `Analysis.get_analysis(analysis_tree, sampling_label).get_child(map_label)` to wrap the maps together with its analysis path, or pass argument `tessellation`"
+                    )
             xy = tessellation.cell_centers
             import pandas as pd
-            xy = pd.DataFrame(xy, columns=list('xyz'[:min(3, xy.shape[1])]))
+
+            xy = pd.DataFrame(xy, columns=list("xyz"[: min(3, xy.shape[1])]))
             df = df.join(xy.loc[df.index])
-        df.to_csv(str(filepath), sep='\t', index=index, header=header,
-                float_format=float_format, **kwargs)
+        df.to_csv(
+            str(filepath),
+            sep="\t",
+            index=index,
+            header=header,
+            float_format=float_format,
+            **kwargs
+        )
 
     @property
     def _mpl_impl(self):
         from .mpl import Mpl
+
         return Mpl
+
     @property
     def mpl(self):
-        """ tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities """
+        """tramway.analyzer.mapper.mpl.Mpl: Matplotlib utilities"""
         return self._mpl_impl(self)
 
     @property
     def _plotly_impl(self):
         from .plotly import Plotly
+
         return Plotly
+
     @property
     def plotly(self):
-        """ tramway.analyzer.mapper.plotly.Plotly: Plotly utilities """
+        """tramway.analyzer.mapper.plotly.Plotly: Plotly utilities"""
         return self._plotly_impl(self)
 
 
 class MapperPlugin(AnalyzerNode, MapperAttribute):
-    __slots__ = ('_name','_module','_setup','_mapper','_kwargs')
+    __slots__ = ("_name", "_module", "_setup", "_mapper", "_kwargs")
+
     def __init__(self, plugin, **kwargs):
         init_kwargs = {}
         for k in attribute.__analyzer_node_init_args__:
@@ -113,61 +141,85 @@ class MapperPlugin(AnalyzerNode, MapperAttribute):
             try:
                 plugin = plugins[plugin]
             except KeyError:
-                raise KeyError('no such plugin: {}'.format(self._name))
+                raise KeyError("no such plugin: {}".format(self._name))
         if callable(plugin):
             self._setup = kwargs
             self._mapper = plugin
         elif isinstance(plugin, tuple):
             setup, self._module = plugin
-            self._setup = dict(setup) # copy
-            self._mapper = getattr(self._module, self._setup.pop('infer'))
+            self._setup = dict(setup)  # copy
+            self._mapper = getattr(self._module, self._setup.pop("infer"))
+
     @property
     def name(self):
         return self._name
+
     @property
     def setup(self):
         return self._setup
+
     def get_plugin_arg(self, attrname):
         try:
             return self._setup[attrname]
         except KeyError:
             return self._kwargs.get(attrname, None)
+
     def __getattr__(self, attrname):
         return self.get_plugin_arg(attrname)
+
     def set_plugin_arg(self, attrname, val):
         if attrname in self._setup:
             self._setup[attrname] = val
         else:
             self._kwargs[attrname] = val
-            if attrname.endswith('time_prior'):
+            if attrname.endswith("time_prior"):
                 self.time.enable_regularization()
+
     def __setattr__(self, attrname, val):
         try:
             AnalyzerNode.__setattr__(self, attrname, val)
         except AttributeError:
             self.set_plugin_arg(attrname, val)
+
     @analysis
     def infer(self, sampling):
         helper = Infer()
         helper.prepare_data(sampling)
         distr_kwargs, infer_kwargs = {}, {}
         for k in self._kwargs:
-            if k in ('new_cell','new_group','include_empty_cells','grad','rgrad','cell_sampling'):
+            if k in (
+                "new_cell",
+                "new_group",
+                "include_empty_cells",
+                "grad",
+                "rgrad",
+                "cell_sampling",
+            ):
                 distr_kwargs[k] = self._kwargs[k]
-            if k not in ('new_cell','new_group','include_empty_cells','grad','cell_sampling'):
+            if k not in (
+                "new_cell",
+                "new_group",
+                "include_empty_cells",
+                "grad",
+                "cell_sampling",
+            ):
                 infer_kwargs[k] = self._kwargs[k]
-        infer_kwargs['sigma'] = self._parent.spt_data.localization_precision
-        if 'cell_sampling' not in distr_kwargs and \
-                self.time.initialized and not self.time.regularize_in_time:
-            distr_kwargs['cell_sampling'] = 'connected'
+        infer_kwargs["sigma"] = self._parent.spt_data.localization_precision
+        if (
+            "cell_sampling" not in distr_kwargs
+            and self.time.initialized
+            and not self.time.regularize_in_time
+        ):
+            distr_kwargs["cell_sampling"] = "connected"
         cells = helper.distribute(**distr_kwargs)
         helper.name, helper.setup, helper._infer = self.name, self.setup, self._mapper
         cells = helper.overload_cells(cells)
         maps = helper.infer(cells, **infer_kwargs)
         return maps
+
     @property
     def time(self):
         return self._parent.time
 
-Mapper.register(MapperPlugin)
 
+Mapper.register(MapperPlugin)

@@ -20,19 +20,29 @@ class Mpl(AnalyzerNode):
     """
     See also :class:`~tramway.analyzer.spt_data.mpl.Mpl`.
     """
+
     __slots__ = ()
-    def animate(self, fig, trajs=None, axes=None, xlim='auto', ylim=None, aspect='equal', **kwargs):
+
+    def animate(
+        self,
+        fig,
+        trajs=None,
+        axes=None,
+        xlim="auto",
+        ylim=None,
+        aspect="equal",
+        **kwargs
+    ):
         """
         See also :meth:`~tramway.analyzer.spt_data.mpl.Mpl.animate`.
         """
         roi = self._parent
         if trajs is None:
             trajs = translocations_to_trajectories(roi.crop())
-        if xlim=='auto' and ylim is None:
+        if xlim == "auto" and ylim is None:
             _min, _max = roi.bounding_box
-            xlim, ylim = (_min[0],_max[0]), (_min[1],_max[1])
+            xlim, ylim = (_min[0], _max[0]), (_min[1], _max[1])
         return roi._spt_data.mpl.animate(fig, trajs, axes, xlim, ylim, aspect, **kwargs)
 
 
-__all__ = ['Mpl']
-
+__all__ = ["Mpl"]

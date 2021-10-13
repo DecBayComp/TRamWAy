@@ -17,12 +17,16 @@ from .abc import *
 from .plugin import *
 from . import models
 
+
 class MapperInitializer(Initializer, MapperAttribute):
     __slots__ = ()
+
     def from_plugin(self, plugin, **kwargs):
-        self.specialize( MapperPlugin, plugin, **kwargs )
+        self.specialize(MapperPlugin, plugin, **kwargs)
+
     def from_callable(self, cls, **kwargs):
         self.from_plugin(cls, **kwargs)
+
     def from_maps(self, label_or_maps=None, exclude_attrs=(), verbose=False):
         """
         Sets the mapper up on basis of parameters in a Maps object.
@@ -50,11 +54,15 @@ class MapperInitializer(Initializer, MapperAttribute):
         """
         if label_or_maps is None or isinstance(label_or_maps, (int, str)):
             label = label_or_maps
-            sampling = first(self._eldest_parent.roi.as_support_regions()).get_sampling()
+            sampling = first(
+                self._eldest_parent.roi.as_support_regions()
+            ).get_sampling()
             maps = sampling.get_child(label)
         elif isinstance(label_or_maps, (tuple, list)):
             sampling_label, labels = label_or_maps[0], label_or_maps[1:]
-            sampling = first(self._eldest_parent.roi.as_support_regions()).get_sampling(sampling_label)
+            sampling = first(self._eldest_parent.roi.as_support_regions()).get_sampling(
+                sampling_label
+            )
             #
             node = sampling
             for label in labels:
@@ -66,14 +74,21 @@ class MapperInitializer(Initializer, MapperAttribute):
             maps = maps.data
         plugin = maps.mode
         if plugin is None:
-            raise ValueError('undefined plugin name')
+            raise ValueError("undefined plugin name")
         self.from_plugin(plugin)
         self = self._eldest_parent.mapper
-        exclude_attrs = list(exclude_attrs) # copy
-        exclude_attrs += ['mode', 'runtime', 'posteriors', 'niter', 'resolution', 'sigma']
+        exclude_attrs = list(exclude_attrs)  # copy
+        exclude_attrs += [
+            "mode",
+            "runtime",
+            "posteriors",
+            "niter",
+            "resolution",
+            "sigma",
+        ]
         attrs = []
         for attr in maps.__dict__:
-            if not (attr[0] == '_' or attr in exclude_attrs):
+            if not (attr[0] == "_" or attr in exclude_attrs):
                 val = getattr(maps, attr)
                 if val is not None:
                     setattr(self, attr, val)
@@ -81,14 +96,21 @@ class MapperInitializer(Initializer, MapperAttribute):
         if verbose:
             logger = self.logger
             if attrs:
-                logger.info("loading plugin: '{}'\nwith parameters:\n - {}".format(
-                    plugin,
-                    "\n - ".join([
-                        ("{}: '{}'" if isinstance(val, str) else "{}: {}").format(key, val) \
+                logger.info(
+                    "loading plugin: '{}'\nwith parameters:\n - {}".format(
+                        plugin,
+                        "\n - ".join(
+                            [
+                                (
+                                    "{}: '{}'" if isinstance(val, str) else "{}: {}"
+                                ).format(key, val)
                                 for key, val in attrs
-                    ])))
+                            ]
+                        ),
+                    )
+                )
             else:
                 logger.info("plugin:\t'{}'\nwith no parameters".format(plugin))
 
-__all__ = [ 'Mapper', 'MapperInitializer', 'MapperPlugin', 'models' ]
 
+__all__ = ["Mapper", "MapperInitializer", "MapperPlugin", "models"]

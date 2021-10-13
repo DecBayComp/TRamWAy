@@ -33,50 +33,81 @@ class PipelineStage(object):
     A *fresh_start* stage will typically set `run_everywhere` to :const:`True`, while
     a *reload* stage will set `requires_mutability` to :const:`True` instead.
     """
-    __slots__ = ('_run','_granularity','_mutability','options',
-            'update_existing_rwa_files','_run_everywhere')
-    def __init__(self, run, granularity=None, requires_mutability=None,
-            update_existing_rwa_files=None, run_everywhere=None, **options):
+
+    __slots__ = (
+        "_run",
+        "_granularity",
+        "_mutability",
+        "options",
+        "update_existing_rwa_files",
+        "_run_everywhere",
+    )
+
+    def __init__(
+        self,
+        run,
+        granularity=None,
+        requires_mutability=None,
+        update_existing_rwa_files=None,
+        run_everywhere=None,
+        **options,
+    ):
         if isinstance(run, PipelineStage):
             self._run = run._run
             self._granularity = run._granularity if granularity is None else granularity
-            self._mutability = run._mutability if requires_mutability is None else requires_mutability
+            self._mutability = (
+                run._mutability if requires_mutability is None else requires_mutability
+            )
             self.options = dict(run.options)
             self.options.update(options)
-            self.update_existing_rwa_files = run.update_existing_rwa_files \
-                    if update_existing_rwa_files is None else update_existing_rwa_files
-            self._run_everywhere = run._run_everywhere if run_everywhere is None else run_everywhere
+            self.update_existing_rwa_files = (
+                run.update_existing_rwa_files
+                if update_existing_rwa_files is None
+                else update_existing_rwa_files
+            )
+            self._run_everywhere = (
+                run._run_everywhere if run_everywhere is None else run_everywhere
+            )
         else:
             self._run = run
             self._granularity = granularity
-            self._mutability = False if requires_mutability is None else requires_mutability
+            self._mutability = (
+                False if requires_mutability is None else requires_mutability
+            )
             self.options = options
             self.update_existing_rwa_files = update_existing_rwa_files
             self._run_everywhere = run_everywhere
+
     @property
     def granularity(self):
         """
         *str*: See :meth:`Pipeline.append_stage`
         """
         return self._granularity
+
     @property
     def requires_mutability(self):
         """
         *bool*: See :meth:`Pipeline.append_stage`
         """
         return self._mutability
+
     @property
     def run_everywhere(self):
         """
         *bool*: Run once on every host, both local and remote
         """
-        return self._run_everywhere or (self._run_everywhere is None and self.requires_mutability)
+        return self._run_everywhere or (
+            self._run_everywhere is None and self.requires_mutability
+        )
+
     @property
     def name(self):
         """
         *str*: Callable's name
         """
         return self._run.__name__
+
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
 
@@ -88,44 +119,60 @@ class Pipeline(AnalyzerNode):
 
     The main methods are :meth:`append_stage` and :meth:`run`.
     """
-    __slots__ = ('_stage',)
+
+    __slots__ = ("_stage",)
+
     def __init__(self, *args, **kwargs):
         AnalyzerNode.__init__(self, *args, **kwargs)
         self._stage = []
+
     def __nonzero__(self):
         return bool(self._stage)
+
     def __len__(self):
         return len(self._stage)
+
     @property
     def analyzer(self):
         return self._parent
+
     @property
     def spt_data(self):
         return self._parent.spt_data
+
     @property
     def roi(self):
         return self._parent.roi
+
     @property
     def time(self):
         return self._parent.time
+
     @property
     def tesseller(self):
         return self._parent.tesseller
+
     @property
     def sampler(self):
         return self._parent.sampler
+
     @property
     def mapper(self):
         return self._parent.mapper
+
     @property
     def env(self):
         return self._parent.env
+
     def reset(self):
         """
         Empties the pipeline processing chain.
         """
         self._stage = []
-    def append_stage(self, stage, granularity=None, requires_mutability=None, **options):
+
+    def append_stage(
+        self, stage, granularity=None, requires_mutability=None, **options
+    ):
         """
         Appends a pipeline stage to the processing chain.
 
@@ -162,7 +209,10 @@ class Pipeline(AnalyzerNode):
         stage is preferred as this is more portable.
 
         """
-        self._stage.append(PipelineStage(stage, granularity, requires_mutability, **options))
+        self._stage.append(
+            PipelineStage(stage, granularity, requires_mutability, **options)
+        )
+
     def early_setup(self, **kwargs):
         """
         Sets the `submit_side`/`worker_side` properties of the :attr:`~tramway.analyzer.RWAnalyzer.env`
@@ -179,6 +229,7 @@ class Pipeline(AnalyzerNode):
         """
         if self.env.initialized:
             self.env.early_setup(*sys.argv, **kwargs)
+
     def run(self):
         """
         Sequentially runs the different stages of the pipeline.
@@ -186,11 +237,11 @@ class Pipeline(AnalyzerNode):
         if self.env.initialized:
             try:
                 self.env.setup(*sys.argv)
-                self.logger.info('setup complete')
+                self.logger.info("setup complete")
                 if self.env.worker_side and not self.env.submit_side:
                     # a single stage can apply
-                    stage_index = self.env.selectors.get('stage_index', 0)
-                    if isinstance(stage_index, (tuple,list)):
+                    stage_index = self.env.selectors.get("stage_index", 0)
+                    if isinstance(stage_index, (tuple, list)):
                         for i in stage_index[:-1]:
                             stage = self._stage[i]
                             stage(self)
@@ -207,103 +258,162 @@ class Pipeline(AnalyzerNode):
                     # alter the iterators for time
                     if not isinstance(self.time, Initializer):
                         self.analyzer.time.self_update(self.env.time_selector)
-                    self.logger.info('stage {:d} ready'.format(stage_index))
+                    self.logger.info("stage {:d} ready".format(stage_index))
                     try:
                         stage(self)
                     except:
-                        self.logger.error('stage {:d} failed with t'.format(stage_index)+traceback.format_exc()[1:-1])
+                        self.logger.error(
+                            "stage {:d} failed with t".format(stage_index)
+                            + traceback.format_exc()[1:-1]
+                        )
                         raise
                     else:
-                        self.logger.info('stage {:d} done'.format(stage_index))
+                        self.logger.info("stage {:d} done".format(stage_index))
                     #
-                    #self.env.save_analyses(self.spt_data)
+                    # self.env.save_analyses(self.spt_data)
                 else:
                     assert self.env.submit_side
                     if self.env.dispatch():
-                        self.logger.info('initial dispatch done')
+                        self.logger.info("initial dispatch done")
                     from ..env.environments import LocalHost
+
                     stack = []
                     permanent_stack = []
                     for s, stage in enumerate(self._stage):
-                        run_locally = stage.run_everywhere and not isinstance(self.env, LocalHost)
+                        run_locally = stage.run_everywhere and not isinstance(
+                            self.env, LocalHost
+                        )
                         if run_locally:
-                            self.logger.debug('[submit] stage {:d} ready'.format(s))
+                            self.logger.debug("[submit] stage {:d} ready".format(s))
                             stage(self)
-                            self.logger.debug('[submit] stage {:d} done'.format(s))
-                        granularity = '' if stage.granularity is None \
-                                else stage.granularity.lower().replace('-',' ').replace('_',' ')
+                            self.logger.debug("[submit] stage {:d} done".format(s))
+                        granularity = (
+                            ""
+                            if stage.granularity is None
+                            else stage.granularity.lower()
+                            .replace("-", " ")
+                            .replace("_", " ")
+                        )
                         if stage.requires_mutability:
-                            if not granularity or \
-                                    granularity in ('coarsest','full dataset') or \
-                                    granularity.startswith('min:'):
-                                if not run_locally: # else, already done
-                                    self.logger.debug('[submit] stage {:d} ready'.format(s))
+                            if (
+                                not granularity
+                                or granularity in ("coarsest", "full dataset")
+                                or granularity.startswith("min:")
+                            ):
+                                if not run_locally:  # else, already done
+                                    self.logger.debug(
+                                        "[submit] stage {:d} ready".format(s)
+                                    )
                                     stage(self)
-                                    self.logger.debug('[submit] stage {:d} done'.format(s))
+                                    self.logger.debug(
+                                        "[submit] stage {:d} done".format(s)
+                                    )
                                 # make the next dispatched stages run this stage again
                                 permanent_stack.append(s)
                                 continue
                             elif stage.requires_mutability:
-                                raise NotImplementedError('cannot make a dispatched job modify the local analyzer')
-                        if self.env.dispatch(stage_index=s, stage_options=stage.options):
-                            self.logger.info('stage {:d} dispatched'.format(s))
+                                raise NotImplementedError(
+                                    "cannot make a dispatched job modify the local analyzer"
+                                )
+                        if self.env.dispatch(
+                            stage_index=s, stage_options=stage.options
+                        ):
+                            self.logger.info("stage {:d} dispatched".format(s))
                         if stack or permanent_stack:
-                            s = _filter(sorted(permanent_stack+stack+[s]),
-                                    granularity, self._stage, self.logger)
+                            s = _filter(
+                                sorted(permanent_stack + stack + [s]),
+                                granularity,
+                                self._stage,
+                                self.logger,
+                            )
                             stack = []
-                        if not granularity or granularity in ('coarsest','full dataset') or \
-                                granularity.startswith('min:'):
+                        if (
+                            not granularity
+                            or granularity in ("coarsest", "full dataset")
+                            or granularity.startswith("min:")
+                        ):
                             self.env.make_job(stage_index=s)
                         else:
                             try:
-                                alias = all([ bool(f.alias) for f in self._eldest_parent.spt_data ])
+                                alias = all(
+                                    [
+                                        bool(f.alias)
+                                        for f in self._eldest_parent.spt_data
+                                    ]
+                                )
                             except AttributeError:
                                 alias = False
                             for f in self.spt_data:
                                 source = f.alias if alias else f.source
                                 if source is None:
-                                    if 1<len(self.spt_data):
-                                        raise NotImplementedError('undefined source identifiers')
+                                    if 1 < len(self.spt_data):
+                                        raise NotImplementedError(
+                                            "undefined source identifiers"
+                                        )
                                 elif self.env.dispatch(source=source):
-                                    self.logger.info('source "{}" dispatched'.format(source))
-                                if granularity.endswith('source') or granularity.startswith('spt data'):
+                                    self.logger.info(
+                                        'source "{}" dispatched'.format(source)
+                                    )
+                                if granularity.endswith(
+                                    "source"
+                                ) or granularity.startswith("spt data"):
                                     self.env.make_job(stage_index=s, source=source)
-                                elif granularity in ('roi','region of interest'):
-                                    for i, _ in f.roi.as_support_regions(return_index=True):
-                                        self.env.make_job(stage_index=s, source=source, region_index=i)
-                                elif granularity in ('time', 'segment', 'time segment'):
-                                    for i, r in f.roi.as_support_regions(return_index=True):
+                                elif granularity in ("roi", "region of interest"):
+                                    for i, _ in f.roi.as_support_regions(
+                                        return_index=True
+                                    ):
+                                        self.env.make_job(
+                                            stage_index=s, source=source, region_index=i
+                                        )
+                                elif granularity in ("time", "segment", "time segment"):
+                                    for i, r in f.roi.as_support_regions(
+                                        return_index=True
+                                    ):
                                         try:
                                             w = r.get_sampling()
                                         except ValueError:
-                                            raise NotImplementedError('cannot iterate on multiple sampling per ROI yet') from None
+                                            raise NotImplementedError(
+                                                "cannot iterate on multiple sampling per ROI yet"
+                                            ) from None
                                         except KeyError:
-                                            raise NotImplementedError('cannot autoload the sampling stage; please load the sampling in a separate stage with requires_mutability=True') from None
-                                        for j, _ in self.time.as_time_segments(w, return_index=True, return_times=False):
-                                            self.env.make_job(stage_index=s, source=source, region_index=i, segment_index=j)
+                                            raise NotImplementedError(
+                                                "cannot autoload the sampling stage; please load the sampling in a separate stage with requires_mutability=True"
+                                            ) from None
+                                        for j, _ in self.time.as_time_segments(
+                                            w, return_index=True, return_times=False
+                                        ):
+                                            self.env.make_job(
+                                                stage_index=s,
+                                                source=source,
+                                                region_index=i,
+                                                segment_index=j,
+                                            )
                                 else:
                                     raise NotImplementedError
-                        self.logger.info('\njobs ready')
+                        self.logger.info("\njobs ready")
                         #### IMPORTANT ####
                         # any change below may be to be also applied to `env.SlurmOverSSH.resume`
                         ###################
                         try:
                             self.env.submit_jobs()
-                            self.logger.info('jobs submitted')
+                            self.logger.info("jobs submitted")
                             self.env.wait_for_job_completion()
                         except KeyboardInterrupt as e:
-                            self.logger.critical('interrupting jobs...')
+                            self.logger.critical("interrupting jobs...")
                             try:
                                 ret = self.env.interrupt_jobs()
                             except KeyboardInterrupt:
-                                self.logger.debug('interrupt_jobs() did not return')
+                                self.logger.debug("interrupt_jobs() did not return")
                                 raise e from None
                             else:
                                 if not ret:
                                     raise
-                        self.logger.info('jobs complete')
-                        if self.env.collect_results(stage_index=s, reload_existing_rwa_files=stage.update_existing_rwa_files):
-                            self.logger.info('results collected')
+                        self.logger.info("jobs complete")
+                        if self.env.collect_results(
+                            stage_index=s,
+                            reload_existing_rwa_files=stage.update_existing_rwa_files,
+                        ):
+                            self.logger.info("results collected")
             finally:
                 if self.env.submit_side and not self.env.debug:
                     self.env.delete_temporary_data()
@@ -335,34 +445,41 @@ class Pipeline(AnalyzerNode):
         try:
             proc = self.env.resume
         except AttributeError:
-            self.logger.error('no recovery procedure available')
+            self.logger.error("no recovery procedure available")
         else:
             proc(**kwargs)
+
 
 Attribute.register(Pipeline)
 
 
 def _enum(granularity):
-    if granularity in ('coarsest','full dataset'):
+    if granularity in ("coarsest", "full dataset"):
         return 0
-    elif granularity.endswith('source') or granularity.startswith('spt data'):
+    elif granularity.endswith("source") or granularity.startswith("spt data"):
         return 1
-    elif granularity in ('roi','region of interest'):
+    elif granularity in ("roi", "region of interest"):
         return 2
-    elif granularity in ('time', 'segment', 'time segment'):
+    elif granularity in ("time", "segment", "time segment"):
         return 3
     else:
         raise NotImplementedError
+
+
 def _lt(g1, g2):
     return _enum(g1) > _enum(g2)
+
+
 def _filter(stage_ids, granularity, stages, logger):
     ids = []
     for s in stage_ids:
         stage = stages[s]
-        if stage.granularity and \
-                stage.granularity.startswith('min:') and \
-                _lt(stage.granularity[4:].lstrip(), granularity):
-            logger.debug(f'excluding stage: {s}')
+        if (
+            stage.granularity
+            and stage.granularity.startswith("min:")
+            and _lt(stage.granularity[4:].lstrip(), granularity)
+        ):
+            logger.debug(f"excluding stage: {s}")
         else:
             ids.append(s)
     return ids
@@ -370,5 +487,4 @@ def _filter(stage_ids, granularity, stages, logger):
 
 from . import stages
 
-__all__ = ['Pipeline', 'PipelineStage', 'stages']
-
+__all__ = ["Pipeline", "PipelineStage", "stages"]

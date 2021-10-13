@@ -13,22 +13,28 @@
 
 
 class AnalysisBrowser(object):
-    __slots__ = ('_analyses', '_path', '_subtree')
+    __slots__ = ("_analyses", "_path", "_subtree")
+
     def __init__(self, analyses=None):
         self.analyses = analyses
+
     @property
     def analyses(self):
         return self._analyses
+
     @analyses.setter
     def analyses(self, analyses):
         if isinstance(analyses, str):
             import os.path
+
             if os.path.isfile(analyses):
                 from tramway.core.hdf5.store import load_rwa
+
                 analyses = load_rwa(analyses, lazy=True)
         self._analyses = analyses
         self._path = None
         self._subtree = None
+
     @property
     def subtree(self):
         if self._subtree is None and self.analyses is not None:
@@ -36,24 +42,30 @@ class AnalysisBrowser(object):
             for label in self.path():
                 self._subtree = self._subtree[label]
         return self._subtree
+
     @subtree.setter
     def subtree(self, analyses):
         self._subtree = analyses
+
     @property
     def artefact(self):
         return None if self.subtree is None else self._subtree.artefact
+
     def path(self):
         if self._path is not None:
             yield from self._path
+
     def labels(self):
         if self.subtree is not None:
             yield from self.subtree.labels
+
     def select_child(self, label):
         self.subtree = self.subtree[label]
         if self._path is None:
             self._path = [label]
         else:
             self._path.append(label)
+
     def select_parent(self):
         if self._path is None:
             self._subtree = self.analyses
@@ -72,4 +84,3 @@ class AnalysisBrowser(object):
                 label = child_label
                 child = child[label]
             self._path = path
-

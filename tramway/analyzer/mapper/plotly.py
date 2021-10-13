@@ -16,7 +16,7 @@ from ..attribute import AnalyzerNode, single
 from ..artefact import Analysis
 import numpy as np
 import pandas as pd
-import plotly # missing dependencies: plotly nbformat
+import plotly  # missing dependencies: plotly nbformat
 import plotly.graph_objects as go
 import tramway.plot.map as tplt
 
@@ -28,6 +28,7 @@ The `plotly` dependencies are not enforced and an
 :class:`ImportError` is raised if the library cannot
 be found.
 """
+
 
 class Plotly(AnalyzerNode):
     """
@@ -48,9 +49,21 @@ class Plotly(AnalyzerNode):
 
     """
 
-    def plot_surface(self, maps, feature, sampling=None, fig=None,
-            row=None, col=None, colormap='viridis', title=None,
-            colorbar=None, resolution=2000, interpolation=None, **kwargs):
+    def plot_surface(
+        self,
+        maps,
+        feature,
+        sampling=None,
+        fig=None,
+        row=None,
+        col=None,
+        colormap="viridis",
+        title=None,
+        colorbar=None,
+        resolution=2000,
+        interpolation=None,
+        **kwargs,
+    ):
         """
         Plot a 2D map as a colored 3D surface.
 
@@ -65,10 +78,10 @@ class Plotly(AnalyzerNode):
 
         """
         surface_kwargs = kwargs
-        surface_kwargs['colorscale'] = kwargs.pop('colorscale', colormap)
+        surface_kwargs["colorscale"] = kwargs.pop("colorscale", colormap)
 
         figure_kwargs = {}
-        for kw in ('scene',):
+        for kw in ("scene",):
             try:
                 arg = kwargs.pop(kw)
             except KeyError:
@@ -79,13 +92,15 @@ class Plotly(AnalyzerNode):
         if fig is not None:
             if not (row is None and col is None):
                 # subplots
-                figure_kwargs.update(dict(
-                    row=1 if row is None else row+1,
-                    col=1 if col is None else col+1,
-                    ))
+                figure_kwargs.update(
+                    dict(
+                        row=1 if row is None else row + 1,
+                        col=1 if col is None else col + 1,
+                    )
+                )
 
         if colorbar is not None:
-            surface_kwargs['colorbar'] = colorbar
+            surface_kwargs["colorbar"] = colorbar
 
         if isinstance(maps, Analysis):
             if sampling is None:
@@ -101,28 +116,28 @@ class Plotly(AnalyzerNode):
             pass
 
         map_ = maps[feature]
-        if 1<map_.shape[1]:
+        if 1 < map_.shape[1]:
             map_ = map_.pow(2).sum(1).apply(np.sqrt)
         else:
             map_ = map_[feature]
 
-        xlim, ylim = sampling.bounding_box[['x', 'y']].values.T
+        xlim, ylim = sampling.bounding_box[["x", "y"]].values.T
 
-        if interpolation == 'flat grid':
+        if interpolation == "flat grid":
             step = max(xlim[1] - xlim[0], ylim[1] - ylim[0]) / resolution
             x = np.arange(xlim[0], xlim[1], step)
             y = np.arange(ylim[0], ylim[1], step)
             x, y = np.meshgrid(x, y)
             pts = np.stack((x.ravel(), y.ravel()), axis=1)
-            partition_kwargs = dict(sampling.param.get('partition', {}))
+            partition_kwargs = dict(sampling.param.get("partition", {}))
             for kw in list(partition_kwargs.keys()):
-                if kw.startswith('time_'):
+                if kw.startswith("time_"):
                     del partition_kwargs[kw]
-                elif kw in ('min_location_count', 'knn'):
+                elif kw in ("min_location_count", "knn"):
                     del partition_kwargs[kw]
             cell_ix = tessellation.cell_index(
-                    pd.DataFrame(pts, columns=['x', 'y']),
-                    **partition_kwargs)
+                pd.DataFrame(pts, columns=["x", "y"]), **partition_kwargs
+            )
 
             z = np.zeros(len(pts), dtype=map_.dtype)
 
@@ -132,16 +147,15 @@ class Plotly(AnalyzerNode):
                 # brute force accum array
                 n = np.zeros(z.shape, dtype=int)
                 for i in map_.index:
-                    k = pts_[cells==i]
+                    k = pts_[cells == i]
                     if k.size:
                         z[k] += map_[i]
                         n[k] += 1
-                ok = 0<n
-                z[1<n] /= n[1<n]
+                ok = 0 < n
+                z[1 < n] /= n[1 < n]
             else:
-                ok = 0<=cell_ix
-                map__ = np.full(tessellation.number_of_cells,
-                        np.nan, dtype=map_.dtype)
+                ok = 0 <= cell_ix
+                map__ = np.full(tessellation.number_of_cells, np.nan, dtype=map_.dtype)
                 map__[map_.index] = map_.values
                 z[ok] = map__[cell_ix[ok]]
             z[~ok] = np.nan
@@ -149,33 +163,46 @@ class Plotly(AnalyzerNode):
             z = z.reshape(x.shape)
             surface = go.Surface(x=x, y=y, z=z, **surface_kwargs)
 
-        elif interpolation in (None, 'flat'):
-            if type(tessellation).__name__ in ("RegularMesh", "HexagonalMesh", "KDTreeMesh"):
-                vertices, cell_vertices, Av = tessellation.vertices, tessellation.cell_vertices, tessellation.vertex_adjacency.tocsr()
+        elif interpolation in (None, "flat"):
+            if type(tessellation).__name__ in (
+                "RegularMesh",
+                "HexagonalMesh",
+                "KDTreeMesh",
+            ):
+                vertices, cell_vertices, Av = (
+                    tessellation.vertices,
+                    tessellation.cell_vertices,
+                    tessellation.vertex_adjacency.tocsr(),
+                )
             else:
                 try:
-                    vertices, cell_vertices, Av = tplt.box_voronoi_2d(tessellation, xlim, ylim)
+                    vertices, cell_vertices, Av = tplt.box_voronoi_2d(
+                        tessellation, xlim, ylim
+                    )
                 except AssertionError:
-                    raise RuntimeError("could not fix the borders; try again with interpolation='flat grid'") from None
+                    raise RuntimeError(
+                        "could not fix the borders; try again with interpolation='flat grid'"
+                    ) from None
             polygons = []
             for c in map_.index:
-                vs = tplt.cell_to_polygon_(c,
-                        vertices, cell_vertices, Av,
-                        xlim, ylim)
+                vs = tplt.cell_to_polygon_(c, vertices, cell_vertices, Av, xlim, ylim)
                 for i, v in vs:
                     polygons.append((v, map_[i]))
-            triangles = levelled_2d_polygons_to_triangulated_piecewise_surface(polygons, 0)
+            triangles = levelled_2d_polygons_to_triangulated_piecewise_surface(
+                polygons, 0
+            )
             surface = go.Mesh3d(
-                    x = triangles[:,0],
-                    y = triangles[:,1],
-                    z = triangles[:,2],
-                    i = np.arange(0, len(triangles), 3),
-                    j = np.arange(1, len(triangles), 3),
-                    k = np.arange(2, len(triangles), 3),
-                    intensitymode = 'vertex',
-                    intensity = triangles[:,2],
-                    cauto = True,
-                    **surface_kwargs)
+                x=triangles[:, 0],
+                y=triangles[:, 1],
+                z=triangles[:, 2],
+                i=np.arange(0, len(triangles), 3),
+                j=np.arange(1, len(triangles), 3),
+                k=np.arange(2, len(triangles), 3),
+                intensitymode="vertex",
+                intensity=triangles[:, 2],
+                cauto=True,
+                **surface_kwargs,
+            )
 
         if not isinstance(surface, list):
             surface = [surface]
@@ -225,30 +252,35 @@ class EdgeSet:
             corresponding face.
 
     """
+
     @classmethod
     def _same(cls, u, v):
-        #return np.all( u == v )
-        return all([ i==j for i, j in zip(u, v) ])
+        # return np.all( u == v )
+        return all([i == j for i, j in zip(u, v)])
+
     def __init__(self, faces=None):
         self.vertices = []
         self.edges = []
         self.same = self._same
         if faces is not None:
             self.compile(faces)
+
     def compile(self, faces):
         for face_ix, ordered_vertices in enumerate(faces):
             if len(ordered_vertices.shape) != 2:
-                raise ValueError('vertices should be NxD matrices')
+                raise ValueError("vertices should be NxD matrices")
             if ordered_vertices.shape[1] < 2:
-                raise ValueError('vertices should be at least 2D')
+                raise ValueError("vertices should be at least 2D")
             n = len(ordered_vertices)
             if n < 3:
-                raise ValueError('faces should have at least 3 vertices')
+                raise ValueError("faces should have at least 3 vertices")
             for i in range(n):
                 j = i + 1
-                if j == n: j = 0
+                if j == n:
+                    j = 0
                 p, q = ordered_vertices[i], ordered_vertices[j]
                 self.add(p, q, face_ix)
+
     def add(self, u, v, face=None):
         i, u_edges = self._add_vertex(u)
         j, v_edges = self._add_vertex(v)
@@ -265,6 +297,7 @@ class EdgeSet:
                 faces.add(face)
             edge = self._add_edge(i, j, faces)
         return edge, faces
+
     def _add_edge(self, i, j, faces):
         edge_ix = len(self.edges)
         self.edges.append(((i, j), faces))
@@ -272,6 +305,7 @@ class EdgeSet:
             _, edges = self.vertices[k]
             edges.add(edge_ix)
         return edge_ix
+
     def _add_vertex(self, v):
         found = False
         for i, rec in enumerate(self.vertices):
@@ -284,24 +318,30 @@ class EdgeSet:
             edges = set()
             self.vertices.append((v, edges))
         return i, edges
+
     def __iter__(self):
         return self.edges.__iter__()
+
     def copy(self):
         dup = EdgeSet()
-        dup.vertices = [ (v, set(edges)) for v, edges in self.vertices ]
+        dup.vertices = [(v, set(edges)) for v, edges in self.vertices]
         dup.edges = list(self.edges)
         return dup
+
     def lookup(self, u, v_or_face=None, face=None):
         # implement some sort of dispatch
         if v_or_face is None:
             return self.lookup_vertex(u, face)
-        elif isinstance(v_or_face, np.ndarray) and 1<v_or_face.size:
+        elif isinstance(v_or_face, np.ndarray) and 1 < v_or_face.size:
             v = v_or_face
             return self.lookup_edge(u, v, face)
         elif face is None:
             return self.lookup_vertex(u, v_or_face)
         else:
-            raise ValueError(f'cannot dispatch to lookup_vertex or lookup_edge with args: {u} {v_or_face}, {face}')
+            raise ValueError(
+                f"cannot dispatch to lookup_vertex or lookup_edge with args: {u} {v_or_face}, {face}"
+            )
+
     def lookup_vertex(self, v, face=None):
         faces = set()
         # Faces that have vertex `v`, or
@@ -315,14 +355,16 @@ class EdgeSet:
                 break
         faces.discard(face)
         return faces
+
     def lookup_edge(self, u, v, face=None):
         faces = self.lookup_vertex(u, face)
         if faces:
             faces &= self.lookup_vertex(v, face)
         return faces
 
-def levelled_2d_polygons_to_triangulated_piecewise_surface(polygons, dr=.1):
-    flat_mesh = EdgeSet([ xy for xy, z in polygons ])
+
+def levelled_2d_polygons_to_triangulated_piecewise_surface(polygons, dr=0.1):
+    flat_mesh = EdgeSet([xy for xy, z in polygons])
     # optionally insert a margin between neighbor polygons
     # and insert a polygon between each pair of matching edges
     extra_polygons = dict()
@@ -339,24 +381,25 @@ def levelled_2d_polygons_to_triangulated_piecewise_surface(polygons, dr=.1):
         margin = dr * max(dr_dist.min(), 1e-2 * dr_dist.max())
         for polygon_ix, p in enumerate(polygons_with_pending_updates):
             xy0, updates, xy, _ = p
-            center = xy0[0] # to vector
+            center = xy0[0]  # to vector
             n = len(xy)
             for i in range(n):
                 j = i + 1
-                if j == n: j = 0
+                if j == n:
+                    j = 0
                 p, q = xy[i], xy[j]
                 neighbor_polygon = flat_mesh.lookup(p, q, polygon_ix)
                 if neighbor_polygon:
                     pq = q - p
                     norm = np.sqrt(np.sum(pq * pq))
-                    normal = np.r_[pq[1], -pq[0]] / norm # 2d only
+                    normal = np.r_[pq[1], -pq[0]] / norm  # 2d only
                     # align the normal towards the center
                     if np.dot(normal, center - p) < 0:
                         normal = -normal
                     # update p and q
                     update = np.zeros_like(xy)
-                    update[i,:] = margin * normal
-                    update[j,:] = margin * normal
+                    update[i, :] = margin * normal
+                    update[j, :] = margin * normal
                     updates.append(update)
                     # insert extra polygon
                     assert len(neighbor_polygon) == 1
@@ -380,15 +423,16 @@ def levelled_2d_polygons_to_triangulated_piecewise_surface(polygons, dr=.1):
                 except StopIteration:
                     break
             xy = xy + update
-            updated_polygons.append(np.c_[xy, np.full((xy.shape[0],1), z)])
+            updated_polygons.append(np.c_[xy, np.full((xy.shape[0], 1), z)])
     else:
         for polygon_ix, p in enumerate(polygons):
             xy, z = p
-            updated_polygons.append(np.c_[xy, np.full((xy.shape[0],1), z)])
+            updated_polygons.append(np.c_[xy, np.full((xy.shape[0], 1), z)])
             n = len(xy)
             for i in range(n):
                 j = i + 1
-                if j == n: j = 0
+                if j == n:
+                    j = 0
                 p, q = xy[i], xy[j]
                 neighbor_polygon = flat_mesh.lookup(p, q, polygon_ix)
                 if neighbor_polygon:
@@ -409,7 +453,7 @@ def levelled_2d_polygons_to_triangulated_piecewise_surface(polygons, dr=.1):
         p0, q0 = polygons[p][0], polygons[q][0]
         p, q = updated_polygons[p], updated_polygons[q]
         pu0, qu0 = p0[pi], q0[qi]
-        puv, quv = p[[pi,pj]], q[[qi,qj]]
+        puv, quv = p[[pi, pj]], q[[qi, qj]]
         if flat_mesh.same(pu0, qu0):
             qvu = quv[::-1]
             polygon = np.r_[puv, qvu]
@@ -423,14 +467,14 @@ def levelled_2d_polygons_to_triangulated_piecewise_surface(polygons, dr=.1):
         n = len(vs)
         for i in range(n):
             j = i + 1
-            if j == n: j = 0
+            if j == n:
+                j = 0
             p, q = vs[[i]], vs[[j]]
             triangle = np.r_[p, q, r]
             triangles.append(triangle)
     # format
-    #levelled_mesh = EdgeSet(triangles)
+    # levelled_mesh = EdgeSet(triangles)
     return np.concatenate(triangles, axis=0)
 
 
-__all__ = [ 'Plotly' ]
-
+__all__ = ["Plotly"]

@@ -17,15 +17,18 @@ from collections import namedtuple, OrderedDict
 import numpy.ma as ma
 from pandas import Series, DataFrame
 
-Matrix = namedtuple('Matrix', 'size shape dtype order')
+Matrix = namedtuple("Matrix", "size shape dtype order")
+
 
 class ArrayChain(object):
-    __slots__ = ('members', 'order')
+    __slots__ = ("members", "order")
 
     def __init__(self, *members, **kwargs):
-        order = kwargs.pop('order', 'simple') # Py2 workaround
+        order = kwargs.pop("order", "simple")  # Py2 workaround
         if kwargs:
-            raise TypeError('expected at most 1 keyword arguments, got {}'.format(len(kwargs)+1))
+            raise TypeError(
+                "expected at most 1 keyword arguments, got {}".format(len(kwargs) + 1)
+            )
         self.order = order
         self.members = OrderedDict()
         if members:
@@ -34,7 +37,7 @@ class ArrayChain(object):
             if not isinstance(members[0], tuple):
                 members = zip(members[0::2], members[1::2])
         for member, example in members:
-            rd = 'C'
+            rd = "C"
             if isinstance(example, tuple):
                 sz = np.prod(np.asarray(example[0]))
                 try:
@@ -52,7 +55,7 @@ class ArrayChain(object):
         return self.members[member]
 
     def __setitem__(self, member, example):
-        rd = 'C'
+        rd = "C"
         if isinstance(example, tuple):
             sz = np.prod(np.asarray(example[0]))
             try:
@@ -68,8 +71,8 @@ class ArrayChain(object):
 
     def _at(self, a, member, matrix):
         k = list(self.members.keys()).index(member)
-        if self.order == 'simple':
-            i0 = sum([ m.size for m in list(self.members.values())[:k] ])
+        if self.order == "simple":
+            i0 = sum([m.size for m in list(self.members.values())[:k]])
             return slice(i0, i0 + matrix.size)
         else:
             raise NotImplementedError("only 'simple' order is supported")
@@ -89,20 +92,19 @@ class ArrayChain(object):
         if matrix.shape == m.shape:
             a[self._at(a, member, matrix)] = m.flatten(matrix.order)
         else:
-            raise ValueError('wrong matrix size')
+            raise ValueError("wrong matrix size")
 
     @property
     def size(self):
-        return sum([ m.size for m in self.members.values() ])
+        return sum([m.size for m in self.members.values()])
 
     @property
     def shape(self):
         return (self.size,)
 
 
-
 class ChainArray(ArrayChain):
-    __slots__ = ('combined',)
+    __slots__ = ("combined",)
 
     def __init__(self, *members, **kwargs):
         ArrayChain.__init__(self, *members, **kwargs)
@@ -125,7 +127,7 @@ class ChainArray(ArrayChain):
 
     def update(self, x):
         if not isinstance(x, np.ndarray):
-            raise TypeError('numpy array expected')
+            raise TypeError("numpy array expected")
         if isinstance(self.combined, ma.MaskedArray):
             self.combined = ma.array(x, mask=self.combined.mask)
         else:
@@ -133,8 +135,7 @@ class ChainArray(ArrayChain):
 
 
 __all__ = [
-    'Matrix',
-    'ArrayChain',
-    'ChainArray',
-    ]
-
+    "Matrix",
+    "ArrayChain",
+    "ChainArray",
+]

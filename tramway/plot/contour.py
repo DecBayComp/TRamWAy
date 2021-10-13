@@ -42,15 +42,15 @@ class ContourEditor(object):
         self._step = 1
         self._variable = None
         self._area = True
-        self.clip = 4.
+        self.clip = 4.0
         self.debug = False
         self._areas = None
         self.callback = None
 
-        self.cell_marker = 's'
-        self.cell_marker_color = 'r'
+        self.cell_marker = "s"
+        self.cell_marker_color = "r"
         self.cell_marker_size = 10
-        self.delaunay_color = (.1, .1, .1)
+        self.delaunay_color = (0.1, 0.1, 0.1)
 
     @property
     def map(self):
@@ -72,8 +72,10 @@ class ContourEditor(object):
             for v in self.map.columns:
                 self._variables.append(v[::-1].split(None, 1)[-1][::-1])
             self._variables = list(set(self._variables))
-            self._variables = { v: [ c for c in self.map.columns if c.startswith(v) ] \
-                    for v in self._variables }
+            self._variables = {
+                v: [c for c in self.map.columns if c.startswith(v)]
+                for v in self._variables
+            }
         return list(self._variables.keys())
 
     @property
@@ -88,10 +90,13 @@ class ContourEditor(object):
             if self.cells.tessellation.cell_label is None:
                 label = self.cells.location_count
             else:
-                label = np.logical_and(0 < self.cells.tessellation.cell_label,
-                    0 < self.cells.location_count)
+                label = np.logical_and(
+                    0 < self.cells.tessellation.cell_label,
+                    0 < self.cells.location_count,
+                )
             self._cell_adjacency = self.cells.tessellation.simplified_adjacency(
-                label=label, format='csr')
+                label=label, format="csr"
+            )
         return self._cell_adjacency
 
     @property
@@ -122,10 +127,13 @@ class ContourEditor(object):
                 if self.cells.tessellation.cell_label is None:
                     label = self.cells.location_count
                 else:
-                    label = np.logical_and(0 < self.cells.tessellation.cell_label,
-                        0 < self.cells.location_count)
+                    label = np.logical_and(
+                        0 < self.cells.tessellation.cell_label,
+                        0 < self.cells.location_count,
+                    )
                 self.cells.tessellation.simplified_adjacency(
-                    adjacency=self._dilation_adjacency, label=label, format='csr')
+                    adjacency=self._dilation_adjacency, label=label, format="csr"
+                )
         if self._dilation_adjacency is False:
             return self.cell_adjacency
         else:
@@ -136,7 +144,7 @@ class ContourEditor(object):
         self._area_ptr = []
         self._contour_ptr = []
         self._delaunay_ptr = []
-        #self.axes.clear()
+        # self.axes.clear()
         self.figure.clear()
 
     @property
@@ -149,7 +157,7 @@ class ContourEditor(object):
             self._cell = c
             self.refresh()
         else:
-            raise ValueError('cell index not in range (-1,%s)', self.cell_count-1)
+            raise ValueError("cell index not in range (-1,%s)", self.cell_count - 1)
 
     @property
     def step(self):
@@ -174,21 +182,28 @@ class ContourEditor(object):
         self._clear()
         self._variable = v
         if self.debug or self._delaunay:
-            kwargs = {'delaunay': True,
-                'color': [self.delaunay_color] * 10,
-                'linewidth': .3}
+            kwargs = {
+                "delaunay": True,
+                "color": [self.delaunay_color] * 10,
+                "linewidth": 0.3,
+            }
         else:
-            kwargs = {'linewidth': 0}
+            kwargs = {"linewidth": 0}
         if self._variables[v][1:]:
-            obj = field_map_2d(self.cells, _clip(self.map[self._variables[v]], self.clip),
-                figure=self.figure, **kwargs)
+            obj = field_map_2d(
+                self.cells,
+                _clip(self.map[self._variables[v]], self.clip),
+                figure=self.figure,
+                **kwargs
+            )
         else:
-            obj = scalar_map_2d(self.cells, _clip(self.map[v], self.clip),
-                figure=self.figure, **kwargs)
+            obj = scalar_map_2d(
+                self.cells, _clip(self.map[v], self.clip), figure=self.figure, **kwargs
+            )
         if obj:
             self._delaunay_ptr = obj
             self._delaunay = True
-        #self.delaunay = self._delaunay
+        # self.delaunay = self._delaunay
         self.refresh()
 
     @property
@@ -197,7 +212,7 @@ class ContourEditor(object):
 
     @delaunay.setter
     def delaunay(self, state):
-        #if self.debug:
+        # if self.debug:
         #       return
         toggle = self._delaunay != bool(state)
         if toggle:
@@ -210,8 +225,9 @@ class ContourEditor(object):
                     p.set_visible(self._delaunay)
                 self.draw()
         elif self._delaunay:
-            self._delaunay_ptr = plot_delaunay(self.cells, centroid_style=None,
-                axes=self.axes)
+            self._delaunay_ptr = plot_delaunay(
+                self.cells, centroid_style=None, axes=self.axes
+            )
             self.draw()
 
     def refresh(self):
@@ -227,15 +243,24 @@ class ContourEditor(object):
                 self._cell_ptr[0].set_xdata(x)
                 self._cell_ptr[0].set_ydata(y)
             else:
-                self._cell_ptr = self.axes.plot(x, y, self.cell_marker,
+                self._cell_ptr = self.axes.plot(
+                    x,
+                    y,
+                    self.cell_marker,
                     markerfacecolor=self.cell_marker_color,
-                    markersize=self.cell_marker_size)
+                    markersize=self.cell_marker_size,
+                )
             s = self.step
         if 0 < s and self.cells is not None:
             try:
-                cs, ok = self.cells.tessellation.contour(c, s, fallback=True,
-                        adjacency=self.cell_adjacency,
-                        debug=self.debug, cells=self.cells)
+                cs, ok = self.cells.tessellation.contour(
+                    c,
+                    s,
+                    fallback=True,
+                    adjacency=self.cell_adjacency,
+                    debug=self.debug,
+                    cells=self.cells,
+                )
             except:
                 if self.debug:
                     print(traceback.format_exc())
@@ -251,25 +276,32 @@ class ContourEditor(object):
                 if self.area:
                     w = self.cell_centers[list(ws)]
                     if self._area_ptr:
-                        self._area_ptr[0].set_xdata(w[:,0])
-                        self._area_ptr[0].set_ydata(w[:,1])
+                        self._area_ptr[0].set_xdata(w[:, 0])
+                        self._area_ptr[0].set_ydata(w[:, 1])
                     else:
-                        self._area_ptr = self.axes.plot(w[:,0], w[:,1], 'g.',
-                            markersize=6)
-            color = 'k' if ok else 'r'
-            markeredgecolor = 'y' if ok else 'k'
+                        self._area_ptr = self.axes.plot(
+                            w[:, 0], w[:, 1], "g.", markersize=6
+                        )
+            color = "k" if ok else "r"
+            markeredgecolor = "y" if ok else "k"
             z = self.cell_centers[cs]
             z = np.vstack((z, z[0]))
             if self._contour_ptr:
-                self._contour_ptr[0].set_xdata(z[:,0])
-                self._contour_ptr[0].set_ydata(z[:,1])
+                self._contour_ptr[0].set_xdata(z[:, 0])
+                self._contour_ptr[0].set_ydata(z[:, 1])
                 self._contour_ptr[0].set_color(color)
                 self._contour_ptr[0].set_markerfacecolor(color)
                 self._contour_ptr[0].set_markeredgecolor(markeredgecolor)
             else:
-                self._contour_ptr = self.axes.plot(z[:,0], z[:,1], color+'s-',
-                    markeredgecolor=markeredgecolor, markerfacecolor=color,
-                    markersize=6, linewidth=3)
+                self._contour_ptr = self.axes.plot(
+                    z[:, 0],
+                    z[:, 1],
+                    color + "s-",
+                    markeredgecolor=markeredgecolor,
+                    markerfacecolor=color,
+                    markersize=6,
+                    linewidth=3,
+                )
             if self.callback:
                 ws.add(self.cell)
                 try:
@@ -303,7 +335,7 @@ class ContourEditor(object):
         self.refresh()
 
     def find_cell(self, pt):
-        pt = np.asarray(pt)[np.newaxis,:]
+        pt = np.asarray(pt)[np.newaxis, :]
         if isinstance(self.cells.points, pd.DataFrame):
             coord_names = self.cells.points.columns[1:-1]
             pt = pd.DataFrame(data=pt, columns=coord_names)
@@ -326,8 +358,8 @@ class ContourEditor(object):
 
     def tangent(self, cs):
         X = self.cells.tessellation.cell_centers
-        uvw = zip([cs[-1]]+cs[:-1], cs, cs[1:]+[cs[0]])
-        return np.vstack([ (X[w]-X[u])*.5 for u, v, w in uvw ])
+        uvw = zip([cs[-1]] + cs[:-1], cs, cs[1:] + [cs[0]])
+        return np.vstack([(X[w] - X[u]) * 0.5 for u, v, w in uvw])
 
     def surface_area(self, contour, inner):
         if self._areas is None:
@@ -341,21 +373,30 @@ class ContourEditor(object):
                 u = centers[c]
                 verts = set(vertices[c].tolist())
                 ordered_verts = []
-                next_verts = set(verts) # copy
+                next_verts = set(verts)  # copy
                 try:
                     while verts:
                         vert = next_verts.pop()
                         ordered_verts.append(vert)
                         verts.remove(vert)
-                        next_verts = set(adjacency.indices[adjacency.indptr[vert]:adjacency.indptr[vert+1]]) & verts
+                        next_verts = (
+                            set(
+                                adjacency.indices[
+                                    adjacency.indptr[vert] : adjacency.indptr[vert + 1]
+                                ]
+                            )
+                            & verts
+                        )
                 except KeyError:
                     if self.debug:
                         print(traceback.format_exc())
                     continue
-                for a, b in zip(ordered_verts, ordered_verts[1:]+[ordered_verts[0]]):
+                for a, b in zip(ordered_verts, ordered_verts[1:] + [ordered_verts[0]]):
                     v, w = vert_coords[a], vert_coords[b]
-                    self._areas[c] += abs((v[0]-u[0])*(w[1]-u[1])-(w[0]-u[0])*(v[1]-u[1]))
-            self._areas *= .5
+                    self._areas[c] += abs(
+                        (v[0] - u[0]) * (w[1] - u[1]) - (w[0] - u[0]) * (v[1] - u[1])
+                    )
+            self._areas *= 0.5
         return np.sum(self._areas[list(inner)])
 
     def sum(self, x, *args):
@@ -363,4 +404,3 @@ class ContourEditor(object):
 
     def curl(self, F, dr, A):
         return np.sum(F * dr) / A
-

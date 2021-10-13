@@ -13,17 +13,21 @@
 
 
 from ..attribute.abc import Attribute, abstractmethod
+
 # for relative imports in sub-packages:
 from ..attribute import AnalyzerNode, Initializer
+
 
 class Tesseller(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.tesseller` attribute
     of an :class:`~tramway.analyzer.RWAnalyzer` object.
     """
+
     @abstractmethod
     def tessellate(self, spt_dataframe):
         pass
+
     @property
     @abstractmethod
     def resolution(self):
@@ -31,17 +35,19 @@ class Tesseller(Attribute):
         *float*: Desired spatial resolution in :math:`\mu m`
         """
         pass
+
     @resolution.setter
     @abstractmethod
     def resolution(self, res):
         pass
+
 
 class TessellationPostProcessing(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.tesseller.post`
     attribute of a :class:`Tesseller` object.
     """
+
     @abstractmethod
     def post_process(self, tessellation, spt_dataframe):
         pass
-

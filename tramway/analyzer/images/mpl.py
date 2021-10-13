@@ -21,7 +21,9 @@ class Mpl(AnalyzerNode):
     """
     Matplotlib plotting utilities for 2D data; no time support.
     """
+
     __slots__ = ()
+
     def plot(self, x, *args, origin=None, frame=None, **kwargs):
         """
         Converts localization data from micrometers to pixels and plots them.
@@ -30,19 +32,19 @@ class Mpl(AnalyzerNode):
         default parameters (``origin='upper'``).
         """
         if isinstance(x, pd.DataFrame):
-            x, y = x['x'], x['y']
+            x, y = x["x"], x["y"]
         else:
             y = args[0]
             args = args[1:]
         try:
-            axes = kwargs.pop('axes')
+            axes = kwargs.pop("axes")
         except KeyError:
             import matplotlib.pyplot as axes
         img = self._parent
         if frame is None:
             height = img.height
         else:
-            #axes.imshow(frame)
+            # axes.imshow(frame)
             height = frame.shape[0]
         x, y = np.array(x), np.array(y)
         if origin is not None:
@@ -53,9 +55,9 @@ class Mpl(AnalyzerNode):
         if origin is None and img.loc_offset is not None:
             x -= img.loc_offset[0]
             y -= img.loc_offset[1]
-        return axes.plot(x, height-1-y, *args, **kwargs)
+        return axes.plot(x, height - 1 - y, *args, **kwargs)
 
-    def roi(self, frame, origin, *args, axes=None, colormap='gray', **kwargs):
+    def roi(self, frame, origin, *args, axes=None, colormap="gray", **kwargs):
         """
         Plots a frame corresponding to a region of interest.
 
@@ -68,13 +70,13 @@ class Mpl(AnalyzerNode):
         """
         m, n = frame.shape
         px = self._parent.pixel_size
-        x0, y0 = origin[0] - .5 * px, origin[1] - .5 * px
-        x1, y1 = origin[0] + (m - .5) * px, origin[1] + (n - .5) * px
+        x0, y0 = origin[0] - 0.5 * px, origin[1] - 0.5 * px
+        x1, y1 = origin[0] + (m - 0.5) * px, origin[1] + (n - 0.5) * px
         try:
-            colormap = kwargs.pop('cmap')
+            colormap = kwargs.pop("cmap")
         except KeyError:
             pass
-        for arg in ('origin', 'extent'):
+        for arg in ("origin", "extent"):
             try:
                 kwargs.pop(arg)
             except KeyError:
@@ -83,9 +85,7 @@ class Mpl(AnalyzerNode):
                 self.logger.warning(f"argument '{arg}' ignored")
         if axes is None:
             import matplotlib.pyplot as axes
-        return axes.imshow(frame, cmap=colormap, extent=[x0, x1, y0, y1],
-                **kwargs)
+        return axes.imshow(frame, cmap=colormap, extent=[x0, x1, y0, y1], **kwargs)
 
 
-__all__ = ['Mpl']
-
+__all__ = ["Mpl"]

@@ -16,6 +16,7 @@ from tramway.core.analyses.base import Analyses
 from tramway.plot.animation import *
 import os.path
 
+
 def animate_trajectories_2d_helper(input_data, *args, **kwargs):
     """
     Animate 2D trajectories.
@@ -33,7 +34,7 @@ def animate_trajectories_2d_helper(input_data, *args, **kwargs):
     from tramway.plot.animation.xyt import animate_trajectories_2d
     import pandas as pd
 
-    columns = kwargs.pop('columns', None)
+    columns = kwargs.pop("columns", None)
 
     if isinstance(input_data, pd.DataFrame):
         xyt = input_data
@@ -46,21 +47,25 @@ def animate_trajectories_2d_helper(input_data, *args, **kwargs):
         load_kwargs = {}
         if columns is not None:
             if isinstance(columns, str):
-                columns = columns.split(',')
-            load_kwargs['columns'] = columns
+                columns = columns.split(",")
+            load_kwargs["columns"] = columns
         from tramway.core.xyt import load_xyt
+
         try:
             xyt = load_xyt(input_file, **load_kwargs)
         except (SystemExit, KeyboardInterrupt):
             raise
         except:
             from tramway.core.hdf5 import load_rwa
+
             xyt = load_rwa(input_file, lazy=True).data
 
     animate_trajectories_2d(xyt, *args, **kwargs)
 
 
-def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None, variable=None, **kwargs):
+def animate_map_2d_helper(
+    input_data, output_file=None, label=None, feature=None, variable=None, **kwargs
+):
     """
     Animate 2D maps.
 
@@ -86,6 +91,7 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
         analyses = input_data
     else:
         from tramway.core.hdf5 import load_rwa
+
         input_file = os.path.expanduser(input_data)
         if not os.path.isfile(input_file):
             raise OSError("file '{}' not found".format(input_file))
@@ -93,7 +99,7 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
 
     if isinstance(label, str):
         _label = []
-        for _l in label.split(','):
+        for _l in label.split(","):
             try:
                 _l = int(_l)
             except (TypeError, ValueError):
@@ -107,12 +113,17 @@ def animate_map_2d_helper(input_data, output_file=None, label=None, feature=None
         feature = variable
     if feature is None:
         if maps.features[1:]:
-            raise ValueError('multiple mapped features found: {}'.format(maps.features))
+            raise ValueError("multiple mapped features found: {}".format(maps.features))
         feature = maps.features[0]
     _map = maps[feature]
 
     animate_map_2d(_map, cells, output_file, **kwargs)
 
 
-__all__ = ['animate_trajectories_2d_helper', 'animate_map_2d_helper', 'VideoReader', 'VideoWriter', 'VideoWriterReader']
-
+__all__ = [
+    "animate_trajectories_2d_helper",
+    "animate_map_2d_helper",
+    "VideoReader",
+    "VideoWriter",
+    "VideoWriterReader",
+]

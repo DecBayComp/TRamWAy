@@ -17,9 +17,10 @@ from .exception import *
 
 
 class Graph(object):
-    '''Abstract class for node-centered graph implementations. Here the concept of edge is limited to
-    labels and retrieving the nodes that a given edge connects may be a very inefficient operation.'''
-    __slots__ = ['node_defaults', 'edge_defaults']
+    """Abstract class for node-centered graph implementations. Here the concept of edge is limited to
+    labels and retrieving the nodes that a given edge connects may be a very inefficient operation."""
+
+    __slots__ = ["node_defaults", "edge_defaults"]
 
     def __init__(self, node_defaults, edge_defaults):
         self.node_defaults = node_defaults
@@ -33,54 +34,67 @@ class Graph(object):
 
     def get_node_attr(self, n, attr):
         raise AbstractGraphError
+
     def set_node_attr(self, n, **kwargs):
         raise AbstractGraphError
+
     def get_edge_attr(self, e, attr):
         raise AbstractGraphError
+
     def set_edge_attr(self, e, **kwargs):
         raise AbstractGraphError
+
     @property
     def size(self):
         return len(list(self.iter_nodes))
+
     def iter_nodes(self):
-        '''Returns an iterator over all the nodes of the graph. A copy of the returned
-        view should be made if the structure of the graph had to be altered.'''
+        """Returns an iterator over all the nodes of the graph. A copy of the returned
+        view should be made if the structure of the graph had to be altered."""
         raise AbstractGraphError
+
     def iter_neighbors(self, n):
-        '''Returns an iterator over the neighbor nodes of a given node. A copy of the returned
-        view should be made if the structure of the graph had to be altered.'''
-        return [ n for _, n in self.iter_edges_from(n) ]
+        """Returns an iterator over the neighbor nodes of a given node. A copy of the returned
+        view should be made if the structure of the graph had to be altered."""
+        return [n for _, n in self.iter_edges_from(n)]
+
     def iter_edges(self):
-        '''Returns an iterator over all the edges of the graph. A copy of the returned
-        view should be made if the structure of the graph had to be altered.'''
+        """Returns an iterator over all the edges of the graph. A copy of the returned
+        view should be made if the structure of the graph had to be altered."""
         raise AbstractGraphError
+
     def iter_edges_from(self, n):
-        '''Returns an iterator over the ``(edge, neighbor_node)`` index pairs from a given node.
-        A copy of the returned view should be made if the structure of the graph had to be altered.'''
+        """Returns an iterator over the ``(edge, neighbor_node)`` index pairs from a given node.
+        A copy of the returned view should be made if the structure of the graph had to be altered."""
         raise AbstractGraphError
+
     def has_node(self, n):
         return n in self.iter_nodes()
 
     def add_node(self, **kwargs):
         raise AbstractGraphError
+
     def del_node(self, n):
         raise AbstractGraphError
+
     def stands_alone(self, n):
-        '''Returns ``True`` if node `n` has no neighbor.'''
+        """Returns ``True`` if node `n` has no neighbor."""
         return not self.iter_neighbors(n)
 
     def find_edge(self, n1, n2):
         if self.has_node(n1):
-            e = [ e for e, n in self.iter_edges_from(n1) if n is n2 ]
-            if e: return e[0]
-            else: return None
+            e = [e for e, n in self.iter_edges_from(n1) if n is n2]
+            if e:
+                return e[0]
+            else:
+                return None
         else:
             return None
 
     def are_connected(self, n1, n2):
         return self.find_edge(n1, n2) is not None
 
-    def export(self, sparse='csr'):
+    def export(self, sparse="csr"):
         """Returns ``(A, V, E)`` where ``A`` is an adjacency matrix as a `scipy.sparse.*_matrix`
         of size ``(n_vertices, n_vertices)`` and with edge indices as defined values (including
         explicit zeros), where * is defined by the optional input argument `sparse` (any of
@@ -95,4 +109,3 @@ class Graph(object):
 
     def squareDistance(self, attr, eta, **kwargs):
         raise AbstractGraphError
-

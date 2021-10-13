@@ -39,34 +39,34 @@ def compute_dtypes(df, precision):
     if isinstance(precision, dict):
         dtypes = precision
     else:
-        if precision == 'half':
-            nbytes = '2'
-        elif precision == 'single':
-            nbytes = '4'
-        elif precision == 'double':
-            nbytes = '8'
+        if precision == "half":
+            nbytes = "2"
+        elif precision == "single":
+            nbytes = "4"
+        elif precision == "double":
+            nbytes = "8"
         else:
-            raise ValueError('precision not supported: {}'.format(precision))
+            raise ValueError("precision not supported: {}".format(precision))
         dtypes = {}
         for col, dtype in df.dtypes.items():
             dtype = np.dtype(dtype).str
-            if dtype[0] == '<' and dtype[1] in 'uif' and dtype[2] != nbytes:
-                dtypes[col] = np.dtype(dtype[:2]+nbytes)
+            if dtype[0] == "<" and dtype[1] in "uif" and dtype[2] != nbytes:
+                dtypes[col] = np.dtype(dtype[:2] + nbytes)
     return dtypes
 
 
 def glob(pattern):
-    """ Same as :func:`glob.glob`, with support for tilde.
+    """Same as :func:`glob.glob`, with support for tilde.
 
     :func:`os.path.expanduser` is applied to `pattern`,
     and then the expanded part is replaced back with
     tilde in the resulting paths."""
-    if pattern.startswith('~'):
-        home = os.path.expanduser('~')
+    if pattern.startswith("~"):
+        home = os.path.expanduser("~")
         files = []
         for f in _glob.glob(os.path.expanduser(pattern)):
             if f.startswith(home):
-                f = '~' + f[len(home):]
+                f = "~" + f[len(home) :]
             files.append(f)
     else:
         files = _glob.glob(pattern)
@@ -85,7 +85,9 @@ class SPTParameters(object):
 
     Default values should be :const:`None`.
     """
+
     __slots__ = ()
+
     def __init__(self, localization_precision=None, localization_error=None):
         if localization_precision is None:
             if localization_error is not None:
@@ -93,22 +95,27 @@ class SPTParameters(object):
         elif localization_error is None:
             self.localization_precision = localization_precision
         else:
-            raise ValueError('both error and precision are defined; choose either one')
+            raise ValueError("both error and precision are defined; choose either one")
+
     @classmethod
     def __parse__(cls, kwargs):
         return (
-            kwargs.pop('localization_precision', None),
-            kwargs.pop('localization_error', None),
-            )
+            kwargs.pop("localization_precision", None),
+            kwargs.pop("localization_error", None),
+        )
+
     @property
     def localization_error(self):
         return self._localization_error
+
     @localization_error.setter
     def localization_error(self, err):
         if err is None:
-            err = 0.
+            err = 0.0
         self._localization_error = err
+
     localization_error.__doc__ = SPTData.localization_error.__doc__
+
     @property
     def localization_precision(self):
         r"""
@@ -120,59 +127,73 @@ class SPTParameters(object):
             return None
         else:
             return sqrt(self.localization_error)
+
     @localization_precision.setter
     def localization_precision(self, pr):
-        err = pr if pr is None else pr*pr
+        err = pr if pr is None else pr * pr
         self.localization_error = err
+
     def discard_static_trajectories(self, dataframe, min_msd=None, **kwargs):
         if min_msd is None:
             min_msd = self.localization_error
         return discard_static_trajectories(dataframe, min_msd, **kwargs)
+
     discard_static_trajectories.__doc__ = SPTData.discard_static_trajectories.__doc__
+
     @property
     def frame_interval(self):
         if self._frame_interval is None:
-            t = self.dataframe['t']
+            t = self.dataframe["t"]
             self._frame_interval = t.diff().median()
         return self._frame_interval
+
     @frame_interval.setter
     def frame_interval(self, dt):
         self._frame_interval = dt
+
     frame_interval.__doc__ = SPTData.frame_interval.__doc__
+
     @property
     def time_step(self):
         """
         *float*: Alias for the :attr:`frame_interval` property
         """
         return self.frame_interval
+
     @time_step.setter
     def time_step(self, dt):
         self.frame_interval = dt
+
     @property
     def dt(self):
         return self.frame_interval
+
     @dt.setter
     def dt(self, dt):
         self.frame_interval = dt
+
     dt.__doc__ = time_step.__doc__
+
     @property
     def temperature(self):
-        """ *float*: Temperature in *K*; can be set as a *value*-*unit* pair,
-            with *unit* any of :const:`'K'`, :const:`'C'` and :const:`'F'`
+        """*float*: Temperature in *K*; can be set as a *value*-*unit* pair,
+        with *unit* any of :const:`'K'`, :const:`'C'` and :const:`'F'`
         """
         return self._temperature
+
     @temperature.setter
     def temperature(self, T):
         if isinstance(T, (tuple, list)):
             T, unit = T
             if T is not None:
-                if unit == 'C':
+                if unit == "C":
                     T = 273 + T
-                elif unit == 'F':
+                elif unit == "F":
                     T = 273 + (T - 32) / 1.8
-                elif unit != 'K':
+                elif unit != "K":
                     raise ValueError(f"temperature unit not supported: '{unit}'")
         self._temperature = T
+
     def set_precision(self, precision):
         """
         Sets the numerical precision of the raw data.
@@ -193,16 +214,19 @@ def _normalize(p):
 
 
 class SPTDataIterator(AnalyzerNode, SPTParameters):
-    """ Partial implementation for multi-item :class:`SPTData`.
+    """Partial implementation for multi-item :class:`SPTData`.
 
     Children classes must implement the :meth:`__iter__` method.
     """
-    __slots__ = ('_bounds',)
+
+    __slots__ = ("_bounds",)
+
     def __init__(self, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
         AnalyzerNode.__init__(self, **kwargs)
         self._bounds = None
         SPTParameters.__init__(self, *prms)
+
     @property
     def localization_error(self):
         it = iter(self)
@@ -214,12 +238,16 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                 break
             else:
                 if _s2 != sigma2:
-                    raise AttributeError('not all the data blocks share the same localization error')
+                    raise AttributeError(
+                        "not all the data blocks share the same localization error"
+                    )
         return sigma2
+
     @localization_error.setter
     def localization_error(self, sigma2):
         for f in self:
             f.localization_error = sigma2
+
     @property
     def frame_interval(self):
         it = iter(self)
@@ -231,25 +259,33 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                 break
             else:
                 _delta = dt - _dt
-                if 1e-12 < _delta*_delta:
-                    raise AttributeError('not all the data blocks share the same frame interval (dt)')
+                if 1e-12 < _delta * _delta:
+                    raise AttributeError(
+                        "not all the data blocks share the same frame interval (dt)"
+                    )
         return dt
+
     @frame_interval.setter
     def frame_interval(self, dt):
         for f in self:
             f.frame_interval = dt
+
     @property
     def dt(self):
         return self.frame_interval
+
     @dt.setter
     def dt(self, dt):
         self.frame_interval = dt
+
     @property
     def time_step(self):
         return self.frame_interval
+
     @time_step.setter
     def time_step(self, dt):
         self.frame_interval = dt
+
     @property
     def temperature(self):
         it = iter(self)
@@ -261,22 +297,27 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                 break
             else:
                 if T != _T:
-                    raise AttributeError('not all the data blocks share the same temperature')
+                    raise AttributeError(
+                        "not all the data blocks share the same temperature"
+                    )
         return T
+
     @temperature.setter
     def temperature(self, T):
         for f in self:
             f.temperature = T
+
     def as_dataframes(self, source=None, return_index=False):
-        """ Generator function; yields :class:`pandas.DataFrame` objects.
-        
+        """Generator function; yields :class:`pandas.DataFrame` objects.
+
         `source` can be a source name (filepath) or a boolean function
         that takes a source string as input argument.
         """
         for f in self.filter_by_source(source, return_index):
             yield f.dataframe
+
     def filter_by_source(self, source_filter, return_index=False):
-        """ Generator function; similar to :meth:`__iter__`;
+        """Generator function; similar to :meth:`__iter__`;
         yields :class:`SPTDataItem` objects.
 
         *source* can be a single `str` value, or a set of `str` values,
@@ -315,25 +356,29 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                                 visited[i] = s = _normalize(f.source)
                             if s == p:
                                 if i in yielded:
-                                    raise ValueError('duplicate source: {}'.format(_p))
+                                    raise ValueError("duplicate source: {}".format(_p))
                                 yield _out(i, f)
                                 yielded.add(i)
                                 break
                     except StopIteration:
-                        raise ValueError('cannot find source: {}'.format(_p))
+                        raise ValueError("cannot find source: {}".format(_p))
                 return
             elif isinstance(source_filter, Set):
-                sources = set([ _normalize(p) for p in source_filter ])
+                sources = set([_normalize(p) for p in source_filter])
             for i, f in enumerate(self):
                 p = _normalize(f.source)
                 if p in sources:
                     yield _out(i, f)
+
     def discard_static_trajectories(self, dataframe=None, min_msd=None, **kwargs):
         if dataframe is None:
             for data in self:
                 data.discard_static_trajectories(min_msd=min_msd, **kwargs)
         else:
-            return SPTParameters.discard_static_trajectories(self, dataframe, min_msd, **kwargs)
+            return SPTParameters.discard_static_trajectories(
+                self, dataframe, min_msd, **kwargs
+            )
+
     @property
     def bounds(self):
         if self._bounds is None:
@@ -342,13 +387,18 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                 if self._bounds is None:
                     self._bounds = _bounds
                 else:
-                    self._bounds.loc['min'] = np.minimum(self._bounds.loc['min'], _bounds.loc['min'])
-                    self._bounds.loc['max'] = np.minimum(self._bounds.loc['max'], _bounds.loc['max'])
+                    self._bounds.loc["min"] = np.minimum(
+                        self._bounds.loc["min"], _bounds.loc["min"]
+                    )
+                    self._bounds.loc["max"] = np.minimum(
+                        self._bounds.loc["max"], _bounds.loc["max"]
+                    )
         return self._bounds
+
     bounds.__doc__ = SPTData.bounds.__doc__
+
     def self_update(self, new_self):
-        """
-        """
+        """ """
         if callable(new_self):
             f = new_self
             new_self = f(self)
@@ -366,6 +416,7 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
                 for f in new_self:
                     roi_central._register_decentralized_roi(f)
         return new_self
+
     def reload_from_rwa_files(self, skip_missing=False):
         """
         Reloads the SPT data and analysis tree from the corresponding rwa files.
@@ -383,9 +434,11 @@ class SPTDataIterator(AnalyzerNode, SPTParameters):
 
         """
         return RWAFiles.reload_from_rwa_files(self, skip_missing=skip_missing)
+
     def set_precision(self, precision):
         for f in self:
             f.set_precision(precision)
+
     def close(self):
         for f in self:
             f.close()
@@ -399,7 +452,9 @@ class SPTDataInitializer(Initializer):
     *from_...* methods alters the parent attribute which specializes
     into an initialized :class:`SPTData` object.
     """
+
     __slots__ = ()
+
     def from_ascii_file(self, filepath):
         """
         Sets a text file as the source of SPT data.
@@ -412,7 +467,8 @@ class SPTDataInitializer(Initializer):
 
         See also :class:`StandaloneSPTAsciiFile`.
         """
-        self.specialize( StandaloneSPTAsciiFile, filepath )
+        self.specialize(StandaloneSPTAsciiFile, filepath)
+
     def from_ascii_files(self, filepattern):
         """
         Sets text files, which paths match with a pattern, as the source of SPT data.
@@ -430,17 +486,20 @@ class SPTDataInitializer(Initializer):
 
         See also :class:`SPTAsciiFiles`.
         """
-        self.specialize( SPTAsciiFiles, filepattern )
+        self.specialize(SPTAsciiFiles, filepattern)
+
     def from_dataframe(self, df):
         """
         See also :class:`StandaloneSPTDataFrame`.
         """
-        self.specialize( StandaloneSPTDataFrame, df )
+        self.specialize(StandaloneSPTDataFrame, df)
+
     def from_dataframes(self, dfs):
         """
         See also :class:`SPTDataFrames`.
         """
-        self.specialize( SPTDataFrames, dfs )
+        self.specialize(SPTDataFrames, dfs)
+
     def from_mat_file(self, filepath):
         """
         Sets a MatLab V7 file as the source of SPT data.
@@ -449,7 +508,8 @@ class SPTDataInitializer(Initializer):
 
         See also :class:`StandaloneSPTMatFile`.
         """
-        self.specialize( StandaloneSPTMatFile, filepath )
+        self.specialize(StandaloneSPTMatFile, filepath)
+
     def from_mat_files(self, filepattern):
         """
         Sets MatLab V7 files, which paths match with a pattern, as the source of SPT data.
@@ -463,39 +523,43 @@ class SPTDataInitializer(Initializer):
 
         See also :class:`SPTMatFiles`.
         """
-        self.specialize( SPTMatFiles, filepattern )
+        self.specialize(SPTMatFiles, filepattern)
+
     def from_rwa_file(self, filepath):
         """
         Similar to :meth:`from_ascii_file`, for *.rwa* files.
 
         See also :class:`StandaloneRWAFile`.
         """
-        self.specialize( StandaloneRWAFile, filepath )
+        self.specialize(StandaloneRWAFile, filepath)
+
     def from_rwa_files(self, filepattern):
         """
         Similar to :meth:`from_ascii_files`, for *.rwa* files.
 
         See also :class:`RWAFiles`.
         """
-        self.specialize( RWAFiles, filepattern )
+        self.specialize(RWAFiles, filepattern)
+
     def from_rw_generator(self, generator):
         """
         A random walk generator features a :meth:`generate` method.
 
         See also :class:`RWGenerator`.
         """
-        self.specialize( RWGenerator, generator )
+        self.specialize(RWGenerator, generator)
+
     def from_analysis_tree(self, analyses, copy=False):
-        self.specialize( RWAnalyses, analyses, copy )
+        self.specialize(RWAnalyses, analyses, copy)
+
     def from_tracker(self):
-        """ This initializer method does not need to be called;
+        """This initializer method does not need to be called;
         The :class:`~tramway.analyzer.RWAnalyzer`
         :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute does this automatically.
 
         See also :class:`TrackerOutput`.
         """
-        self.specialize( TrackerOutput )
-
+        self.specialize(TrackerOutput)
 
 
 class StandaloneDataItem(object):
@@ -503,13 +567,18 @@ class StandaloneDataItem(object):
     Partial implementation for single data item
     :class:`~tramway.analyzer.spt_data.SPTData` attribute.
     """
+
     __slots__ = ()
+
     def __len__(self):
         return 1
+
     def __iter__(self):
         yield self
+
     def as_dataframes(self, source=None):
         return SPTDataIterator.as_dataframes(self, source)
+
     def self_update(self, new_self):
         if callable(new_self):
             f = new_self
@@ -528,6 +597,7 @@ class StandaloneDataItem(object):
                 for f in new_self:
                     roi_central._register_decentralized_roi(f)
         return new_self
+
     def reload_from_rwa_files(self, skip_missing=False):
         return StandaloneRWAFile.reload_from_rwa_files(self, skip_missing=skip_missing)
 
@@ -536,8 +606,14 @@ class HasAnalysisTree(HasROI):
     """
     Partial implementation for :class:`SPTData` that complements :class:`SPTParameters`.
     """
-    __slots__ = ('_analyses', '_frame_interval_cache',
-            '_localization_error_cache', '_temperature_cache')
+
+    __slots__ = (
+        "_analyses",
+        "_frame_interval_cache",
+        "_localization_error_cache",
+        "_temperature_cache",
+    )
+
     def __init__(self, df=None, **kwargs):
         self._frame_interval_cache = None
         self._localization_error_cache = None
@@ -546,40 +622,48 @@ class HasAnalysisTree(HasROI):
         self._analyses = None
         self.analyses = Analyses(df, standard_metadata(), autosave=True)
         self._analyses.hooks.append(lambda _: self.commit_cache(autoload=True))
+
     @property
     def _frame_interval(self):
         return self._frame_interval_cache
+
     @_frame_interval.setter
     def _frame_interval(self, dt):
         self._frame_interval_cache = dt
         if not islazy(self._dataframe) and self._dataframe is not None:
             self._dataframe.frame_interval = dt
+
     @property
     def _localization_error(self):
         return self._localization_error_cache
+
     @_localization_error.setter
     def _localization_error(self, err):
         self._localization_error_cache = err
         if not islazy(self._dataframe) and self._dataframe is not None:
             self._dataframe.localization_error = err
+
     @property
     def _temperature(self):
         return self._temperature_cache
+
     @_temperature.setter
     def _temperature(self, T):
         self._temperature_cache = T
         if not islazy(self._dataframe) and self._dataframe is not None:
             self._dataframe.temperature = T
+
     def commit_cache(self, autoload=False):
         """
         Pushes the cached parameters into the :attr:`dataframe` object.
         """
         if islazy(self._dataframe) or self._dataframe is None:
             if not autoload:
-                raise RuntimeError('the SPT data has not been loaded')
+                raise RuntimeError("the SPT data has not been loaded")
         self.dataframe.frame_interval = self._frame_interval_cache
         self.dataframe.localization_error = self._localization_error_cache
         self.dataframe.temperature = self._temperature_cache
+
     def clear_cache(self):
         """
         Clears the cached values and reads from the :attr:`dataframe` object.
@@ -600,6 +684,7 @@ class HasAnalysisTree(HasROI):
                 self._temperature_cache = self._dataframe.temperature
             except AttributeError:
                 pass
+
     def check_cache(self, _raise=AttributeError):
         """
         Checks the parameter cache integrity.
@@ -622,9 +707,11 @@ class HasAnalysisTree(HasROI):
             _return = None
         elif isinstance(_raise, type) and issubclass(_raise, Exception):
             _return = None
-            _raise = _raise('cache integrity is compromised')
+            _raise = _raise("cache integrity is compromised")
         else:
-            raise TypeError('unsupported type for second argument: {}'.format(type(_raise)))
+            raise TypeError(
+                "unsupported type for second argument: {}".format(type(_raise))
+            )
         if not islazy(self._dataframe) and self._dataframe is not None:
             try:
                 ok = self._frame_interval_cache == self._dataframe.frame_interval
@@ -632,17 +719,19 @@ class HasAnalysisTree(HasROI):
                 pass
             else:
                 if not ok:
-                    if _return is None: # _raise is not None
+                    if _return is None:  # _raise is not None
                         raise _raise from None
                     else:
                         return not _return
             try:
-                ok = self._localization_error_cache == self._dataframe.localization_error
+                ok = (
+                    self._localization_error_cache == self._dataframe.localization_error
+                )
             except AttributeError:
                 pass
             else:
                 if not ok:
-                    if _return is None: # _raise is not None
+                    if _return is None:  # _raise is not None
                         raise _raise from None
                     else:
                         return not _return
@@ -652,13 +741,14 @@ class HasAnalysisTree(HasROI):
                 pass
             else:
                 if not ok:
-                    if _return is None: # _raise is not None
+                    if _return is None:  # _raise is not None
                         raise _raise from None
                     else:
                         return not _return
         # the cache is alright
         if _return is not None:
             return _return
+
     def set_analyses(self, tree):
         if isinstance(tree, AutosaveCapable):
             autosaver = tree
@@ -689,15 +779,15 @@ class HasAnalysisTree(HasROI):
             store = tree._data.store
             record = store.getRecord(tree._data.locator, store.store)
             try:
-                err = store.peek('localization_error', record)
+                err = store.peek("localization_error", record)
             except KeyError:
                 err = None
             try:
-                dt = store.peek('frame_interval', record)
+                dt = store.peek("frame_interval", record)
             except KeyError:
                 dt = None
             try:
-                T = store.peek('temperature', record)
+                T = store.peek("temperature", record)
             except KeyError:
                 T = None
         else:
@@ -716,31 +806,47 @@ class HasAnalysisTree(HasROI):
                 err = None
         if err is not None:
             if not (err_cache is None or err_cache == err):
-                self.logger.warning("localization error does not match with record: {} != {}".format(err_cache, err))
+                self.logger.warning(
+                    "localization error does not match with record: {} != {}".format(
+                        err_cache, err
+                    )
+                )
             self._localization_error_cache = err
         if dt is not None:
             if not (dt_cache is None or dt_cache == dt):
-                self.logger.warning("frame interval does not match with record: {} != {}".format(dt_cache, dt))
+                self.logger.warning(
+                    "frame interval does not match with record: {} != {}".format(
+                        dt_cache, dt
+                    )
+                )
             self._frame_interval_cache = dt
         if T is not None:
             if not (T_cache is None or T_cache == T):
-                self.logger.warning(f"temperature does not match with record: {T_cache} != {T}")
+                self.logger.warning(
+                    f"temperature does not match with record: {T_cache} != {T}"
+                )
             self._temperature_cache = T
+
     @property
     def analyses(self):
         return self._analyses
+
     @analyses.setter
     def analyses(self, tree):
         self.set_analyses(tree)
+
     @property
     def _dataframe(self):
         return self._analyses._data
+
     @_dataframe.setter
     def _dataframe(self, df):
         self._analyses._data = df
+
     @property
     def dataframe(self):
         return self.analyses.data
+
     def close(self):
         if self._analyses is not None:
             tree = self
@@ -764,46 +870,60 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
     """
     Basis for all concrete :class:`SPTDataItem` classes.
     """
-    __slots__ = ('_source',)
+
+    __slots__ = ("_source",)
+
     def __init__(self, df, source=None, **kwargs):
         prms = SPTParameters.__parse__(kwargs)
         self._source = source
         HasAnalysisTree.__init__(self, df, **kwargs)
         SPTParameters.__init__(self, *prms)
+
     @property
     def reified(self):
         return self._dataframe is not None
+
     @property
     def columns(self):
         return self.dataframe.columns
+
     def reset_origin(self, columns=None):
         if columns is None:
-            columns = [ col for col in ['x', 'y', 'z', 't'] if col in self.columns ]
+            columns = [col for col in ["x", "y", "z", "t"] if col in self.columns]
         origin = self.dataframe[columns].min().values
         self.dataframe[columns] -= origin
+
     def discard_static_trajectories(self, dataframe=None, min_msd=None, **kwargs):
         inplace = dataframe is None
         if inplace:
             dataframe = self._dataframe
-        dataframe = SPTParameters.discard_static_trajectories(self, dataframe, min_msd, **kwargs)
+        dataframe = SPTParameters.discard_static_trajectories(
+            self, dataframe, min_msd, **kwargs
+        )
         if inplace:
             self._dataframe = dataframe
         else:
             return dataframe
+
     @property
     def source(self):
         return self._source
+
     @property
     def bounds(self):
         _min = self.dataframe.min(axis=0)
         _max = self.dataframe.max(axis=0)
         _bounds = np.stack((_min, _max), axis=0)
-        _bounds = pd.DataFrame( _bounds, columns=_min.index, index=['min','max'])
+        _bounds = pd.DataFrame(_bounds, columns=_min.index, index=["min", "max"])
         return _bounds
+
     def set_precision(self, precision):
         dtypes = compute_dtypes(self.dataframe, precision)
         self._dataframe = self.dataframe.astype(dtypes)
-    def to_ascii_file(self, filepath, columns=None, header=True, float_format='%.4f', **kwargs):
+
+    def to_ascii_file(
+        self, filepath, columns=None, header=True, float_format="%.4f", **kwargs
+    ):
         """
         Exports the data to text file.
 
@@ -825,17 +945,24 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         df = self.dataframe
         if columns:
             df = df[columns]
-        for arg in ('sep', 'index'):
+        for arg in ("sep", "index"):
             try:
                 kwargs.pop(arg)
             except KeyError:
                 pass
             else:
                 self.logger.warning("ignoring argument '{}'".format(arg))
-        if header and any([ ' ' in col for col in df.columns ]):
-            self.logger.warning('whitespaces in the column names')
-        df.to_csv(str(filepath), sep='\t', index=False, header=header,
-                float_format=float_format, **kwargs)
+        if header and any([" " in col for col in df.columns]):
+            self.logger.warning("whitespaces in the column names")
+        df.to_csv(
+            str(filepath),
+            sep="\t",
+            index=False,
+            header=header,
+            float_format=float_format,
+            **kwargs,
+        )
+
     def to_rwa_file(self, filepath, **kwargs):
         """
         Exports the analysis tree to file.
@@ -844,27 +971,31 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
         ``compress=False`` unless explicitly set.
         """
         if self.analyses.data is None:
-            raise ValueError('no data available')
+            raise ValueError("no data available")
         try:
             analyses = self.analyses.analyses.statefree()
         except AttributeError:
             analyses = self.analyses
-        if 'compress' not in kwargs:
-            kwargs['compress'] = False
+        if "compress" not in kwargs:
+            kwargs["compress"] = False
         save_rwa(filepath, analyses, **kwargs)
+
     def set_analyses(self, tree):
         assert bool(tree.metadata)
         if self.source is not None:
-            tree.metadata['datafile'] = self.source
+            tree.metadata["datafile"] = self.source
         HasAnalysisTree.set_analyses(self, tree)
+
     def add_sampling(self, sampling, label, comment=None):
         analyses = self.analyses
         label = analyses.autoindex(label)
         subtree = lazy.Analyses(sampling, standard_metadata())
         analyses.add(subtree, label, comment)
         return label
+
     def get_sampling(self, label):
         return Analysis.get_analysis(self.analyses, label)
+
     def autosaving(self, *args, overwrite=True, **kwargs):
         assert isinstance(self.analyses, AutosaveCapable)
         rwa_file = self.analyses.rwa_file
@@ -873,28 +1004,36 @@ class _SPTDataFrame(HasAnalysisTree, SPTParameters):
                 self.analyses.rwa_file = rwa_file()
         else:
             if self.source:
-                self.analyses.rwa_file = os.path.splitext(self.source)[0]+'.rwa'
+                self.analyses.rwa_file = os.path.splitext(self.source)[0] + ".rwa"
                 if self.analyses.rwa_file == self.source:
                     if not overwrite:
                         i = 0
-                        while os.path.isfile(os.path.expanduser(self.analyses.rwa_file)):
+                        while os.path.isfile(
+                            os.path.expanduser(self.analyses.rwa_file)
+                        ):
                             i += 1
-                            self.analyses.rwa_file = '{}-{:d}.rwa'.format(os.path.splitext(self.source)[0],i)
+                            self.analyses.rwa_file = "{}-{:d}.rwa".format(
+                                os.path.splitext(self.source)[0], i
+                            )
             else:
-                self.logger.warning('no output filename defined')
+                self.logger.warning("no output filename defined")
         return self.analyses.autosaving(*args, **kwargs)
+
     @property
     def _mpl_impl(self):
         from .mpl import Mpl
+
         return Mpl
+
     @property
     def mpl(self):
-        """ tramway.analyzer.spt_data.mpl.Mpl: Matplotlib utilities """
+        """tramway.analyzer.spt_data.mpl.Mpl: Matplotlib utilities"""
         return self._mpl_impl(self)
 
 
 class SPTDataFrame(_SPTDataFrame):
     __slots__ = ()
+
 
 SPTDataItem.register(SPTDataFrame)
 
@@ -903,7 +1042,9 @@ class StandaloneSPTDataFrame(_SPTDataFrame, StandaloneDataItem):
     """
     :class:`SPTData` attribute for single dataframes.
     """
+
     __slots__ = ()
+
 
 SPTData.register(StandaloneSPTDataFrame)
 
@@ -912,36 +1053,45 @@ class SPTDataFrames(SPTDataIterator):
     """
     :class:`SPTData` attribute for multiple dataframes.
     """
-    __slots__ = ('_dataframes',)
+
+    __slots__ = ("_dataframes",)
+
     def __init__(self, dfs, **kwargs):
         SPTDataIterator.__init__(self, **kwargs)
         self.dataframes = dfs
+
     @property
     def dataframes(self):
-        return [ df.dataframe for df in self._dataframes ]
+        return [df.dataframe for df in self._dataframes]
+
     @dataframes.setter
     def dataframes(self, dfs):
         if not isinstance(dfs, (tuple, list)):
             raise TypeError("the input dataframes are not in a tuple or list")
         if not dfs:
             raise ValueError("no dataframes found")
-        self._dataframes = tuple([ self._bear_child( SPTDataFrame, df ) for df in  dfs ])
-        if not all([ tuple(self.columns) == tuple(df.columns) for df in dfs ]):
+        self._dataframes = tuple([self._bear_child(SPTDataFrame, df) for df in dfs])
+        if not all([tuple(self.columns) == tuple(df.columns) for df in dfs]):
             raise ValueError("not all the dataframes feature the same column names")
+
     @property
     def reified(self):
         return True
+
     def __len__(self):
         return len(self._dataframes)
+
     def __iter__(self):
         yield from self._dataframes
+
     @property
     def columns(self):
         return self._dataframes[0].columns
+
     def reset_origin(self, columns=None, same_origin=False):
         if same_origin:
             if columns is None:
-                columns = [ col for col in ['x', 'y', 'z', 't'] if col in self.columns ]
+                columns = [col for col in ["x", "y", "z", "t"] if col in self.columns]
             origin = None
             for df in self.dataframes:
                 _origin = df[columns].min().values
@@ -955,6 +1105,7 @@ class SPTDataFrames(SPTDataIterator):
             for df in self._dataframes:
                 df.reset_origin(columns)
 
+
 SPTData.register(SPTDataFrames)
 
 
@@ -962,53 +1113,69 @@ class SPTFile(_SPTDataFrame):
     """
     Basis for :class:`SPTDataItem` classes for data in a file.
     """
-    __slots__ = ('_alias','_reset_origin','_discard_static_trajectories')
+
+    __slots__ = ("_alias", "_reset_origin", "_discard_static_trajectories")
+
     def __init__(self, filepath, dataframe=None, **kwargs):
         self._alias = None
         self._reset_origin = False
         self._discard_static_trajectories = False
         _SPTDataFrame.__init__(self, dataframe, filepath, **kwargs)
+
     @property
     def filepath(self):
         """
         *str*: Alias for the :attr:`source` property
         """
         return self._source
+
     @filepath.setter
     def filepath(self, fp):
         if self.reified:
-            raise AttributeError("file '{}' has already been loaded; cannot set the filepath anymore".format(self.filepath.split('/')[-1]))
+            raise AttributeError(
+                "file '{}' has already been loaded; cannot set the filepath anymore".format(
+                    self.filepath.split("/")[-1]
+                )
+            )
         else:
             self._source = fp
+
     @property
     def source(self):
         return self.filepath
+
     @source.setter
     def source(self, fp):
         self.filepath = fp
+
     @property
     def alias(self):
         """
         *str*: Identifier, shorter than :attr:`source`
         """
         return self._alias
+
     @alias.setter
     def alias(self, name):
         if callable(name):
             self._alias = name(self.filepath)
         else:
             self._alias = name
+
     def get_analyses(self):
         if self._analyses._data is None:
             self.load()
             assert self._analyses._data is not None or bool(self._analyses._instances)
         return self._analyses
+
     @property
     def analyses(self):
         return self.get_analyses()
+
     @analyses.setter
     def analyses(self, tree):
         self.set_analyses(tree)
+
     def _trigger_discard_static_trajectories(self):
         """
         Calls :meth:`SPTDataFrame.discard_static_trajectories`;
@@ -1016,8 +1183,11 @@ class SPTFile(_SPTDataFrame):
         """
         if self._discard_static_trajectories is True:
             SPTDataFrame.discard_static_trajectories(self)
-        elif self._discard_static_trajectories: # not in (None, False)
-            SPTDataFrame.discard_static_trajectories(self, **self._discard_static_trajectories)
+        elif self._discard_static_trajectories:  # not in (None, False)
+            SPTDataFrame.discard_static_trajectories(
+                self, **self._discard_static_trajectories
+            )
+
     def _trigger_reset_origin(self):
         """
         Calls :meth:`SPTDataFrame.reset_origin`;
@@ -1025,18 +1195,23 @@ class SPTFile(_SPTDataFrame):
         """
         if self._reset_origin:
             SPTDataFrame.reset_origin(self, self._reset_origin)
+
     def reset_origin(self, columns=None, same_origin=False):
         if self.reified:
             SPTDataFrame.reset_origin(self, columns)
         else:
             self._reset_origin = True if columns is None else columns
+
     def discard_static_trajectories(self, dataframe=None, min_msd=None, **kwargs):
         if dataframe is not None or self.reified:
-            return SPTDataFrame.discard_static_trajectories(self, dataframe, min_msd, **kwargs)
+            return SPTDataFrame.discard_static_trajectories(
+                self, dataframe, min_msd, **kwargs
+            )
         else:
             if min_msd is not None:
-                kwargs['min_msd'] = min_msd
+                kwargs["min_msd"] = min_msd
             self._discard_static_trajectories = kwargs if kwargs else True
+
     def get_image(self, match=None):
         """
         Looks for the corresponding localization microscopy image in the
@@ -1060,15 +1235,15 @@ class SPTFile(_SPTDataFrame):
             try:
                 return single(analyzer.images)
             except RuntimeError:
-                raise AttributeError('alias is not defined') from None
+                raise AttributeError("alias is not defined") from None
         any_filepath_defined = False
         for image in analyzer.images:
-            if image.filepath: # may raise AttributeError
+            if image.filepath:  # may raise AttributeError
                 any_filepath_defined = True
                 if match(self.alias, image.filepath):
                     return image
         if not any_filepath_defined:
-            raise AttributeError('image filepaths are not defined')
+            raise AttributeError("image filepaths are not defined")
 
 
 class RawSPTFile(SPTFile):
@@ -1076,66 +1251,89 @@ class RawSPTFile(SPTFile):
     Basis for :class:`SPTDataItem` classes for raw data in a file,
     possibly with non-standard column names or data units.
     """
-    __slots__ = ('_columns',)
+
+    __slots__ = ("_columns",)
+
     def __init__(self, filepath, dataframe=None, **kwargs):
         self._columns = None
         SPTFile.__init__(self, filepath, dataframe, **kwargs)
+
     @property
     def columns(self):
         if self._columns is None:
             return self.dataframe.columns
         else:
             return self._columns
+
     @columns.setter
     def columns(self, cols):
         if self.reified:
-            raise AttributeError('the SPT data have already been loaded; cannot set column names anymore')
+            raise AttributeError(
+                "the SPT data have already been loaded; cannot set column names anymore"
+            )
         else:
             self._columns = cols
 
+
 class _SPTAsciiFile(RawSPTFile):
     __slots__ = ()
+
     def load(self):
-        self._dataframe = load_xyt(os.path.expanduser(self.filepath), self._columns, reset_origin=self._reset_origin)
+        self._dataframe = load_xyt(
+            os.path.expanduser(self.filepath),
+            self._columns,
+            reset_origin=self._reset_origin,
+        )
         self._trigger_discard_static_trajectories()
+
 
 class SPTAsciiFile(_SPTAsciiFile):
     __slots__ = ()
 
+
 SPTDataItem.register(SPTAsciiFile)
+
 
 class StandaloneSPTAsciiFile(_SPTAsciiFile, StandaloneDataItem):
     """
     `RWAnalyzer.spt_data` attribute for single SPT text files.
     """
+
     __slots__ = ()
+
 
 SPTData.register(StandaloneSPTAsciiFile)
 
 
 class SPTFiles(SPTDataFrames):
-    __slots__ = ('_files','_filepattern')
+    __slots__ = ("_files", "_filepattern")
+
     def __init__(self, filepattern, **kwargs):
         SPTDataIterator.__init__(self, **kwargs)
         self._files = []
-        #self._filepattern = filepattern # should work in most cases
+        # self._filepattern = filepattern # should work in most cases
         if isinstance(filepattern, str):
             self._filepattern = os.path.expanduser(filepattern)
         else:
             self._filepattern = [os.path.expanduser(pattern) for pattern in filepattern]
+
     @property
     def filepattern(self):
         """
         *str*: Filepath glob pattern
         """
         return self._filepattern
+
     @filepattern.setter
     def filepattern(self, fp):
         if self._files:
             if fp != self._filepattern:
-                raise AttributeError('the files have already been listed; cannot set the file pattern anymore')
+                raise AttributeError(
+                    "the files have already been listed; cannot set the file pattern anymore"
+                )
         else:
             self._filepattern = fp
+
     @property
     def files(self):
         """
@@ -1144,40 +1342,48 @@ class SPTFiles(SPTDataFrames):
         if not self._files:
             self.list_files()
         return self._files
+
     @property
     def filepaths(self):
         """
         *list* of *str*: File paths (copy)
         """
-        return [ f.filepath for f in self.files ]
+        return [f.filepath for f in self.files]
+
     @property
-    def dataframes(self): # this also hides the parent class' setter
-        return [ f.dataframe for f in self.files ]
+    def dataframes(self):  # this also hides the parent class' setter
+        return [f.dataframe for f in self.files]
+
     @property
     def partially_reified(self):
         """
         *bool*: :const:`True` if any file has been loaded
         """
-        return self._files and any([ f.reified for f in self._files ])
+        return self._files and any([f.reified for f in self._files])
+
     @property
     def fully_reified(self):
         """
         *bool*: :const:`True` if all the files have been loaded
         """
-        return self._files and all([ f.reified for f in self._files ])
+        return self._files and all([f.reified for f in self._files])
+
     @property
     def reified(self):
         return self.fully_reified
+
     def __len__(self):
         return len(self.files)
+
     def __iter__(self):
         yield from self.files
+
     def list_files(self):
         """
         Interprets the filepath glob pattern and lists the matching files.
         """
         if self.filepattern is None:
-            raise ValueError('filepattern is not defined')
+            raise ValueError("filepattern is not defined")
         if isinstance(self.filepattern, str):
             self._files = glob(self.filepattern)
         else:
@@ -1186,6 +1392,7 @@ class SPTFiles(SPTDataFrames):
                 self._files += glob(pattern)
         if not self._files:
             raise ValueError("no files found")
+
     @property
     def columns(self):
         it = iter(self)
@@ -1197,33 +1404,40 @@ class SPTFiles(SPTDataFrames):
                 break
             else:
                 if _col != col:
-                    raise AttributeError('not all the data blocks share the same columns')
+                    raise AttributeError(
+                        "not all the data blocks share the same columns"
+                    )
         return col
+
     def reset_origin(self, columns=None, same_origin=False):
         if same_origin:
             SPTDataFrames.reset_origin(self, columns, True)
         else:
             for f in self.files:
                 f.reset_origin(columns)
+
     @property
     def alias(self):
         """
         *callable*: Function that extracts an alias out of filepaths (**write-only property**)
         """
-        raise AttributeError('alias is write-only')
+        raise AttributeError("alias is write-only")
+
     @alias.setter
     def alias(self, name):
         if callable(name):
             for f in self.files:
                 f.alias = name
         else:
-            raise TypeError('global alias is not callable')
+            raise TypeError("global alias is not callable")
+
     @property
     def aliases(self):
         """
         *list* of *str*: Aliases of the SPT data items (copy)
         """
-        return [ f.alias for f in self.files ]
+        return [f.alias for f in self.files]
+
     def filter_by_source(self, source_filter, return_index=False):
         if return_index:
             _out = lambda i, f: i, f
@@ -1255,13 +1469,13 @@ class SPTFiles(SPTDataFrames):
                             f = next(it)
                             if f.alias == a:
                                 if i in yielded:
-                                    raise ValueError('duplicate source: {}'.format(a))
+                                    raise ValueError("duplicate source: {}".format(a))
                                 yield _out(i, f)
                                 yielded.add(i)
                                 _any = True
                                 break
                     except StopIteration:
-                        raise ValueError('cannot find source: {}'.format(a))
+                        raise ValueError("cannot find source: {}".format(a))
             elif isinstance(source_filter, Set):
                 aliases = source_filter
             if not _any:
@@ -1271,13 +1485,18 @@ class SPTFiles(SPTDataFrames):
                         _any = True
         # if no alias matched, try sources
         if not _any:
-            yield from SPTDataIterator.filter_by_source(self, source_filter, return_index)
+            yield from SPTDataIterator.filter_by_source(
+                self, source_filter, return_index
+            )
+
 
 class RawSPTFiles(SPTFiles):
     __slots__ = ()
+
     @property
     def columns(self):
         return SPTFiles.columns.fget(self)
+
     @columns.setter
     def columns(self, col):
         for f in self:
@@ -1288,44 +1507,60 @@ class SPTAsciiFiles(RawSPTFiles):
     """
     :class:`SPTData` class for multiple SPT text files.
     """
+
     __slots__ = ()
+
     def list_files(self):
         SPTFiles.list_files(self)
-        self._files = [ self._bear_child( SPTAsciiFile, filepath ) for filepath in self._files ]
+        self._files = [
+            self._bear_child(SPTAsciiFile, filepath) for filepath in self._files
+        ]
+
 
 SPTData.register(SPTAsciiFiles)
 
 
 class _RWAFile(SPTFile):
-    __slots__ = ('_filepath',)
+    __slots__ = ("_filepath",)
+
     def __init__(self, filepath, **kwargs):
         self._filepath = filepath
         SPTFile.__init__(self, filepath, None, **kwargs)
+
     @property
     def filepath(self):
         """
         *str*: *.rwa* file path; distinct from :attr:`source`.
         """
         return self._filepath
+
     @filepath.setter
     def filepath(self, fp):
         if self.reified:
-            raise AttributeError("file '{}' has already been loaded; cannot set the filepath anymore".format(self.filepath.split('/')[-1]))
+            raise AttributeError(
+                "file '{}' has already been loaded; cannot set the filepath anymore".format(
+                    self.filepath.split("/")[-1]
+                )
+            )
         else:
             self._filepath = fp
+
     def set_analyses(self, tree):
         HasAnalysisTree.set_analyses(self, tree)
+
     def load(self):
         # ~ expansion is no longer necessary from rwa-python==0.8.4
         try:
-            tree = load_rwa(os.path.expanduser(self.filepath),
-                    lazy=True, force_load_spt_data=False)
+            tree = load_rwa(
+                os.path.expanduser(self.filepath), lazy=True, force_load_spt_data=False
+            )
             assert islazy(tree._data) or tree._data is None
             self.analyses = tree
         except KeyError as e:
             raise RWAFileException(self.filepath, e) from None
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
+
     @classmethod
     def __reload__(cls, self, parent=None, filepath=None):
         """
@@ -1353,7 +1588,7 @@ class _RWAFile(SPTFile):
             if isinstance(self, _RWAFile):
                 filepath = self.filepath
             else:
-                filepath = os.path.splitext(self.source)[0]+'.rwa'
+                filepath = os.path.splitext(self.source)[0] + ".rwa"
         if not os.path.isfile(os.path.expanduser(filepath)):
             raise FileNotFoundError(filepath)
         # favor the most specialized type
@@ -1375,21 +1610,27 @@ class _RWAFile(SPTFile):
         self.close()
         return reloaded
 
+
 class RWAFile(_RWAFile):
     __slots__ = ()
 
+
 SPTDataItem.register(RWAFile)
+
 
 class StandaloneRWAFile(_RWAFile, StandaloneDataItem):
     """
     :class:`SPTata` class for single RWA files.
     """
+
     __slots__ = ()
+
     def reload_from_rwa_files(self, skip_missing=False):
         if skip_missing:
-            self.logger.error('cannot omit the only rwa file; ignoring skip_missing')
+            self.logger.error("cannot omit the only rwa file; ignoring skip_missing")
         cls = type(self) if isinstance(self, StandaloneRWAFile) else StandaloneRWAFile
-        return self.self_update( cls.__reload__(self) )
+        return self.self_update(cls.__reload__(self))
+
 
 SPTData.register(StandaloneRWAFile)
 
@@ -1398,14 +1639,18 @@ class RWAFiles(SPTFiles):
     """
     :class:`SPTData` class for multiple RWA files.
     """
+
     __slots__ = ()
+
     def list_files(self):
         SPTFiles.list_files(self)
-        self._files = [ self._bear_child( RWAFile, filepath ) for filepath in self._files ]
+        self._files = [self._bear_child(RWAFile, filepath) for filepath in self._files]
+
     def reload_from_rwa_files(self, skip_missing=False):
         cls = type(self) if isinstance(self, RWAFiles) else RWAFiles
         assert cls is RWAFiles
-        return self.self_update( cls.__reload__(self, skip_missing=skip_missing) )
+        return self.self_update(cls.__reload__(self, skip_missing=skip_missing))
+
     @classmethod
     def __reload__(cls, self, skip_missing=False, parent=None):
         if isinstance(self, cls):
@@ -1423,17 +1668,20 @@ class RWAFiles(SPTFiles):
             else:
                 reloaded._files.append(f)
         if not reloaded._files:
-            raise RuntimeError('could not reload any .rwa file')
+            raise RuntimeError("could not reload any .rwa file")
         return reloaded
+
 
 SPTData.register(RWAFiles)
 
 
 class _SPTMatFile(RawSPTFile):
-    __slots__ = ('_coord_scale',)
+    __slots__ = ("_coord_scale",)
+
     def __init__(self, filepath, dataframe=None, **kwargs):
         self._coord_scale = None
         RawSPTFile.__init__(self, filepath, dataframe, **kwargs)
+
     @property
     def coord_scale(self):
         r"""
@@ -1441,40 +1689,59 @@ class _SPTMatFile(RawSPTFile):
             Convertion factor for the loaded coordinates so that they read in :math:`\mu m`
         """
         return self._coord_scale
+
     @coord_scale.setter
     def coord_scale(self, scale):
         if self.reified:
-            raise AttributeError('the SPT data have already been loaded; cannot set the coordinate scale anymore')
+            raise AttributeError(
+                "the SPT data have already been loaded; cannot set the coordinate scale anymore"
+            )
         else:
             self._coord_scale = scale
+
     @property
     def pixel_size(self):
-        """ *float*: Former name for :attr:`coord_scale`; **deprecated** """
-        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        """*float*: Former name for :attr:`coord_scale`; **deprecated**"""
+        self.logger.warning(
+            "attribute pixel_size is deprecated; use coord_scale instead"
+        )
         return self.coord_scale
+
     @pixel_size.setter
     def pixel_size(self, siz):
-        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        self.logger.warning(
+            "attribute pixel_size is deprecated; use coord_scale instead"
+        )
         self.coord_scale = siz
+
     def load(self):
         try:
-            self._dataframe = load_mat(os.path.expanduser(self.filepath),
-                    columns=self._columns, dt=self._frame_interval, coord_scale=self.coord_scale)
+            self._dataframe = load_mat(
+                os.path.expanduser(self.filepath),
+                columns=self._columns,
+                dt=self._frame_interval,
+                coord_scale=self.coord_scale,
+            )
         except OSError as e:
-            raise OSError('{}\nwhile loading file: {}'.format(e, self.source)) from None
+            raise OSError("{}\nwhile loading file: {}".format(e, self.source)) from None
         self._trigger_discard_static_trajectories()
         self._trigger_reset_origin()
+
 
 class SPTMatFile(_SPTMatFile):
     __slots__ = ()
 
+
 SPTDataItem.register(SPTMatFile)
+
 
 class StandaloneSPTMatFile(_SPTMatFile, StandaloneDataItem):
     """
     :class:`SPTData` class for single MatLab v7 data files.
     """
+
     __slots__ = ()
+
 
 SPTData.register(StandaloneSPTMatFile)
 
@@ -1483,7 +1750,9 @@ class SPTMatFiles(RawSPTFiles):
     """
     :class:`SPTData` class for multiple MatLab v7 data files.
     """
+
     __slots__ = ()
+
     @property
     def coord_scale(self):
         it = iter(self)
@@ -1495,32 +1764,47 @@ class SPTMatFiles(RawSPTFiles):
                 break
             else:
                 _delta = px - _px
-                if 1e-12 < _delta*_delta:
-                    raise AttributeError('not all the data blocks share the same coordinate scale')
+                if 1e-12 < _delta * _delta:
+                    raise AttributeError(
+                        "not all the data blocks share the same coordinate scale"
+                    )
         return px
+
     @coord_scale.setter
     def coord_scale(self, scale):
         for f in self:
             f.coord_scale = scale
+
     coord_scale.__doc__ = SPTMatFile.coord_scale.__doc__
+
     @property
     def pixel_size(self):
-        """ *float*: Former name for :attr:`coord_scale`; **deprecated** """
-        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        """*float*: Former name for :attr:`coord_scale`; **deprecated**"""
+        self.logger.warning(
+            "attribute pixel_size is deprecated; use coord_scale instead"
+        )
         return self.coord_scale
+
     @pixel_size.setter
     def pixel_size(self, px):
-        self.logger.warning('attribute pixel_size is deprecated; use coord_scale instead')
+        self.logger.warning(
+            "attribute pixel_size is deprecated; use coord_scale instead"
+        )
         self.coord_scale = px
+
     def list_files(self):
         SPTFiles.list_files(self)
-        self._files = [ self._bear_child( SPTMatFile, filepath ) for filepath in self._files ]
+        self._files = [
+            self._bear_child(SPTMatFile, filepath) for filepath in self._files
+        ]
+
 
 SPTData.register(SPTMatFiles)
 
 
 class RWGenerator(SPTDataFrame):
-    """ not implemented yet """
+    """not implemented yet"""
+
     def __init__(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -1539,13 +1823,16 @@ class RWAnalyses(StandaloneSPTDataFrame):
         not thouroughly tested.
 
     """
+
     __slots__ = ()
+
     def __init__(self, analyses, copy=False, **kwargs):
         dataframe = analyses.data
-        source = analyses.metadata.get('datafile', None)
+        source = analyses.metadata.get("datafile", None)
         SPTDataFrame.__init__(self, dataframe, source, **kwargs)
         if not copy:
             self.analyses = analyses
+
 
 class MultipleRWAnalyses(SPTDataFrames):
     """
@@ -1561,17 +1848,19 @@ class MultipleRWAnalyses(SPTDataFrames):
         not tested.
 
     """
+
     __slots__ = ()
+
     def __init__(self, analyses, copy=False, **kwargs):
-        dataframes = [ a.data for a in analyses ]
+        dataframes = [a.data for a in analyses]
         SPTDataFrames.__init__(self, dataframes, **kwargs)
         if copy:
             for f, a in zip(self._dataframes, analyses):
-                f.source = a.metadata.get('datafile', None)
+                f.source = a.metadata.get("datafile", None)
         else:
             for f, a in zip(self._dataframes, analyses):
                 f.analyses = a
-        
+
 
 class _FakeSPTData(pd.DataFrame):
     """
@@ -1583,23 +1872,31 @@ class _FakeSPTData(pd.DataFrame):
     should be removed and the previously defined SPT parameters copied into
     the other datablocks.
     """
-    __slots__ = () # useless as DataFrame defines __dict__
+
+    __slots__ = ()  # useless as DataFrame defines __dict__
+
     def __init__(self, *args, **kwargs):
-        pd.DataFrame.__init__(self, columns=list('nxyt'))
+        pd.DataFrame.__init__(self, columns=list("nxyt"))
+
 
 class LocalizationFile(SPTFile):
     __slots__ = ()
 
+
 SPTDataItem.register(LocalizationFile)
+
 
 class TrackerOutput(SPTDataFrames):
     """
     :class:`SPTData` class for SPT data yielded by the
     :attr:`~tramway.analyzer.RWAnalyzer.tracker` attribute.
     """
+
     __slots__ = ()
+
     def __init__(self, **kwargs):
         SPTDataFrames.__init__(self, [_FakeSPTData()], **kwargs)
+
     def add_tracked_data(self, trajectories, source=None, filepath=None):
         """
         .. note::
@@ -1611,45 +1908,78 @@ class TrackerOutput(SPTDataFrames):
 
         """
         if filepath:
-            df = self._bear_child( LocalizationFile, filepath, trajectories )
+            df = self._bear_child(LocalizationFile, filepath, trajectories)
         else:
-            df = self._bear_child( SPTDataFrame, trajectories, source )
+            df = self._bear_child(SPTDataFrame, trajectories, source)
         siblings = self._dataframes[0]
         df.frame_interval = siblings.frame_interval
         df.localization_error = siblings.localization_error
         df.temperature = siblings.temperature
         if isinstance(siblings.dataframe, _FakeSPTData):
             assert not self._dataframes[1:]
-            self._dataframes = [ df ]
+            self._dataframes = [df]
         else:
             if tuple(df.columns) != tuple(siblings.columns):
                 raise ValueError("not all the dataframes feature the same column names")
-            self._dataframes.append( df )
+            self._dataframes.append(df)
+
     # borrowed from `SPTFiles`
     @property
     def alias(self):
-        raise AttributeError('alias is write-only')
+        raise AttributeError("alias is write-only")
+
     @alias.setter
     def alias(self, name):
         if callable(name):
             for f in self._dataframes:
                 f.alias = name
         else:
-            raise TypeError('global alias is not callable')
+            raise TypeError("global alias is not callable")
+
     @property
     def aliases(self):
-        return [ f.alias for f in self._dataframes ]
+        return [f.alias for f in self._dataframes]
+
     def filter_by_source(self, source_filter, return_index=False):
-        yield from SPTFiles.filter_by_source(self, source_filter, return_index=return_index)
+        yield from SPTFiles.filter_by_source(
+            self, source_filter, return_index=return_index
+        )
 
 
-__all__ = [ 'SPTData', 'SPTDataItem', 'SPTParameters', 'StandaloneDataItem', 'SPTDataIterator',
-        'SPTDataInitializer', 'HasROI', 'HasAnalysisTree', '_SPTDataFrame', 'SPTDataFrame',
-        'StandaloneSPTDataFrame', 'SPTDataFrames',
-        'SPTFile', 'RawSPTFile', 'SPTFiles', 'RawSPTFiles',
-        '_SPTAsciiFile', 'SPTAsciiFile', 'StandaloneSPTAsciiFile', 'SPTAsciiFiles',
-        '_RWAFile', 'RWAFile', 'StandaloneRWAFile', 'RWAFiles',
-        '_SPTMatFile', 'SPTMatFile', 'StandaloneSPTMatFile', 'SPTMatFiles',
-        'RWAnalyses', 'MultipleRWAnalyses', 'RWGenerator', 'LocalizationFile', 'TrackerOutput',
-        'compute_dtypes', 'glob' ]
-
+__all__ = [
+    "SPTData",
+    "SPTDataItem",
+    "SPTParameters",
+    "StandaloneDataItem",
+    "SPTDataIterator",
+    "SPTDataInitializer",
+    "HasROI",
+    "HasAnalysisTree",
+    "_SPTDataFrame",
+    "SPTDataFrame",
+    "StandaloneSPTDataFrame",
+    "SPTDataFrames",
+    "SPTFile",
+    "RawSPTFile",
+    "SPTFiles",
+    "RawSPTFiles",
+    "_SPTAsciiFile",
+    "SPTAsciiFile",
+    "StandaloneSPTAsciiFile",
+    "SPTAsciiFiles",
+    "_RWAFile",
+    "RWAFile",
+    "StandaloneRWAFile",
+    "RWAFiles",
+    "_SPTMatFile",
+    "SPTMatFile",
+    "StandaloneSPTMatFile",
+    "SPTMatFiles",
+    "RWAnalyses",
+    "MultipleRWAnalyses",
+    "RWGenerator",
+    "LocalizationFile",
+    "TrackerOutput",
+    "compute_dtypes",
+    "glob",
+]

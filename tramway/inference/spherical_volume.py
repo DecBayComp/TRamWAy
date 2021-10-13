@@ -19,12 +19,12 @@ from scipy.spatial import ConvexHull
 from collections import OrderedDict
 
 
-setup = {'name': 'spherical.volume',
-        'provides': 'volume'}
+setup = {"name": "spherical.volume", "provides": "volume"}
+
 
 def ritter(points):
     if len(points) == 1:
-        return points, 0.
+        return points, 0.0
 
     eps = 1e-8
 
@@ -36,11 +36,11 @@ def ritter(points):
     dy = points - y
     k = np.argmax(np.sum(dy * dy, axis=1))
     z = points[[k]]
-    center = .5 * (y + z)
+    center = 0.5 * (y + z)
     yz = z - y
-    radius = .5 * np.sqrt(np.sum(yz * yz)) + eps
+    radius = 0.5 * np.sqrt(np.sum(yz * yz)) + eps
 
-    covered = set((j,k))
+    covered = set((j, k))
     while True:
         dr = points - center
         d2 = np.sum(dr * dr, axis=1)
@@ -55,8 +55,8 @@ def ritter(points):
             return center, radius
         p = points[[m]]
         alpha = radius / d
-        radius = .5 * (d + radius)
-        center = .5 * ((1. - alpha) * p + (1. + alpha) * center)
+        radius = 0.5 * (d + radius)
+        center = 0.5 * ((1.0 - alpha) * p + (1.0 + alpha) * center)
 
 
 def infer_spherical_volume(cells, **kwargs):
@@ -64,11 +64,11 @@ def infer_spherical_volume(cells, **kwargs):
 
     See also `spherical_volume`.
     """
-    vol = spherical_volume(cells, 'all', **kwargs)
-    return None if vol is None else pd.DataFrame(vol, columns=['volume'])
+    vol = spherical_volume(cells, "all", **kwargs)
+    return None if vol is None else pd.DataFrame(vol, columns=["volume"])
 
 
-def spherical_volume(cells, which='all', bounding_sphere='ritter', **kwargs):
+def spherical_volume(cells, which="all", bounding_sphere="ritter", **kwargs):
     """
     Volume is evaluated looking for a bounding sphere.
     If the sphere does not include locations from neighbour cells as well,
@@ -81,18 +81,22 @@ def spherical_volume(cells, which='all', bounding_sphere='ritter', **kwargs):
     Returns a Series, or a float if `which` is a single cell index.
     """
     if not callable(bounding_sphere):
-        if bounding_sphere.lower() != 'ritter':
-            raise ValueError("unsupported bounding sphere algorithm: '{}'".format(bounding_sphere))
+        if bounding_sphere.lower() != "ritter":
+            raise ValueError(
+                "unsupported bounding sphere algorithm: '{}'".format(bounding_sphere)
+            )
         bounding_sphere = ritter
     indices, radii = [], []
-    for index in (cells if which == 'all' else which):
+    for index in cells if which == "all" else which:
         cell = cells[index]
         sphere = bounding_sphere(cell.r, **kwargs)
         if sphere is not None:
             center, radius = sphere
             neighbour_cells = cells.neighbours(index)
             if neighbour_cells.size:
-                neighbour_locations = [ cells[neighbour].r for neighbour in neighbour_cells ]
+                neighbour_locations = [
+                    cells[neighbour].r for neighbour in neighbour_cells
+                ]
                 neighbour_locations = np.vstack(neighbour_locations)
                 dist = neighbour_locations - center
                 dist = np.sqrt(np.min(np.sum(dist * dist, axis=1)))
@@ -106,14 +110,13 @@ def spherical_volume(cells, which='all', bounding_sphere='ritter', **kwargs):
     if not radii:
         return None
     radii = np.array(radii)
-    volumes = 4 / 3 * pi * radii**3
+    volumes = 4 / 3 * pi * radii ** 3
 
-    if which == 'all' or not np.isscalar(which):
+    if which == "all" or not np.isscalar(which):
         return pd.Series(volumes, index=indices)
     else:
         assert np.isscalar(volumes)
         return volumes.tolist()[0]
 
 
-__all__ = [ 'infer_spherical_volume', 'spherical_volume', 'setup', 'ritter' ]
-
+__all__ = ["infer_spherical_volume", "spherical_volume", "setup", "ritter"]

@@ -19,11 +19,26 @@ from tramway.plot.animation import *
 import numpy as np
 
 
-def animate_map_2d(_map, cells, output_file=None,
-        frame_rate=1, bit_rate=None, dots_per_inch=200, play=False,
-        time_step=None, time_unit='s', figure=None, axes=None,
-        bounding_box=None, colormap=None, colorbar=True, axis=True,
-        verbose=True, time_precision=2, **kwargs):
+def animate_map_2d(
+    _map,
+    cells,
+    output_file=None,
+    frame_rate=1,
+    bit_rate=None,
+    dots_per_inch=200,
+    play=False,
+    time_step=None,
+    time_unit="s",
+    figure=None,
+    axes=None,
+    bounding_box=None,
+    colormap=None,
+    colorbar=True,
+    axis=True,
+    verbose=True,
+    time_precision=2,
+    **kwargs
+):
     """
     Animate 2D maps.
 
@@ -77,34 +92,49 @@ def animate_map_2d(_map, cells, output_file=None,
         clim = [_amplitude.values.min(), _amplitude.values.max()]
         _render = field_map_2d
     else:
-        raise ValueError('nD data not supported for n not 1 or 2')
+        raise ValueError("nD data not supported for n not 1 or 2")
 
-    if isinstance(cells.tessellation, TimeLattice) \
-            and cells.tessellation.spatial_mesh is not None:
+    if (
+        isinstance(cells.tessellation, TimeLattice)
+        and cells.tessellation.spatial_mesh is not None
+    ):
         segments = cells.tessellation.time_lattice
         tmin, tmax = segments.min(), segments.max()
         _map = cells.tessellation.split_frames(_map)
         _mesh = cells.tessellation.spatial_mesh
-        cells = Partition(tessellation=_mesh, location_count=np.ones(_mesh.number_of_cells), points=cells.points)
+        cells = Partition(
+            tessellation=_mesh,
+            location_count=np.ones(_mesh.number_of_cells),
+            points=cells.points,
+        )
     else:
         _map = [_map]
-        t = cells.locations['t']
+        t = cells.locations["t"]
         tmin, tmax = t.min(), t.max()
         segments = [[tmin, tmax]]
 
     if time_step is None:
-        N = len(segments) # len(_map)
+        N = len(segments)  # len(_map)
     else:
         N = round((tmax - tmin) / time_step) + 1
         if frame_rate is None:
-            frame_rate = 1. / time_step # assume dt is in seconds
+            frame_rate = 1.0 / time_step  # assume dt is in seconds
 
     if time_unit:
         title_pattern = "time = {{:.{:d}f}} {}".format(time_precision, time_unit)
 
     try:
-        with VideoWriterReader(output_file, frame_rate, bit_rate, dots_per_inch,
-                figure, axes, axis, verbose, **kwargs) as movie:
+        with VideoWriterReader(
+            output_file,
+            frame_rate,
+            bit_rate,
+            dots_per_inch,
+            figure,
+            axes,
+            axis,
+            verbose,
+            **kwargs
+        ) as movie:
 
             with movie.saving():
                 for f in movie.range(N):
@@ -114,20 +144,20 @@ def animate_map_2d(_map, cells, output_file=None,
                     else:
                         t = tmin + f * time_step
 
-                        seg_scale = np.median([ _s[1] - _s[0] for _s in segment ]) * .5
+                        seg_scale = np.median([_s[1] - _s[0] for _s in segment]) * 0.5
                         segs = []
                         weights = []
                         for s, seg in enumerate(segments):
                             if seg[0] <= t and t <= seg[1]:
                                 segs.append(s)
-                                seg_center = (seg[0] + seg[1]) / 2.
-                                w = 1. - np.abs(t - seg_center) / seg_scale
+                                seg_center = (seg[0] + seg[1]) / 2.0
+                                w = 1.0 - np.abs(t - seg_center) / seg_scale
                                 weights.append(w)
                         assert bool(segs)
 
                         weights = np.array(weights)
                         if np.all(weights == 0):
-                            weights[...] = 1. / numel(weights)
+                            weights[...] = 1.0 / numel(weights)
                         else:
                             weights /= np.sum(weights)
                         weights = list(weights)
@@ -138,8 +168,15 @@ def animate_map_2d(_map, cells, output_file=None,
                                 continue
                             __map = __map + _map[s] * w
 
-                    _render(cells, __map, clim=clim, figure=movie.figure, axes=movie.axes,
-                            colorbar=colorbar and f==0, colormap=colormap)
+                    _render(
+                        cells,
+                        __map,
+                        clim=clim,
+                        figure=movie.figure,
+                        axes=movie.axes,
+                        colorbar=colorbar and f == 0,
+                        colormap=colormap,
+                    )
                     if bounding_box is not None:
                         movie.axes.update_datalim_bounds(bounding_box)
                     #
@@ -156,5 +193,4 @@ def animate_map_2d(_map, cells, output_file=None,
         pass
 
 
-__all__ = ['animate_map_2d']
-
+__all__ = ["animate_map_2d"]

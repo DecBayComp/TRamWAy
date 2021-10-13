@@ -53,7 +53,8 @@ class Scaler(object):
         euclidean (list):
             Sequence of names or indices of the columns to be scaled by a common factor.
     """
-    __slots__ = ['init', 'center', 'factor', 'columns', 'function', 'euclidean']
+
+    __slots__ = ["init", "center", "factor", "columns", "function", "euclidean"]
 
     def __init__(self, scale=None, euclidean=None):
         """
@@ -65,14 +66,13 @@ class Scaler(object):
                 Sequence of names or indices of the columns to be scaled by a common
                 factor.
         """
-        self.init   = True
+        self.init = True
         self.center = None
         self.factor = None
         self.columns = []
         self.function = scale
-        if euclidean and not \
-            (isinstance(euclidean, list) and euclidean[1:]):
-            raise TypeError('`euclidean` should be a multi-element list')
+        if euclidean and not (isinstance(euclidean, list) and euclidean[1:]):
+            raise TypeError("`euclidean` should be a multi-element list")
         self.euclidean = euclidean
 
     @property
@@ -90,32 +90,38 @@ class Scaler(object):
                 coltype = type(cols[0])
                 if type(self.columns[0]) is not coltype:
                     if coltype is bytes:
-                        coerce = lambda s: s.encode('utf-8')
+                        coerce = lambda s: s.encode("utf-8")
                     else:
-                        coerce = lambda s: s.decode('utf-8')
-                    self.columns = [ coerce(c) for c in self.columns ]
-                    self.euclidean = [ coerce(c) for c in self.euclidean ]
+                        coerce = lambda s: s.decode("utf-8")
+                    self.columns = [coerce(c) for c in self.columns]
+                    self.euclidean = [coerce(c) for c in self.euclidean]
                 points = points[self.columns]
             else:
                 try:
                     points = np.asarray(points)[:, self.columns]
                 except IndexError:
                     cols = list(self.columns)
-                    raise TypeError("the input data array does not feature the following columns: {}".format(cols))
+                    raise TypeError(
+                        "the input data array does not feature the following columns: {}".format(
+                            cols
+                        )
+                    )
         elif isstructured(points):
-            raise ValueError("input data are structured whereas scaler's internal data are not")
+            raise ValueError(
+                "input data are structured whereas scaler's internal data are not"
+            )
         else:
             scaler_data = self.center
             if scaler_data is None:
                 scaler_data = self.factor
             if scaler_data is None:
                 if self.function:
-                    raise RuntimeError('scaler has not been initialized')
+                    raise RuntimeError("scaler has not been initialized")
             else:
                 if isinstance(points, (tuple, list)):
                     points = np.asarray(points)
                 if scaler_data.shape[1] != points.shape[1]:
-                    raise ValueError('number of columns does not match')
+                    raise ValueError("number of columns does not match")
         if asarray:
             points = np.asarray(points)
         return points
@@ -153,9 +159,13 @@ class Scaler(object):
         if self.init:
             # define named columns
             if self.columns:
-                raise AttributeError('remove data columns at initialization instead of defining `columns`')
+                raise AttributeError(
+                    "remove data columns at initialization instead of defining `columns`"
+                )
             try:
-                self.columns = list(columns(points)) # structured arrays do not support tuple indexing
+                self.columns = list(
+                    columns(points)
+                )  # structured arrays do not support tuple indexing
             except:
                 pass
             # backup predefined values
@@ -177,7 +187,7 @@ class Scaler(object):
                     elif points.dtype.names:
                         xyz = np.asarray(points[list(self.euclidean)])
                     else:
-                        xyz = np.asarray(points)[:,self.euclidean]
+                        xyz = np.asarray(points)[:, self.euclidean]
                     _, self.factor[self.euclidean] = self.function(xyz.flatten())
             # overwrite the coordinates that were actually predefined
             if predefined_centers:
@@ -226,7 +236,7 @@ class Scaler(object):
             array-like: unscaled data matrix.
         """
         if self.init:
-            raise AttributeError('scaler has not been initialized')
+            raise AttributeError("scaler has not been initialized")
         if not (self.center is None and self.factor is None):
             points = _format(points, inplace)
             if isinstance(points, np.ndarray):
@@ -240,7 +250,6 @@ class Scaler(object):
                 if self.center is not None:
                     points += self.center
         return points
-
 
     def scale_vector(self, vect, inplace=True, scaledonly=False, asarray=False):
         """
@@ -264,7 +273,7 @@ class Scaler(object):
             array-like: scaled data matrix.
         """
         if self.init:
-            raise AttributeError('scaler has not been initialized')
+            raise AttributeError("scaler has not been initialized")
         if self.factor is not None:
             vect = _format(vect, inplace)
             vect /= self.factor
@@ -291,7 +300,7 @@ class Scaler(object):
             array-like: unscaled data matrix.
         """
         if self.init:
-            raise AttributeError('scaler has not been initialized')
+            raise AttributeError("scaler has not been initialized")
         if self.factor is not None:
             vect = _format(vect, inplace)
             vect *= self.factor
@@ -319,24 +328,28 @@ class Scaler(object):
             array-like: scaled values.
         """
         if self.init:
-            raise AttributeError('scaler has not been initialized')
+            raise AttributeError("scaler has not been initialized")
         if self.factor is not None:
             _dim = len(self.euclidean)
             if not dim:
                 dim = _dim
             if _dim < min(1, dim):
-                raise ValueError('not enough euclidean dimensions')
+                raise ValueError("not enough euclidean dimensions")
             try:
                 factor = self.factor[self.euclidean[0]]
             except KeyError:
                 # on loading Py2-generated Series or DataFrame from an rwa file,
                 # PyTables may convert Py2 str in index/columns into Py3 str;
                 # as a consequence `columns` and `euclidean` should also be converted
-                self.columns = [ name.decode('utf-8') for name in self.columns ]
-                self.euclidean = [ name.decode('utf-8') for name in self.euclidean ]
+                self.columns = [name.decode("utf-8") for name in self.columns]
+                self.euclidean = [name.decode("utf-8") for name in self.euclidean]
                 factor = self.factor[self.euclidean[0]]
-            if self.euclidean[1:] and not np.all(self.factor[self.euclidean[1:]] == factor):
-                raise ValueError('the scaling factors for the euclidean variables are not all equal')
+            if self.euclidean[1:] and not np.all(
+                self.factor[self.euclidean[1:]] == factor
+            ):
+                raise ValueError(
+                    "the scaling factors for the euclidean variables are not all equal"
+                )
             size = _format(size, inplace)
             if 1 < dim:
                 factor **= dim
@@ -372,23 +385,25 @@ class Scaler(object):
 
 
 def _whiten(x):
-    '''Scaling function for :class:`Scaler`. Performs ``(x - mean(x)) / std(x)``. Consider using
-    :func:`whiten` instead.'''
+    """Scaling function for :class:`Scaler`. Performs ``(x - mean(x)) / std(x)``. Consider using
+    :func:`whiten` instead."""
     scaling_center = x.mean(axis=0)
     scaling_factor = x.std(axis=0, ddof=0)
     return (scaling_center, scaling_factor)
 
-def whiten(): # should be a function so that each new instance is a distinct one
+
+def whiten():  # should be a function so that each new instance is a distinct one
     """Returns a :class:`Scaler` that scales data ``x`` following: ``(x - mean(x)) / std(x)``."""
     return Scaler(_whiten)
 
 
 def _unitrange(x):
-    '''Scaling function for :class:`Scaler`. Performs ``(x - min(x)) / (max(x) - min(x))``.
-    Consider using :func:`unitrange` instead.'''
+    """Scaling function for :class:`Scaler`. Performs ``(x - min(x)) / (max(x) - min(x))``.
+    Consider using :func:`unitrange` instead."""
     scaling_center = x.min(axis=0)
     scaling_factor = x.max(axis=0) - scaling_center
     return (scaling_center, scaling_factor)
+
 
 def unitrange():
     """Returns a :class:`Scaler` that scales data ``x`` following:
@@ -411,9 +426,9 @@ def __get_row(points, fill=None):
 def _format(points, inplace):
     if inplace:
         if isinstance(points, tuple):
-            raise TypeError('cannot modify tuple inplace')
+            raise TypeError("cannot modify tuple inplace")
         elif isinstance(points, list):
-            raise NotImplementedError('cannot modify list inplace')
+            raise NotImplementedError("cannot modify list inplace")
     else:
         if isinstance(points, (tuple, list)):
             points = np.asarray(points)
@@ -423,8 +438,7 @@ def _format(points, inplace):
 
 
 __all__ = [
-    'Scaler',
-    'whiten',
-    'unitrange',
-    ]
-
+    "Scaler",
+    "whiten",
+    "unitrange",
+]

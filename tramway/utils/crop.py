@@ -7,22 +7,26 @@ import numpy as np
 
 def cropping_utility():
     import argparse
-    parser = argparse.ArgumentParser(prog='crop',
-        description='crop 2D trajectories')
-    parser.add_argument('--columns', help="input trajectory file column names (comma-separated list)")
-    parser.add_argument('-q', '--quiet', action='store_true', help="do not ask to overwrite the file")
-    parser.add_argument('input_file', help='path to input trajectory file')
-    parser.add_argument('bounding_box', help='bounding box as left,bottom,right,top')
-    parser.add_argument('output_file', nargs='?', help='path to output trajectory file')
+
+    parser = argparse.ArgumentParser(prog="crop", description="crop 2D trajectories")
+    parser.add_argument(
+        "--columns", help="input trajectory file column names (comma-separated list)"
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="do not ask to overwrite the file"
+    )
+    parser.add_argument("input_file", help="path to input trajectory file")
+    parser.add_argument("bounding_box", help="bounding box as left,bottom,right,top")
+    parser.add_argument("output_file", nargs="?", help="path to output trajectory file")
     args = parser.parse_args()
 
-    bounding_box = np.array([ float(x) for x in args.bounding_box.split(',') ])
-    dim = int(round(float(bounding_box.size) * .5))
+    bounding_box = np.array([float(x) for x in args.bounding_box.split(",")])
+    dim = int(round(float(bounding_box.size) * 0.5))
     bounding_box[dim:] -= bounding_box[:dim]
 
     load_kwargs = {}
     if args.columns:
-        load_kwargs['columns'] = args.columns.split(',')
+        load_kwargs["columns"] = args.columns.split(",")
     trajectories = load_xyt(args.input_file, **load_kwargs)
 
     cropped_trajectories = crop(trajectories, bounding_box.tolist())
@@ -34,15 +38,14 @@ def cropping_utility():
         if not args.quiet:
             invite = "overwrite file '{}': [N/y] ".format(output_file)
             try:
-                answer = raw_input(invite) # Py2
+                answer = raw_input(invite)  # Py2
             except NameError:
                 answer = input(invite)
-            if not (answer and answer[0].lower() == 'y'):
+            if not (answer and answer[0].lower() == "y"):
                 return
 
-    cropped_trajectories.to_csv(output_file, sep='\t', index=False)
+    cropped_trajectories.to_csv(output_file, sep="\t", index=False)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cropping_utility()
-

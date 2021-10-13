@@ -16,19 +16,41 @@ import tramway.inference.unsmooth_df as degraded_df
 import tramway.inference.standard_df as standard_df
 
 
-setup = dict(standard_df.setup) # copy
-setup['name'] = 'df'
-del setup['provides']
-setup['infer'] = 'infer_DF'
+setup = dict(standard_df.setup)  # copy
+setup["name"] = "df"
+del setup["provides"]
+setup["infer"] = "infer_DF"
 
 
-def infer_DF(cells, diffusivity_prior=None, force_prior=None, jeffreys_prior=False,
-        min_diffusivity=None, max_iter=None, epsilon=None, rgrad=None, **kwargs):
+def infer_DF(
+    cells,
+    diffusivity_prior=None,
+    force_prior=None,
+    jeffreys_prior=False,
+    min_diffusivity=None,
+    max_iter=None,
+    epsilon=None,
+    rgrad=None,
+    **kwargs
+):
 
     if diffusivity_prior is None and force_prior is None:
-        return degraded_df.infer_DF(cells, jeffreys_prior=jeffreys_prior,
-                min_diffusivity=min_diffusivity, **kwargs)
+        return degraded_df.infer_DF(
+            cells,
+            jeffreys_prior=jeffreys_prior,
+            min_diffusivity=min_diffusivity,
+            **kwargs
+        )
     else:
-        return standard_df.infer_smooth_DF(cells, diffusivity_prior, force_prior, None,
-                jeffreys_prior, min_diffusivity, max_iter, epsilon, rgrad, **kwargs)
-
+        return standard_df.infer_smooth_DF(
+            cells,
+            diffusivity_prior,
+            force_prior,
+            None,
+            jeffreys_prior,
+            min_diffusivity,
+            max_iter,
+            epsilon,
+            rgrad,
+            **kwargs
+        )

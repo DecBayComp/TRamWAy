@@ -42,9 +42,12 @@ class TessellerInitializer(Initializer):
     Note that :mod:`tessellers` is made available by importing :mod:`tramway.analyzer`.
 
     """
+
     __slots__ = ()
+
     def from_plugin(self, plugin):
-        self.specialize( TessellerPlugin, plugin )
+        self.specialize(TessellerPlugin, plugin)
+
     def from_callable(self, cls):
         """
         Argument:
@@ -55,20 +58,28 @@ class TessellerInitializer(Initializer):
 
         """
         if isinstance(cls, type) and issubclass(cls, TessellerProxy):
-            self.specialize( cls )
+            self.specialize(cls)
         else:
-            self.specialize( TessellerProxy, cls )
+            self.specialize(TessellerProxy, cls)
 
     @property
     def _mpl_impl(self):
         from .mpl import Mpl
+
         return Mpl
+
     @property
     def mpl(self):
-        """ tramway.analyzer.tesseller.mpl.Mpl: Matplotlib utilities """
+        """tramway.analyzer.tesseller.mpl.Mpl: Matplotlib utilities"""
         return self._mpl_impl(self)
 
 
-__all__ = ['Tesseller', 'TessellerInitializer', 'TessellerProxy', 'TessellerPlugin', 'tessellers',
-        'TessellationPostProcessing', 'cell_mergers']
-
+__all__ = [
+    "Tesseller",
+    "TessellerInitializer",
+    "TessellerProxy",
+    "TessellerPlugin",
+    "tessellers",
+    "TessellationPostProcessing",
+    "cell_mergers",
+]

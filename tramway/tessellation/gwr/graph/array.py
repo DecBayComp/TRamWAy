@@ -39,9 +39,19 @@ class ArrayGraph(Graph):
         ratio: 13.6554
 
     """
-    __slots__ = ('node_capacity', 'edge_capacity', '_node_counter', \
-        '_edge_counter', '_free_nodes', '_free_edges', 'nodes', 'edges', 'adjacency', \
-        '_fast_node')
+
+    __slots__ = (
+        "node_capacity",
+        "edge_capacity",
+        "_node_counter",
+        "_edge_counter",
+        "_free_nodes",
+        "_free_edges",
+        "nodes",
+        "edges",
+        "adjacency",
+        "_fast_node",
+    )
 
     def __init__(self, node_defaults, edge_defaults, node_count=None, edge_count=None):
         Graph.__init__(self, node_defaults, edge_defaults)
@@ -61,8 +71,9 @@ class ArrayGraph(Graph):
         self._free_edges = deque()
         self.nodes = {}
         self.edges = {}
-        self.adjacency = sp.lil_matrix((self.node_capacity, self.node_capacity), \
-            dtype=int)
+        self.adjacency = sp.lil_matrix(
+            (self.node_capacity, self.node_capacity), dtype=int
+        )
         self._fast_node = {}
 
     def assert_node(self, n):
@@ -79,13 +90,13 @@ class ArrayGraph(Graph):
         if not self.edges:
             self._init_edges(**kwargs)
         e = self.adjacency[n1, n2] - 1
-        if e < 0: # e is 0 does not work as expected because of types
+        if e < 0:  # e is 0 does not work as expected because of types
             if self._free_edges:
                 e = self._free_edges.pop()
             else:
                 e = self._edge_counter
                 self._edge_counter += 1
-                while self.edge_capacity <= self._edge_counter: # actual index is e - 1
+                while self.edge_capacity <= self._edge_counter:  # actual index is e - 1
                     self._resize_edges()
             try:
                 self.adjacency[n1, n2] = e + 1
@@ -106,7 +117,7 @@ class ArrayGraph(Graph):
         if not isinstance(n2, list):
             n2 = [n2]
         if n2:
-            #print(('disconnect',(n1, type(n1)),(n2, type(n2))))
+            # print(('disconnect',(n1, type(n1)),(n2, type(n2))))
             self.assert_node(n1)
             for n in n2:
                 self.assert_node(n)
@@ -114,11 +125,13 @@ class ArrayGraph(Graph):
 
     def find_edge(self, n1, n2):
         e = self.adjacency[n1, n2]
-        if e:   return e - 1
-        else:   return None
+        if e:
+            return e - 1
+        else:
+            return None
 
     def get_node_attr(self, n, attr):
-        #print(('get_node_attr', n, attr))
+        # print(('get_node_attr', n, attr))
         self.assert_node(n)
         try:
             return self.nodes[attr][n]
@@ -132,7 +145,8 @@ class ArrayGraph(Graph):
                 self.nodes[attr][n] = val
                 if attr in self._fast_node:
                     self._fast_node[attr][n] = np.dot(val, val)
-            else: raise NodeAttributeError(attr)
+            else:
+                raise NodeAttributeError(attr)
 
     def get_edge_attr(self, e, attr):
         self.assert_edge(e)
@@ -146,7 +160,8 @@ class ArrayGraph(Graph):
         for attr, val in kwargs.items():
             if attr in self.edges:
                 self.edges[attr][e] = val
-            else: raise EdgeAttributeError(attr)
+            else:
+                raise EdgeAttributeError(attr)
 
     def iter_edges(self):
         """Potentially inefficient."""
@@ -187,7 +202,7 @@ class ArrayGraph(Graph):
         return n
 
     def del_node(self, n):
-        #print(('del_node', n, type(n)))
+        # print(('del_node', n, type(n)))
         self.assert_node(n)
         neighbors = list(self.iter_neighbors(n))
         if neighbors:
@@ -201,15 +216,17 @@ class ArrayGraph(Graph):
     def iter_nodes(self):
         """Avoid by all means!"""
         free = set(self._free_nodes)
-        return [ n for n in range(0, self._node_counter) if n not in free ]
+        return [n for n in range(0, self._node_counter) if n not in free]
 
     def _init_nodes(self, **kwargs):
         for attr, default in self.node_defaults.items():
             if default is None:
                 if attr in kwargs:
                     val = kwargs[attr]
-                else: raise NodeAttributeError(attr)
-            else:   val = default
+                else:
+                    raise NodeAttributeError(attr)
+            else:
+                val = default
             if isinstance(val, np.ndarray):
                 dim = val.size
                 typ = val.dtype
@@ -223,8 +240,10 @@ class ArrayGraph(Graph):
             if default is None:
                 if attr in kwargs:
                     val = kwargs[attr]
-                else: raise NodeAttributeError(attr)
-            else:   val = default
+                else:
+                    raise NodeAttributeError(attr)
+            else:
+                val = default
             if isinstance(val, np.ndarray):
                 dim = val.size
                 typ = val.dtype
@@ -237,74 +256,79 @@ class ArrayGraph(Graph):
         for attr in self.nodes:
             self.nodes[attr] = np.r_[self.nodes[attr], np.zeros_like(self.nodes[attr])]
         for attr in self._fast_node:
-            self._fast_node[attr] = np.concatenate((
-                    self._fast_node[attr],
-                    np.zeros_like(self._fast_node[attr])
-                ))
+            self._fast_node[attr] = np.concatenate(
+                (self._fast_node[attr], np.zeros_like(self._fast_node[attr]))
+            )
         self.node_capacity *= 2
         # properly reshape lil matrix
         rows, data = self.adjacency.rows, self.adjacency.data
-        self.adjacency = sp.lil_matrix((self.node_capacity, self.node_capacity),
-            dtype=self.adjacency.dtype)
-        self.adjacency.rows[:rows.size] = rows
-        self.adjacency.data[:data.size] = data
+        self.adjacency = sp.lil_matrix(
+            (self.node_capacity, self.node_capacity), dtype=self.adjacency.dtype
+        )
+        self.adjacency.rows[: rows.size] = rows
+        self.adjacency.data[: data.size] = data
 
     def _resize_edges(self):
         for attr in self.edges:
             self.edges[attr] = np.r_[self.edges[attr], np.zeros_like(self.edges[attr])]
         self.edge_capacity *= 2
 
-    def export(self, sparse='csr'):
-        #t = time.time()
+    def export(self, sparse="csr"):
+        # t = time.time()
         I = np.ones(self.node_capacity, dtype=bool)
-        I[self._node_counter:] = 0
+        I[self._node_counter :] = 0
         I[self._free_nodes] = 0
         V = {}
         for attr in self.nodes:
             V[attr] = self.nodes[attr][I]
-        #print('{:.0f}'.format((time.time() - t) * 1e6))
-        #t = time.time()
-        #Iadj, = np.nonzero(self.adjacency.rows)
-        #V = {}
-        #for attr in self.nodes:
+        # print('{:.0f}'.format((time.time() - t) * 1e6))
+        # t = time.time()
+        # Iadj, = np.nonzero(self.adjacency.rows)
+        # V = {}
+        # for attr in self.nodes:
         #       V[attr] = self.nodes[attr][Iadj]
-        #print('{:.0f}'.format((time.time() - t) * 1e6))
-        #assert np.all(I[Iadj]) and Iadj.size == np.sum(I)
-        A = self.adjacency[I].tocsc()[:,I]
-        if sparse == 'csc':
+        # print('{:.0f}'.format((time.time() - t) * 1e6))
+        # assert np.all(I[Iadj]) and Iadj.size == np.sum(I)
+        A = self.adjacency[I].tocsc()[:, I]
+        if sparse == "csc":
             A = A.tocsc()
-        elif sparse == 'csr':
+        elif sparse == "csr":
             A = A.tocsr()
-        elif sparse == 'bsr':
+        elif sparse == "bsr":
             A = A.tobsr()
-        elif sparse == 'coo':
+        elif sparse == "coo":
             A = A.tocoo()
         else:
             raise NotImplementedError
         J = np.ones(self.edge_capacity, dtype=bool)
-        J[self._edge_counter:] = 0
+        J[self._edge_counter :] = 0
         J[self._free_edges] = 0
         E = {}
         for attr in self.edges:
             E[attr] = self.edges[attr][J]
-        J, = np.nonzero(J)
-        K = np.zeros(self._edge_counter + 1, dtype=int) # could be A.shape[0] * np.ones to
+        (J,) = np.nonzero(J)
+        K = np.zeros(
+            self._edge_counter + 1, dtype=int
+        )  # could be A.shape[0] * np.ones to
         # detect edge coding errors, but it seems there is none
         K[J] = np.arange(0, J.size)
         A.data = K[A.data - 1]
-        #print((A.data.min(), A.data.max()))
+        # print((A.data.min(), A.data.max()))
         return (A, V, E)
 
     def square_distance(self, attr, eta, eta2=None):
         if eta2 is None:
             eta2 = np.dot(eta, eta)
         if attr not in self._fast_node:
-            self._fast_node[attr] = np.zeros(self.nodes[attr].shape[0], \
-                dtype=self.nodes[attr].dtype)
-            w = self.nodes[attr][:self._node_counter]
-            self._fast_node[attr][:self._node_counter] = np.sum(w * w, axis=1)
-        d = self._fast_node[attr][:self._node_counter] + eta2 - 2.0 * \
-            np.dot(self.nodes[attr][:self._node_counter], eta)
-        d[self._free_nodes] = np.nan#float('nan')
+            self._fast_node[attr] = np.zeros(
+                self.nodes[attr].shape[0], dtype=self.nodes[attr].dtype
+            )
+            w = self.nodes[attr][: self._node_counter]
+            self._fast_node[attr][: self._node_counter] = np.sum(w * w, axis=1)
+        d = (
+            self._fast_node[attr][: self._node_counter]
+            + eta2
+            - 2.0 * np.dot(self.nodes[attr][: self._node_counter], eta)
+        )
+        d[self._free_nodes] = np.nan  # float('nan')
         return (d, lambda i: i)
-

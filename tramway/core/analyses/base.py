@@ -19,54 +19,73 @@ import warnings
 
 
 class AnalysesView(dict):
-    __slots__ = ('__analyses__',)
+    __slots__ = ("__analyses__",)
+
     def __init__(self, analyses):
         self.__analyses__ = analyses
+
     def __nonzero__(self):
-        #return self.__analyses__._instances.__nonzero__()
-        return bool(self.__analyses__._instances) # Py2
+        # return self.__analyses__._instances.__nonzero__()
+        return bool(self.__analyses__._instances)  # Py2
+
     def __len__(self):
         return len(self.__analyses__._instances)
+
     def __missing__(self, label):
-        raise KeyError('no such analysis instance: {}'.format(label))
+        raise KeyError("no such analysis instance: {}".format(label))
+
     def __iter__(self):
         return self.__analyses__._instances.__iter__()
+
     def __contains__(self, label):
         return self.__analyses__._instances.__contains__(label)
+
     def keys(self):
         return self.__analyses__._instances.keys()
 
+
 class InstancesView(AnalysesView):
     __slots__ = ()
+
     def __str__(self):
         return self.__analyses__._instances.__str__()
+
     def __getitem__(self, label):
         return self.__analyses__._instances[label]
+
     def __setitem__(self, label, analysis):
         if not isinstance(analysis, abc.Analyses):
             analysis = type(self.__analyses__)(analysis)
         self.__analyses__._instances[label] = analysis
+
     def __delitem__(self, label):
         self.__analyses__._instances.__delitem__(label)
         try:
             self.__analyses__._comments.__delitem__(label)
         except KeyError:
             pass
+
     def values(self):
         return self.__analyses__._instances.values()
+
     def items(self):
         return self.__analyses__._instances.items()
+
     def get(self, label, default=None):
         return self.__analyses__._instances.get(label, default)
+
     def pop(self, label, default=None):
         analysis = self.get(label, default)
         self.__delitem__(label)
         return analysis
 
+
 class CommentsView(AnalysesView):
     __slots__ = ()
+
     def __str__(self):
         return self.__analyses__._comments.__str__()
+
     def __getitem__(self, label):
         try:
             return self.__analyses__._comments[label]
@@ -75,6 +94,7 @@ class CommentsView(AnalysesView):
                 return None
             else:
                 self.__missing__(label)
+
     def __setitem__(self, label, comment):
         if label in self.__analyses__._instances:
             if comment:
@@ -83,10 +103,13 @@ class CommentsView(AnalysesView):
                 self.__delitem__(label)
         else:
             self.__missing__(label)
+
     def __delitem__(self, label):
         self.__analyses__._comments.__delitem__(label)
+
     def values(self):
         return self.__analyses__._comments.values()
+
     def items(self):
         return self.__analyses__._comments.items()
 
@@ -155,7 +178,8 @@ class Analyses(object):
             and are not related to children instances.
 
     """
-    __slots__ = ('_data', '_instances', '_comments', '_metadata')
+
+    __slots__ = ("_data", "_instances", "_comments", "_metadata")
 
     def __init__(self, data=None, metadata=None):
         self._data = data
@@ -223,11 +247,11 @@ class Analyses(object):
         """
         if valid_label(pattern):
             try:
-                pattern = int(pattern) # this also checks type
+                pattern = int(pattern)  # this also checks type
             except ValueError:
                 pass
-            if not isinstance(pattern, int) and '*' in pattern:
-                f = lambda i: pattern.replace('*', str(i))
+            if not isinstance(pattern, int) and "*" in pattern:
+                f = lambda i: pattern.replace("*", str(i))
             else:
                 return pattern
         else:
@@ -273,20 +297,28 @@ class Analyses(object):
 
     def __nonzero__(self):
         return self.instances.__nonzero__()
+
     def __len__(self):
         return self.instances.__len__()
+
     def __missing__(self, label):
         self.instances.__missing__(label)
+
     def __iter__(self):
         return self.instances.__iter__()
+
     def __contains__(self, label):
         return self.instances.__contains__(label)
+
     def __getitem__(self, label):
         return self.instances.__getitem__(label)
+
     def __setitem__(self, label, analysis):
         self.instances.__setitem__(label, analysis)
+
     def __delitem__(self, label):
         self.instances.__delitem__(label)
+
 
 abc.Analyses.register(Analyses)
 
@@ -294,25 +326,34 @@ abc.Analyses.register(Analyses)
 valid_label = lambda label: label or (isinstance(label, int) and label == 0)
 
 
-def map_analyses(fun, analyses, label=False, comment=False, metadata=False, depth=False,
-        allow_tuples=False):
+def map_analyses(
+    fun,
+    analyses,
+    label=False,
+    comment=False,
+    metadata=False,
+    depth=False,
+    allow_tuples=False,
+):
     with_label = label or valid_label(label)
     with_comment, with_metadata, with_depth = comment, metadata, depth
+
     def _fun(x, **kwargs):
         y = fun(x, **kwargs)
         if not allow_tuples and isinstance(y, tuple):
-            raise ValueError('type conflict: function returned a tuple')
+            raise ValueError("type conflict: function returned a tuple")
         return y
+
     def _map(analyses, label=None, comment=None, depth=0):
         kwargs = {}
         if with_label:
-            kwargs['label'] = label
+            kwargs["label"] = label
         if with_comment:
-            kwargs['comment'] = comment
+            kwargs["comment"] = comment
         if with_metadata:
-            kwargs['metadata'] = analyses.metadata
+            kwargs["metadata"] = analyses.metadata
         if with_depth:
-            kwargs['depth'] = depth
+            kwargs["depth"] = depth
         node = _fun(analyses._data, **kwargs)
         if analyses.instances:
             depth += 1
@@ -324,15 +365,16 @@ def map_analyses(fun, analyses, label=False, comment=False, metadata=False, dept
                     tree.append(_map(child, label, comment, depth))
                 else:
                     if with_label:
-                        kwargs['label'] = label
+                        kwargs["label"] = label
                     if with_comment:
-                        kwargs['comment'] = comment
+                        kwargs["comment"] = comment
                     if with_depth:
-                        kwargs['depth'] = depth
+                        kwargs["depth"] = depth
                     tree.append(_fun(child, **kwargs))
             return node, tuple(tree)
         else:
             return node
+
     return _map(analyses)
 
 
@@ -365,7 +407,9 @@ def extract_analysis(analyses, labels):
         if not isinstance(labels, (tuple, list)):
             labels = [labels]
         label = labels[0]
-        analysis.instances[label] = extract_analyses(analyses.instances[label], labels[1:])
+        analysis.instances[label] = extract_analyses(
+            analyses.instances[label], labels[1:]
+        )
         try:
             analysis.comments[label] = analyses.comments[label]
         except KeyError:
@@ -382,7 +426,7 @@ def _append(s, ls):
                 l, _ls = _ls, None
             else:
                 ok, l = ok
-            _s = list(s) # copy
+            _s = list(s)  # copy
             _s.append(l)
             if ok:
                 ss.append([tuple(_s)])
@@ -391,6 +435,7 @@ def _append(s, ls):
         return itertools.chain(*ss)
     else:
         return []
+
 
 def label_paths(analyses, filter):
     """
@@ -417,13 +462,19 @@ def label_paths(analyses, filter):
     elif callable(filter):
         _map = lambda node, label: (filter(node), label)
     else:
-        raise TypeError('`filter` is neither a type nor a callable')
+        raise TypeError("`filter` is neither a type nor a callable")
     _, labels = map_analyses(_map, analyses, label=True, allow_tuples=True)
     return list(_append([], labels))
 
 
-def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=False,
-        return_subtree=False):
+def find_artefacts(
+    analyses,
+    filters,
+    labels=None,
+    quantifiers=None,
+    fullnode=False,
+    return_subtree=False,
+):
     """
     Find related artefacts.
 
@@ -462,21 +513,21 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
     if not isinstance(filters, (tuple, list)):
         filters = (filters,)
     # quantifiers
-    quantifier = 'last'
+    quantifier = "last"
     if quantifiers:
         if not isinstance(quantifiers, (tuple, list)):
             quantifiers = (quantifiers,)
         if len(quantifiers) == len(filters):
             filters = zip(quantifiers, filters)
         elif quantifiers[1:]:
-            warnings.warn('wrong number of quantifiers; ignoring them')
+            warnings.warn("wrong number of quantifiers; ignoring them")
         else:
             quantifier = quantifiers[0]
     # labels
     if labels is None:
         labels = []
     elif isinstance(labels, (tuple, list)):
-        labels = list(labels) # copy
+        labels = list(labels)  # copy
     else:
         labels = [labels]
     labels_defined = bool(labels)
@@ -494,7 +545,7 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
                 f = _filter
                 _fitler = lambda a: f(a.data)
         else:
-            raise TypeError('invalid filter type: {}'.format(type(_filter)))
+            raise TypeError("invalid filter type: {}".format(type(_filter)))
         match = []
         while True:
             if lookup:
@@ -503,8 +554,11 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
                 elif labels_defined:
                     if match and i + 1 == len(filters):
                         break
-                    raise ValueError('no match for {}{} filter'.format(i+1,
-                        {1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
+                    raise ValueError(
+                        "no match for {}{} filter".format(
+                            i + 1, {1: "st", 2: "nd", 3: "rd"}.get(i + 1, "th")
+                        )
+                    )
                 else:
                     _labels = list(analyses.labels)
                     if _labels and not _labels[1:]:
@@ -512,35 +566,44 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, fullnode=Fa
                     elif match and i + 1 == len(filters):
                         break
                     elif not _labels:
-                        raise ValueError('no match for {}{} filter'.format(i+1,
-                            {1: 'st', 2: 'nd', 3: 'rd'}.get(i+1, 'th')))
-                    else:#if _labels[1:]:
-                        raise ValueError('multiple labels; argument `labels` required')
+                        raise ValueError(
+                            "no match for {}{} filter".format(
+                                i + 1, {1: "st", 2: "nd", 3: "rd"}.get(i + 1, "th")
+                            )
+                        )
+                    else:  # if _labels[1:]:
+                        raise ValueError("multiple labels; argument `labels` required")
                 try:
                     analyses = analyses.instances[label]
                 except KeyError:
                     available = str(list(analyses.labels))[1:-1]
                     if available:
-                        raise KeyError("missing label '{}'; available labels are: {}".format(label, available))
+                        raise KeyError(
+                            "missing label '{}'; available labels are: {}".format(
+                                label, available
+                            )
+                        )
                     else:
-                        raise KeyError("missing label '{}'; no labels available".format(label))
+                        raise KeyError(
+                            "missing label '{}'; no labels available".format(label)
+                        )
             lookup = True
             if _filter(analyses):
                 match.append(analyses)
             elif match:
                 lookup = False
                 break
-        if quantifier in ('first', ):
+        if quantifier in ("first",):
             subtree = match[0]
             match = subtree._data
-        elif quantifier in ('last', None):
+        elif quantifier in ("last", None):
             subtree = match[-1]
             match = subtree._data
-        elif quantifier in ('all', '+'):
+        elif quantifier in ("all", "+"):
             subtree = match
-            match = [ a._data for a in match ]
+            match = [a._data for a in match]
         else:
-            raise ValueError('invalid quantifier: {}'.format(quantifier))
+            raise ValueError("invalid quantifier: {}".format(quantifier))
         matches.append(match)
     if return_subtree:
         matches.append(subtree)
@@ -552,20 +615,20 @@ def coerce_labels_and_metadata(analyses):
         val = analyses.metadata[key]
         if not isinstance(val, str):
             if isinstance(val, bytes):
-                val = val.decode('utf-8')
+                val = val.decode("utf-8")
             elif isinstance(val, unicode):
-                val = val.encode('utf-8')
+                val = val.encode("utf-8")
         analyses.metadata[key] = val
     for label in tuple(analyses.labels):
         if isinstance(label, (int, str)):
             coerced = label
         else:
-            try: # Py2
-                coerced = label.encode('utf-8')
-            except AttributeError: # Py3
+            try:  # Py2
+                coerced = label.encode("utf-8")
+            except AttributeError:  # Py3
                 try:
-                    coerced = label.decode('utf-8')
-                except AttributeError: # numpy.int64?
+                    coerced = label.decode("utf-8")
+                except AttributeError:  # numpy.int64?
                     coerced = int(label)
             assert isinstance(coerced, (int, str))
         comment = analyses.comments[label]
@@ -577,14 +640,22 @@ def coerce_labels_and_metadata(analyses):
             analyses.comments[coerced] = comment
     return analyses
 
+
 coerce_labels = coerce_labels_and_metadata
 
 
-def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_standalone_root=None,
-        metadata=False, annotations={}):
+def format_analyses(
+    analyses,
+    prefix="\t",
+    node=type,
+    global_prefix="",
+    format_standalone_root=None,
+    metadata=False,
+    annotations={},
+):
     if isinstance(annotations, dict):
-        annotations = dict(annotations) # copy
-        root_annotation = annotations.get('', None)
+        annotations = dict(annotations)  # copy
+        root_annotation = annotations.get("", None)
     elif callable(annotations):
         root_annotation = annotations
     elif annotations:
@@ -592,23 +663,34 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
     if format_standalone_root is None:
         if metadata:
             if root_annotation is None:
-                format_standalone_root = lambda r: '<Analyses {}>\n{}'.format(*r.split('\n',1))
+                format_standalone_root = lambda r: "<Analyses {}>\n{}".format(
+                    *r.split("\n", 1)
+                )
             elif callable(root_annotation):
+
                 def _format_standalone_root(r):
-                    _type, _metadata = r.split('\n',1)
-                    _annotation = root_annotation('', _type)
+                    _type, _metadata = r.split("\n", 1)
+                    _annotation = root_annotation("", _type)
                     if _annotation:
-                        return '<Analyses {}>\t<- {}\n{}'.format(_type, _annotation, _metadata)
+                        return "<Analyses {}>\t<- {}\n{}".format(
+                            _type, _annotation, _metadata
+                        )
                     else:
-                        return '<Analyses {}>\n{}'.format(*r.split('\n',1))
+                        return "<Analyses {}>\n{}".format(*r.split("\n", 1))
+
                 format_standalone_root = _format_standalone_root
             else:
-                format_standalone_root = lambda r: '<Analyses {1}>\t<- {0}\n{2}'.format(root_annotation, *r.split('\n',1))
+                format_standalone_root = lambda r: "<Analyses {1}>\t<- {0}\n{2}".format(
+                    root_annotation, *r.split("\n", 1)
+                )
         else:
             if root_annotation is None:
-                format_standalone_root = lambda r: '<Analyses {}>'.format(r)
+                format_standalone_root = lambda r: "<Analyses {}>".format(r)
             else:
-                format_standalone_root = lambda r: '<Analyses {}>\t<- {}'.format(r, root_annotation)
+                format_standalone_root = lambda r: "<Analyses {}>\t<- {}".format(
+                    r, root_annotation
+                )
+
     def _format(data, label=None, comment=None, metadata=None, depth=0):
         _prefix = global_prefix + prefix * depth
         s = [_prefix]
@@ -623,14 +705,14 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
                 return None
         else:
             try:
-                label + 0 # check numeric types
+                label + 0  # check numeric types
             except TypeError:
                 s.append("'{}'")
             else:
-                s.append('[{}]')
+                s.append("[{}]")
             t.append(label)
             if node:
-                s.append(' {}')
+                s.append(" {}")
                 desc = _node = node(data)
                 t.append(desc)
             if isinstance(annotations, dict):
@@ -640,32 +722,33 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
             elif annotations:
                 annotation = annotations.pop(0)
             if annotation is not None:
-                s.append('\t<- {}')
+                s.append("\t<- {}")
                 t.append(annotation)
             if comment:
                 assert isinstance(comment, str)
-                _comment = comment.split('\n')
+                _comment = comment.split("\n")
                 s.append('\n{}"{}')
                 t.append(_prefix)
                 t.append(_comment[0])
                 for _line in _comment[1:]:
-                    s.append('\n{} {}')
+                    s.append("\n{} {}")
                     t.append(_prefix)
                     t.append(_line)
                 s.append('"')
         if metadata:
             for key in metadata:
                 val = metadata[key]
-                s.append('\n{}@{}={}')
+                s.append("\n{}@{}={}")
                 t.append(_prefix)
                 t.append(key)
                 t.append(val)
-        return ''.join(s).format(*t)
+        return "".join(s).format(*t)
+
     def _flatten(_node):
         if _node is None:
             return []
         elif isinstance(_node, str):
-            return [ _node ]
+            return [_node]
         try:
             _node, _children = _node
         except TypeError:
@@ -673,16 +756,28 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
         else:
             assert isinstance(_node, str)
             return itertools.chain([_node], *[_flatten(c) for c in _children])
-    entries = list(_flatten(map_analyses(_format, analyses, label=True, comment=True, metadata=metadata, depth=True)))
+
+    entries = list(
+        _flatten(
+            map_analyses(
+                _format,
+                analyses,
+                label=True,
+                comment=True,
+                metadata=metadata,
+                depth=True,
+            )
+        )
+    )
     if entries[1:]:
         if root_annotation:
             r = entries[0]
             if metadata:
-                _type, _metadata = r.split('\n',1)
+                _type, _metadata = r.split("\n", 1)
             else:
                 _type = r
             if callable(root_annotation):
-                _annotation = root_annotation('', _type)
+                _annotation = root_annotation("", _type)
             else:
                 _annotation = root_annotation
             if _annotation:
@@ -691,16 +786,18 @@ def format_analyses(analyses, prefix='\t', node=type, global_prefix='', format_s
                 while _min_offset is None:
                     try:
                         s = next(it)
-                        _min_offset = s.index('<-')
+                        _min_offset = s.index("<-")
                     except ValueError:
                         pass
-                _ntabs = s.count('\t', 0, _min_offset)
-                _tab = lambda s: ' '*(_min_offset-_ntabs-len(s))+'\t'*_ntabs
+                _ntabs = s.count("\t", 0, _min_offset)
+                _tab = lambda s: " " * (_min_offset - _ntabs - len(s)) + "\t" * _ntabs
                 if metadata:
-                    entries[0] = '{}{}<- {}\n{}'.format(_type, _tab(_type), _annotation, _metadata)
+                    entries[0] = "{}{}<- {}\n{}".format(
+                        _type, _tab(_type), _annotation, _metadata
+                    )
                 else:
-                    entries[0] = '{}{}<- {}'.format(r, _tab(r), _annotation)
-        return '\n'.join(entries)
+                    entries[0] = "{}{}<- {}".format(r, _tab(r), _annotation)
+        return "\n".join(entries)
     else:
         return format_standalone_root(entries[0])
 
@@ -728,24 +825,22 @@ def append_leaf(analysis_tree, augmented_branch, overwrite=False):
     else:
         if analysis_tree:
             return
-            #raise ValueError('the existing analysis tree has higher branches than the augmented branch')
+            # raise ValueError('the existing analysis tree has higher branches than the augmented branch')
         analysis_tree.data = augmented_branch.data
 
 
-
 __all__ = [
-    'AnalysesView',
-    'InstancesView',
-    'CommentsView',
-    'Analyses',
-    'map_analyses',
-    'extract_analysis',
-    'label_paths',
-    'find_artefacts',
-    'coerce_labels_and_metadata',
-    'coerce_labels',
-    'format_analyses',
-    'append_leaf',
-    'valid_label',
-    ]
-
+    "AnalysesView",
+    "InstancesView",
+    "CommentsView",
+    "Analyses",
+    "map_analyses",
+    "extract_analysis",
+    "label_paths",
+    "find_artefacts",
+    "coerce_labels_and_metadata",
+    "coerce_labels",
+    "format_analyses",
+    "append_leaf",
+    "valid_label",
+]

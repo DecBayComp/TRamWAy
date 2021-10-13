@@ -14,12 +14,13 @@
 
 from ..attribute.abc import Attribute, abstractmethod
 
+
 class Mapper(Attribute):
     """
     Abstract base class for the :attr:`~tramway.analyzer.RWAnalyzer.mapper` attribute
     of an :class:`~tramway.analyzer.RWAnalyzer` object.
     """
+
     @abstractmethod
     def infer(self, sampling):
         pass
-

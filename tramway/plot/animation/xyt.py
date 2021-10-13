@@ -16,12 +16,27 @@ from tramway.plot.animation import *
 import numpy as np
 
 
-def animate_trajectories_2d(xyt, output_file=None,
-        frame_rate=None, bit_rate=None, dots_per_inch=200, play=False,
-        time_step=None, time_unit='s', color=None,
-        line_width=1, marker_style='o', marker_size=4,
-        figure=None, axes=None, bounding_box=None, axis=True,
-        verbose=True, time_precision=2, **kwargs):
+def animate_trajectories_2d(
+    xyt,
+    output_file=None,
+    frame_rate=None,
+    bit_rate=None,
+    dots_per_inch=200,
+    play=False,
+    time_step=None,
+    time_unit="s",
+    color=None,
+    line_width=1,
+    marker_style="o",
+    marker_size=4,
+    figure=None,
+    axes=None,
+    bounding_box=None,
+    axis=True,
+    verbose=True,
+    time_precision=2,
+    **kwargs
+):
     """
     Animate 2D trajectories.
 
@@ -69,69 +84,85 @@ def animate_trajectories_2d(xyt, output_file=None,
     """
 
     if marker_style is None:
-        base_style = '-'
+        base_style = "-"
     else:
-        base_style = marker_style + '-'
+        base_style = marker_style + "-"
     _style = dict(linewidth=line_width, markersize=marker_size)
 
     if color is None:
+
         def _color(n):
             while True:
                 _c = np.random.rand(3)
-                if np.any(.1 <= _c): # not too light (background is white)
+                if np.any(0.1 <= _c):  # not too light (background is white)
                     break
             return _c
+
     elif callable(color):
         _color = color
     else:
         ncolors = len(color)
+
         def _color(n):
             return color[np.mod(n, ncolors)]
+
     def style(n):
-        _style['color'] = _color(n)
+        _style["color"] = _color(n)
         return _style
 
     if time_unit:
         title_pattern = "time = {{:.{:d}f}} {}".format(time_precision, time_unit)
 
     if time_step is None:
-        dt = xyt['t'].diff()[xyt['n'].diff()==0].quantile(.5)
+        dt = xyt["t"].diff()[xyt["n"].diff() == 0].quantile(0.5)
         if verbose:
             print("selected time step: {}".format(dt))
     else:
         dt = time_step
     if frame_rate is None:
-        frame_rate = 1. / dt # assume dt is in seconds
+        frame_rate = 1.0 / dt  # assume dt is in seconds
     if bounding_box is None:
         import matplotlib.transforms
-        xmin, ymin = xyt['x'].min(), xyt['y'].min()
-        xmax, ymax = xyt['x'].max(), xyt['y'].max()
-        bounding_box = matplotlib.transforms.Bbox.from_bounds(xmin, ymin, xmax-xmin, ymax-ymin)
 
-    t0 = np.round(xyt['t'].min() / dt) * dt
-    N = np.round((xyt['t'].max() - t0) / dt) + 1
+        xmin, ymin = xyt["x"].min(), xyt["y"].min()
+        xmax, ymax = xyt["x"].max(), xyt["y"].max()
+        bounding_box = matplotlib.transforms.Bbox.from_bounds(
+            xmin, ymin, xmax - xmin, ymax - ymin
+        )
+
+    t0 = np.round(xyt["t"].min() / dt) * dt
+    N = np.round((xyt["t"].max() - t0) / dt) + 1
 
     pending = xyt.copy()
     active = dict()
     old_active = set()
 
     try:
-        with VideoWriterReader(output_file, frame_rate, bit_rate, dots_per_inch,
-                figure, axes, axis, verbose, **kwargs) as movie:
+        with VideoWriterReader(
+            output_file,
+            frame_rate,
+            bit_rate,
+            dots_per_inch,
+            figure,
+            axes,
+            axis,
+            verbose,
+            **kwargs
+        ) as movie:
 
             with movie.saving():
                 for f in movie.range(N):
                     t = t0 + f * dt
-                    xt = pending[np.abs(pending['t'] - t) < .5 * dt]
+                    xt = pending[np.abs(pending["t"] - t) < 0.5 * dt]
                     new_active = set()
                     for i, row in xt.iterrows():
-                        n = row['n']
-                        x, y = row['x'], row['y']
+                        n = row["n"]
+                        x, y = row["x"], row["y"]
                         new_active.add(n)
                         try:
                             line = active[n]
                         except KeyError:
-                            line, = movie.axes.plot(x, y, base_style, **style(n))
+                            (line,) = movie.axes.plot(x, y, base_style, **style(n))
                             active[n] = line
                         else:
                             _x, _y = line.get_data()
@@ -156,5 +187,4 @@ def animate_trajectories_2d(xyt, output_file=None,
         pass
 
 
-__all__ = ['animate_trajectories_2d']
-
+__all__ = ["animate_trajectories_2d"]

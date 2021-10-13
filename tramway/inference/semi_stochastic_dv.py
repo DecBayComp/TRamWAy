@@ -17,16 +17,15 @@ import numpy as np
 import logging
 
 
-setup = dict(sdv.setup) # copy
+setup = dict(sdv.setup)  # copy
 
-setup.update({'name': 'semi.stochastic.dv',
-    'infer': 'infer_DV'})
+setup.update({"name": "semi.stochastic.dv", "infer": "infer_DV"})
 
 
 module_logger = logging.getLogger(__name__)
 module_logger.setLevel(logging.DEBUG)
 _console = logging.StreamHandler()
-_console.setFormatter(logging.Formatter('%(message)s'))
+_console.setFormatter(logging.Formatter("%(message)s"))
 module_logger.addHandler(_console)
 
 
@@ -39,60 +38,60 @@ def infer_DV(cells, *args, **kwargs):
 
     n = len(cells)
 
-    kwargs['stochastic'] = True
+    kwargs["stochastic"] = True
 
-    max_iter = kwargs.pop('max_iter', None)
-    kwargs['max_iter'] = kwargs.pop('init_max_iter', 300) * n
+    max_iter = kwargs.pop("max_iter", None)
+    kwargs["max_iter"] = kwargs.pop("init_max_iter", 300) * n
 
-    #try:
+    # try:
     #    ftol = kwargs['ftol']
-    #except KeyError:
+    # except KeyError:
     #    ftol = None
-    #else:
+    # else:
     #    kwargs['ftol'] = ftol / n
 
-    verbose = kwargs.get('verbose', False)
+    verbose = kwargs.get("verbose", False)
     if verbose:
-        module_logger.debug('======== stochastic optimization ========\n')
+        module_logger.debug("======== stochastic optimization ========\n")
 
     DV0, info0 = sdv.infer_stochastic_DV(cells, *args, **kwargs)
 
-    D0 = DV0['diffusivity'].values
-    V0 = DV0['potential'].values
+    D0 = DV0["diffusivity"].values
+    V0 = DV0["potential"].values
 
-    if info0['resolution'] == 'interrupted':
+    if info0["resolution"] == "interrupted":
         return DV0, info0
 
     ## non-stochastic fine-tuning
 
-    kwargs['stochastic'] = False
-    kwargs['D0'] = D0
-    kwargs['V0'] = V0
+    kwargs["stochastic"] = False
+    kwargs["D0"] = D0
+    kwargs["V0"] = V0
 
     try:
-        ls_step_max = kwargs['ls_step_max']
+        ls_step_max = kwargs["ls_step_max"]
     except KeyError:
         pass
     else:
         if isinstance(ls_step_max, np.ndarray):
-            kwargs['ls_step_max'] = ls_step_max.max()
+            kwargs["ls_step_max"] = ls_step_max.max()
 
     if max_iter is None:
-        kwargs.pop('max_iter')
+        kwargs.pop("max_iter")
     else:
-        kwargs['max_iter'] = max_iter
+        kwargs["max_iter"] = max_iter
 
-    #if ftol is not None:
+    # if ftol is not None:
     #    kwargs['ftol'] = ftol
     try:
-        ftol = kwargs['ftol']
+        ftol = kwargs["ftol"]
     except KeyError:
         pass
     else:
-        kwargs['ftol'] = ftol * n
+        kwargs["ftol"] = ftol * n
 
     if verbose:
-        module_logger.debug('\n======= non-stochastic fine-tuning =======\n')
+        module_logger.debug("\n======= non-stochastic fine-tuning =======\n")
     try:
 
         DV, info = sdv.infer_stochastic_DV(cells, *args, **kwargs)
@@ -100,7 +99,6 @@ def infer_DV(cells, *args, **kwargs):
     except KeyboardInterrupt:
         DV, info = DV0, info0
     else:
-        info['init'] = info0
+        info["init"] = info0
 
     return DV, info
-

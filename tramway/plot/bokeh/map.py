@@ -17,7 +17,12 @@ from bokeh.models.ranges import Range1d
 from bokeh.models import ColorBar, LinearColorMapper, BasicTicker
 from bokeh.layouts import row
 from tramway.core import *
-from tramway.tessellation.base import Partition, format_cell_index, Tessellation, Delaunay
+from tramway.tessellation.base import (
+    Partition,
+    format_cell_index,
+    Tessellation,
+    Delaunay,
+)
 from tramway.inference.base import FiniteElements
 from tramway.plot.mesh import _graph_theme
 import tramway.plot.map as mplt
@@ -32,20 +37,23 @@ from collections import defaultdict
 
 
 _long_colour_names = {
-        'r':    'red',
-        'g':    'green',
-        'b':    'blue',
-        'c':    'cyan',
-        'm':    'magenta',
-        'y':    'yellow',
-        'k':    'black',
-        }
+    "r": "red",
+    "g": "green",
+    "b": "blue",
+    "c": "cyan",
+    "m": "magenta",
+    "y": "yellow",
+    "k": "black",
+}
+
+
 def long_colour_name(c):
     if isinstance(c, str):
         c = _long_colour_names.get(c, c)
     return c
 
-def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs):
+
+def plot_points(cells, style="circle", size=2, color=None, figure=None, **kwargs):
     """
     Plot molecule locations.
 
@@ -75,7 +83,7 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
     """
     # for compatibility with tramway.plot.mesh.plot_points
     try:
-        kwargs.pop('min_count')
+        kwargs.pop("min_count")
     except KeyError:
         pass
 
@@ -83,7 +91,7 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
         points = cells
         label = None
     elif isinstance(cells, pd.DataFrame):
-        points = cells[['x','y']].values
+        points = cells[["x", "y"]].values
         label = None
     elif isinstance(cells, Partition):
         points = cells.descriptors(cells.points, asarray=True)
@@ -93,20 +101,21 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
         # if label is not a single index vector, convert it following
         # tessellation.base.Delaunay.cell_index with `preferred`='force index'.
         merge = mplt.nearest_cell(points, cells.tessellation.cell_centers)
-        label = format_cell_index(cells.cell_index, format='array', \
-            select=merge, shape=(npts, ncells))
+        label = format_cell_index(
+            cells.cell_index, format="array", select=merge, shape=(npts, ncells)
+        )
 
     if isstructured(points):
-        x = points['x']
-        y = points['y']
+        x = points["x"]
+        y = points["y"]
     else:
-        x = points[:,0]
-        y = points[:,1]
+        x = points[:, 0]
+        y = points[:, 1]
 
     if figure is None:
         assert False
         try:
-            figure = plt.curplot() # does not work
+            figure = plt.curplot()  # does not work
         except:
             figure = plt.figure()
 
@@ -114,7 +123,7 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
 
     if label is None:
         if color is None:
-            color = 'k'
+            color = "k"
         elif isinstance(color, (pd.Series, pd.DataFrame)):
             raise NotImplementedError
             color = np.asarray(color)
@@ -123,43 +132,52 @@ def plot_points(cells, style='circle', size=2, color=None, figure=None, **kwargs
             cmin, cmax = np.min(color), np.max(color)
             color = (color - cmin) / (cmax - cmin)
             cmap = plt.get_cmap()
-            color = [ cmap(c) for c in color ]
+            color = [cmap(c) for c in color]
         else:
             color = long_colour_name(color)
         h = figure.scatter(x, y, marker=style, color=color, size=size, **kwargs)
         handles.append(h)
     else:
         L = np.unique(label)
-        if color in [None, 'light']:
-            if color == 'light' and 'alpha' not in kwargs:
-                kwargs['alpha'] = .2
+        if color in [None, "light"]:
+            if color == "light" and "alpha" not in kwargs:
+                kwargs["alpha"] = 0.2
             if 2 < len(L):
                 color = __colors__
-                color = ['gray'] + \
-                    list(itertools.islice(itertools.cycle(color), len(L)))
+                color = ["gray"] + list(
+                    itertools.islice(itertools.cycle(color), len(L))
+                )
             elif len(L) == 2:
-                color = ['gray', 'k']
-            else:   color = 'k'
-        elif isinstance(color, str) and L.size==1:
+                color = ["gray", "k"]
+            else:
+                color = "k"
+        elif isinstance(color, str) and L.size == 1:
             color = [color]
         for i, l in enumerate(L):
             clr_i = long_colour_name(color[i])
-            h = figure.scatter(x[label == l], y[label == l],
-                    marker=style, color=clr_i, size=size, **kwargs)
+            h = figure.scatter(
+                x[label == l],
+                y[label == l],
+                marker=style,
+                color=clr_i,
+                size=size,
+                **kwargs
+            )
             handles.append(h)
 
     ## resize window
-    #try:
+    # try:
     #    figure.x_range = Range1d(*cells.bounding_box['x'].values)
     #    figure.y_range = Range1d(*cells.bounding_box['y'].values)
-    #except AttributeError:
+    # except AttributeError:
     #    pass
-    #except ValueError:
+    # except ValueError:
     #    traceback.print_exc()
 
     return handles
 
-def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwargs):
+
+def plot_trajectories(trajs, color=None, loc_style="circle", figure=None, **kwargs):
     """
     Plot trajectories.
 
@@ -190,10 +208,10 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
     loc_kwargs = {}
     line_kwargs = {}
     for attr in dict(kwargs):
-        if attr.startswith('loc_'):
+        if attr.startswith("loc_"):
             loc_kwargs[attr[4:]] = kwargs.pop(attr)
-        if attr.startswith('line_'):
-            if attr == 'line_width':
+        if attr.startswith("line_"):
+            if attr == "line_width":
                 # compatibility for old bokeh versions
                 line_kwargs[attr] = kwargs.pop(attr)
                 continue
@@ -203,14 +221,14 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
     line_kwargs.update(kwargs)
 
     lines_x, lines_y = [], []
-    for _, df in trajs.groupby([trajs['n']]):
-        lines_x.append(df['x'].values)
-        lines_y.append(df['y'].values)
+    for _, df in trajs.groupby([trajs["n"]]):
+        lines_x.append(df["x"].values)
+        lines_y.append(df["y"].values)
 
     if figure is None:
         assert False
         try:
-            figure = plt.curplot() # does not work
+            figure = plt.curplot()  # does not work
         except:
             figure = plt.figure()
 
@@ -218,40 +236,61 @@ def plot_trajectories(trajs, color=None, loc_style='circle', figure=None, **kwar
 
     if color is None:
         ntrajs = len(lines_x)
-        if color in [None, 'light']:
-            if color == 'light' and 'alpha' not in kwargs:
-                kwargs['alpha'] = .2
+        if color in [None, "light"]:
+            if color == "light" and "alpha" not in kwargs:
+                kwargs["alpha"] = 0.2
             if 2 < ntrajs:
                 color = __colors__
-                color = ['gray'] + \
-                    list(itertools.islice(itertools.cycle(color), ntrajs))
+                color = ["gray"] + list(
+                    itertools.islice(itertools.cycle(color), ntrajs)
+                )
             elif ntrajs == 2:
-                color = ['gray', 'k']
-            else:   color = 'k'
-        elif isinstance(color, str) and ntrajs==1:
+                color = ["gray", "k"]
+            else:
+                color = "k"
+        elif isinstance(color, str) and ntrajs == 1:
             color = [color]
         for i, line in enumerate(zip(lines_x, lines_y)):
             line_x, line_y = line
             clr_i = long_colour_name(color[i])
             h = figure.line(line_x, line_y, color=clr_i, **line_kwargs)
             handles.append(h)
-            h = figure.scatter(line_x, line_y, color=clr_i, marker=loc_style, **loc_kwargs)
+            h = figure.scatter(
+                line_x, line_y, color=clr_i, marker=loc_style, **loc_kwargs
+            )
             handles.append(h)
     else:
         color = long_colour_name(color)
         h = figure.multi_line(lines_x, lines_y, color=color, **line_kwargs)
         handles.append(h)
-        h = figure.scatter(list(itertools.chain(*lines_x)), list(itertools.chain(*lines_y)),
-                color=color, marker=loc_style, **loc_kwargs)
+        h = figure.scatter(
+            list(itertools.chain(*lines_x)),
+            list(itertools.chain(*lines_y)),
+            color=color,
+            marker=loc_style,
+            **loc_kwargs
+        )
         handles.append(h)
 
     return handles
 
 
-
-def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
-        colorbar=True, colormap=None, unit=None, clabel=None, colorbar_figure=None,
-        xlim=None, ylim=None, try_fix_corners=True, **kwargs):
+def scalar_map_2d(
+    cells,
+    values,
+    clim=None,
+    figure=None,
+    delaunay=False,
+    colorbar=True,
+    colormap=None,
+    unit=None,
+    clabel=None,
+    colorbar_figure=None,
+    xlim=None,
+    ylim=None,
+    try_fix_corners=True,
+    **kwargs
+):
     """
     Plot an interactive 2D scalar map as a colourful image.
 
@@ -283,7 +322,7 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
     """
     if isinstance(values, pd.DataFrame):
         feature_name = values.columns[0]
-        values = values.iloc[:,0] # to Series
+        values = values.iloc[:, 0]  # to Series
     else:
         feature_name = None
 
@@ -304,10 +343,16 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
             ylim = (xy_min[1], xy_max[1])
     ix = np.arange(xy.shape[0])
     try:
-        vertices, cell_vertices, Av = mplt.box_voronoi_2d(cells.tessellation, xlim, ylim)
+        vertices, cell_vertices, Av = mplt.box_voronoi_2d(
+            cells.tessellation, xlim, ylim
+        )
     except AssertionError:
-        warn('could not fix the borders', RuntimeWarning)
-        vertices, cell_vertices, Av = cells.tessellation.vertices, cells.tessellation.cell_vertices, cells.tessellation.vertex_adjacency.tocsr()
+        warn("could not fix the borders", RuntimeWarning)
+        vertices, cell_vertices, Av = (
+            cells.tessellation.vertices,
+            cells.tessellation.cell_vertices,
+            cells.tessellation.vertex_adjacency.tocsr(),
+        )
     try:
         ok = 0 < cells.location_count
     except (KeyboardInterrupt, SystemExit):
@@ -327,55 +372,58 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
         v0 = v = vs[0]
         vs = set(vs)
         _vertices = []
-        #vvs = [] # debug
+        # vvs = [] # debug
         while True:
             _vertices.append(vertices[v])
-            #vvs.append(v)
+            # vvs.append(v)
             vs.remove(v)
             if not vs:
                 break
-            ws = set(Av.indices[Av.indptr[v]:Av.indptr[v+1]]) & vs
+            ws = set(Av.indices[Av.indptr[v] : Av.indptr[v + 1]]) & vs
             if not ws:
-                ws = set(Av.indices[Av.indptr[v0]:Av.indptr[v0+1]]) & vs
+                ws = set(Av.indices[Av.indptr[v0] : Av.indptr[v0 + 1]]) & vs
                 if ws:
                     _vertices = _vertices[::-1]
                 else:
-                    #print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
-                    warn('cannot find a path that connects all the vertices of a cell', RuntimeWarning)
+                    # print((v, vs, vvs, [Av.indices[Av.indptr[v]:Av.indptr[v+1]] for v in vs]))
+                    warn(
+                        "cannot find a path that connects all the vertices of a cell",
+                        RuntimeWarning,
+                    )
                     if try_fix_corners:
                         vs = vertices[cell_vertices[i]]
                         if len(vs) != 3:
-                            _min = vs.min(axis=0) == np.r_[xlim[0],ylim[0]]
-                            _max = vs.max(axis=0) == np.r_[xlim[1],ylim[1]]
+                            _min = vs.min(axis=0) == np.r_[xlim[0], ylim[0]]
+                            _max = vs.max(axis=0) == np.r_[xlim[1], ylim[1]]
                             if _min[0]:
                                 vx = v0x = xlim[0]
-                                v1x = vs[:,0].max()
+                                v1x = vs[:, 0].max()
                             elif _max[0]:
                                 vx = v0x = xlim[1]
-                                v1x = vs[:,0].min()
+                                v1x = vs[:, 0].min()
                             else:
                                 vx = None
                             if _min[1]:
                                 vy = v1y = ylim[0]
-                                v0y = vs[:,1].max()
+                                v0y = vs[:, 1].max()
                             elif _max[1]:
                                 vy = v1y = ylim[1]
-                                v0y = vs[:,1].min()
+                                v0y = vs[:, 1].min()
                             else:
                                 vy = None
                             if vx is None or vy is None:
                                 vs = None
                             else:
-                                vs = np.array([[v0x,v0y],[vx,vy],[v1x,v1y]])
+                                vs = np.array([[v0x, v0y], [vx, vy], [v1x, v1y]])
                         if vs is not None:
-                            polygons.append((vs[:,0],vs[:,1]))
+                            polygons.append((vs[:, 0], vs[:, 1]))
                             ids.append(i)
                     break
             v = ws.pop()
         #
         if _vertices:
             _vertices = np.vstack(_vertices)
-            polygons.append((_vertices[:,0], _vertices[:,1]))
+            polygons.append((_vertices[:, 0], _vertices[:, 1]))
             ids.append(i)
 
     if not ids:
@@ -395,92 +443,110 @@ def scalar_map_2d(cells, values, clim=None, figure=None, delaunay=False,
     else:
         color_map = mpl.cm.viridis
     colors = [
-            "#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*color_map(scalar_map)
-            ]
+        "#%02x%02x%02x" % (int(r), int(g), int(b))
+        for r, g, b, _ in 255 * color_map(scalar_map)
+    ]
     patch_kwargs = dict(fill_color=colors, line_width=0)
-    glyph_renderers.append(
-            figure.patches(*zip(*polygons), **patch_kwargs)
-        )
+    glyph_renderers.append(figure.patches(*zip(*polygons), **patch_kwargs))
 
     if delaunay or isinstance(delaunay, dict):
         if not isinstance(delaunay, dict):
             delaunay = {}
-        glyph_renderers.append(
-                plot_delaunay(cells, figure=figure, **delaunay)
-            )
+        glyph_renderers.append(plot_delaunay(cells, figure=figure, **delaunay))
 
     figure.x_range = Range1d(*xlim)
     figure.y_range = Range1d(*ylim)
 
     if colorbar:
-        low = clim.get('vmin', vmin)
-        high = clim.get('vmax', vmax)
+        low = clim.get("vmin", vmin)
+        high = clim.get("vmax", vmax)
         if False:
             add_colorbar(figure, colormap, low, high, unit, clabel, colorbar_figure)
         else:
             update_colorbar(figure, low, high, unit, clabel, colorbar_figure)
 
-    #plt.show(figure)
+    # plt.show(figure)
     return glyph_renderers
 
 
-def add_colorbar(figure, colormap=None, low=0, high=1, unit=None, clabel=None, colorbar_figure=None):
+def add_colorbar(
+    figure, colormap=None, low=0, high=1, unit=None, clabel=None, colorbar_figure=None
+):
     if colormap is None:
-        color_map = 'Viridis256'
+        color_map = "Viridis256"
     elif isinstance(colormap, str):
-        if colormap.lower() in ('greys','inferno','magma','plasma','viridis','cividis','turbo'):
-            color_map = colormap[0].upper()+colormap[1:].lower()+'256'
+        if colormap.lower() in (
+            "greys",
+            "inferno",
+            "magma",
+            "plasma",
+            "viridis",
+            "cividis",
+            "turbo",
+        ):
+            color_map = colormap[0].upper() + colormap[1:].lower() + "256"
         else:
             color_map = mpl.cm.get_cmap(colormap)
             color_map = [
-                    "#%02x%02x%02x" % (int(r), int(g), int(b)) \
-                    for r, g, b, _ in 255*color_map(np.linspace(0, 1, 256))
-                    ]
+                "#%02x%02x%02x" % (int(r), int(g), int(b))
+                for r, g, b, _ in 255 * color_map(np.linspace(0, 1, 256))
+            ]
     else:
         color_map = colormap
     try:
-        color_map = LinearColorMapper(palette=color_map, low=low, high=high,
-                name='color_mapper')
+        color_map = LinearColorMapper(
+            palette=color_map, low=low, high=high, name="color_mapper"
+        )
     except ValueError as e:
         try:
             import colorcet
         except ImportError:
-            raise ValueError('colormap not found; try installing the colorcet package') from e
+            raise ValueError(
+                "colormap not found; try installing the colorcet package"
+            ) from e
         else:
             raise
-    color_bar = ColorBar(color_mapper=color_map, ticker=BasicTicker(name='ticker'),
-            border_line_color=None, margin=0, name='color_bar')
+    color_bar = ColorBar(
+        color_mapper=color_map,
+        ticker=BasicTicker(name="ticker"),
+        border_line_color=None,
+        margin=0,
+        name="color_bar",
+    )
     color_bar.background_fill_color = None
-    #glyph_renderers.append(color_bar)
+    # glyph_renderers.append(color_bar)
     if unit is None:
         unit = clabel
     if colorbar_figure is None:
         if unit is not None:
             color_bar.title = unit
-        figure.add_layout(color_bar, place='right')
+        figure.add_layout(color_bar, place="right")
     else:
         if unit is not None:
             colorbar_figure.title.text = unit
-            colorbar_figure.title_location = 'right'
-            colorbar_figure.title.align = 'center'
+            colorbar_figure.title_location = "right"
+            colorbar_figure.title.align = "center"
         color_bar.height = colorbar_figure.plot_height
         if isinstance(colorbar_figure.center[-1], ColorBar):
             colorbar_figure.center = colorbar_figure.center[:-1]
-        colorbar_figure.add_layout(color_bar, place='center')
-        #print(colorbar_figure.center, colorbar_figure.plot_height, color_bar.width, color_bar.height, color_bar.margin, color_bar.padding)
+        colorbar_figure.add_layout(color_bar, place="center")
+        # print(colorbar_figure.center, colorbar_figure.plot_height, color_bar.width, color_bar.height, color_bar.margin, color_bar.padding)
 
 
-def update_colorbar(figure, low=None, high=None, unit=None, clabel=None, colorbar_figure=None):
+def update_colorbar(
+    figure, low=None, high=None, unit=None, clabel=None, colorbar_figure=None
+):
     if colorbar_figure is not None:
         figure = colorbar_figure
-    color_bar = figure.select(name='color_bar')[0]
+    color_bar = figure.select(name="color_bar")[0]
     if not (low is None and high is None):
-        color_map = figure.select(name='color_mapper')[0]
+        color_map = figure.select(name="color_mapper")[0]
         palette = color_map.palette
-        #color_map.update(low=low, high=high)
-        #palette = 'Greys256'
-        color_map = LinearColorMapper(palette=palette, low=low, high=high,
-                name='color_mapper')
+        # color_map.update(low=low, high=high)
+        # palette = 'Greys256'
+        color_map = LinearColorMapper(
+            palette=palette, low=low, high=high, name="color_mapper"
+        )
         color_bar.update(color_mapper=color_map)
     if unit is None:
         unit = clabel
@@ -490,13 +556,14 @@ def update_colorbar(figure, low=None, high=None, unit=None, clabel=None, colorba
     else:
         if unit is not None:
             colorbar_figure.title.text = unit
-        #color_bar.height = colorbar_figure.plot_height
-        #if isinstance(colorbar_figure.center[-1], ColorBar):
+        # color_bar.height = colorbar_figure.plot_height
+        # if isinstance(colorbar_figure.center[-1], ColorBar):
         #    colorbar_figure.center = colorbar_figure.center[:-1]
 
 
-def plot_delaunay(cells, labels=None, color=None, style='-',
-        figure=None, linewidth=1, **kwargs):
+def plot_delaunay(
+    cells, labels=None, color=None, style="-", figure=None, linewidth=1, **kwargs
+):
     """
     Delaunay plot.
 
@@ -537,10 +604,10 @@ def plot_delaunay(cells, labels=None, color=None, style='-',
     labels, color = _graph_theme(tessellation, labels, color, True)
 
     # if asymmetric, can be either triu or tril
-    A = sparse.triu(tessellation.cell_adjacency, format='coo')
+    A = sparse.triu(tessellation.cell_adjacency, format="coo")
     I, J, K = A.row, A.col, A.data
     if not I.size:
-        A = sparse.tril(tessellation.cell_adjacency, format='coo')
+        A = sparse.tril(tessellation.cell_adjacency, format="coo")
         I, J, K = A.row, A.col, A.data
 
     by_color = defaultdict(list)
@@ -566,12 +633,16 @@ def plot_delaunay(cells, labels=None, color=None, style='-',
         Y[:] = np.nan
         i = 0
         for x, y in xy:
-            I = slice(i*3, i*3+2)
+            I = slice(i * 3, i * 3 + 2)
             X[I], Y[I] = x, y
             i += 1
-        h = figure.line(X, Y, line_dash=_line_style_to_dash_pattern(style),
+        h = figure.line(
+            X,
+            Y,
+            line_dash=_line_style_to_dash_pattern(style),
             line_color=long_colour_name(color[c if color[1:] else 0]),
-            line_width=linewidth)
+            line_width=linewidth,
+        )
         edge_handles.append(h)
 
     return edge_handles
@@ -579,20 +650,27 @@ def plot_delaunay(cells, labels=None, color=None, style='-',
 
 def _line_style_to_dash_pattern(style):
     return {
-        '-':    [],
-        '-.':   'dashdot',
-        ':':    'dotted',
-        '.-':   'dotdash',
-        '--':   'dashed',
-        }.get(style, style)
+        "-": [],
+        "-.": "dashdot",
+        ":": "dotted",
+        ".-": "dotdash",
+        "--": "dashed",
+    }.get(style, style)
 
 
-def field_map_2d(cells, values, angular_width=30.0,
-        figure=None,
-        cell_arrow_ratio=None,
-        markercolor='#bfbf00', markeredgecolor='#000000', markeralpha=0.8, markerlinewidth=None,
-        inferencemap=False,
-        **kwargs):
+def field_map_2d(
+    cells,
+    values,
+    angular_width=30.0,
+    figure=None,
+    cell_arrow_ratio=None,
+    markercolor="#bfbf00",
+    markeredgecolor="#000000",
+    markeralpha=0.8,
+    markerlinewidth=None,
+    inferencemap=False,
+    **kwargs
+):
     """
     Plot a 2D field (vector) map as arrows.
 
@@ -624,14 +702,14 @@ def field_map_2d(cells, values, angular_width=30.0,
     force_amplitude = values.pow(2).sum(1).apply(np.sqrt)
     if figure is None:
         figure = plt.figure()
-    if markercolor is None and 'color' in kwargs:
-        markercolor = kwargs['color']
-    if markeredgecolor is None and 'edgecolor' in kwargs:
-        markeredgecolor = kwargs['edgecolor']
-    if markeralpha is None and 'alpha' in kwargs:
-        markeralpha = kwargs['alpha']
-    if markerlinewidth is None and 'linewidth' in kwargs:
-        markerlinewidth = kwargs['linewidth']
+    if markercolor is None and "color" in kwargs:
+        markercolor = kwargs["color"]
+    if markeredgecolor is None and "edgecolor" in kwargs:
+        markeredgecolor = kwargs["edgecolor"]
+    if markeralpha is None and "alpha" in kwargs:
+        markeralpha = kwargs["alpha"]
+    if markerlinewidth is None and "linewidth" in kwargs:
+        markerlinewidth = kwargs["linewidth"]
     xy = cells.tessellation.cell_centers
     xy_min, _, xy_max, _ = mplt._bounding_box(cells, xy)
     xlim = (xy_min[0], xy_max[0])
@@ -642,11 +720,16 @@ def field_map_2d(cells, values, angular_width=30.0,
     if isinstance(cells, Tessellation):
         pts = cells.cell_centers
     elif isinstance(cells, FiniteElements):
-        pts = np.vstack([ cells[i].center for i in cells ])#values.index ])
+        pts = np.vstack([cells[i].center for i in cells])  # values.index ])
     elif isinstance(cells, Partition):
         assert isinstance(cells.tessellation, Tessellation)
-        pts = cells.tessellation.cell_centers#[values.index]
-    inside = (xmin<=pts[:,0]) & (pts[:,0]<=xmax) & (ymin<=pts[:,1]) & (pts[:,1]<=ymax)
+        pts = cells.tessellation.cell_centers  # [values.index]
+    inside = (
+        (xmin <= pts[:, 0])
+        & (pts[:, 0] <= xmax)
+        & (ymin <= pts[:, 1])
+        & (pts[:, 1] <= ymax)
+    )
     # compute the distance between adjacent cell centers
     if isinstance(cells, Delaunay):
         A = cells.cell_adjacency
@@ -656,36 +739,46 @@ def field_map_2d(cells, values, angular_width=30.0,
         if isinstance(cells.tessellation, Delaunay):
             A = cells.tessellation.cell_adjacency
         else:
-            raise TypeError('unsupported tessellation type: {}'.format(type(cells.tessellation)))
+            raise TypeError(
+                "unsupported tessellation type: {}".format(type(cells.tessellation))
+            )
     else:
-        raise TypeError('unsupported cell type: {}'.format(type(cells)))
+        raise TypeError("unsupported cell type: {}".format(type(cells)))
     if inferencemap:
         if cell_arrow_ratio is None:
-            cell_arrow_ratio = .5
+            cell_arrow_ratio = 0.5
         A = A.tocsr()
         scale = np.full(A.shape[0], np.nan, dtype=pts.dtype)
         for i in values.index:
             if not inside[i]:
                 continue
-            js = A.indices[A.indptr[i]:A.indptr[i+1]]
+            js = A.indices[A.indptr[i] : A.indptr[i + 1]]
             pts_i, pts_j = pts[[i]], pts[js[inside[js]]]
             if pts_j.size:
                 inter_cell_distance = pts_i - pts_j
-                inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
-                #scale[i] = np.nanmean(inter_cell_distance)
-                scale = np.nanquantile(inter_cell_distance, .1) * cell_arrow_ratio
+                inter_cell_distance = np.sqrt(
+                    np.sum(inter_cell_distance * inter_cell_distance, axis=1)
+                )
+                # scale[i] = np.nanmean(inter_cell_distance)
+                scale = np.nanquantile(inter_cell_distance, 0.1) * cell_arrow_ratio
     else:
         if cell_arrow_ratio is None:
-            cell_arrow_ratio = .4 # backward compatibility
-        A = sparse.triu(A, format='coo')
+            cell_arrow_ratio = 0.4  # backward compatibility
+        A = sparse.triu(A, format="coo")
         I, J = A.row, A.col
         _inside = inside[I] & inside[J]
         pts_i, pts_j = pts[I[_inside]], pts[J[_inside]]
         inter_cell_distance = pts_i - pts_j
-        inter_cell_distance = np.sqrt(np.sum(inter_cell_distance * inter_cell_distance, axis=1))
+        inter_cell_distance = np.sqrt(
+            np.sum(inter_cell_distance * inter_cell_distance, axis=1)
+        )
         # scale force amplitude
-        large_arrow_length = np.nanmax(force_amplitude[inside[values.index]]) # TODO: clipping
-        scale = np.nanmedian(inter_cell_distance) / (large_arrow_length * cell_arrow_ratio)
+        large_arrow_length = np.nanmax(
+            force_amplitude[inside[values.index]]
+        )  # TODO: clipping
+        scale = np.nanmedian(inter_cell_distance) / (
+            large_arrow_length * cell_arrow_ratio
+        )
     #
     dw = float(angular_width) / 2.0
     t = tan(radians(dw))
@@ -699,18 +792,26 @@ def field_map_2d(cells, values, angular_width=30.0,
             f *= scale / max(1e-16, np.sqrt(np.sum(f * f)))
         else:
             f = np.asarray(values.loc[i]) * scale
-        base, vertex = center + np.outer([-1./3, 2./3], f)
+        base, vertex = center + np.outer([-1.0 / 3, 2.0 / 3], f)
         ortho = np.dot(t, f)
         vertices = np.stack((vertex, base + ortho, base - ortho), axis=0)
-        #vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
-        markers.append((vertices[:,0], vertices[:,1]))
+        # vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
+        markers.append((vertices[:, 0], vertices[:, 1]))
 
-    patch_kwargs = dict(fill_color=markercolor, fill_alpha=markeralpha,
-            line_width=markerlinewidth, line_color=markeredgecolor)
+    patch_kwargs = dict(
+        fill_color=markercolor,
+        fill_alpha=markeralpha,
+        line_width=markerlinewidth,
+        line_color=markeredgecolor,
+    )
     return figure.patches(*zip(*markers), **patch_kwargs)
 
 
-
-__all__ = ['plot_points', 'plot_trajectories', 'plot_delaunay', 'scalar_map_2d', 'field_map_2d',
-        'add_colorbar']
-
+__all__ = [
+    "plot_points",
+    "plot_trajectories",
+    "plot_delaunay",
+    "scalar_map_2d",
+    "field_map_2d",
+    "add_colorbar",
+]

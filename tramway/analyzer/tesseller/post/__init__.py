@@ -15,6 +15,7 @@
 from ..abc import Initializer
 from . import merger as cell_mergers
 
+
 class TessellationPostProcessingInitializer(Initializer):
     """
     Initializer class for attribute :attr:`~tramway.analyzer.RWAnalyzer.tesseller`
@@ -37,7 +38,9 @@ class TessellationPostProcessingInitializer(Initializer):
 
     See also :class:`~tramway.analyzer.tesseller.post.merger.ByTranslocationCount`.
     """
+
     __slots__ = ()
+
     def from_callable(self, cls):
         """
         Argument:
@@ -47,5 +50,4 @@ class TessellationPostProcessingInitializer(Initializer):
                 :class:`~tramway.analyzer.tesseller.TessellationPostProcessing` object.
 
         """
-        self.specialize( cls )
-
+        self.specialize(cls)

@@ -18,13 +18,17 @@ from collections.abc import Iterable, Sequence, Set
 import logging
 import functools
 
-__all__ = ['GenericAttribute', 'Attribute']
+__all__ = ["GenericAttribute", "Attribute"]
 
-__all__.append('WithLogger')
+__all__.append("WithLogger")
+
+
 class WithLogger(object):
-    __slots__ = ('_logger',)
+    __slots__ = ("_logger",)
+
     def __init__(self):
         self._logger = None
+
     @property
     def logger(self):
         """
@@ -36,18 +40,24 @@ class WithLogger(object):
             return logging.getLogger(type(self).__module__)
         else:
             return self._logger
+
     @logger.setter
     def logger(self, logger):
         self._logger = logger
 
-__analyzer_node_init_args__ = ('parent',)
 
-__all__.append('AnalyzerNode')
+__analyzer_node_init_args__ = ("parent",)
+
+__all__.append("AnalyzerNode")
+
+
 class AnalyzerNode(WithLogger):
-    __slots__ = ('_parent',)
+    __slots__ = ("_parent",)
+
     def __init__(self, parent=None):
         WithLogger.__init__(self)
         self._parent = parent
+
     @property
     def _eldest_parent(self):
         parent = self
@@ -57,16 +67,19 @@ class AnalyzerNode(WithLogger):
             else:
                 parent = parent._parent
                 if not isinstance(parent, AnalyzerNode):
-                    #assert isinstance(parent, RWAnalyzer)
+                    # assert isinstance(parent, RWAnalyzer)
                     break
         return parent
+
     def _bear_child(self, cls, *args, **kwargs):
         assert issubclass(cls, AnalyzerNode)
-        kwargs['parent'] = self
+        kwargs["parent"] = self
         return cls(*args, **kwargs)
+
     @property
     def initialized(self):
         return True
+
     @property
     def logger(self):
         if self._logger is None:
@@ -77,55 +90,80 @@ class AnalyzerNode(WithLogger):
                 return parent.logger
         else:
             return WithLogger.logger.fget(self)
+
     @logger.setter
     def logger(self, logger):
         WithLogger.logger.fset(self, logger)
 
 
-__all__.append('Initializer')
+__all__.append("Initializer")
+
+
 class Initializer(AnalyzerNode):
-    __slots__ = ('_specialize',)
+    __slots__ = ("_specialize",)
+
     def __init__(self, attribute_setter, parent=None):
         AnalyzerNode.__init__(self, parent)
         self._specialize = attribute_setter
+
     def specialize(self, attribute_cls, *cls_args, **cls_kwargs):
-        cls_kwargs['parent'] = self._parent
+        cls_kwargs["parent"] = self._parent
         self._specialize(attribute_cls(*cls_args, **cls_kwargs))
+
     @property
     def initialized(self):
         return False
+
     @property
     def reified(self):
         return False
 
+
 GenericAttribute.register(Initializer)
 
 
-__all__.append('selfinitializing_property')
+__all__.append("selfinitializing_property")
+
+
 def selfinitializing_property(attr_name, getter, setter, metacls=None, doc=None):
     def initializer(self, cls):
         if cls is None:
             setter(self, None)
         elif callable(cls):
             if isinstance(cls, InitializerMethod):
-                cls.assign( self )
+                cls.assign(self)
                 return
             if metacls:
+
                 def typechecked_setter(obj):
                     if not isinstance(obj, metacls):
-                        raise TypeError("the argument to attribute '{}' is not a {}".format(attr_name, metacls.__name__))
+                        raise TypeError(
+                            "the argument to attribute '{}' is not a {}".format(
+                                attr_name, metacls.__name__
+                            )
+                        )
                     setter(self, obj)
-                setter(self, cls( typechecked_setter, parent=self ))
+
+                setter(self, cls(typechecked_setter, parent=self))
             else:
-                setter(self, cls( setter, parent=self ) )
+                setter(self, cls(setter, parent=self))
             if not isinstance(getter(self), Initializer):
-                raise TypeError("the argument to attribute '{}' is not an Initializer".format(attr_name))
+                raise TypeError(
+                    "the argument to attribute '{}' is not an Initializer".format(
+                        attr_name
+                    )
+                )
         else:
-            raise TypeError("the argument to attribute '{}' is not an Initializer".format(attr_name))
+            raise TypeError(
+                "the argument to attribute '{}' is not an Initializer".format(attr_name)
+            )
+
     return property(getter, initializer, doc=doc)
 
 
-__all__.append('null_index')
+__all__.append("null_index")
+
+
 def null_index(i):
     if i is None:
         return True
@@ -155,7 +193,9 @@ def null_index(i):
         return i == 0
 
 
-__all__.append('indexer')
+__all__.append("indexer")
+
+
 def indexer(i, it, return_index=False, has_keys=False):
     if i is None:
         if return_index:
@@ -191,7 +231,7 @@ def indexer(i, it, return_index=False, has_keys=False):
                         yield item
     elif isinstance(i, (bytes, str)):
         if not has_keys:
-            raise TypeError('string index for indexing a collection with no keys')
+            raise TypeError("string index for indexing a collection with no keys")
         if return_index:
             yield i, it[i]
         else:
@@ -210,26 +250,28 @@ def indexer(i, it, return_index=False, has_keys=False):
             j, it = -1, iter(it)
             for k in i:
                 try:
-                    while j<k:
+                    while j < k:
                         if j in i:
                             postponed[j] = item
-                        j, item = j+1, next(it)
+                        j, item = j + 1, next(it)
                 except StopIteration:
-                    raise IndexError('index is out of bounds: {}'.format(k))
+                    raise IndexError("index is out of bounds: {}".format(k))
                 if j != k:
                     try:
                         item = postponed.pop(k)
                     except KeyError:
                         if k < 0:
-                            raise IndexError('negative values are not supported in a sequence of indices')
+                            raise IndexError(
+                                "negative values are not supported in a sequence of indices"
+                            )
                         else:
-                            raise IndexError('duplicate index: {}'.format(k))
+                            raise IndexError("duplicate index: {}".format(k))
                 if return_index:
                     yield k, item
                 else:
                     yield item
     elif isinstance(i, Set):
-        i = set(i) # copy and make mutable
+        i = set(i)  # copy and make mutable
         if has_keys:
             for j in it:
                 if j in i:
@@ -247,13 +289,17 @@ def indexer(i, it, return_index=False, has_keys=False):
                         yield item
                     i.remove(j)
         if i:
-            raise IndexError(('some indices are out of bounds: '+', '.join(['{}'])).format(*tuple(i)))
+            raise IndexError(
+                ("some indices are out of bounds: " + ", ".join(["{}"])).format(
+                    *tuple(i)
+                )
+            )
     elif np.isscalar(i):
         if has_keys:
             try:
                 item = it[i]
             except KeyError:
-                raise IndexError('index is out of bounds: {}'.format(i)) from None
+                raise IndexError("index is out of bounds: {}".format(i)) from None
         else:
             it = iter(it)
             if i == -1:
@@ -265,26 +311,30 @@ def indexer(i, it, return_index=False, has_keys=False):
             else:
                 j = -1
                 try:
-                    while j<i:
-                        j, item = j+1, next(it)
+                    while j < i:
+                        j, item = j + 1, next(it)
                 except StopIteration:
-                    raise IndexError('index is out of bounds: {}'.format(i))
+                    raise IndexError("index is out of bounds: {}".format(i))
         if return_index:
             yield i, item
         else:
             yield item
     else:
-        raise TypeError('unsupported index type')
+        raise TypeError("unsupported index type")
 
 
-__all__.append('first')
+__all__.append("first")
+
+
 def first(it, **kwargs):
     if callable(it):
         it = it(**kwargs)
     return next(iter(it))
 
 
-__all__.append('single')
+__all__.append("single")
+
+
 def single(it, **kwargs):
     if callable(it):
         it = it(**kwargs)
@@ -296,81 +346,105 @@ def single(it, **kwargs):
         # good
         pass
     else:
-        raise RuntimeError('not a singleton') from None
+        raise RuntimeError("not a singleton") from None
     return elem
 
 
-__all__.append('Proxy')
+__all__.append("Proxy")
+
+
 class Proxy(object):
-    __slots__ = ('_proxied',)
+    __slots__ = ("_proxied",)
+
     def __init__(self, proxied):
         self._proxied = proxied
+
     def __len__(self):
         return self._proxied.__len__()
+
     def __iter__(self):
         return self._proxied.__iter__()
+
     @property
     def _parent(self):
         return self._proxied._parent
+
     @_parent.setter
     def _parent(self, par):
         self._proxied._parent = par
+
     def __getattr__(self, attrname):
-        if attrname == '_proxied':
+        if attrname == "_proxied":
             # prevent copy.copy from entering infinite recursion
             return
         return getattr(self._proxied, attrname)
+
     def __setattr__(self, attrname, val):
-        if attrname == '_proxied':
-            object.__setattr__(self, '_proxied', val)
+        if attrname == "_proxied":
+            object.__setattr__(self, "_proxied", val)
         else:
             setattr(self._proxied, attrname, val)
 
 
-__all__.append('InitializerMethod')
+__all__.append("InitializerMethod")
+
+
 class InitializerMethod(object):
     """
     Useful for explicit typing.
     """
-    __slots__ = ('attrname', 'method', 'args', 'kwargs')
+
+    __slots__ = ("attrname", "method", "args", "kwargs")
+
     def __init__(self, method, attrname=None):
         self.method = method
         if attrname is None:
-            attrname = method.__module__.split('.')[-1]
+            attrname = method.__module__.split(".")[-1]
         self.attrname = attrname
         self.args = self.kwargs = None
+
     def __call__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
         return self
+
     def assign(self, parent_analyzer):
         if not (isinstance(self.args, tuple) and isinstance(self.kwargs, dict)):
-            raise RuntimeError('initializer method has not been called')
+            raise RuntimeError("initializer method has not been called")
         parent_attribute = getattr(parent_analyzer, self.attrname)
         self.method(parent_attribute, *self.args, **self.kwargs)
+
     def reassign(self, parent_analyzer):
         import importlib
+
         mod = importlib.import_module(self.method.__module__)
         try:
-            clsname = str(self.method)[::-1].split('.', 1)[-1][::-1].split()[-1]
+            clsname = str(self.method)[::-1].split(".", 1)[-1][::-1].split()[-1]
             cls = getattr(mod, clsname)
             assert isinstance(cls, type) and issubclass(cls, Initializer)
         except:
-            raise AttributeError("cannot find a proper initializer for the '{}' attribute".format(self.attrname))
+            raise AttributeError(
+                "cannot find a proper initializer for the '{}' attribute".format(
+                    self.attrname
+                )
+            )
         attr = getattr(type(parent_analyzer), self.attrname)
         # TODO: add a freset method to the properties returned by selfinitializing_property
         attr.fset(parent_analyzer, cls)
-        self.assign( parent_analyzer )
+        self.assign(parent_analyzer)
 
-__all__.append('initializer_method')
+
+__all__.append("initializer_method")
+
+
 def initializer_method(method, attrname=None):
     """
     Properly set the docstring for the wrapped method.
     """
     meth = InitializerMethod(method, attrname)
+
     @functools.wraps(method)
     def wrapped_method(*args, **kwargs):
         return meth(*args, **kwargs)
+
     return wrapped_method
-
-

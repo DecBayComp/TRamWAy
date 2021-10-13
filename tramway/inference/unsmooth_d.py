@@ -21,17 +21,38 @@ from scipy.optimize import minimize
 from collections import OrderedDict
 
 
-setup = {'name':    ('unsmooth.d', 'degraded.d'),
-        'provides': 'd',
-        'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
-        ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
-        ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')))),
-        'cell_sampling':    'individual'}
+setup = {
+    "name": ("unsmooth.d", "degraded.d"),
+    "provides": "d",
+    "arguments": OrderedDict(
+        (
+            (
+                "localization_error",
+                (
+                    "-e",
+                    dict(
+                        type=float,
+                        help="localization precision (see also sigma; default is 0.03)",
+                    ),
+                ),
+            ),
+            (
+                "jeffreys_prior",
+                ("-j", dict(action="store_true", help="Jeffreys' prior")),
+            ),
+            (
+                "min_diffusivity",
+                dict(type=float, help="minimum diffusivity value allowed"),
+            ),
+        )
+    ),
+    "cell_sampling": "individual",
+}
 
 
-def d_neg_posterior(diffusivity, cell, sigma2, jeffreys_prior, dt_mean, \
-    min_diffusivity):
+def d_neg_posterior(
+    diffusivity, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivity
+):
     """
     Adapted from InferenceMAP's *dPosterior* procedure:
 
@@ -53,23 +74,27 @@ def d_neg_posterior(diffusivity, cell, sigma2, jeffreys_prior, dt_mean, \
         return -result;
 
     """
-    if diffusivity < min_diffusivity:# and not np.isclose(diffusivity, min_diffusivity):
+    if (
+        diffusivity < min_diffusivity
+    ):  # and not np.isclose(diffusivity, min_diffusivity):
         warn(DiffusivityWarning(diffusivity, min_diffusivity))
     noise_dt = sigma2
     if cell.cache is None:
-        cell.cache = np.sum(cell.dr * cell.dr, axis=1) # dx**2 + dy**2 + ..
-    n = len(cell) # number of translocations
-    D_dt = 4. * (diffusivity * cell.dt + noise_dt) # 4*(D+Dnoise)*dt
-    if np.any(D_dt <= 0):# or np.any(np.isclose(D_dt, 0)):
-        raise RuntimeError('negative diffusion')
-    d_neg_posterior = n * log(pi) + np.sum(np.log(D_dt)) # sum(log(4*pi*Dtot*dt))
-    d_neg_posterior += np.sum(cell.cache / D_dt) # sum((dx**2+dy**2+..)/(4*Dtot*dt))
+        cell.cache = np.sum(cell.dr * cell.dr, axis=1)  # dx**2 + dy**2 + ..
+    n = len(cell)  # number of translocations
+    D_dt = 4.0 * (diffusivity * cell.dt + noise_dt)  # 4*(D+Dnoise)*dt
+    if np.any(D_dt <= 0):  # or np.any(np.isclose(D_dt, 0)):
+        raise RuntimeError("negative diffusion")
+    d_neg_posterior = n * log(pi) + np.sum(np.log(D_dt))  # sum(log(4*pi*Dtot*dt))
+    d_neg_posterior += np.sum(cell.cache / D_dt)  # sum((dx**2+dy**2+..)/(4*Dtot*dt))
     if jeffreys_prior:
-        d_neg_posterior += 2. * log(diffusivity * dt_mean + sigma2)
+        d_neg_posterior += 2.0 * log(diffusivity * dt_mean + sigma2)
     return d_neg_posterior
 
 
-def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivity=None, **kwargs):
+def infer_D(
+    cells, localization_error=None, jeffreys_prior=False, min_diffusivity=None, **kwargs
+):
     """
     Infer the local diffusivity in each cell.
 
@@ -78,42 +103,45 @@ def infer_D(cells, localization_error=None, jeffreys_prior=False, min_diffusivit
     The problem could be solved analytically, instead of minimizing a cost
     function [TODO].
     """
-    if isinstance(cells, Distributed): # multiple cells
-        localization_error = cells.get_localization_error(kwargs, 0.03, True, \
-                localization_error=localization_error)
+    if isinstance(cells, Distributed):  # multiple cells
+        localization_error = cells.get_localization_error(
+            kwargs, 0.03, True, localization_error=localization_error
+        )
         args = (localization_error, jeffreys_prior, min_diffusivity)
-        inferred = { i: infer_D(c, *args, **kwargs) for i, c in cells.items() }
-        inferred = pd.DataFrame({'diffusivity': pd.Series(inferred)})
+        inferred = {i: infer_D(c, *args, **kwargs) for i, c in cells.items()}
+        inferred = pd.DataFrame({"diffusivity": pd.Series(inferred)})
         return inferred
-    else: # single cell
+    else:  # single cell
         cell = cells
         # sanity checks
         if not bool(cell):
-            raise ValueError('empty cell')
+            raise ValueError("empty cell")
         if cell.dr.shape[1] == 0:
-            raise ValueError('translocation array has no column')
+            raise ValueError("translocation array has no column")
         if cell.dt.shape[1:]:
-            raise ValueError('time deltas are structured in multiple dimensions')
+            raise ValueError("time deltas are structured in multiple dimensions")
         # ensure that translocations are properly oriented in time
         if not np.all(0 < cell.dt):
-            warn('translocation dts are not all positive', RuntimeWarning)
-            cell.dr[cell.dt < 0] *= -1.
-            cell.dt[cell.dt < 0] *= -1.
-        #assert not np.isclose(np.mean(cell.dt), 0)
+            warn("translocation dts are not all positive", RuntimeWarning)
+            cell.dr[cell.dt < 0] *= -1.0
+            cell.dt[cell.dt < 0] *= -1.0
+        # assert not np.isclose(np.mean(cell.dt), 0)
         # initialize the diffusivity value and cell cache
         dt_mean = np.mean(cell.dt)
-        D_initial = np.mean(cell.dr * cell.dr) / (2. * dt_mean)
-        cell.cache = None # clear the cache (optional, since `run` also clears it)
+        D_initial = np.mean(cell.dr * cell.dr) / (2.0 * dt_mean)
+        cell.cache = None  # clear the cache (optional, since `run` also clears it)
         # parametrize the optimization procedure
         if min_diffusivity is not False:
             if min_diffusivity is None:
                 noise_dt = localization_error
-                min_diffusivity = (1e-16-noise_dt) / np.max(cell.dt)
-            kwargs['bounds'] = [(min_diffusivity,None)]
+                min_diffusivity = (1e-16 - noise_dt) / np.max(cell.dt)
+            kwargs["bounds"] = [(min_diffusivity, None)]
         # run the optimization
-        result = minimize(d_neg_posterior, D_initial, \
-            args=(cell, localization_error, jeffreys_prior, dt_mean, min_diffusivity), \
-            **kwargs)
+        result = minimize(
+            d_neg_posterior,
+            D_initial,
+            args=(cell, localization_error, jeffreys_prior, dt_mean, min_diffusivity),
+            **kwargs
+        )
         # return the resulting optimal diffusivity value
         return result.x[0]
-

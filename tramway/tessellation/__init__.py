@@ -25,6 +25,6 @@ except ImportError:
     pass
 
 
-plugins = Plugins(os.path.dirname(__file__), __package__, \
-    {'make': Tessellation}, require='setup')
-
+plugins = Plugins(
+    os.path.dirname(__file__), __package__, {"make": Tessellation}, require="setup"
+)

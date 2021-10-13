@@ -96,13 +96,31 @@ class Partition(Lazy):
 
     """
 
-    __slots__ = ('_points', '_cell_index', '_location_count', '_bounding_box', 'param', '_tessellation')
-    __lazy__ = ('cell_index', 'location_count', 'bounding_box')
+    __slots__ = (
+        "_points",
+        "_cell_index",
+        "_location_count",
+        "_bounding_box",
+        "param",
+        "_tessellation",
+    )
+    __lazy__ = ("cell_index", "location_count", "bounding_box")
 
-    def __init__(self, points=None, tessellation=None, cell_index=None, location_count=None, \
-        bounding_box=None, param=None, locations=None, translocations=None):
+    def __init__(
+        self,
+        points=None,
+        tessellation=None,
+        cell_index=None,
+        location_count=None,
+        bounding_box=None,
+        param=None,
+        locations=None,
+        translocations=None,
+    ):
         Lazy.__init__(self)
-        exclusivity_violation = ValueError('arguments `points`, `locations` and `translocations` are mutually exclusive')
+        exclusivity_violation = ValueError(
+            "arguments `points`, `locations` and `translocations` are mutually exclusive"
+        )
         if points is None:
             if locations is None:
                 if translocations is None:
@@ -128,7 +146,7 @@ class Partition(Lazy):
     def cell_index(self):
         if self._cell_index is None:
             self._cell_index = self.tessellation.cell_index(self.points)
-        return self.__returnlazy__('cell_index', self._cell_index)
+        return self.__returnlazy__("cell_index", self._cell_index)
 
     @cell_index.setter
     def cell_index(self, index):
@@ -189,30 +207,32 @@ class Partition(Lazy):
         if self._location_count is None:
             try:
                 ncells = self.tessellation.cell_adjacency.shape[0]
-            except AttributeError: # Delaunay?
+            except AttributeError:  # Delaunay?
                 ncells = self.tessellation._cell_centers.shape[0]
             if isinstance(self.cell_index, tuple):
                 _point, _cell = self.cell_index
                 if np.any(_cell < 0):
-                    #import warnings
-                    #warnings.warn('point-cell association pair contains invalid assignments')
+                    # import warnings
+                    # warnings.warn('point-cell association pair contains invalid assignments')
                     ok = 0 <= _cell
                     _point, _cell = _point[ok], _cell[ok]
                 ci = sparse.csc_matrix(
                     (np.ones_like(_point), (_point, _cell)),
-                    shape=(self.points.shape[0], ncells))
+                    shape=(self.points.shape[0], ncells),
+                )
                 self._location_count = np.diff(ci.indptr)
             elif sparse.issparse(self.cell_index):
                 self._location_count = np.diff(self.cell_index.tocsc().indptr)
             else:
-                valid_cells, _location_count = np.unique(self.cell_index,
-                    return_counts=True)
+                valid_cells, _location_count = np.unique(
+                    self.cell_index, return_counts=True
+                )
                 _location_count = _location_count[0 <= valid_cells]
                 valid_cells = valid_cells[0 <= valid_cells]
                 self._location_count = np.zeros(ncells, dtype=_location_count.dtype)
                 self._location_count[valid_cells] = _location_count
             assert self._location_count.size == ncells
-        return self.__returnlazy__('location_count', self._location_count)
+        return self.__returnlazy__("location_count", self._location_count)
 
     @location_count.setter
     def location_count(self, cc):
@@ -225,10 +245,10 @@ class Partition(Lazy):
             xmax = self.points.max(axis=0)
             if isinstance(self.points, pd.DataFrame):
                 self._bounding_box = pd.concat([xmin, xmax], axis=1).T
-                self._bounding_box.index = ['min', 'max']
+                self._bounding_box.index = ["min", "max"]
             else:
-                self._bounding_box = np.vstack([xmin, xmax]).flatten('F')
-        return self.__returnlazy__('bounding_box', self._bounding_box)
+                self._bounding_box = np.vstack([xmin, xmax]).flatten("F")
+        return self.__returnlazy__("bounding_box", self._bounding_box)
 
     @bounding_box.setter
     def bounding_box(self, bb):
@@ -253,37 +273,47 @@ class Partition(Lazy):
         def _str(obj, l0=0):
             s = str(obj)
             if l0:
-                s = s.replace('\n', '\n' + ' ' * l0)
+                s = s.replace("\n", "\n" + " " * l0)
             return s
+
         def print_kwargs(_dict, l0=0, l1=None):
             if l1 is None:
                 l1 = max(len(k) for k in _dict)
-            sep = '\n'
+            sep = "\n"
             if l0:
-                sep += ' ' * l0
-            return sep.join([ '{}:{} {}'.format(k, ' '*(l1-len(k)), _str(v, l0+l1))
-                    for k, v in _dict.items() ])
+                sep += " " * l0
+            return sep.join(
+                [
+                    "{}:{} {}".format(k, " " * (l1 - len(k)), _str(v, l0 + l1))
+                    for k, v in _dict.items()
+                ]
+            )
+
         attrs = {}
-        for k in ('tessellation', 'points', 'cell_index', 'location_count'):
-            v = getattr(self, '_'+k)
+        for k in ("tessellation", "points", "cell_index", "location_count"):
+            v = getattr(self, "_" + k)
             attrs[k] = None if v is None else type(v)
-        attrs['number_of_cells'] = self.number_of_cells
+        attrs["number_of_cells"] = self.number_of_cells
         l = max(len(k) for k in attrs)
         if self.param:
             l = max(l, 1 + max(len(k) for k in self.param))
-        l += 1 # for ':'
-        l0 = l + 1 # for ' '
-        attrs['bounding_box'] = None if self._bounding_box is None \
-            else _str(self.bounding_box, l0)
+        l += 1  # for ':'
+        l0 = l + 1  # for ' '
+        attrs["bounding_box"] = (
+            None if self._bounding_box is None else _str(self.bounding_box, l0)
+        )
         if self.param:
-            l1 = max( max(len(k) for k in _attrs) for _attrs in self.param.values() \
-                    if isinstance(_attrs, dict) )
+            l1 = max(
+                max(len(k) for k in _attrs)
+                for _attrs in self.param.values()
+                if isinstance(_attrs, dict)
+            )
             for k, v in self.param.items():
                 if isinstance(v, dict):
                     v = print_kwargs(v, l0, l1)
                 else:
                     v = _str(v, l0)
-                attrs['@'+k] = v
+                attrs["@" + k] = v
         try:
             # handle child classes with __dict__ defined
             for k, v in self.__dict__.items():
@@ -291,14 +321,16 @@ class Partition(Lazy):
                     attrs[k] = _str(v, l0)
         except AttributeError:
             pass
-        s = '\n'.join([ '{}:{}{}'.format(k, ' '*(l-len(k)), v) for k, v in attrs.items() ])
+        s = "\n".join(
+            ["{}:{}{}".format(k, " " * (l - len(k)), v) for k, v in attrs.items()]
+        )
         return s
 
     def __len__(self):
         ix = self.cell_index
         if isinstance(ix, tuple):
             pts, cells = ix
-            assert np.all(0 <= cells) # not totally sure this is always True
+            assert np.all(0 <= cells)  # not totally sure this is always True
             return len(pts)
         elif sparse.issparse(ix):
             raise NotImplementedError
@@ -306,8 +338,7 @@ class Partition(Lazy):
             return np.sum(0 <= ix)
 
 
-CellStats = Partition # for backward compatibility
-
+CellStats = Partition  # for backward compatibility
 
 
 def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwargs):
@@ -341,45 +372,49 @@ def format_cell_index(K, format=None, select=None, shape=None, copy=False, **kwa
 
     See also :meth:`Tessellation.cell_index` and :func:`nearest_cell`.
     """
-    if isinstance(K, np.ndarray) and format not in [None, 'array']:
-        I, = np.nonzero(0 <= K)
+    if isinstance(K, np.ndarray) and format not in [None, "array"]:
+        (I,) = np.nonzero(0 <= K)
         K = (I, K[I])
-        copy = False # already done
-    if format in ['matrix', 'coo', 'csr', 'csc']:
+        copy = False  # already done
+    if format in ["matrix", "coo", "csr", "csc"]:
         if issparse(K):
-            if format == 'coo':
+            if format == "coo":
                 K = K.tocoo()
-                copy = False # already done
+                copy = False  # already done
         else:
             if shape is None:
-                raise ValueError('converting from pair to sparse array: `shape` is not defined')
+                raise ValueError(
+                    "converting from pair to sparse array: `shape` is not defined"
+                )
             K = sparse.coo_matrix((np.ones_like(K[0], dtype=bool), K), shape=shape)
-            copy = False # already done
-        if format == 'csr':
+            copy = False  # already done
+        if format == "csr":
             K = K.tocsr()
-            copy = False # already done
-        elif format == 'csc':
+            copy = False  # already done
+        elif format == "csc":
             K = K.tocsc()
-            copy = False # already done
+            copy = False  # already done
     elif issparse(K):
         K = K.tocoo()
-        K = (K.row, K.col) # drop the values; keep only the indices
-        copy = False # already done
-    if format == 'array' and isinstance(K, tuple):
+        K = (K.row, K.col)  # drop the values; keep only the indices
+        copy = False  # already done
+    if format == "array" and isinstance(K, tuple):
         if shape is None:
-            raise ValueError('converting from pair to single array: `shape` is not defined')
+            raise ValueError(
+                "converting from pair to single array: `shape` is not defined"
+            )
         points, cells = K
         K = np.full(shape[0], -1, dtype=int)
         P, I, N = np.unique(points, return_index=True, return_counts=True)
-        K[P[N==1]] = cells[I[N==1]] # unambiguous assignments
-        P = P[1<N] # ambiguous assignments
+        K[P[N == 1]] = cells[I[N == 1]]  # unambiguous assignments
+        P = P[1 < N]  # ambiguous assignments
         for p in P:
             cs = cells[points == p]
             if 1 < cs.size:
                 K[p] = select(p, cs, **kwargs)
             else:
                 K[p] = cs
-        copy = False # already done
+        copy = False  # already done
     if copy:
         K = copy.copy(K)
     return K
@@ -403,6 +438,7 @@ def nearest_cell(locations, cell_centers):
 
         callable: `select` function.
     """
+
     def f(point, cells):
         x = locations[point]
         y = cell_centers[cells]
@@ -410,11 +446,13 @@ def nearest_cell(locations, cell_centers):
         square_dist = np.sum(z * z, axis=1)
         winner = np.argmin(square_dist)
         return cells[winner]
+
     return f
 
 
-
-def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_labels=None):
+def point_adjacency_matrix(
+    cells, symetric=True, cell_labels=None, adjacency_labels=None
+):
     """
     Adjacency matrix of data points such that a given pair of points is defined as
     adjacent iif they belong to adjacent and distinct cells.
@@ -445,7 +483,7 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
 
     """
     if not isinstance(cells.cell_index, np.ndarray):
-        raise NotImplementedError('cell overlap support has not been implemented here')
+        raise NotImplementedError("cell overlap support has not been implemented here")
     x = cells.descriptors(cells.points, asarray=True)
     ij = np.arange(x.shape[0])
     x2 = np.sum(x * x, axis=1)
@@ -455,7 +493,9 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
     D = []
     n = []
     for i in np.arange(cells.tessellation.cell_adjacency.shape[0]):
-        if cell_labels is not None and not cell_labels(cells.tessellation.cell_label[i]):
+        if cell_labels is not None and not cell_labels(
+            cells.tessellation.cell_label[i]
+        ):
             continue
         _, js, k = sparse.find(cells.tessellation.cell_adjacency[i])
         if js.size == 0:
@@ -483,7 +523,7 @@ def point_adjacency_matrix(cells, symetric=True, cell_labels=None, adjacency_lab
             x2j = x2[cells.cell_index == j]
             d2 = x2i + x2j.T - 2 * np.dot(xi, xj.T)
             jj = ij[cells.cell_index == j]
-            i2, j2 = np.meshgrid(ii, jj, indexing='ij')
+            i2, j2 = np.meshgrid(ii, jj, indexing="ij")
             I.append(i2.flatten())
             J.append(j2.flatten())
             D.append(d2.flatten())
@@ -521,7 +561,6 @@ def get_delaunay_adjacency(_points):
     return _indptr, _indices
 
 
-
 class Tessellation(Lazy):
     """Abstract class for tessellations.
 
@@ -541,7 +580,8 @@ class Tessellation(Lazy):
         adjacency_label (numpy.ndarray):
             inter-cell edge labels with as many elements as there are edges.
     """
-    __slots__ = ('scaler', '_cell_adjacency', '_cell_label', '_adjacency_label')
+
+    __slots__ = ("scaler", "_cell_adjacency", "_cell_label", "_adjacency_label")
 
     def __init__(self, scaler=None):
         """
@@ -567,12 +607,17 @@ class Tessellation(Lazy):
         if self.scaler.euclidean is None:
             # initialize
             if isstructured(points):
-                self.scaler.euclidean = ['x', 'y']
-                if not ('x' in points and 'y' in points): # enforce presence of 'x' and 'y'
-                    raise AttributeError('missing ''x'' or ''y'' in input dataframe.')
-                if 'z' in points:
-                    self.scaler.euclidean.append('z')
-            else:   self.scaler.euclidean = np.arange(0, points.shape[1])
+                self.scaler.euclidean = ["x", "y"]
+                if not (
+                    "x" in points and "y" in points
+                ):  # enforce presence of 'x' and 'y'
+                    raise AttributeError(
+                        "missing " "x" " or " "y" " in input dataframe."
+                    )
+                if "z" in points:
+                    self.scaler.euclidean.append("z")
+            else:
+                self.scaler.euclidean = np.arange(0, points.shape[1])
         return self.scaler.scale_point(points)
 
     def tessellate(self, points, **kwargs):
@@ -627,11 +672,15 @@ class Tessellation(Lazy):
 
         """
         point_count = len(points)
-        #if isinstance(points, pd.DataFrame):
+        # if isinstance(points, pd.DataFrame):
         #       point_count = max(point_count, points.index.max()+1) # NO!
         # point indices are row indices and NOT rows labels
-        return format_cell_index(self._cell_index(points, **kwargs), format=format, select=select,
-            shape=(point_count, self.cell_adjacency.shape[0]))
+        return format_cell_index(
+            self._cell_index(points, **kwargs),
+            format=format,
+            select=select,
+            shape=(point_count, self.cell_adjacency.shape[0]),
+        )
 
     # cell_label property
     @property
@@ -665,7 +714,7 @@ class Tessellation(Lazy):
     def adjacency_label(self, label):
         self._adjacency_label = label
 
-    def simplified_adjacency(self, adjacency=None, label=None, format='coo'):
+    def simplified_adjacency(self, adjacency=None, label=None, format="coo"):
         """
         Simplified copy of :attr:`cell_adjacency` as a :class:`scipy.sparse.spmatrix` sparse
         matrix with no explicit zeros.
@@ -702,13 +751,13 @@ class Tessellation(Lazy):
             adjacency = self.cell_adjacency
         if label is False:
             pass
-        elif label is True: # `cell_label` is required (cannot be None)
-            label = (self.cell_label, )
-        elif label is None: # `cell_label` can be None
+        elif label is True:  # `cell_label` is required (cannot be None)
+            label = (self.cell_label,)
+        elif label is None:  # `cell_label` can be None
             if self.cell_label is not None:
-                label = (self.cell_label, )
+                label = (self.cell_label,)
         elif not isinstance(label, tuple):
-            label = (label, )
+            label = (label,)
         adjacency = adjacency.tocoo()
         if self.adjacency_label is None:
             ok = 0 < adjacency.data
@@ -724,7 +773,9 @@ class Tessellation(Lazy):
             edges_ok = np.logical_not(edges_not_ok)
             row, col = row[edges_ok], col[edges_ok]
         data = np.ones(row.size, dtype=bool)
-        matrix = dict(coo=sparse.coo_matrix, csc=sparse.csc_matrix, csr=sparse.csr_matrix)
+        matrix = dict(
+            coo=sparse.coo_matrix, csc=sparse.csc_matrix, csr=sparse.csr_matrix
+        )
         return matrix[format]((data, (row, col)), shape=adjacency.shape)
 
     def descriptors(self, points, asarray=False):
@@ -781,12 +832,16 @@ class Tessellation(Lazy):
                 return A.rows[i]
             elif ~sparse.isspmatrix_csr(A):
                 A = A.tocsr()
-            return A.indices[A.indptr[i]:A.indptr[i+1]]
+            return A.indices[A.indptr[i] : A.indptr[i + 1]]
         except IndexError:
             if 0 <= i and i < self.number_of_cells:
                 raise
             else:
-                raise IndexError('cell index {} is out of bounds (0,{})'.format(i, self.number_of_cells-1))
+                raise IndexError(
+                    "cell index {} is out of bounds (0,{})".format(
+                        i, self.number_of_cells - 1
+                    )
+                )
 
     def contour(self, cell, distance=1, fallback=False, adjacency=None, **kwargs):
         """
@@ -795,9 +850,12 @@ class Tessellation(Lazy):
         This method may be moved out of `Tessellation` in the near future.
         """
         import tramway.feature.adjacency as feature
+
         if adjacency is None:
             adjacency = self.simplified_adjacency().tocsr()
-        return feature.contour(cell, adjacency, distance, None, fallback=fallback, **kwargs)
+        return feature.contour(
+            cell, adjacency, distance, None, fallback=fallback, **kwargs
+        )
 
     def freeze(self):
         """
@@ -831,20 +889,22 @@ class Tessellation(Lazy):
             adj = self._cell_adjacency
             if self.adjacency_label is None:
                 if isinstance(label, (bool, np.bool_)):
-                    adj[i,j] = label
-                    adj[j,i] = label
+                    adj[i, j] = label
+                    adj[j, i] = label
                 else:
-                    adj = sparse.tril(adj, format='coo')
+                    adj = sparse.tril(adj, format="coo")
                     lbls = np.zeros(adj.data.size, dtype=type(label))
                     lbls[adj.data] = 1
                     data = np.arange(adj.data.size)
                     rows, cols = np.r_[adj.rows, adj.cols], np.r_[adj.cols, adj.rows]
-                    adj = sparse.coo_matrix((np.r_[data,data],(rows,cols)), shape=adj.shape)
+                    adj = sparse.coo_matrix(
+                        (np.r_[data, data], (rows, cols)), shape=adj.shape
+                    )
                 self.cell_adjacency = adj
             else:
-                self.adjacency_label[adj[i,j]] = label
+                self.adjacency_label[adj[i, j]] = label
         else:
-            adj = sparse.tril(self._cell_adjacency, format='coo')
+            adj = sparse.tril(self._cell_adjacency, format="coo")
             rows, cols = np.r_[adj.rows, i], np.r_[adj.cols, i]
             if self.adjacency_label is None:
                 if isinstance(label, (bool, np.bool_)):
@@ -853,13 +913,14 @@ class Tessellation(Lazy):
                     lbls = np.zeros(data.size, dtype=type(label))
                     lbls[adj.data] = 1
                     self.adjacency_label = np.r_[lbls, label]
-                    data = np.arange(data.size+1)
+                    data = np.arange(data.size + 1)
             else:
                 data = np.r_[adj.data, self.adjacency_label.size]
                 self.adjacency_label = np.r_[self.adjacency_label, label]
             rows, cols, data = np.r_[rows, cols], np.r_[cols, rows], np.r_[data, data]
-            self.cell_adjacency = sparse.coo_matrix((data,(rows,cols)), shape=adj.shape)
-
+            self.cell_adjacency = sparse.coo_matrix(
+                (data, (rows, cols)), shape=adj.shape
+            )
 
 
 class Delaunay(Tessellation):
@@ -874,7 +935,8 @@ class Delaunay(Tessellation):
     Attributes:
         cell_centers (numpy.ndarray): coordinates of the cell centers.
     """
-    __slots__ = ('_cell_centers',)
+
+    __slots__ = ("_cell_centers",)
 
     def __init__(self, scaler=None):
         Tessellation.__init__(self, scaler)
@@ -883,9 +945,20 @@ class Delaunay(Tessellation):
     def tessellate(self, points):
         self._cell_centers = np.asarray(self._preprocess(points))
 
-    def cell_index(self, points, format=None, select=None, knn=None, radius=None,
-        min_location_count=None, metric='euclidean', filter=None,
-        filter_descriptors_only=False, fast_min_nn=True, **kwargs):
+    def cell_index(
+        self,
+        points,
+        format=None,
+        select=None,
+        knn=None,
+        radius=None,
+        min_location_count=None,
+        metric="euclidean",
+        filter=None,
+        filter_descriptors_only=False,
+        fast_min_nn=True,
+        **kwargs
+    ):
         """
         See :meth:`Tessellation.cell_index`.
 
@@ -949,7 +1022,7 @@ class Delaunay(Tessellation):
         elif isinstance(knn, tuple):
             min_nn, max_nn = knn
             if min_nn is not None and max_nn is not None and max_nn < min_nn:
-                raise ValueError('min_nearest_neighbours > max_nearest_neighbours')
+                raise ValueError("min_nearest_neighbours > max_nearest_neighbours")
         else:
             min_nn, max_nn = knn, None
         if callable(radius):
@@ -957,22 +1030,29 @@ class Delaunay(Tessellation):
         elif isinstance(radius, tuple):
             min_r, max_r = radius
             if min_r is not None and max_r is not None and max_r < min_r:
-                raise ValueError('min_radius > max_radius')
+                raise ValueError("min_radius > max_radius")
         else:
             min_r = max_r = radius
-            if radius and not(min_nn or max_nn or min_location_count or filter):
-                return cell_index_by_radius(self, points, radius,
-                        format=format, select=select, metric=metric, **kwargs)
+            if radius and not (min_nn or max_nn or min_location_count or filter):
+                return cell_index_by_radius(
+                    self,
+                    points,
+                    radius,
+                    format=format,
+                    select=select,
+                    metric=metric,
+                    **kwargs
+                )
         points = self.scaler.scale_point(points, inplace=False)
         X = self.descriptors(points, asarray=True)
         Y = self._cell_centers
         try:
             D = cdist(X, Y, metric, **kwargs)
         except MemoryError as e:
-            memory_error = e # make it available outside the except block
+            memory_error = e  # make it available outside the except block
             # slice X to process less rows at a time
-            if metric != 'euclidean':
-                raise #NotImplementedError
+            if metric != "euclidean":
+                raise  # NotImplementedError
             K = np.zeros(X.shape[0], dtype=int)
             X2 = np.sum(X * X, axis=1, keepdims=True).astype(np.float32)
             Y2 = np.sum(Y * Y, axis=1, keepdims=True).astype(np.float32)
@@ -980,18 +1060,18 @@ class Delaunay(Tessellation):
             n = 0
             while True:
                 n += 1
-                block = int(ceil(X.shape[0] * 2**(-n)))
+                block = int(ceil(X.shape[0] * 2 ** (-n)))
                 try:
                     np.empty((block, Y.shape[0]), dtype=X.dtype)
                 except MemoryError:
-                    pass # continue
+                    pass  # continue
                 else:
                     break
-            n += 2 # safer
-            block = int(ceil(X.shape[0] * 2**(-n)))
+            n += 2  # safer
+            block = int(ceil(X.shape[0] * 2 ** (-n)))
             for i in range(0, X.shape[0], block):
-                j = min(i+block, X2.size)
-                Di = np.dot(np.float32(-2.)* X[i:j], Y.T)
+                j = min(i + block, X2.size)
+                Di = np.dot(np.float32(-2.0) * X[i:j], Y.T)
                 Di += X2[i:j]
                 Di += Y2.T
                 K[i:j] = np.argmin(Di, axis=1)
@@ -1000,13 +1080,20 @@ class Delaunay(Tessellation):
             K = None
         #
         ncells = self._cell_centers.shape[0]
-        if format == 'force array':
+        if format == "force array":
             min_nn = min_r = None
-            format = 'array' # for later call to :func:`format_cell_index`
-        if max_nn or min_nn or min_location_count or filter is not None or min_r or max_r:
+            format = "array"  # for later call to :func:`format_cell_index`
+        if (
+            max_nn
+            or min_nn
+            or min_location_count
+            or filter is not None
+            or min_r
+            or max_r
+        ):
             if K is None:
                 # D should be defined
-                K = np.argmin(D, axis=1) # cell indices
+                K = np.argmin(D, axis=1)  # cell indices
             nonempty, positive_count = np.unique(K, return_counts=True)
             if filter is not None:
                 for c in nonempty:
@@ -1040,18 +1127,18 @@ class Delaunay(Tessellation):
                             raise memory_error
                         cell = K == c
                         I = np.argsort(D[cell, c])
-                        cell, = cell.nonzero()
+                        (cell,) = cell.nonzero()
                         excess = cell[I[_max:]]
                         K[excess] = -1
                 else:
-                    large, = (max_nn < positive_count).nonzero()
+                    (large,) = (max_nn < positive_count).nonzero()
                     if large.size:
                         if D is None:
                             raise memory_error
                         for c in nonempty[large]:
                             cell = K == c
                             I = np.argsort(D[cell, c])
-                            cell, = cell.nonzero()
+                            (cell,) = cell.nonzero()
                             excess = cell[I[max_nn:]]
                             K[excess] = -1
             # max radius:
@@ -1068,7 +1155,7 @@ class Delaunay(Tessellation):
                         d = np.sqrt(np.sum(d * d, axis=1))
                     else:
                         d = D[cell, c]
-                    cell, = cell.nonzero()
+                    (cell,) = cell.nonzero()
                     discard = max_r < d
                     K[cell[discard]] = -1
                     if np.all(discard):
@@ -1087,12 +1174,12 @@ class Delaunay(Tessellation):
                     for i, c in enumerate(nonempty):
                         _min, _ = knn(c)
                         if _min is None or _min <= positive_count[i]:
-                            Ic, = (K == c).nonzero()
+                            (Ic,) = (K == c).nonzero()
                         else:
                             any_small = True
                             if D is None:
                                 raise memory_error
-                            Ic = np.argsort(D[:,c])[:_min]
+                            Ic = np.argsort(D[:, c])[:_min]
                             # new in 0.6
                             if not fast_min_nn:
                                 Ic_ball = Ic
@@ -1131,12 +1218,12 @@ class Delaunay(Tessellation):
                             J = np.tile(np.arange(ncells), n)
                             K = (I, J)
                         else:
-                            I = np.argsort(D[:,small], axis=0)[:min_nn]
+                            I = np.argsort(D[:, small], axis=0)[:min_nn]
                             small = np.flatnonzero(small)
                             # new in 0.6
                             if not fast_min_nn:
                                 for c in range(I.shape[1]):
-                                    Ic_ball = I[:,c]
+                                    Ic_ball = I[:, c]
                                     orig = K == small[c]
                                     if np.sum(orig[Ic_ball]) < np.sum(orig):
                                         # some originally assigned points lie
@@ -1145,18 +1232,19 @@ class Delaunay(Tessellation):
                                         Ic_comp = Ic_ball[~orig[Ic_ball]]
                                         n_comp = min_nn - Ic.size
                                         Ic = np.r_[Ic, Ic_comp[:n_comp]]
-                                        I[:,c] = Ic
+                                        I[:, c] = Ic
                             I = I.flatten()
-                            J = np.tile(small, min_nn) # cell indices
+                            J = np.tile(small, min_nn)  # cell indices
                             assert I.size == J.size
                             # large-enough cells
-                            #if min_location_count:
+                            # if min_location_count:
                             #    small = count < min_nn
                             point_in_small_cells = np.any(
-                                small[:,np.newaxis] == K[np.newaxis,:], axis=0)
+                                small[:, np.newaxis] == K[np.newaxis, :], axis=0
+                            )
                             Ic = np.logical_not(point_in_small_cells)
                             Jc = K[Ic]
-                            Ic, = Ic.nonzero()
+                            (Ic,) = Ic.nonzero()
                             Ic = Ic[0 <= Jc]
                             Jc = Jc[0 <= Jc]
                             #
@@ -1174,7 +1262,7 @@ class Delaunay(Tessellation):
                             if isinstance(K, tuple):
                                 Ic = I[J == c]
                             else:
-                                Ic, = (K == c).nonzero()
+                                (Ic,) = (K == c).nonzero()
                             I.append(Ic)
                             continue
                     pending_cells = set([c])
@@ -1198,11 +1286,11 @@ class Delaunay(Tessellation):
                                 if np.all(_in):
                                     included_points[cell] = True
                                 else:
-                                    cell, = cell.nonzero()
+                                    (cell,) = cell.nonzero()
                                     included_points[cell[_in]] = True
                                 _pending_cells |= set(self.neighbours(_c).tolist())
                         pending_cells = _pending_cells - visited_cells
-                    Ic, = included_points.nonzero()
+                    (Ic,) = included_points.nonzero()
                     I.append(Ic)
                     n.append(len(Ic))
                 I = np.concatenate(I)
@@ -1210,39 +1298,42 @@ class Delaunay(Tessellation):
                 K = (I, J)
 
         elif K is None:
-            K = np.argmin(D, axis=1) # cell indices
+            K = np.argmin(D, axis=1)  # cell indices
         point_count = points.shape[0]
-        #if isinstance(points, pd.DataFrame):
+        # if isinstance(points, pd.DataFrame):
         #       point_count = max(point_count, points.index.max()+1) # NO!
         # point indices are row indices and NOT row labels
 
         # new in 0.6; could be done at an earlier step
-        if self.cell_label is not None and \
-                self.cell_label.dtype in (bool, np.bool_):
+        if self.cell_label is not None and self.cell_label.dtype in (bool, np.bool_):
             if isinstance(K, tuple):
                 active_cell_indices = np.flatnonzero(self.cell_label)
                 I, J = K
                 ok = np.zeros(I.size, dtype=bool)
                 for j in active_cell_indices:
-                    ok[J==j] = True
+                    ok[J == j] = True
                 K = (I[ok], J[ok])
             elif isinstance(K, np.ndarray):
                 inactive_cell_indices = np.flatnonzero(~self.cell_label)
                 for k in inactive_cell_indices:
-                    K[K==k] = -1
+                    K[K == k] = -1
             else:
                 raise TypeError(type(K))
 
-        return format_cell_index(K, format=format, select=select,
-            shape=(point_count, ncells))
+        return format_cell_index(
+            K, format=format, select=select, shape=(point_count, ncells)
+        )
 
     # cell_centers property
     @property
     def cell_centers(self):
         """Unscaled coordinates of the cell centers (numpy.ndarray)."""
         if isinstance(self.scaler.factor, pd.Series):
-            return np.asarray(self.scaler.unscale_point(pd.DataFrame(self._cell_centers, \
-                columns=self.scaler.factor.index)))
+            return np.asarray(
+                self.scaler.unscale_point(
+                    pd.DataFrame(self._cell_centers, columns=self.scaler.factor.index)
+                )
+            )
         else:
             return self.scaler.unscale_point(self._cell_centers)
 
@@ -1285,10 +1376,16 @@ class Voronoi(Delaunay):
             may actually be spatial volume multiplied by segment duration.
 
     """
-    __slots__ = ('_vertices', '_vertex_adjacency', '_cell_vertices', '_cell_volume')
 
-    __lazy__ = Delaunay.__lazy__ + \
-        ('vertices', 'cell_adjacency', 'cell_vertices', 'vertex_adjacency', 'cell_volume')
+    __slots__ = ("_vertices", "_vertex_adjacency", "_cell_vertices", "_cell_volume")
+
+    __lazy__ = Delaunay.__lazy__ + (
+        "vertices",
+        "cell_adjacency",
+        "cell_vertices",
+        "vertex_adjacency",
+        "cell_volume",
+    )
 
     def __init__(self, scaler=None):
         Delaunay.__init__(self, scaler)
@@ -1316,10 +1413,10 @@ class Voronoi(Delaunay):
     def cell_adjacency(self):
         if self._cell_centers is not None and self._cell_adjacency is None:
             self._postprocess()
-        return self.__returnlazy__('cell_adjacency', self._cell_adjacency)
+        return self.__returnlazy__("cell_adjacency", self._cell_adjacency)
 
     # whenever you redefine a getter you have to redefine the corresponding setter
-    @cell_adjacency.setter # copy/paste
+    @cell_adjacency.setter  # copy/paste
     def cell_adjacency(self, matrix):
         self.__lazysetter__(matrix)
 
@@ -1328,7 +1425,7 @@ class Voronoi(Delaunay):
     def cell_vertices(self):
         if self._cell_centers is not None and self._cell_vertices is None:
             self._postprocess()
-        return self.__returnlazy__('cell_vertices', self._cell_vertices)
+        return self.__returnlazy__("cell_vertices", self._cell_vertices)
 
     @cell_vertices.setter
     def cell_vertices(self, vertex_indices):
@@ -1339,7 +1436,7 @@ class Voronoi(Delaunay):
     def vertex_adjacency(self):
         if self._cell_centers is not None and self._vertex_adjacency is None:
             self._postprocess()
-        return self.__returnlazy__('vertex_adjacency', self._vertex_adjacency)
+        return self.__returnlazy__("vertex_adjacency", self._vertex_adjacency)
 
     @vertex_adjacency.setter
     def vertex_adjacency(self, matrix):
@@ -1354,16 +1451,22 @@ class Voronoi(Delaunay):
         Returns the Voronoi object from `scipy.spatial` or similar.
         """
         if self._cell_centers is None:
-            raise NameError('`cell_centers` not defined; tessellation has not been grown yet')
+            raise NameError(
+                "`cell_centers` not defined; tessellation has not been grown yet"
+            )
         points = np.asarray(self._cell_centers)
-        if False:#points.shape[1] == 2:
+        if False:  # points.shape[1] == 2:
             from tramway.tessellation.utils2d import boxed_voronoi_2d
+
             voronoi = boxed_voronoi_2d(points)
         else:
             voronoi = spatial.Voronoi(points)
         self._vertices = voronoi.vertices
-        self._cell_vertices = { i: np.array([ v for v in voronoi.regions[r] if 0 <= v ]) \
-                for i, r in enumerate(voronoi.point_region) if 0 <= r }
+        self._cell_vertices = {
+            i: np.array([v for v in voronoi.regions[r] if 0 <= v])
+            for i, r in enumerate(voronoi.point_region)
+            if 0 <= r
+        }
         n_centers = self._cell_centers.shape[0]
         # decompose the ridges as valid pairs of vertices and build an adjacency matrix
         ps = []
@@ -1373,9 +1476,10 @@ class Voronoi(Delaunay):
             ps.append(pairs)
         ij = np.concatenate(ps)
         n_vertices = self._vertices.shape[0]
-        self._vertex_adjacency = sparse.coo_matrix((np.ones(ij.size, dtype=bool),
-                (ij.ravel('F'), np.fliplr(ij).ravel('F'))),
-            shape=(n_vertices, n_vertices))
+        self._vertex_adjacency = sparse.coo_matrix(
+            (np.ones(ij.size, dtype=bool), (ij.ravel("F"), np.fliplr(ij).ravel("F"))),
+            shape=(n_vertices, n_vertices),
+        )
         #
         if self._cell_adjacency is None:
             ridge_points = voronoi.ridge_points
@@ -1384,13 +1488,16 @@ class Voronoi(Delaunay):
             if adjacency_label:
                 self._adjacency_label = np.ones(n_ridges, dtype=int)
             if self._adjacency_label is None:
-                edges = np.ones(n_ridges*2, dtype=bool)
+                edges = np.ones(n_ridges * 2, dtype=bool)
             else:
                 edges = np.tile(np.arange(0, n_ridges, dtype=int), 2)
-            self._cell_adjacency = sparse.csr_matrix((edges, ( \
-                ridge_points.flatten('F'), \
-                np.fliplr(ridge_points).flatten('F'))), \
-                shape=(n_centers, n_centers))
+            self._cell_adjacency = sparse.csr_matrix(
+                (
+                    edges,
+                    (ridge_points.flatten("F"), np.fliplr(ridge_points).flatten("F")),
+                ),
+                shape=(n_centers, n_centers),
+            )
         return voronoi
 
     @property
@@ -1399,12 +1506,12 @@ class Voronoi(Delaunay):
             adjacency = self.vertex_adjacency.tocsr()
             cell_volume = np.full(len(self._cell_centers), np.NaN)
             for i, u in enumerate(self._cell_centers):
-                js = _js = self.cell_vertices[i] # vertex indices
+                js = _js = self.cell_vertices[i]  # vertex indices
 
                 if u.size != 2:
                     # use Qhull to estimate the volume
                     pts = self._vertices[js]
-                    if pts.shape[1] < pts.shape[0]: # if enough points
+                    if pts.shape[1] < pts.shape[0]:  # if enough points
                         try:
                             hull = spatial.ConvexHull(pts)
                             cell_volume[i] = hull.volume
@@ -1422,7 +1529,9 @@ class Voronoi(Delaunay):
                 while js:
                     j = js.pop()
                     # j's neighbours
-                    ks = adjacency.indices[adjacency.indptr[j]:adjacency.indptr[j+1]].tolist()
+                    ks = adjacency.indices[
+                        adjacency.indptr[j] : adjacency.indptr[j + 1]
+                    ].tolist()
                     for k in ks:
                         if k in js:
                             simplices.append((j, k))
@@ -1431,8 +1540,8 @@ class Voronoi(Delaunay):
                     # missing vertices are at infinite distance;
                     # take instead the convex hull of the local vertices plus
                     # the center of the cell (ideally all the points in the cell)
-                    pts = np.r_[self._vertices[_js], u[np.newaxis,:]]
-                    if pts.shape[1] < pts.shape[0]: # if enough points
+                    pts = np.r_[self._vertices[_js], u[np.newaxis, :]]
+                    if pts.shape[1] < pts.shape[0]:  # if enough points
                         try:
                             hull = spatial.ConvexHull(pts)
                             cell_volume[i] = hull.volume
@@ -1442,29 +1551,35 @@ class Voronoi(Delaunay):
                             pass
                     continue
 
-                if simplices: # `simplices` is not empty
-                    cell_volume[i] = 0.
+                if simplices:  # `simplices` is not empty
+                    cell_volume[i] = 0.0
                     for j, k in simplices:
                         v = self._vertices[j] if isinstance(j, int) else j
                         w = self._vertices[k] if isinstance(k, int) else k
-                        cell_volume[i] += .5 * abs(\
-                                (v[0] - u[0]) * (w[1] - u[1]) - \
-                                (w[0] - u[0]) * (v[1] - u[1]) \
-                            )
-                elif ~np.isinf(self._cell_centers[i,0]):
+                        cell_volume[i] += 0.5 * abs(
+                            (v[0] - u[0]) * (w[1] - u[1])
+                            - (w[0] - u[0]) * (v[1] - u[1])
+                        )
+                elif ~np.isinf(self._cell_centers[i, 0]):
                     # cells with no vertices and which center coordinates are infinite
                     # are deleted cells
-                    raise RuntimeError('cell {} has no boundaries'.format(i))
+                    raise RuntimeError("cell {} has no boundaries".format(i))
             self._cell_volume = self.scaler.unscale_surface_area(cell_volume)
-        return self.__returnlazy__('cell_volume', self._cell_volume)
+        return self.__returnlazy__("cell_volume", self._cell_volume)
 
     @cell_volume.setter
     def cell_volume(self, area):
-        self.__setlazy__('cell_volume', area)
+        self.__setlazy__("cell_volume", area)
 
-    def delete_cells(self, cell_indices, adjacency_label=True, pack_indices=True,
-            _delaunay_adjacency=False, exclude_neighbours=False):
-        """ Delete cells.
+    def delete_cells(
+        self,
+        cell_indices,
+        adjacency_label=True,
+        pack_indices=True,
+        _delaunay_adjacency=False,
+        exclude_neighbours=False,
+    ):
+        """Delete cells.
 
         Both the Delaunay and Voronoi graphs are modified.
 
@@ -1498,25 +1613,32 @@ class Voronoi(Delaunay):
         # or else may include non-contiguous adjacency; per default, fallback onto the Delaunay graph
         if _delaunay_adjacency:
             original_adjacency = self.cell_adjacency.tocsr()
-            original_adjacency = sparse.csr_matrix((
+            original_adjacency = sparse.csr_matrix(
+                (
                     np.ones(original_adjacency.data.shape, dtype=int),
                     original_adjacency.indices,
                     original_adjacency.indptr,
-                    ), original_adjacency.shape)
+                ),
+                original_adjacency.shape,
+            )
+
             def get_neighbours(_i):
                 _js = self.neighbours(_i)
-                return _js[~np.isinf(self._cell_centers[_js,0])]
+                return _js[~np.isinf(self._cell_centers[_js, 0])]
+
         else:
-            _ok = ~np.isinf(self._cell_centers[:,0])
+            _ok = ~np.isinf(self._cell_centers[:, 0])
             _d_indptr, _d_indices = get_delaunay_adjacency(self._cell_centers[_ok])
             original_adjacency = sparse.csr_matrix(
-                    (np.ones_like(_d_indices), _d_indices, _d_indptr),
-                    self.cell_adjacency.shape)
+                (np.ones_like(_d_indices), _d_indices, _d_indptr),
+                self.cell_adjacency.shape,
+            )
             # TODO: check for not-Delaunay edges in cell_adjacency
-            _ok, = np.nonzero(_ok)
+            (_ok,) = np.nonzero(_ok)
             _d_indices = _ok[_d_indices]
+
             def get_neighbours(_i):
-                return _d_indices[_d_indptr[_i]:_d_indptr[_i+1]]
+                return _d_indices[_d_indptr[_i] : _d_indptr[_i + 1]]
 
         if exclude_neighbours:
             _cell_indices = list(cell_indices)
@@ -1532,44 +1654,52 @@ class Voronoi(Delaunay):
                             _ok[_neighbour] = False
             cell_indices = cell_indices[_ok]
 
-        _ok = ~np.isinf(self._cell_centers[:,0])
+        _ok = ~np.isinf(self._cell_centers[:, 0])
         _ok[cell_indices] = False
-        pruned_to_original, = np.nonzero(_ok)
+        (pruned_to_original,) = np.nonzero(_ok)
         not_an_index = pruned_to_original.size
-        original_to_pruned = np.full(self.number_of_cells, not_an_index, dtype=pruned_to_original.dtype)
+        original_to_pruned = np.full(
+            self.number_of_cells, not_an_index, dtype=pruned_to_original.dtype
+        )
         original_to_pruned[_ok] = np.arange(pruned_to_original.size)
 
         d_indptr, d_indices = get_delaunay_adjacency(self._cell_centers[_ok])
-        extended_indptr = np.zeros(self.number_of_cells+1, d_indptr.dtype)
-        extended_indptr[1+pruned_to_original] = np.diff(d_indptr)
+        extended_indptr = np.zeros(self.number_of_cells + 1, d_indptr.dtype)
+        extended_indptr[1 + pruned_to_original] = np.diff(d_indptr)
         extended_indptr = np.cumsum(extended_indptr)
-        pruned_adjacency = sparse.csr_matrix((
+        pruned_adjacency = sparse.csr_matrix(
+            (
                 np.full(d_indices.size, 2, dtype=int),
                 pruned_to_original[d_indices],
                 extended_indptr,
-                ), original_adjacency.shape)
+            ),
+            original_adjacency.shape,
+        )
 
         ## cell_adjacency and adjacency_label
 
         diff_adjacency = original_adjacency + pruned_adjacency
-        diff_adjacency = sparse.tril(diff_adjacency, format='coo')
+        diff_adjacency = sparse.tril(diff_adjacency, format="coo")
 
         if adjacency_label is None:
-            valid_edges = diff_adjacency.data==3
+            valid_edges = diff_adjacency.data == 3
         else:
-            valid_edges = 1<diff_adjacency.data
-            existing_edges = 2<diff_adjacency.data[valid_edges]
+            valid_edges = 1 < diff_adjacency.data
+            existing_edges = 2 < diff_adjacency.data[valid_edges]
         nedges = np.sum(valid_edges)
-        valid_rows, valid_cols = diff_adjacency.row[valid_edges], diff_adjacency.col[valid_edges]
+        valid_rows, valid_cols = (
+            diff_adjacency.row[valid_edges],
+            diff_adjacency.col[valid_edges],
+        )
 
         def _make_symmetric(data, coords):
             row, col = coords
             symmetric_data = np.r_[data, data]
-            symmetric_row  = np.r_[row,  col]
-            symmetric_col  = np.r_[col,  row]
+            symmetric_row = np.r_[row, col]
+            symmetric_col = np.r_[col, row]
             return symmetric_data, (symmetric_row, symmetric_col)
 
-        adjacency = sparse.tril(self.cell_adjacency, format='csr')
+        adjacency = sparse.tril(self.cell_adjacency, format="csr")
 
         if adjacency_label is not None:
             labels = self.adjacency_label
@@ -1581,31 +1711,43 @@ class Voronoi(Delaunay):
                 elif adjacency_label is False:
                     adjacency_label = labels.min() - 1
 
-        if self.adjacency_label is None: # adjacency labels are in the adjacency matrix data
+        if (
+            self.adjacency_label is None
+        ):  # adjacency labels are in the adjacency matrix data
             if adjacency_label is None:
                 new_labels = adjacency[valid_rows, valid_cols].ravel()
             else:
                 new_labels = np.zeros(nedges, dtype=labels.dtype)
                 new_labels[~existing_edges] = adjacency_label
                 new_labels[existing_edges] = adjacency[
-                        valid_rows[existing_edges], valid_cols[existing_edges]
-                        ].flat
-            new_adjacency = sparse.csr_matrix((
-                    new_labels, (valid_rows, valid_cols),
-                    ), adjacency.shape)
-        else: # adjacency data are indices in `labels`
-            new_adjacency = sparse.csr_matrix(_make_symmetric(
-                    np.arange(nedges), (valid_rows, valid_cols),
-                    ), adjacency.shape)
+                    valid_rows[existing_edges], valid_cols[existing_edges]
+                ].flat
+            new_adjacency = sparse.csr_matrix(
+                (
+                    new_labels,
+                    (valid_rows, valid_cols),
+                ),
+                adjacency.shape,
+            )
+        else:  # adjacency data are indices in `labels`
+            new_adjacency = sparse.csr_matrix(
+                _make_symmetric(
+                    np.arange(nedges),
+                    (valid_rows, valid_cols),
+                ),
+                adjacency.shape,
+            )
             if adjacency_label is None:
                 labels = self.adjacency_label
                 new_labels = labels[adjacency[valid_rows, valid_cols].flat]
             else:
                 new_labels = np.zeros(nedges, dtype=labels.dtype)
                 new_labels[~existing_edges] = adjacency_label
-                new_labels[existing_edges] = labels[adjacency[
+                new_labels[existing_edges] = labels[
+                    adjacency[
                         valid_rows[existing_edges], valid_cols[existing_edges]
-                        ].flat]
+                    ].flat
+                ]
             self.adjacency_label = new_labels
         self.cell_adjacency = new_adjacency
 
@@ -1621,20 +1763,28 @@ class Voronoi(Delaunay):
         ## pack
         if pack_indices:
             self._cell_centers = self._cell_centers[_ok]
-            assert np.all(np.diff(self._cell_adjacency.indptr)[~_ok]==0)
+            assert np.all(np.diff(self._cell_adjacency.indptr)[~_ok] == 0)
             pruned_ncells = np.sum(_ok)
-            self._cell_adjacency = sparse.csr_matrix((
+            self._cell_adjacency = sparse.csr_matrix(
+                (
                     self._cell_adjacency.data,
                     original_to_pruned[self._cell_adjacency.indices],
-                    self._cell_adjacency.indptr[np.r_[True,_ok]],
-                    ), (pruned_ncells, pruned_ncells))
+                    self._cell_adjacency.indptr[np.r_[True, _ok]],
+                ),
+                (pruned_ncells, pruned_ncells),
+            )
 
         return original_to_pruned, adjacency_label
 
-
-    def _delete_cell(self, cell_indices, adjacency_label=True, metric='euclidean', pack_indices=True,
-            use_actual_delaunay=True):
-        """ Delete a cell.
+    def _delete_cell(
+        self,
+        cell_indices,
+        adjacency_label=True,
+        metric="euclidean",
+        pack_indices=True,
+        use_actual_delaunay=True,
+    ):
+        """Delete a cell.
 
         Both the Delaunay and Voronoi graphs are modified.
 
@@ -1652,8 +1802,10 @@ class Voronoi(Delaunay):
 
         See also: :meth:`pack_indices`.
         """
-        if metric != 'euclidean':
-            raise NotImplementedError("delete_cell(metric='{}') not supported".format(metric))
+        if metric != "euclidean":
+            raise NotImplementedError(
+                "delete_cell(metric='{}') not supported".format(metric)
+            )
 
         _connect = adjacency_label is not None
         _eps = 1e-5
@@ -1668,18 +1820,23 @@ class Voronoi(Delaunay):
         if use_actual_delaunay:
             _delaunay = spatial.Delaunay(self._cell_centers)
             _d_indptr, _d_indices = _delaunay.vertex_neighbor_vertices
+
         def get_neighbours(_i):
             if use_actual_delaunay:
-                _js = _d_indices[_d_indptr[_i]:_d_indptr[_i+1]]
+                _js = _d_indices[_d_indptr[_i] : _d_indptr[_i + 1]]
             else:
                 _js = self.neighbours(_i)
-            return _js[~np.isinf(self._cell_centers[_js,0])]
+            return _js[~np.isinf(self._cell_centers[_js, 0])]
 
         for i in cell_indices:
             _neighbour_cells = get_neighbours(i)
-            #_larger_circle = list(set(itertools.chain(*[ get_neighbours(j) for j in _neighbour_cells ])) - {i})
-            _larger_circle = set(itertools.chain(*[ get_neighbours(j) for j in _neighbour_cells ])) - {i}
-            _larger_circle = list(set(itertools.chain(*[ get_neighbours(j) for j in _larger_circle ])) - {i})
+            # _larger_circle = list(set(itertools.chain(*[ get_neighbours(j) for j in _neighbour_cells ])) - {i})
+            _larger_circle = set(
+                itertools.chain(*[get_neighbours(j) for j in _neighbour_cells])
+            ) - {i}
+            _larger_circle = list(
+                set(itertools.chain(*[get_neighbours(j) for j in _larger_circle])) - {i}
+            )
             voronoi = spatial.Voronoi(self._cell_centers[_larger_circle])
 
             ## cell_adjacency and adjacency_label
@@ -1688,23 +1845,31 @@ class Voronoi(Delaunay):
             _new_ridges = []
             if _c_label is None:
                 # disconnect
-                _c_adjacency[i,_neighbour_cells] = False
-                _c_adjacency[_neighbour_cells,i] = False
+                _c_adjacency[i, _neighbour_cells] = False
+                _c_adjacency[_neighbour_cells, i] = False
                 # connect
                 if _connect:
                     _edges = np.array(_larger_circle)[voronoi.ridge_points]
                     _i_new, _j_new = [], []
                     for _i, _j in _edges:
                         # explicit zeros are existing edges
-                        if __i in _neighbour_cells and  __j in _neighbour_cells and \
-                                __j not in _c_adjacency.indices[_c_adjacency.indptr[__i]:_c_adjacency.indptr[__i+1]]:
+                        if (
+                            __i in _neighbour_cells
+                            and __j in _neighbour_cells
+                            and __j
+                            not in _c_adjacency.indices[
+                                _c_adjacency.indptr[__i] : _c_adjacency.indptr[__i + 1]
+                            ]
+                        ):
                             _i_new.append(_i)
                             _j_new.append(_j)
                     if _i_new:
-                        _c_adjacency = _c_adjacency.tolil() # this also eliminates explicit zeros
-                        _new_ridges.append((_i_new,_j_new))
-                        _c_adjacency[_i_new,_j_new] = True
-                        _c_adjacency[_j_new,_i_new] = True
+                        _c_adjacency = (
+                            _c_adjacency.tolil()
+                        )  # this also eliminates explicit zeros
+                        _new_ridges.append((_i_new, _j_new))
+                        _c_adjacency[_i_new, _j_new] = True
+                        _c_adjacency[_j_new, _i_new] = True
                         _c_adjacency = _c_adjacency.tocsr()
                     else:
                         _c_adjacency.eliminate_zeros()
@@ -1716,7 +1881,7 @@ class Voronoi(Delaunay):
                 _coo = _c_adjacency.tocoo()
                 # disconnect
                 _i, _j, _k = _coo.row, _coo.col, _coo.data
-                _keep = ~np.logical_or(_i==i, _j==i)
+                _keep = ~np.logical_or(_i == i, _j == i)
                 _i, _j, _k = _i[_keep], _j[_keep], _k[_keep]
                 # connect
                 if _connect:
@@ -1724,19 +1889,30 @@ class Voronoi(Delaunay):
                     _i_new, _j_new = [], []
                     for __i, __j in _edges:
                         # explicit zeros are existing (and valid) edges
-                        if __i in _neighbour_cells and  __j in _neighbour_cells and \
-                                __j not in _c_adjacency.indices[_c_adjacency.indptr[__i]:_c_adjacency.indptr[__i+1]]:
-                            _new_ridges.append((__i,__j))
+                        if (
+                            __i in _neighbour_cells
+                            and __j in _neighbour_cells
+                            and __j
+                            not in _c_adjacency.indices[
+                                _c_adjacency.indptr[__i] : _c_adjacency.indptr[__i + 1]
+                            ]
+                        ):
+                            _new_ridges.append((__i, __j))
                             _i_new.append(__i)
                             _j_new.append(__j)
                     if _i_new:
                         _ne = _c_label.size
-                        self.adjacency_label = np.r_[_c_label, np.full(len(_i_new), adjacency_label, dtype=_c_label.dtype)]
+                        self.adjacency_label = np.r_[
+                            _c_label,
+                            np.full(len(_i_new), adjacency_label, dtype=_c_label.dtype),
+                        ]
                         _k_new = np.arange(_ne, _ne + len(_i_new))
                         _i = np.r_[_i, _i_new, _j_new]
                         _j = np.r_[_j, _j_new, _i_new]
                         _k = np.r_[_k, _k_new, _k_new]
-                _c_adjacency = sparse.csr_matrix((_k,(_i,_j)), shape=_c_adjacency.shape)
+                _c_adjacency = sparse.csr_matrix(
+                    (_k, (_i, _j)), shape=_c_adjacency.shape
+                )
             self._cell_adjacency = _c_adjacency
 
             if self._vertices is None:
@@ -1749,29 +1925,53 @@ class Voronoi(Delaunay):
             ## match vertices
             _v_adjacency = self._vertex_adjacency.tocsr()
             # known vertices
-            _x_inner = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
-            _xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in _x_inner ]))
-            #_xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
-            #_x_inner = set(self._cell_vertices[i])
+            _x_inner = set(
+                itertools.chain(
+                    *[
+                        _v_adjacency.indices[
+                            _v_adjacency.indptr[_v] : _v_adjacency.indptr[_v + 1]
+                        ]
+                        for _v in self._cell_vertices[i]
+                    ]
+                )
+            )
+            _xi = set(
+                itertools.chain(
+                    *[
+                        _v_adjacency.indices[
+                            _v_adjacency.indptr[_v] : _v_adjacency.indptr[_v + 1]
+                        ]
+                        for _v in _x_inner
+                    ]
+                )
+            )
+            # _xi = set(itertools.chain(*[ _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]] for _v in self._cell_vertices[i] ]))
+            # _x_inner = set(self._cell_vertices[i])
             # vertices to be kept for sure
             _hull_vertices = _xi - _x_inner
-            _hull_vertex = np.array([ _v in _hull_vertices for _v in _xi ])
+            _hull_vertex = np.array([_v in _hull_vertices for _v in _xi])
             _xi = np.array(list(_xi))
             _x_inner = set(self._cell_vertices[i])
 
             _yi = np.arange(voronoi.vertices.shape[0])
 
-            #assert _x.shape[0] < _y.shape[0]
-            _x = np.vstack((self._vertices[_xi], self._cell_centers[i])) # known vertices + discarded cell center
-            _y = voronoi.vertices[_yi] # new vertices
+            # assert _x.shape[0] < _y.shape[0]
+            _x = np.vstack(
+                (self._vertices[_xi], self._cell_centers[i])
+            )  # known vertices + discarded cell center
+            _y = voronoi.vertices[_yi]  # new vertices
             _x2 = np.sum(_x * _x, axis=1, keepdims=True)
             _y2 = np.sum(_y * _y, axis=1, keepdims=True)
-            _d2 = np.dot(_x, -2. * _y.T) + _x2 + _y2.T
+            _d2 = np.dot(_x, -2.0 * _y.T) + _x2 + _y2.T
             _example_inner = np.argmin(_d2[-1])
             _d2 = _d2[:-1]
             if not np.all(np.min(_d2[_hull_vertex], axis=1) < _eps):
                 import warnings
-                warnings.warn('Assertion failed: assert np.all(np.min(_d2[_hull_vertex], axis=1) < _eps)', RuntimeWarning)
+
+                warnings.warn(
+                    "Assertion failed: assert np.all(np.min(_d2[_hull_vertex], axis=1) < _eps)",
+                    RuntimeWarning,
+                )
             _nearest = np.argmin(_d2, axis=0)
             _matched = _d2[_nearest, np.arange(_y.shape[0])] < _eps
             if _matched[_example_inner] and _hull_vertex[_nearest[_example_inner]]:
@@ -1806,9 +2006,9 @@ class Voronoi(Delaunay):
                         break
             _y_inner = _inner
 
-            _y_matching_inner = { _v for _v in _y_inner if _matched[_v] }
-            _x_matching_inner = { _xi[_nearest[_yi[_v]]] for _v in _y_matching_inner }
-            #assert _x_matching_inner < _x_inner # no longer true since _larger_circle is larger
+            _y_matching_inner = {_v for _v in _y_inner if _matched[_v]}
+            _x_matching_inner = {_xi[_nearest[_yi[_v]]] for _v in _y_matching_inner}
+            # assert _x_matching_inner < _x_inner # no longer true since _larger_circle is larger
             _discard = _x_inner - _x_matching_inner
             _vertex_new = _y_inner - _y_matching_inner
 
@@ -1843,14 +2043,21 @@ class Voronoi(Delaunay):
             # disconnect
             _v_adjacency = self._vertex_adjacency.tocsr()
             for _v in _discarded_vertices:
-                _neighbour_vertices = _v_adjacency.indices[_v_adjacency.indptr[_v]:_v_adjacency.indptr[_v+1]]
-                _v_adjacency[_v,_neighbour_vertices] = 0
-                _v_adjacency[_neighbour_vertices,_v] = 0
+                _neighbour_vertices = _v_adjacency.indices[
+                    _v_adjacency.indptr[_v] : _v_adjacency.indptr[_v + 1]
+                ]
+                _v_adjacency[_v, _neighbour_vertices] = 0
+                _v_adjacency[_neighbour_vertices, _v] = 0
             _v_adjacency.eliminate_zeros()
 
             # extend
-            _indptr = np.r_[_v_adjacency.indptr, np.full(_new_nv-_nv, _v_adjacency.indptr[-1])]
-            _v_adjacency = sparse.csr_matrix((_v_adjacency.data,_v_adjacency.indices,_indptr), shape=(_new_nv,_new_nv))
+            _indptr = np.r_[
+                _v_adjacency.indptr, np.full(_new_nv - _nv, _v_adjacency.indptr[-1])
+            ]
+            _v_adjacency = sparse.csr_matrix(
+                (_v_adjacency.data, _v_adjacency.indices, _indptr),
+                shape=(_new_nv, _new_nv),
+            )
             _v_adjacency = _v_adjacency.tolil()
 
             # connect
@@ -1868,17 +2075,17 @@ class Voronoi(Delaunay):
                     else:
                         _j = _new_vertices[_j]
                     if 0 <= _i and 0 <= _j:
-                        _v_adjacency[_i,_j] = True
-                        _v_adjacency[_j,_i] = True
+                        _v_adjacency[_i, _j] = True
+                        _v_adjacency[_j, _i] = True
                         # look for the corresponding ridge
                         __i, __j = _ks[voronoi.ridge_points[_k]]
                         if __j not in get_neighbours(__i) and not _reported:
                             # this may happen when multiple cells are deleted before pack_indices is called
                             pass
-                            #print('in delete_cell({}): connecting cells that are not neighbours:'.format(i))
-                            #print(_hull_vertices, _x_inner, _y_inner, _x_matching_inner, _y_matching_inner)
-                            #_reported = True
-                        #assert __j in get_neighbours(__i)
+                            # print('in delete_cell({}): connecting cells that are not neighbours:'.format(i))
+                            # print(_hull_vertices, _x_inner, _y_inner, _x_matching_inner, _y_matching_inner)
+                            # _reported = True
+                        # assert __j in get_neighbours(__i)
 
             self._vertex_adjacency = _v_adjacency
 
@@ -1890,11 +2097,10 @@ class Voronoi(Delaunay):
                 # TODO: make a single call for all `cell_indices`
                 self.pack_indices(i, _discarded_vertices)
 
-
     def pack_indices(self, _delete_cell=True, _delete_vertex=True):
         if _delete_cell is not None:
             if _delete_cell is True:
-                _c = ~np.isinf(self._cell_centers[:,0])
+                _c = ~np.isinf(self._cell_centers[:, 0])
             else:
                 _c = np.ones(self._cell_centers.shape[0], dtype=bool)
                 _c[_delete_cell] = False
@@ -1903,52 +2109,69 @@ class Voronoi(Delaunay):
             _a = self.cell_adjacency.tocsr()
             _indptr = _a.indptr
             if not np.all(np.diff(_indptr)[~_c] == 0):
-                raise RuntimeError('deleted cells have not been disconnected')
-            _indptr = _indptr[np.r_[True,_c]]
+                raise RuntimeError("deleted cells have not been disconnected")
+            _indptr = _indptr[np.r_[True, _c]]
             _cmap = np.full(_c.size, -1)
             _cmap[_c] = np.arange(_nc)
             _indices = _cmap[_a.indices]
-            self._cell_adjacency = sparse.csr_matrix((_a.data,_indices,_indptr), shape=(_nc,_nc))
+            self._cell_adjacency = sparse.csr_matrix(
+                (_a.data, _indices, _indptr), shape=(_nc, _nc)
+            )
             if self._cell_label is not None:
                 self._cell_label = self._cell_label[_c]
             if self._cell_volume is not None:
                 self._cell_volume = self._cell_volume[_c]
 
         if _delete_vertex is not None:
-            _a = self.vertex_adjacency.tocsr() # not self._vertex_adjacency!
+            _a = self.vertex_adjacency.tocsr()  # not self._vertex_adjacency!
             _indptr = _a.indptr
             if _delete_vertex is True:
                 _v = 0 < np.diff(_indptr)
             else:
                 if not np.all(np.diff(_indptr)[_delete_vertex] == 0):
-                    raise RuntimeError('deleted vertices have not been disconnected')
+                    raise RuntimeError("deleted vertices have not been disconnected")
                 _v = np.ones(self._vertices.shape[0], dtype=bool)
                 _v[_delete_vertex] = False
             _nv = np.sum(_v)
             self._vertices = self._vertices[_v]
-            _indptr = _indptr[np.r_[True,_v]]
+            _indptr = _indptr[np.r_[True, _v]]
             _vmap = np.full(_v.size, -1)
             _vmap[_v] = np.arange(_nv)
             _indices = _vmap[_a.indices]
-            self._vertex_adjacency = sparse.csr_matrix((_a.data,_indices,_indptr), shape=(_nv,_nv))
+            self._vertex_adjacency = sparse.csr_matrix(
+                (_a.data, _indices, _indptr), shape=(_nv, _nv)
+            )
 
         if isinstance(self._cell_vertices, dict):
             if _delete_cell is None:
                 if _delete_vertex is not None:
-                    self._cell_vertices = { i: _vmap[self._cell_vertices[i]] for i in self._cell_vertices }
+                    self._cell_vertices = {
+                        i: _vmap[self._cell_vertices[i]] for i in self._cell_vertices
+                    }
             elif _delete_vertex is None:
-                self._cell_vertices = { _cmap[i]: self._cell_vertices[i] for i in self._cell_vertices if _c[i] }
+                self._cell_vertices = {
+                    _cmap[i]: self._cell_vertices[i]
+                    for i in self._cell_vertices
+                    if _c[i]
+                }
             else:
-                self._cell_vertices = { _cmap[i]: _vmap[self._cell_vertices[i]] for i in self._cell_vertices if _c[i] }
+                self._cell_vertices = {
+                    _cmap[i]: _vmap[self._cell_vertices[i]]
+                    for i in self._cell_vertices
+                    if _c[i]
+                }
         else:
             if _delete_cell is None:
                 if _delete_vertex is not None:
-                    self._cell_vertices = [ _vmap[vs] for vs in self._cell_vertices ]
+                    self._cell_vertices = [_vmap[vs] for vs in self._cell_vertices]
             elif _delete_vertex is None:
-                self._cell_vertices = [ vs for keep, vs in zip(_c, self._cell_vertices) if keep ]
+                self._cell_vertices = [
+                    vs for keep, vs in zip(_c, self._cell_vertices) if keep
+                ]
             else:
-                self._cell_vertices = [ _vmap[vs] for keep, vs in zip(_c, self._cell_vertices) if keep ]
-
+                self._cell_vertices = [
+                    _vmap[vs] for keep, vs in zip(_c, self._cell_vertices) if keep
+                ]
 
 
 def dict_to_sparse(cell_vertex, shape=None):
@@ -1962,12 +2185,14 @@ def dict_to_sparse(cell_vertex, shape=None):
         else:
             n_cells = max(cell_vertex.keys())
             args = []
-        indices = [ cell_vertex.get(c, []) for c in range(n_cells) ]
-        indptr = np.r_[0, np.cumsum([ len(list(vs)) for vs in indices ])]
+        indices = [cell_vertex.get(c, []) for c in range(n_cells)]
+        indptr = np.r_[0, np.cumsum([len(list(vs)) for vs in indices])]
         indices = np.asarray(list(itertools.chain(*indices)))
-        cell_vertex = sparse.csr_matrix((np.ones(indices.size, dtype=bool), indices, indptr),
-            *args)
+        cell_vertex = sparse.csr_matrix(
+            (np.ones(indices.size, dtype=bool), indices, indptr), *args
+        )
     return cell_vertex
+
 
 def sparse_to_dict(cell_vertex):
     """
@@ -1975,19 +2200,22 @@ def sparse_to_dict(cell_vertex):
     """
     if sparse.issparse(cell_vertex):
         matrix = cell_vertex.tocsr()
-        cell_vertex = { i: matrix.indices[matrix.indptr[i]:matrix.indptr[i+1]] \
-                for i in range(matrix.shape[0]) }
+        cell_vertex = {
+            i: matrix.indices[matrix.indptr[i] : matrix.indptr[i + 1]]
+            for i in range(matrix.shape[0])
+        }
     return cell_vertex
 
 
-def cell_index_by_radius(tessellation, points, radius, format=None, select=None, metric='euclidean',
-        **kwargs):
+def cell_index_by_radius(
+    tessellation, points, radius, format=None, select=None, metric="euclidean", **kwargs
+):
     """
     See :meth:`Delaunay.cell_index`.
 
     Specialized routine to assign locations to cells which center is no further than `radius`.
     """
-    #if metric != 'euclidean':
+    # if metric != 'euclidean':
     #    raise NotImplementedError('%s metric not supported', metric)
     r2 = radius * radius
     points = tessellation.scaler.scale_point(points, inplace=False)
@@ -1999,31 +2227,31 @@ def cell_index_by_radius(tessellation, points, radius, format=None, select=None,
         D = cdist(X, Y, metric, **kwargs)
     except MemoryError:
         # slice X to process less rows at a time
-        if metric != 'euclidean':
-            raise #NotImplementedError
+        if metric != "euclidean":
+            raise  # NotImplementedError
         X2 = np.sum(X * X, axis=1, keepdims=True).astype(np.float32)
         Y2 = np.sum(Y * Y, axis=1, keepdims=True).astype(np.float32)
         X, Y = X.astype(np.float32), Y.astype(np.float32)
         n = 0
         while True:
             n += 1
-            block = int(ceil(X.shape[0] * 2**(-n)))
+            block = int(ceil(X.shape[0] * 2 ** (-n)))
             try:
                 np.empty((block, Y.shape[0]), dtype=X.dtype)
             except MemoryError:
-                pass # continue
+                pass  # continue
             else:
                 break
-        n += 2 # safer
-        block = int(ceil(X.shape[0] * 2**(-n)))
+        n += 2  # safer
+        block = int(ceil(X.shape[0] * 2 ** (-n)))
         P, C = [], []
         for i in range(0, X.shape[0], block):
-            j = min(i+block, X2.size)
-            Di = np.dot(np.float32(-2.) * X[i:j], Y.T)
+            j = min(i + block, X2.size)
+            Di = np.dot(np.float32(-2.0) * X[i:j], Y.T)
             Di += X2[i:j]
             Di += Y2.T
             Pi, Ci = (Di <= r2).nonzero()
-            P.append(i+Pi)
+            P.append(i + Pi)
             C.append(Ci)
         associations = (np.concatenate(P), np.concatenate(C))
     else:
@@ -2031,8 +2259,16 @@ def cell_index_by_radius(tessellation, points, radius, format=None, select=None,
     return format_cell_index(associations, format=format, select=select, shape=shape)
 
 
-__all__ = ['Partition', 'CellStats', 'point_adjacency_matrix', 'Tessellation', 'Delaunay', 'Voronoi', \
-    'format_cell_index', 'nearest_cell', 'dict_to_sparse', 'sparse_to_dict', \
-    'cell_index_by_radius']
-
-
+__all__ = [
+    "Partition",
+    "CellStats",
+    "point_adjacency_matrix",
+    "Tessellation",
+    "Delaunay",
+    "Voronoi",
+    "format_cell_index",
+    "nearest_cell",
+    "dict_to_sparse",
+    "sparse_to_dict",
+    "cell_index_by_radius",
+]

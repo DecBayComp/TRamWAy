@@ -20,24 +20,63 @@ from warnings import warn
 from math import pi, log
 import numpy as np
 import pandas as pd
-#from scipy.optimize import minimize
+
+# from scipy.optimize import minimize
 from collections import OrderedDict
 import time
 
 
-setup = {'arguments': OrderedDict((
-        ('localization_error',  ('-e', dict(type=float, help='localization precision (see also sigma; default is 0.03)'))),
-        ('diffusivity_prior',   ('-d', dict(type=float, help='prior on the diffusivity'))),
-        ('potential_prior',     ('-v', dict(type=float, help='prior on the potential'))),
-        ('jeffreys_prior',      ('-j', dict(action='store_true', help="Jeffreys' prior"))),
-        ('min_diffusivity',     dict(type=float, help='minimum diffusivity value allowed')),
-        ('max_iter',        dict(type=int, help='maximum number of iterations (~100)')),
-        ('compatibility',       ('-c', '--inferencemap', '--compatible',
-                    dict(action='store_true', help='InferenceMAP compatible'))),
-        ('rgrad',       dict(help="alternative gradient for the regularization; can be 'delta0' or 'delta1'")),
-        ('export_centers',      dict(action='store_true')),
-        ('verbose',         ()))),
-    'cell_sampling': 'connected'}
+setup = {
+    "arguments": OrderedDict(
+        (
+            (
+                "localization_error",
+                (
+                    "-e",
+                    dict(
+                        type=float,
+                        help="localization precision (see also sigma; default is 0.03)",
+                    ),
+                ),
+            ),
+            (
+                "diffusivity_prior",
+                ("-d", dict(type=float, help="prior on the diffusivity")),
+            ),
+            (
+                "potential_prior",
+                ("-v", dict(type=float, help="prior on the potential")),
+            ),
+            (
+                "jeffreys_prior",
+                ("-j", dict(action="store_true", help="Jeffreys' prior")),
+            ),
+            (
+                "min_diffusivity",
+                dict(type=float, help="minimum diffusivity value allowed"),
+            ),
+            ("max_iter", dict(type=int, help="maximum number of iterations (~100)")),
+            (
+                "compatibility",
+                (
+                    "-c",
+                    "--inferencemap",
+                    "--compatible",
+                    dict(action="store_true", help="InferenceMAP compatible"),
+                ),
+            ),
+            (
+                "rgrad",
+                dict(
+                    help="alternative gradient for the regularization; can be 'delta0' or 'delta1'"
+                ),
+            ),
+            ("export_centers", dict(action="store_true")),
+            ("verbose", ()),
+        )
+    ),
+    "cell_sampling": "connected",
+}
 setup_with_grad_arguments(setup)
 
 
@@ -47,12 +86,26 @@ class DV(ChainArray):
 
     Objects of this class are not supposed to be serialized in .rwa files.
     """
-    __slots__ = ('_diffusivity_prior', '_potential_prior', 'minimum_diffusivity', 'prior_include')
 
-    def __init__(self, diffusivity, potential, diffusivity_prior=None, potential_prior=None, \
-        minimum_diffusivity=None, positive_diffusivity=None, prior_include=None):
+    __slots__ = (
+        "_diffusivity_prior",
+        "_potential_prior",
+        "minimum_diffusivity",
+        "prior_include",
+    )
+
+    def __init__(
+        self,
+        diffusivity,
+        potential,
+        diffusivity_prior=None,
+        potential_prior=None,
+        minimum_diffusivity=None,
+        positive_diffusivity=None,
+        prior_include=None,
+    ):
         # positive_diffusivity is for backward compatibility
-        ChainArray.__init__(self, 'D', diffusivity, 'V', potential)
+        ChainArray.__init__(self, "D", diffusivity, "V", potential)
         self._diffusivity_prior = diffusivity_prior
         self._potential_prior = potential_prior
         self.minimum_diffusivity = minimum_diffusivity
@@ -62,36 +115,51 @@ class DV(ChainArray):
 
     @property
     def D(self):
-        return self['D']
+        return self["D"]
 
     @property
     def V(self):
-        return self['V']
+        return self["V"]
 
     @D.setter
     def D(self, diffusivity):
-        self['D'] = diffusivity
+        self["D"] = diffusivity
 
     @V.setter
     def V(self, potential):
-        self['V'] = potential
+        self["V"] = potential
 
     def diffusivity_prior(self, j):
-        if self._diffusivity_prior and (self.prior_include is None or self.prior_include[j]):
+        if self._diffusivity_prior and (
+            self.prior_include is None or self.prior_include[j]
+        ):
             return self._diffusivity_prior
         else:
             return None
 
     def potential_prior(self, j):
-        if self._potential_prior and (self.prior_include is None or self.prior_include[j]):
+        if self._potential_prior and (
+            self.prior_include is None or self.prior_include[j]
+        ):
             return self._potential_prior
         else:
             return None
 
 
-
-def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
-        index, reverse_index, grad_kwargs, y0, verbose, posteriors):
+def dv_neg_posterior(
+    x,
+    dv,
+    cells,
+    sigma2,
+    jeffreys_prior,
+    dt_mean,
+    index,
+    reverse_index,
+    grad_kwargs,
+    y0,
+    verbose,
+    posteriors,
+):
     """
     Adapted from InferenceMAP's *dvPosterior* procedure modified:
 
@@ -146,34 +214,35 @@ def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
 
     if dv.minimum_diffusivity is not None:
         observed_min = np.min(D)
-        if observed_min < dv.minimum_diffusivity and not \
-                np.isclose(observed_min, dv.minimum_diffusivity):
+        if observed_min < dv.minimum_diffusivity and not np.isclose(
+            observed_min, dv.minimum_diffusivity
+        ):
             warn(DiffusivityWarning(observed_min, dv.minimum_diffusivity))
     noise_dt = sigma2
 
     # for all cell
-    raw_posterior = priors = 0.
+    raw_posterior = priors = 0.0
     for j, i in enumerate(index):
         cell = cells[i]
-        n = len(cell) # number of translocations
+        n = len(cell)  # number of translocations
 
         # spatial gradient of the local potential energy
         gradV = cells.grad(i, V, reverse_index, **grad_kwargs)
-        #print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
-        #print('{}\t{}\t{}'.format(i+1, *gradV))
+        # print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
+        # print('{}\t{}\t{}'.format(i+1, *gradV))
         if gradV is None:
             continue
 
         # various posterior terms
-        #print(cell.dt)
+        # print(cell.dt)
         D_dt = D[j] * cell.dt
-        denominator = 4. * (D_dt + noise_dt)
+        denominator = 4.0 * (D_dt + noise_dt)
         dr_minus_drift = cell.dr + np.outer(D_dt, gradV)
         # non-directional squared displacement
         ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
         res = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
         if np.isnan(res):
-            #print('isnan')
+            # print('isnan')
             continue
         raw_posterior += res
 
@@ -187,22 +256,40 @@ def dv_neg_posterior(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
             gradD = cells.grad(i, D, reverse_index, **grad_kwargs)
             if gradD is not None:
                 # `grad_sum` memoizes and can be called several times at no extra cost
-                priors += diffusivity_prior * cells.grad_sum(i, gradD * gradD, reverse_index)
-        #print('{}\t{}\t{}'.format(i+1, D[j], result))
+                priors += diffusivity_prior * cells.grad_sum(
+                    i, gradD * gradD, reverse_index
+                )
+        # print('{}\t{}\t{}'.format(i+1, D[j], result))
     if jeffreys_prior:
-        priors += 2. * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
+        priors += 2.0 * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
 
     result = raw_posterior + priors
     posteriors.append([raw_posterior, result])
 
     if verbose:
-        print('objective: {}\t time: {}ms'.format(result, int(round((time.time() - t) * 1e3))))
+        print(
+            "objective: {}\t time: {}ms".format(
+                result, int(round((time.time() - t) * 1e3))
+            )
+        )
 
     return result - y0
 
 
-def dv_neg_posterior1(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
-        index, reverse_index, grad_kwargs, y0, verbose, posteriors):
+def dv_neg_posterior1(
+    x,
+    dv,
+    cells,
+    sigma2,
+    jeffreys_prior,
+    dt_mean,
+    index,
+    reverse_index,
+    grad_kwargs,
+    y0,
+    verbose,
+    posteriors,
+):
     """
     Similar to :func:`dv_neg_posterior`.
     The smoothing priors feature an alternative spatial "gradient" implemented using
@@ -220,34 +307,35 @@ def dv_neg_posterior1(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
 
     if dv.minimum_diffusivity is not None:
         observed_min = np.min(D)
-        if observed_min < dv.minimum_diffusivity and \
-                not np.isclose(observed_min, dv.minimum_diffusivity):
+        if observed_min < dv.minimum_diffusivity and not np.isclose(
+            observed_min, dv.minimum_diffusivity
+        ):
             warn(DiffusivityWarning(observed_min, dv.minimum_diffusivity))
     noise_dt = sigma2
 
     # for all cell
-    raw_posterior = priors = 0.
+    raw_posterior = priors = 0.0
     for j, i in enumerate(index):
         cell = cells[i]
-        n = len(cell) # number of translocations
+        n = len(cell)  # number of translocations
 
         # spatial gradient of the local potential energy
         gradV = cells.grad(i, V, reverse_index, **grad_kwargs)
-        #print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
-        #print('{}\t{}\t{}'.format(i+1, *gradV))
+        # print('{}\t{}\t{}\t{}\t{}\t{}'.format(i+1,D[j], V[j], -gradV[0], -gradV[1], result))
+        # print('{}\t{}\t{}'.format(i+1, *gradV))
         if gradV is None:
             continue
 
         # various posterior terms
-        #print(cell.dt)
+        # print(cell.dt)
         D_dt = D[j] * cell.dt
-        denominator = 4. * (D_dt + noise_dt)
+        denominator = 4.0 * (D_dt + noise_dt)
         dr_minus_drift = cell.dr + np.outer(D_dt, gradV)
         # non-directional squared displacement
         ndsd = np.sum(dr_minus_drift * dr_minus_drift, axis=1)
         res = n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
         if np.isnan(res):
-            #print('isnan')
+            # print('isnan')
             continue
         raw_posterior += res
 
@@ -257,50 +345,81 @@ def dv_neg_posterior1(x, dv, cells, sigma2, jeffreys_prior, dt_mean, \
             # spatial variation of the local potential
             deltaV = cells.local_variation(i, V, reverse_index, **grad_kwargs)
             if deltaV is not None:
-                priors += potential_prior * cells.grad_sum(i, deltaV * deltaV, reverse_index)
+                priors += potential_prior * cells.grad_sum(
+                    i, deltaV * deltaV, reverse_index
+                )
         diffusivity_prior = dv.diffusivity_prior(j)
         if diffusivity_prior:
             # spatial variation of the local diffusivity
             deltaD = cells.local_variation(i, D, reverse_index, **grad_kwargs)
             if deltaD is not None:
                 # `grad_sum` memoizes and can be called several times at no extra cost
-                priors += diffusivity_prior * cells.grad_sum(i, deltaD * deltaD, reverse_index)
-        #print('{}\t{}\t{}'.format(i+1, D[j], result))
+                priors += diffusivity_prior * cells.grad_sum(
+                    i, deltaD * deltaD, reverse_index
+                )
+        # print('{}\t{}\t{}'.format(i+1, D[j], result))
     if jeffreys_prior:
-        priors += 2. * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
+        priors += 2.0 * np.sum(np.log(D * dt_mean + sigma2) - np.log(D))
 
     result = raw_posterior + priors
     if posteriors is not None:
         posteriors.append([raw_posterior, result])
 
     if verbose:
-        print('objective: {}\t time: {}ms'.format(result, int(round((time.time() - t) * 1e3))))
+        print(
+            "objective: {}\t time: {}ms".format(
+                result, int(round((time.time() - t) * 1e3))
+            )
+        )
 
     return result - y0
 
 
-
-def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
-    jeffreys_prior=False, min_diffusivity=None, max_iter=None, epsilon=None, \
-    export_centers=False, verbose=True, compatibility=False, \
-    D0=None, V0=None, rgrad=None, **kwargs):
+def inferDV(
+    cells,
+    diffusivity_prior=None,
+    potential_prior=None,
+    jeffreys_prior=False,
+    min_diffusivity=None,
+    max_iter=None,
+    epsilon=None,
+    export_centers=False,
+    verbose=True,
+    compatibility=False,
+    D0=None,
+    V0=None,
+    rgrad=None,
+    **kwargs
+):
 
     localization_error = cells.get_localization_error(kwargs, 0.03, True)
 
     # initial values
-    index, reverse_index, n, dt_mean, D_initial, min_diffusivity, D_bounds, border = \
-        smooth_infer_init(cells, min_diffusivity=min_diffusivity, jeffreys_prior=jeffreys_prior,
-        sigma2=localization_error)
+    (
+        index,
+        reverse_index,
+        n,
+        dt_mean,
+        D_initial,
+        min_diffusivity,
+        D_bounds,
+        border,
+    ) = smooth_infer_init(
+        cells,
+        min_diffusivity=min_diffusivity,
+        jeffreys_prior=jeffreys_prior,
+        sigma2=localization_error,
+    )
     # V initial values
     if V0 is None:
         try:
             if compatibility:
-                raise Exception # skip to the except block
-            volume = [ cells[i].volume for i in index ]
+                raise Exception  # skip to the except block
+            volume = [cells[i].volume for i in index]
         except:
             V_initial = -np.log(n / np.max(n))
         else:
-            density = n / np.array([ np.inf if v is None else v for v in volume ])
+            density = n / np.array([np.inf if v is None else v for v in volume])
             density[density == 0] = np.min(density[0 < density])
             V_initial = np.log(np.max(density)) - np.log(density)
     else:
@@ -309,14 +428,14 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
         elif V0.size == D_initial.size:
             V_initial = V0
         else:
-            raise ValueError('wrong size for V0')
+            raise ValueError("wrong size for V0")
     if D0 is not None:
         if np.isscalar(D0):
             D_initial[...] = D0
         elif D0.size == D_initial.size:
             D_initial = D0
         else:
-            raise ValueError('wrong size for D0')
+            raise ValueError("wrong size for D0")
 
     dv = DV(D_initial, V_initial, diffusivity_prior, potential_prior, min_diffusivity)
     posteriors = []
@@ -325,7 +444,9 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     grad_kwargs = get_grad_kwargs(kwargs, epsilon=epsilon, compatibility=compatibility)
 
     # parametrize the optimization algorithm
-    default_lBFGSb_options = dict(maxiter=1e3, maxfun=1e10, maxcor=dv.combined.size, ftol=1e-8)
+    default_lBFGSb_options = dict(
+        maxiter=1e3, maxfun=1e10, maxcor=dv.combined.size, ftol=1e-8
+    )
     # in L-BFGS-B the number of iterations is usually very low (~10-100) while the number of
     # function evaluations is much higher (~1e4-1e5);
     # with maxfun defined, an iteration can stop anytime and the optimization may terminate
@@ -338,43 +459,53 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
         bounds = D_bounds + V_bounds
         options = dict(default_lBFGSb_options)
     _kwargs = {}
-    for k in ('jac',):
+    for k in ("jac",):
         try:
             _kwargs[k] = kwargs.pop(k)
         except KeyError:
             pass
-    options.update(kwargs.pop('options', {}))
-    options.update(**kwargs) # for backward compatibility
+    options.update(kwargs.pop("options", {}))
+    options.update(**kwargs)  # for backward compatibility
     if max_iter:
-        options['maxiter'] = max_iter
+        options["maxiter"] = max_iter
     if verbose:
-        options['disp'] = verbose
+        options["disp"] = verbose
     if options:
-        _kwargs['options'] = options
+        _kwargs["options"] = options
 
     # posterior function
-    if rgrad in ('delta','delta0','delta1'):
+    if rgrad in ("delta", "delta0", "delta1"):
         fun = dv_neg_posterior1
     else:
-        if rgrad not in (None, 'grad', 'grad1', 'gradn'):
-            warn('unsupported rgrad: {}'.format(rgrad), RuntimeWarning)
+        if rgrad not in (None, "grad", "grad1", "gradn"):
+            warn("unsupported rgrad: {}".format(rgrad), RuntimeWarning)
         fun = dv_neg_posterior
 
     # posterior function input arguments
-    args = (dv, cells, localization_error, jeffreys_prior, dt_mean,
-            index, reverse_index, grad_kwargs)
+    args = (
+        dv,
+        cells,
+        localization_error,
+        jeffreys_prior,
+        dt_mean,
+        index,
+        reverse_index,
+        grad_kwargs,
+    )
 
     # get the initial posterior value so that it is subtracted from the further evaluations
-    y0 = fun(dv.combined, *(args + (0., False, [])))
+    y0 = fun(dv.combined, *(args + (0.0, False, [])))
     if verbose:
-        print('At X0\tactual posterior= {}\n'.format(y0))
-    #y0 = 0.
+        print("At X0\tactual posterior= {}\n".format(y0))
+    # y0 = 0.
     args = args + (y0, 1 < int(verbose), posteriors)
 
     # run the optimization routine
-    result = interruptible_minimize(fun, dv.combined, args=args, bounds=bounds, **_kwargs)
+    result = interruptible_minimize(
+        fun, dv.combined, args=args, bounds=bounds, **_kwargs
+    )
     if not (result.success or verbose):
-        warn('{}'.format(result.message), OptimizationWarning)
+        warn("{}".format(result.message), OptimizationWarning)
 
     y = np.array(result.x)
 
@@ -383,8 +514,9 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
     D, V = dv.D, dv.V
     if np.any(V < 0):
         V -= np.min(V)
-    DVF = pd.DataFrame(np.stack((D, V), axis=1), index=index, \
-        columns=[ 'diffusivity', 'potential'])
+    DVF = pd.DataFrame(
+        np.stack((D, V), axis=1), index=index, columns=["diffusivity", "potential"]
+    )
 
     # derivate the forces
     index_, F = [], []
@@ -394,23 +526,26 @@ def inferDV(cells, diffusivity_prior=None, potential_prior=None, \
             index_.append(i)
             F.append(-gradV)
     if F:
-        F = pd.DataFrame(np.stack(F, axis=0), index=index_, \
-            columns=[ 'force ' + col for col in cells.space_cols ])
+        F = pd.DataFrame(
+            np.stack(F, axis=0),
+            index=index_,
+            columns=["force " + col for col in cells.space_cols],
+        )
     else:
-        warn('not any cell is suitable for evaluating the local force', RuntimeWarning)
-        F = pd.DataFrame(np.zeros((0, len(cells.space_cols)), dtype=V.dtype), \
-            columns=[ 'force ' + col for col in cells.space_cols ])
+        warn("not any cell is suitable for evaluating the local force", RuntimeWarning)
+        F = pd.DataFrame(
+            np.zeros((0, len(cells.space_cols)), dtype=V.dtype),
+            columns=["force " + col for col in cells.space_cols],
+        )
     DVF = DVF.join(F)
 
     # add extra information if required
     if export_centers:
-        xy = np.vstack([ cells[i].center for i in index ])
-        DVF = DVF.join(pd.DataFrame(xy, index=index, \
-            columns=cells.space_cols))
-        #DVF.to_csv('results.csv', sep='\t')
+        xy = np.vstack([cells[i].center for i in index])
+        DVF = DVF.join(pd.DataFrame(xy, index=index, columns=cells.space_cols))
+        # DVF.to_csv('results.csv', sep='\t')
 
     # format the posteriors
-    posteriors = pd.DataFrame(np.array(posteriors), columns=['fit', 'total'])
+    posteriors = pd.DataFrame(np.array(posteriors), columns=["fit", "total"])
 
     return DVF, posteriors
-

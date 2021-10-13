@@ -14,12 +14,12 @@
 
 from . import rc
 from .rc import *
-from .lazy import ro_property_assert, Lazy # hide PermissionError
+from .lazy import ro_property_assert, Lazy  # hide PermissionError
 from .namedcolumns import *
 from .chain import *
 from . import exceptions
 from .analyses import *
 from .scaler import *
 from .xyt import *
-#from .hdf5 import *
 
+# from .hdf5 import *

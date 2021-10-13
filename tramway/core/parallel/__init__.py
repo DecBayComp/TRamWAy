@@ -17,6 +17,7 @@ try:
 except ImportError:
     pass
 import multiprocessing
+
 try:
     import queue
 except ImportError:
@@ -24,18 +25,19 @@ except ImportError:
 import time
 import numpy as np
 from warnings import warn
+
 try:
     from . import abc
-except SyntaxError: # Py2
+except SyntaxError:  # Py2
     import abc_py2 as abc
 from traceback import format_exc
 
-#import logging # DEBUG
-#module_logger = logging.getLogger(__name__)
-#module_logger.setLevel(logging.DEBUG)
-#_console = logging.StreamHandler()
-#_console.setFormatter(logging.Formatter('%(message)s\n'))
-#module_logger.addHandler(_console)
+# import logging # DEBUG
+# module_logger = logging.getLogger(__name__)
+# module_logger.setLevel(logging.DEBUG)
+# _console = logging.StreamHandler()
+# _console.setFormatter(logging.Formatter('%(message)s\n'))
+# module_logger.addHandler(_console)
 
 
 class StarQueue(object):
@@ -48,38 +50,49 @@ class StarQueue(object):
     to children processes.
     The :class:`StarConn` objects are the actual queues.
     """
-    __slots__ = 'deck',
+
+    __slots__ = ("deck",)
+
     def __init__(self, n, variant=multiprocessing.Queue, **kwargs):
         self.deck = []
-        queues = [ variant(**kwargs) for _ in range(n) ]
+        queues = [variant(**kwargs) for _ in range(n)]
         others = []
         for _ in range(n):
             _queue = queues.pop()
-            self.deck.append((_queue, queues+others))
+            self.deck.append((_queue, queues + others))
             others.append(_queue)
+
     def deal(self):
         try:
             return StarConn(*self.deck.pop())
         except IndexError:
-            raise RuntimeError('too many consumers')
+            raise RuntimeError("too many consumers")
+
 
 class StarConn(object):
-    __slots__ = 'input', 'output'
+    __slots__ = "input", "output"
+
     def __init__(self, input_queue=None, output_queues=None):
         self.input = input_queue
         self.output = output_queues
+
     @property
     def joinable(self):
         return isinstance(self.input, multiprocessing.JoinableQueue)
+
     @property
     def variant(self):
         return type(self.input)
+
     def qsize(self):
-        return sum( q.qsize() for q in self.output )
+        return sum(q.qsize() for q in self.output)
+
     def empty(self):
-        return all( q.empty() for q in self.output )
+        return all(q.empty() for q in self.output)
+
     def full(self):
-        return any( q.full()  for q in self.output)
+        return any(q.full() for q in self.output)
+
     def put(self, obj, block=True, timeout=None):
         if timeout and 0 < timeout:
             t0 = time.time()
@@ -88,26 +101,36 @@ class StarConn(object):
             _queue.put(obj, block, _timeout)
             if timeout and 0 < timeout:
                 _timeout = timeout - (time.time() - t0)
+
     def put_nowait(self, obj):
         for _queue in self.output:
             _queue.put_nowait(obj)
+
     def get(self, block=True, timeout=None):
         return self.input.get(block, timeout)
+
     def get_nowait(self):
         return self.input.get_nowait()
+
     def close(self):
         if self.output is None:
-            raise RuntimeError('queue not yet `close` should not be called by the parent process')
+            raise RuntimeError(
+                "queue not yet `close` should not be called by the parent process"
+            )
         for _queue in self.output:
             _queue.close()
+
     def join_thread(self):
         if self.output is None:
-            raise RuntimeError('`join_thread` should not be called by the parent process')
+            raise RuntimeError(
+                "`join_thread` should not be called by the parent process"
+            )
         for _queue in self.output:
             _queue.join_thread()
+
     def task_done(self):
         if self.input is None:
-            raise RuntimeError('no task was received through the queue')
+            raise RuntimeError("no task was received through the queue")
         try:
             self.input.task_done()
         except (SystemExit, KeyboardInterrupt):
@@ -116,20 +139,26 @@ class StarConn(object):
             if self.joinable:
                 raise
             else:
-                raise RuntimeError('queue was not set as joinable at init')
+                raise RuntimeError("queue was not set as joinable at init")
+
 
 class WorkerNearDeathException(Exception):
-    __slots__ = '_id', '_name', '_type', '_msg'
+    __slots__ = "_id", "_name", "_type", "_msg"
+
     def __init__(self, _id, name, exc_type, traceback):
         self._id = _id
         self._name = name
         self._type = exc_type
-        self._msg = traceback.split('\n',1)[1][:-1] # remove first and last lines
+        self._msg = traceback.split("\n", 1)[1][:-1]  # remove first and last lines
+
     def __str__(self):
-        return 'Process {} died with error (most recent call last):\n{}'.format(self._name, self._msg)
+        return "Process {} died with error (most recent call last):\n{}".format(
+            self._name, self._msg
+        )
+
 
 class Worker(multiprocessing.Process):
-    """ Worker that runs job steps.
+    """Worker that runs job steps.
 
     The :meth:`target` method may be implemented following the pattern below:
 
@@ -149,8 +178,20 @@ class Worker(multiprocessing.Process):
     to :meth:`Scheduler.__init__`, plus the extra keyword arguments to the latter constructor.
 
     """
-    def __init__(self, _id, workspace, task_queue, return_queue, update_queue,
-            name=None, args=(), kwargs={}, daemon=None, **_kwargs):
+
+    def __init__(
+        self,
+        _id,
+        workspace,
+        task_queue,
+        return_queue,
+        update_queue,
+        name=None,
+        args=(),
+        kwargs={},
+        daemon=None,
+        **_kwargs
+    ):
         # `daemon` is not supported in Py2; pass `daemon` only if defined
         if daemon is None:
             __kwargs = {}
@@ -163,11 +204,12 @@ class Worker(multiprocessing.Process):
         self.update = update_queue
         self.feedback = return_queue
         self.args = args
-        kwargs = dict(kwargs) # copy
+        kwargs = dict(kwargs)  # copy
         kwargs.update(_kwargs)
         self.kwargs = kwargs
+
     def get_task(self):
-        """ Listen to the scheduler and get a job step to be run.
+        """Listen to the scheduler and get a job step to be run.
 
         The job step is loaded with the worker-local copy of the synchronized workspace.
 
@@ -176,14 +218,15 @@ class Worker(multiprocessing.Process):
             int, tramway.core.parallel.JobStep: step/iteration number, job step object.
 
         """
-        #module_logger.debug('get_task: waiting...') # DEBUG
+        # module_logger.debug('get_task: waiting...') # DEBUG
         k, task = self.tasks.get()
-        #module_logger.debug('get_task: received {}'.format(k)) # DEBUG
+        # module_logger.debug('get_task: received {}'.format(k)) # DEBUG
         task.set_workspace(self.workspace)
         self.pull_updates()
         return k, task
+
     def push_update(self, update, status=None):
-        """ Send a completed job step back to the scheduler and to the other workers.
+        """Send a completed job step back to the scheduler and to the other workers.
 
         Arguments:
 
@@ -194,12 +237,13 @@ class Worker(multiprocessing.Process):
         """
         if isinstance(update, abc.VehicleJobStep):
             update.push_updates(self.workspace.pop_extension_updates())
-        update.unset_workspace() # free memory space
+        update.unset_workspace()  # free memory space
         if self.update is not None:
             self.update.put(update)
-        #module_logger.debug('push_update: sending back') # DEBUG
+        # module_logger.debug('push_update: sending back') # DEBUG
         self.feedback.put((update, status))
-        #module_logger.debug('push_update: sent') # DEBUG
+        # module_logger.debug('push_update: sent') # DEBUG
+
     def pull_updates(self):
         if self.update is None:
             return
@@ -209,39 +253,63 @@ class Worker(multiprocessing.Process):
             except queue.Empty:
                 break
             else:
-                self.workspace.update(update) # `Workspace.update` reloads the workspace into the update
+                self.workspace.update(
+                    update
+                )  # `Workspace.update` reloads the workspace into the update
+
     def run(self):
         try:
             self.target(*self.args, **self.kwargs)
         except (SystemExit, KeyboardInterrupt):
             raise
         except Exception as e:
-            self.feedback.put((None,
-                WorkerNearDeathException(self._id, self.name, type(e), format_exc())))
+            self.feedback.put(
+                (
+                    None,
+                    WorkerNearDeathException(
+                        self._id, self.name, type(e), format_exc()
+                    ),
+                )
+            )
+
 
 class NormalTermination(Exception):
     pass
 
+
 def _pseudo_worker(worker):
     class PseudoWorker(worker):
         def __init__(self, scheduler, args=(), kwargs={}, _id=0, name=None):
-            worker.__init__(self, _id, scheduler.workspace,
-                None, None, None, name=name, args=args, kwargs=kwargs)
+            worker.__init__(
+                self,
+                _id,
+                scheduler.workspace,
+                None,
+                None,
+                None,
+                name=name,
+                args=args,
+                kwargs=kwargs,
+            )
             self._scheduler = scheduler
+
         def get_task(self):
             return self._scheduler.next_task()
+
         def push_update(self, update, status=None):
             i = update.resource_id
             self._scheduler.task[i] = update
             if self._scheduler.pseudo_stop(status):
                 raise NormalTermination
+
         def run(self):
             self.target(*self.args, **self.kwargs)
+
     return PseudoWorker
 
 
 class Scheduler(object):
-    """ Scheduler that distributes job steps over a shared workspace.
+    """Scheduler that distributes job steps over a shared workspace.
 
     Workers are spawned and assigned job steps.
     Each worker maintains a copy of the common workspace that is synchronized
@@ -250,9 +318,21 @@ class Scheduler(object):
     The :meth:`stop` method should be overloaded so that the distributed computation
     may complete on termination criteria.
     """
-    def __init__(self, workspace, tasks, worker_count=None, iter_max=None,
-            name=None, args=(), kwargs={}, daemon=None, max_runtime=None,
-            task_timeout=None, **_kwargs):
+
+    def __init__(
+        self,
+        workspace,
+        tasks,
+        worker_count=None,
+        iter_max=None,
+        name=None,
+        args=(),
+        kwargs={},
+        daemon=None,
+        max_runtime=None,
+        task_timeout=None,
+        **_kwargs
+    ):
         """
         Arguments:
 
@@ -274,9 +354,9 @@ class Scheduler(object):
         """
         try:
             # in Python 3.8.10, daemon mode was default
-            multiprocessing.process.current_process()._config['daemon'] = False
+            multiprocessing.process.current_process()._config["daemon"] = False
         except Exception:
-            warn('failed to force-disable daemon mode')
+            warn("failed to force-disable daemon mode")
         self.workspace = workspace
         self.task = tasks
         self.active = dict()
@@ -290,37 +370,64 @@ class Scheduler(object):
             worker_count = multiprocessing.cpu_count() - 1
         elif worker_count < 0:
             worker_count = multiprocessing.cpu_count() + worker_count
-        kwargs = dict(kwargs) # copy
+        kwargs = dict(kwargs)  # copy
         kwargs.update(_kwargs)
         if worker_count:
             self.task_queue = multiprocessing.Queue()
             self.return_queue = multiprocessing.Queue()
             if worker_count == 1:
-                self.workers = { 0: self.worker(0, self.workspace,
-                            self.task_queue, self.return_queue, None,
-                            name=name, args=args, kwargs=kwargs, daemon=daemon) }
+                self.workers = {
+                    0: self.worker(
+                        0,
+                        self.workspace,
+                        self.task_queue,
+                        self.return_queue,
+                        None,
+                        name=name,
+                        args=args,
+                        kwargs=kwargs,
+                        daemon=daemon,
+                    )
+                }
             else:
+
                 def _name(w):
-                    return '{}-{:d}'.format(name, w) if w else None
+                    return "{}-{:d}".format(name, w) if w else None
+
                 update_queue = StarQueue(worker_count)
-                self.workers = { i: self.worker(i, self.workspace,
-                            self.task_queue, self.return_queue, update_queue.deal(),
-                            name=_name(i), args=args, kwargs=kwargs, daemon=daemon)
-                        for i in range(worker_count) }
+                self.workers = {
+                    i: self.worker(
+                        i,
+                        self.workspace,
+                        self.task_queue,
+                        self.return_queue,
+                        update_queue.deal(),
+                        name=_name(i),
+                        args=args,
+                        kwargs=kwargs,
+                        daemon=daemon,
+                    )
+                    for i in range(worker_count)
+                }
         else:
             self.workers = self.pseudo_worker(self, args=args, kwargs=kwargs)
+
     def init_resource_lock(self):
         if 1 < self.worker_count:
             self.resource_lock = np.zeros(len(self.workspace), dtype=bool)
+
     @property
     def worker(self):
         return Worker
+
     @property
     def pseudo_worker(self):
         return _pseudo_worker(self.worker)
+
     @property
     def worker_count(self):
         return len(self.workers) if isinstance(self.workers, dict) else 0
+
     @property
     def timeout(self):
         if self.task_timeout is None:
@@ -329,10 +436,12 @@ class Scheduler(object):
             return self.task_timeout
         else:
             return min(self.global_timeout, self.task_timeout)
+
     def draw(self, k):
         return k
+
     def next_task(self):
-        """ no-mp mode only """
+        """no-mp mode only"""
         task = None
         while not self.iter_max_reached():
             i = self.draw(self.k_eff)
@@ -340,23 +449,29 @@ class Scheduler(object):
             if i is not None:
                 task = self.task[i]
                 break
-        return self.k_eff-1, task
+        return self.k_eff - 1, task
+
     def locked(self, step):
-        return 1 < self.worker_count and \
-                (step.resource_id in self.active or \
-                np.any(self.resource_lock[step.resources]))
+        return 1 < self.worker_count and (
+            step.resource_id in self.active
+            or np.any(self.resource_lock[step.resources])
+        )
+
     def lock(self, step):
         if 1 < self.worker_count:
             self.resource_lock[step.resources] = True
+
     def unlock(self, step):
         if 1 < self.worker_count:
             self.resource_lock[step.resources] = False
+
     @property
     def available_slots(self):
         """
         `int`: Number of available workers.
         """
         return self.worker_count - len(self.active)
+
     def send_task(self, k, step):
         """
         Send a job step to be assigned to a worker as soon as possible.
@@ -370,11 +485,12 @@ class Scheduler(object):
         """
         self.active[step.resource_id] = k
         self.lock(step)
-        step.unset_workspace() # free memory
-        #module_logger.debug('send_task: sending {}...'.format(k)) # DEBUG
+        step.unset_workspace()  # free memory
+        # module_logger.debug('send_task: sending {}...'.format(k)) # DEBUG
         self.task_queue.put((k, step))
-        #module_logger.debug('send_task: sent') # DEBUG
+        # module_logger.debug('send_task: sent') # DEBUG
         self.k_eff += 1
+
     def get_processed_step(self):
         """
         Retrieve a processed job step and check whether stopping criteria are met.
@@ -384,25 +500,25 @@ class Scheduler(object):
         Returns :const:`False` if a stopping criterion has been met, :const:`True` otherwise.
         """
         while True:
-            #module_logger.debug('get_processed_step: waiting...') # DEBUG
+            # module_logger.debug('get_processed_step: waiting...') # DEBUG
             # note: `get` does not raise TimeoutError
             step, status = self.return_queue.get(timeout=self.timeout)
-            #module_logger.debug('get_processed_step: received {}'.format(self.active[step.resource_id])) # DEBUG
+            # module_logger.debug('get_processed_step: received {}'.format(self.active[step.resource_id])) # DEBUG
             if step is None:
                 if isinstance(status, WorkerNearDeathException):
                     self.dead_workers[status._id] = self.workers.pop(status._id, None)
                     try:
                         self.logger.critical(str(status))
                     except AttributeError:
-                        print('error: {}'.format(status))
+                        print("error: {}".format(status))
                     if not self.workers:
                         return False
                 else:
                     return self.stop(None, None, status)
             else:
                 break
-        #step.set_workspace(self.workspace) # reload workspace
-        self.workspace.update(step) # `update` reloads the workspace into `step`
+        # step.set_workspace(self.workspace) # reload workspace
+        self.workspace.update(step)  # `update` reloads the workspace into `step`
         assert step.get_workspace() is not None
         i = step.resource_id
         self.task[i] = step
@@ -411,11 +527,14 @@ class Scheduler(object):
             return not self.stop(k, i, status)
         finally:
             self.unlock(step)
+
     def iter_max_reached(self):
         return self.k_max and self.k_max <= self.k_eff
+
     def workers_alive(self):
-        self.workers = { i: w for i, w in self.workers.items() if w.is_alive() }
+        self.workers = {i: w for i, w in self.workers.items() if w.is_alive()}
         return bool(self.workers)
+
     def fill_slots(self, k, postponed):
         """
         Send as many job steps as there are available workers.
@@ -443,11 +562,12 @@ class Scheduler(object):
                     postponed[i] = k
                 else:
                     self.send_task(k, task)
-                k += 1 # increment anyway in the case i is None
-                if self.iter_max_reached(): # can happen only after `send_task`
-                    #assert False
+                k += 1  # increment anyway in the case i is None
+                if self.iter_max_reached():  # can happen only after `send_task`
+                    # assert False
                     break
         return k
+
     def run(self):
         """
         Start the workers, send and get job steps back and check for stop criteria.
@@ -462,15 +582,21 @@ class Scheduler(object):
                 try:
                     import stopit
                 except ImportError:
-                    warn('limited timeout support; install package stopit to get full support', ImportWarning)
+                    warn(
+                        "limited timeout support; install package stopit to get full support",
+                        ImportWarning,
+                    )
                 else:
                     context = stopit.ThreadingTimeout(self.timeout)
             if context is None:
+
                 class DummyContextManager(object):
                     def __enter__(self):
                         return self
+
                     def __exit__(self, *args):
                         pass
+
                 context = DummyContextManager()
             #
             ret = True
@@ -484,7 +610,7 @@ class Scheduler(object):
             return ret
 
         for w in self.workers.values():
-            #assert not w.daemon
+            # assert not w.daemon
             w.start()
         self.init_resource_lock()
         if self.global_timeout:
@@ -498,8 +624,10 @@ class Scheduler(object):
                     break
                 if not self.get_processed_step():
                     break
-                if self.global_timeout and self.global_timeout <= (time.time() - self.start_time):
-                    #raise multiprocessing.TimeoutError
+                if self.global_timeout and self.global_timeout <= (
+                    time.time() - self.start_time
+                ):
+                    # raise multiprocessing.TimeoutError
                     break
                 if postponed:
                     for i in list(postponed):
@@ -526,6 +654,7 @@ class Scheduler(object):
             except:
                 pass
         return ret
+
     def stop(self, k, i, status):
         """
         Default implementation returns ``False``.
@@ -544,19 +673,42 @@ class Scheduler(object):
 
         """
         return False
+
     def pseudo_stop(self, status):
         k = self.k_eff - 1
         return self.stop(k, self.draw(k), status)
 
 
 class EpochScheduler(Scheduler):
-    def __init__(self, workspace, tasks, epoch_length=None, soft_epochs=False, worker_count=None,
-            iter_max=None, name=None, args=(), kwargs={}, daemon=None, **_kwargs):
+    def __init__(
+        self,
+        workspace,
+        tasks,
+        epoch_length=None,
+        soft_epochs=False,
+        worker_count=None,
+        iter_max=None,
+        name=None,
+        args=(),
+        kwargs={},
+        daemon=None,
+        **_kwargs
+    ):
         epoch_length = len(tasks) if epoch_length is None else epoch_length
         if not soft_epochs and not worker_count:
             worker_count = min(epoch_length, multiprocessing.cpu_count() - 1)
-        Scheduler.__init__(self, workspace, tasks, worker_count=worker_count, iter_max=iter_max,
-            name=name, args=args, kwargs=kwargs, daemon=daemon, **_kwargs)
+        Scheduler.__init__(
+            self,
+            workspace,
+            tasks,
+            worker_count=worker_count,
+            iter_max=iter_max,
+            name=name,
+            args=args,
+            kwargs=kwargs,
+            daemon=daemon,
+            **_kwargs
+        )
         self.soft_epochs = soft_epochs
         self._task_epoch = np.arange(epoch_length)
 
@@ -571,31 +723,37 @@ class EpochScheduler(Scheduler):
         return self._task_epoch[i]
 
     def start_new_epoch(self, task_order):
-        """ must modify the `task_order` array inplace """
+        """must modify the `task_order` array inplace"""
         np.random.shuffle(task_order)
 
 
 class ProtoWorkspace(object):
-    __slots__ = '_extensions',
+    __slots__ = ("_extensions",)
+
     def __init__(self, args=()):
         self._extensions = {}
         if args:
             self.identify_extensions(args)
+
     def update(self, step):
         step.set_workspace(self)
         if isinstance(step, abc.VehicleJobStep):
             self.push_extension_updates(step.pop_updates())
+
     def resources(self, step):
         return step.resources
+
     def identify_extensions(self, args):
         for k, a in enumerate(args):
             if isinstance(a, abc.WorkspaceExtension):
                 self._extensions[k] = a
+
     def push_extension_updates(self, updates):
         for k in updates:
             update = updates[k]
             extension = self._extensions[k]
             extension.push_workspace_update(update)
+
     def pop_extension_updates(self):
         updates = {}
         for k in self._extensions:
@@ -603,27 +761,31 @@ class ProtoWorkspace(object):
             updates[k] = extension.pop_workspace_update()
         return updates
 
+
 abc.ExtendedWorkspace.register(ProtoWorkspace)
 
 
 class Workspace(ProtoWorkspace):
-    """ Parameter singleton.
+    """Parameter singleton.
 
     Attributes:
 
         data_array (array-like): working copy of the parameter vector.
 
     """
-    __slots__ = 'data_array',
+
+    __slots__ = ("data_array",)
+
     def __init__(self, data_array, *args):
         ProtoWorkspace.__init__(self, args)
         self.data_array = data_array
+
     def __len__(self):
         return len(self.data_array)
 
 
 class JobStep(object):
-    """ Job step data.
+    """Job step data.
 
     A job step object contains all the necessary input data for a job step
     to be performed as well as the output data resulting from the step completion.
@@ -640,31 +802,40 @@ class JobStep(object):
     This attribute is used by :class:`Scheduler` to lock the required items of data,
     which determines which steps can be run simultaneously.
     """
-    __slots__ = '_id', '_workspace'
+
+    __slots__ = "_id", "_workspace"
+
     def __init__(self, _id, workspace=None):
         self._id = _id
         self._workspace = workspace
+
     def get_workspace(self):
         return self._workspace
+
     def set_workspace(self, ws):
         self._workspace = ws
+
     def unset_workspace(self):
         self._workspace = None
+
     @property
     def workspace_set(self):
         return self._workspace is not None
+
     @property
     def resource_id(self):
         return self._id
+
     @property
     def resources(self):
         return self.get_workspace().resources(self)
+
 
 abc.JobStep.register(JobStep)
 
 
 class UpdateVehicle(object):
-    """ Not instanciable! Introduced for __slots__-enabled multiple inheritance.
+    """Not instanciable! Introduced for __slots__-enabled multiple inheritance.
 
     Example usage, in the case class ``B`` implements (abc.) :class:`VehicleJobStep` and
     class ``A`` can only implement (abc.) :class:`JobStep` and not
@@ -685,25 +856,43 @@ class UpdateVehicle(object):
     (methods) and :class:`abc.VehicleJobStep` the typing required by :class:`Workspace` and
     :class:`Worker` to handle ``B`` as a :class:`VehicleJobStep`.
     """
+
     __slots__ = ()
+
     def __init__(self):
         self._updates = {}
+
     def pop_updates(self):
         try:
             return self._updates
         finally:
             self._updates = {}
+
     def push_updates(self, updates):
         self._updates = updates
 
+
 class VehicleJobStep(JobStep, UpdateVehicle):
-    __slots__ = '_updates',
+    __slots__ = ("_updates",)
+
     def __init__(self, _id, workspace=None):
         JobStep.__init__(self, _id, workspace)
         UpdateVehicle.__init__(self)
 
+
 abc.VehicleJobStep.register(VehicleJobStep)
 
 
-__all__ = [ 'StarConn', 'StarQueue', 'ProtoWorkspace', 'Workspace', 'JobStep', 'UpdateVehicle', 'VehicleJobStep', 'Worker', 'Scheduler', 'EpochScheduler', 'abc' ]
-
+__all__ = [
+    "StarConn",
+    "StarQueue",
+    "ProtoWorkspace",
+    "Workspace",
+    "JobStep",
+    "UpdateVehicle",
+    "VehicleJobStep",
+    "Worker",
+    "Scheduler",
+    "EpochScheduler",
+    "abc",
+]

@@ -74,7 +74,9 @@ class Curl(object):
     @property
     def cell_adjacency(self):
         if self._cell_adjacency is None:
-            self._cell_adjacency = self.cells.tessellation.simplified_adjacency().tocsr()
+            self._cell_adjacency = (
+                self.cells.tessellation.simplified_adjacency().tocsr()
+            )
         return self._cell_adjacency
 
     @cell_adjacency.setter
@@ -108,9 +110,9 @@ class Curl(object):
     def local_curl(self, variable, cell, distance):
         v, c, s = variable, cell, distance
         try:
-            cs = self.cells.tessellation.contour(c, s,
-                adjacency=self.cell_adjacency,
-                debug=self.debug, cells=self.cells)
+            cs = self.cells.tessellation.contour(
+                c, s, adjacency=self.cell_adjacency, debug=self.debug, cells=self.cells
+            )
         except:
             return None
         ws = set((cell,))
@@ -120,9 +122,9 @@ class Curl(object):
 
     def curl_integral(self, variable, contour, inner):
         area = self.surface_area(contour, inner)
-        if np.isclose(area, 0.):
-            return 0.
-        ok = np.array([ c in self.map_index for c in contour ])
+        if np.isclose(area, 0.0):
+            return 0.0
+        ok = np.array([c in self.map_index for c in contour])
         field = self.field(variable, np.asarray(contour)[ok])
         tangent = np.asarray(self.tangent(contour))[ok]
         return np.sum(field * tangent) / area
@@ -138,11 +140,11 @@ class Curl(object):
 
     def tangent(self, cs):
         X = self.cells.tessellation.cell_centers
-        uvw = zip([cs[-1]]+cs[:-1], cs, cs[1:]+[cs[0]])
-        return np.vstack([ (X[w]-X[u])*.5 for u, v, w in uvw ])
+        uvw = zip([cs[-1]] + cs[:-1], cs, cs[1:] + [cs[0]])
+        return np.vstack([(X[w] - X[u]) * 0.5 for u, v, w in uvw])
 
     def surface_area(self, contour, inner):
-        if False:#self._areas is None:
+        if False:  # self._areas is None:
             ncells = self.cells.tessellation.cell_adjacency.shape[0]
             centers = self.cells.tessellation.cell_centers
             vertices = self.cells.tessellation.cell_vertices
@@ -153,28 +155,39 @@ class Curl(object):
                 u = centers[c]
                 verts = set(vertices[c].tolist())
                 ordered_verts = []
-                next_verts = set(verts) # copy
+                next_verts = set(verts)  # copy
                 try:
                     while verts:
                         vert = next_verts.pop()
                         ordered_verts.append(vert)
                         verts.remove(vert)
-                        next_verts = set(adjacency.indices[adjacency.indptr[vert]:adjacency.indptr[vert+1]]) & verts
+                        next_verts = (
+                            set(
+                                adjacency.indices[
+                                    adjacency.indptr[vert] : adjacency.indptr[vert + 1]
+                                ]
+                            )
+                            & verts
+                        )
                 except KeyError:
                     if self.debug:
                         print(traceback.format_exc())
                     continue
-                for a, b in zip(ordered_verts, ordered_verts[1:]+[ordered_verts[0]]):
+                for a, b in zip(ordered_verts, ordered_verts[1:] + [ordered_verts[0]]):
                     v, w = vert_coords[a], vert_coords[b]
-                    self._areas[c] += abs((v[0]-u[0])*(w[1]-u[1])-(w[0]-u[0])*(v[1]-u[1]))
-            self._areas *= .5
+                    self._areas[c] += abs(
+                        (v[0] - u[0]) * (w[1] - u[1]) - (w[0] - u[0]) * (v[1] - u[1])
+                    )
+            self._areas *= 0.5
         return np.sum(self.cells.tessellation.cell_volume[list(inner)])
 
     def extract(self, label, variable=None, distance=1):
         if variable is None:
-            vector_field = { f: vs for f, vs in self.variables if len(vs) == 2 }
+            vector_field = {f: vs for f, vs in self.variables if len(vs) == 2}
             if vector_field[1:]:
-                raise ValueError('multiple vector fields; `variable` argument is required')
+                raise ValueError(
+                    "multiple vector fields; `variable` argument is required"
+                )
             else:
                 variable = list(vector_field.keys())[0]
         cells, curls = [], []
@@ -184,6 +197,5 @@ class Curl(object):
                 cells.append(cell)
                 curls.append(curl)
         curls = pd.Series(index=np.array(cells), data=np.array(curls))
-        #self.map[label] = curls
+        # self.map[label] = curls
         return pd.DataFrame({label: curls})
-

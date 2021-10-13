@@ -1,4 +1,3 @@
-
 """
 Standard analysis steps for RWAnalyzer.pipeline
 """
@@ -24,18 +23,22 @@ def _spt_source_name(f):
         alias = None
     return f.source if alias is None else alias
 
+
 def _filters(kwargs):
     asr_filters = {}
     for k in kwargs:
-        if k.startswith('spt_') or k.startswith('roi_'):
+        if k.startswith("spt_") or k.startswith("roi_"):
             asr_filters[k[4:]] = kwargs[k]
     return asr_filters
+
 
 def _placeholder_for_root_data(tree):
     tree._data = None
 
 
-def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='freeze', **kwargs):
+def tessellate(
+    label=None, roi_expected=False, spt_data=True, tessellation="freeze", **kwargs
+):
     """
     Returns a standard pipeline stage for SPT data sampling.
 
@@ -109,32 +112,38 @@ def tessellate(label=None, roi_expected=False, spt_data=True, tessellation='free
                     dry_run = False
 
                     # store
-                    if tessellation=='freeze':
+                    if tessellation == "freeze":
                         try:
                             sampling.tessellation.freeze()
                         except AttributeError:
                             pass
                     r.add_sampling(sampling, label=label)
 
-                if spt_data == 'placeholder':
+                if spt_data == "placeholder":
                     ## [does not work:] make the dataframe empty and keep the additional attributes
-                    #df = f.dataframe
-                    #f._dataframe = df[np.zeros(df.shape[0], dtype=bool)]
+                    # df = f.dataframe
+                    # f._dataframe = df[np.zeros(df.shape[0], dtype=bool)]
                     tree.hooks.append(_placeholder_for_root_data)
                 elif not any_full_region:
                     # save the full dataset with reasonnable precision to save storage space
-                    f.set_precision('single')
+                    f.set_precision("single")
                     # the data in the roi is stored separately and will keep the original precision
 
         if dry_run:
-            logger.info('stage skipped')
+            logger.info("stage skipped")
             diagnose(self)
 
-    return PipelineStage(_tessellate, granularity='spt data')
+    return PipelineStage(_tessellate, granularity="spt data")
 
 
-def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=False,
-        single_path=False, **kwargs):
+def infer(
+    map_label=None,
+    sampling_label=None,
+    roi_expected=False,
+    overwrite=False,
+    single_path=False,
+    **kwargs,
+):
     """
     Returns a standard pipeline stage for inferring model parameters on each region of interest,
     or SPT data item if no roi are defined.
@@ -163,7 +172,9 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
                 input_label = sampling_label(r.label)
             else:
                 if not dry_run:
-                    logger.warning("multiple roi bound to single sampling label; make sampling_label callable")
+                    logger.warning(
+                        "multiple roi bound to single sampling label; make sampling_label callable"
+                    )
                 input_label = sampling_label
 
             # get the input data
@@ -201,10 +212,10 @@ def infer(map_label=None, sampling_label=None, roi_expected=False, overwrite=Fal
                             del tree[input_label][label]
 
         if dry_run:
-            logger.info('stage skipped')
+            logger.info("stage skipped")
             diagnose(self)
 
-    return PipelineStage(_infer, granularity='roi')
+    return PipelineStage(_infer, granularity="roi")
 
 
 def reload(skip_missing=True):
@@ -230,6 +241,7 @@ def reload(skip_missing=True):
 
     return PipelineStage(_reload, requires_mutability=True)
 
+
 def restore_spt_data():
     """
     Reintroduces the original SPT dataframe into the *.rwa* files.
@@ -253,35 +265,48 @@ def restore_spt_data():
                 except AttributeError:
                     alias = None
                 if alias is None:
-                    raise NotImplementedError('alias is not defined')
+                    raise NotImplementedError("alias is not defined")
                 #
                 analyzer = self._eldest_parent
                 analyzer.spt_data.reload_from_rwa_files()
                 f = single(analyzer.spt_data.filter_by_source(alias))
             #
-            spt_ascii_file = f.analyses.metadata['datafile']
+            spt_ascii_file = f.analyses.metadata["datafile"]
             rwa_file = f.filepath
-            local_spt_file = os.path.join(os.path.dirname(rwa_file), os.path.basename(spt_ascii_file))
+            local_spt_file = os.path.join(
+                os.path.dirname(rwa_file), os.path.basename(spt_ascii_file)
+            )
             if os.path.isfile(local_spt_file):
                 df = load_xyt(local_spt_file)
                 restore = no_dataframe = f.dataframe is None
                 if not no_dataframe:
                     cols, cols_ = f.dataframe.columns, df.columns
-                    restore = len(cols)==len(cols_) and all([ c==c_ for c, c_ in zip(cols, cols_) ])
+                    restore = len(cols) == len(cols_) and all(
+                        [c == c_ for c, c_ in zip(cols, cols_)]
+                    )
                 if restore:
                     with f.autosaving() as tree:
                         f._dataframe = df
                         tree.flag_as_modified()
                 else:
-                    logger.error('column names do not match with file: {}'.format(local_spt_file))
+                    logger.error(
+                        "column names do not match with file: {}".format(local_spt_file)
+                    )
             else:
-                logger.error('could not find file: {}'.format(local_spt_file))
+                logger.error("could not find file: {}".format(local_spt_file))
 
-    return PipelineStage(_restore, granularity='spt data')
+    return PipelineStage(_restore, granularity="spt data")
 
 
-def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, overwrite=False,
-        roi_expected=False, load_rwa_files=None, **kwargs):
+def tessellate_and_infer(
+    map_label=None,
+    sampling_label=None,
+    spt_data=True,
+    overwrite=False,
+    roi_expected=False,
+    load_rwa_files=None,
+    **kwargs,
+):
     """
     Combines `tessellate` and `infer` at roi granularity.
 
@@ -319,13 +344,16 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
         dry_run = True
 
         # added in 0.6.1
-        if not (_save_active_branches_only or load_rwa_files is False or \
-                isinstance(self.spt_data, (StandaloneDataItem, RWAFiles))):
+        if not (
+            _save_active_branches_only
+            or load_rwa_files is False
+            or isinstance(self.spt_data, (StandaloneDataItem, RWAFiles))
+        ):
             _load_rwa_files = load_rwa_files
             if load_rwa_files is None:
                 for f in self.spt_data:
                     if f.source:
-                        rwa_file = os.path.splitext(f.source)[0]+'.rwa'
+                        rwa_file = os.path.splitext(f.source)[0] + ".rwa"
                         _load_rwa_files = os.path.isfile(os.path.expanduser(rwa_file))
                     break
             if _load_rwa_files:
@@ -345,12 +373,14 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                 active_labels = defaultdict(set)
 
             # new in 0.6; actually works only with StandaloneDataItem
-            if not (_save_active_branches_only or \
-                    load_rwa_files is False or \
-                    isinstance(f, _RWAFile)):
+            if not (
+                _save_active_branches_only
+                or load_rwa_files is False
+                or isinstance(f, _RWAFile)
+            ):
                 try:
-                    rwa_file = os.path.splitext(f.source)[0]+'.rwa'
-                except Exception: # Exception excludes KeyboardInterrupt and SystemExit
+                    rwa_file = os.path.splitext(f.source)[0] + ".rwa"
+                except Exception:  # Exception excludes KeyboardInterrupt and SystemExit
                     pass
                 else:
                     if os.path.isfile(os.path.expanduser(rwa_file)):
@@ -369,6 +399,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                     else:
                         roi_label = r.label
                         msg = f"{{}} roi: '{roi_label}' (in source '{source_name}')..."
+
                     def log(op):
                         logger.info(msg.format(op))
 
@@ -378,13 +409,19 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         label = sampling_label(r.label)
                     else:
                         if not source_dry_run:
-                            logger.warning("multiple roi bound to single sampling label; make sampling_label callable")
+                            logger.warning(
+                                "multiple roi bound to single sampling label; make sampling_label callable"
+                            )
                         label = sampling_label
 
                     # control predicates
                     _tessellate = overwrite or label is None or label not in tree.labels
-                    _infer = _tessellate or overwrite or map_label is None or \
-                            map_label not in tree[label].labels
+                    _infer = (
+                        _tessellate
+                        or overwrite
+                        or map_label is None
+                        or map_label not in tree[label].labels
+                    )
 
                     if _tessellate:
 
@@ -392,16 +429,20 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         df = r.crop()
 
                         if df.empty:
-                            raise ValueError(f'not a single displacement in roi {roi_label}')
+                            raise ValueError(
+                                f"not a single displacement in roi {roi_label}"
+                            )
 
                         # filter some translocations out
                         df = r.discard_static_trajectories(df)
 
                         if df.empty:
-                            raise ValueError(f'all the trajectories are static in roi {roi_label}')
+                            raise ValueError(
+                                f"all the trajectories are static in roi {roi_label}"
+                            )
 
                         # tessellate
-                        log('tessellating')
+                        log("tessellating")
                         sampling = self.sampler.sample(df)
 
                     elif _infer:
@@ -410,7 +451,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                     if _infer:
 
                         # infer
-                        log('inferring')
+                        log("inferring")
                         maps = self.mapper.infer(sampling)
 
                         dry_run = source_dry_run = False
@@ -429,7 +470,7 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                         sampling = r.get_sampling(sampling_label)
                     if _infer:
                         # ... and the inferred maps
-                        maps     = commit_as_analysis(map_label, maps, parent=sampling)
+                        maps = commit_as_analysis(map_label, maps, parent=sampling)
                         #
                         assert tree.modified(recursive=True)
                         if _save_active_branches_only:
@@ -446,16 +487,18 @@ def tessellate_and_infer(map_label=None, sampling_label=None, spt_data=True, ove
                             tree.comments
                             del tree[label0]
 
-                if spt_data=='placeholder':
+                if spt_data == "placeholder":
                     tree.hooks.append(_placeholder_for_root_data)
 
         if dry_run:
-            logger.info('stage skipped')
+            logger.info("stage skipped")
             diagnose(self)
 
-    return PipelineStage(_tessellate_and_infer,
-            granularity='roi',
-            update_existing_rwa_files=load_rwa_files is not False)
+    return PipelineStage(
+        _tessellate_and_infer,
+        granularity="roi",
+        update_existing_rwa_files=load_rwa_files is not False,
+    )
 
 
 def diagnose(self):
@@ -467,25 +510,26 @@ def diagnose(self):
     from ..spt_data import _normalize
 
     try:
-        sources = self.env.selectors['source']
+        sources = self.env.selectors["source"]
     except AttributeError:
         sources = ()
     if isinstance(sources, str):
         sources = (sources,)
 
     try:
-        alias = all([ bool(f.alias) for f in self._eldest_parent.spt_data ])
+        alias = all([bool(f.alias) for f in self._eldest_parent.spt_data])
     except AttributeError:
         alias = False
     if alias:
         requested = set(sources)
         available = set(self.spt_data.aliases)
     else:
-        requested = set([ _normalize(_s) for _s in sources ])
-        available = set([ _normalize(_f.source) for _f in self.spt_data ])
+        requested = set([_normalize(_s) for _s in sources])
+        available = set([_normalize(_f.source) for _f in self.spt_data])
 
-    if bool( requested - available ):
-        logger.critical(f"""
+    if bool(requested - available):
+        logger.critical(
+            f"""
 The local worker was assigned the following SPT data source(s):
    {requested}
 but listed other sources:
@@ -495,9 +539,9 @@ and a subset of the listed files is selected based on their order
 in the list.
 Avoid doing so!
 Filename ordering varies from a file system to another.
-""")
+"""
+        )
         raise RuntimeError
 
 
-__all__ = ['tessellate', 'infer', 'reload', 'restore_spt_data', 'tessellate_and_infer']
-
+__all__ = ["tessellate", "infer", "reload", "restore_spt_data", "tessellate_and_infer"]

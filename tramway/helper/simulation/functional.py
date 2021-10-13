@@ -18,13 +18,28 @@ from tramway.core.xyt import crop
 import warnings
 
 
-def random_walk(diffusivity=None, force=None, friction=None, drift=None,
-        trajectory_mean_count=100, trajectory_count_sd=0, turnover=None,
-        initial_trajectory_count=None, new_trajectory_count=None,
-        lifetime_tau=None, lifetime=None, single=False,
-        box=(0., 0., 1., 1.), duration=10., time_step=.05, minor_step_count=99,
-        reflect=False, full=False, count_outside_trajectories=None,
-        viscosity=None):
+def random_walk(
+    diffusivity=None,
+    force=None,
+    friction=None,
+    drift=None,
+    trajectory_mean_count=100,
+    trajectory_count_sd=0,
+    turnover=None,
+    initial_trajectory_count=None,
+    new_trajectory_count=None,
+    lifetime_tau=None,
+    lifetime=None,
+    single=False,
+    box=(0.0, 0.0, 1.0, 1.0),
+    duration=10.0,
+    time_step=0.05,
+    minor_step_count=99,
+    reflect=False,
+    full=False,
+    count_outside_trajectories=None,
+    viscosity=None,
+):
     r"""
     Generate random walks.
 
@@ -115,18 +130,18 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
 
     """
     if turnover is not None:
-        warnings.warn('`turnover` is deprecated', DeprecationWarning)
+        warnings.warn("`turnover` is deprecated", DeprecationWarning)
     if count_outside_trajectories is False:
-        warnings.warn('`count_outside_trajectories` is deprecated', DeprecationWarning)
+        warnings.warn("`count_outside_trajectories` is deprecated", DeprecationWarning)
     _box = np.asarray(box)
     dim = int(_box.size / 2)
     support_lower_bound = _box[:dim]
     support_size = _box[dim:]
     support_upper_bound = support_lower_bound + support_size
     # default diffusivity and drift maps
-    #def null_scalar_map(xy, t):
+    # def null_scalar_map(xy, t):
     #    return 0.
-    #def null_vector_map(xy, t):
+    # def null_vector_map(xy, t):
     #    return np.zeros((dim,))
     if callable(diffusivity):
         pass
@@ -134,15 +149,17 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
         _D = diffusivity
         diffusivity = lambda x, t: _D
     else:
-        raise ValueError('`diffusivity` must be callable or a positive float')
+        raise ValueError("`diffusivity` must be callable or a positive float")
     if viscosity is not None:
         if friction is None:
             friction = viscosity
-            warnings.warn(r"argument name 'viscosity' is misleading as it actually represents the friction divided by kT")
+            warnings.warn(
+                r"argument name 'viscosity' is misleading as it actually represents the friction divided by kT"
+            )
         else:
             warnings.warn(r"argument 'viscosity' is ignored")
     if force and not callable(force):
-        raise TypeError('`force` must be callable')
+        raise TypeError("`force` must be callable")
     if drift:
         _drift = drift
         if force:
@@ -157,12 +174,14 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
         elif np.isscalar(friction) and 0 < friction:
             drift = lambda x, t, D: force(x, t) / friction
         else:
-            raise ValueError('`friction` must be callable or a positive float')
+            raise ValueError("`friction` must be callable or a positive float")
     else:
         drift = lambda x, t, D: 0
     #
-    N = int(round(float(duration) / time_step)) # number of observed steps
-    min_step_count = 1 if single else 2 # minimum number of observed steps per trajectory
+    N = int(round(float(duration) / time_step))  # number of observed steps
+    min_step_count = (
+        1 if single else 2
+    )  # minimum number of observed steps per trajectory
     if callable(lifetime):
         lifetime_tau = None
     elif lifetime:
@@ -172,7 +191,7 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
     elif trajectory_count_sd:
         lifetime_tau = float(trajectory_count_sd) * time_step
     else:
-        lifetime_tau = 4. * time_step
+        lifetime_tau = 4.0 * time_step
     # check
     if lifetime:
         assert callable(lifetime)
@@ -182,16 +201,20 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
     K = None
     if new_trajectory_count is None:
         if trajectory_count_sd:
-            K = np.rint(np.random.randn(N) * trajectory_count_sd + trajectory_mean_count).astype(int)
+            K = np.rint(
+                np.random.randn(N) * trajectory_count_sd + trajectory_mean_count
+            ).astype(int)
         else:
             K = np.full(N, trajectory_mean_count, dtype=int)
     elif initial_trajectory_count is None:
-        warnings.warn('in combination with `new_trajectory_count`, use `initial_trajectory_count` instead of `trajectory_mean_count`')
+        warnings.warn(
+            "in combination with `new_trajectory_count`, use `initial_trajectory_count` instead of `trajectory_mean_count`"
+        )
         initial_trajectory_count = trajectory_mean_count
     k = np.zeros(N, dtype=int)
     # starting time and duration of the trajectories
     time_support = []
-    t = 0.
+    t = 0.0
     for i in range(N):
         t += time_step
         if K is None:
@@ -205,10 +228,10 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
             k_new = K[i] - k[i]
         if k_new <= 0:
             if k_new != 0:
-                print('{:d} excess trajectories at step {:d}'.format(-k_new, i))
+                print("{:d} excess trajectories at step {:d}".format(-k_new, i))
             continue
         if lifetime:
-            _lifetime = np.array([ lifetime(t) for j in range(k_new) ])
+            _lifetime = np.array([lifetime(t) for j in range(k_new)])
         else:
             _lifetime = -np.log(1 - np.random.rand(k_new)) * lifetime_tau
         _lifetime = np.rint(_lifetime / time_step).astype(int) + 1
@@ -218,22 +241,26 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
             continue
         _lifetimes, _count = np.unique(_lifetime, return_counts=True)
         _lifetime = np.zeros(_lifetimes.max(), dtype=_count.dtype)
-        _lifetime[_lifetimes-1] = _count
+        _lifetime[_lifetimes - 1] = _count
         if K is not None:
             _count = np.flipud(np.cumsum(np.flipud(_lifetime)))
-            k[i:min(i+_count.size,k.size)] += _count[:min(k.size-i,_count.size)]
+            k[i : min(i + _count.size, k.size)] += _count[
+                : min(k.size - i, _count.size)
+            ]
     #
     actual_time_step = time_step / float(minor_step_count + 1)
-    total_location_count = sum([ np.sum(_lifetime) for _, _lifetime in time_support ])
+    total_location_count = sum([np.sum(_lifetime) for _, _lifetime in time_support])
     # generate the trajectories
-    N = np.empty((total_location_count, ), dtype=int)       # trajectory index
-    X = np.empty((total_location_count, dim), dtype=_box.dtype) # spatial coordinates
-    T = np.empty((total_location_count, ), dtype=float)     # time
+    N = np.empty((total_location_count,), dtype=int)  # trajectory index
+    X = np.empty((total_location_count, dim), dtype=_box.dtype)  # spatial coordinates
+    T = np.empty((total_location_count,), dtype=float)  # time
     i, n = 0, 0
     for t0, lifetimes in time_support:
-        k = lifetimes.size # number of new trajectories at time t
-        X0 = np.random.rand(k, dim) * support_size + support_lower_bound # initial coordinates
-        for x0, _lifetime in zip(X0, lifetimes): # for each new trajectory
+        k = lifetimes.size  # number of new trajectories at time t
+        X0 = (
+            np.random.rand(k, dim) * support_size + support_lower_bound
+        )  # initial coordinates
+        for x0, _lifetime in zip(X0, lifetimes):  # for each new trajectory
             n += 1
             N[i] = n
             X[i] = x = x0
@@ -242,66 +269,72 @@ def random_walk(diffusivity=None, force=None, friction=None, drift=None,
             # from here the main code (``not reflect``) is duplicated to reduce the number of if-tests
             if reflect:
                 # duplicated code
-                for j in range(1,_lifetime):
-                    for _ in range(minor_step_count+1):
+                for j in range(1, _lifetime):
+                    for _ in range(minor_step_count + 1):
                         D = diffusivity(x, t)
                         A = drift(x, t, D)
-                        dx = actual_time_step * A + \
-                            np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
+                        dx = actual_time_step * A + np.sqrt(
+                            actual_time_step * 2.0 * D
+                        ) * np.random.randn(dim)
                         x = x + dx
                         # additional code
                         above = support_upper_bound < x
-                        x[above] = 2*support_upper_bound[above] - x[above]
+                        x[above] = 2 * support_upper_bound[above] - x[above]
                         below = x < support_lower_bound
                         if np.any(below & above):
-                            raise NotImplementedError('the jump is so large that its reflection also exceeds the opposite bound')
-                        x[below] = 2*support_lower_bound[below] - x[below]
+                            raise NotImplementedError(
+                                "the jump is so large that its reflection also exceeds the opposite bound"
+                            )
+                        x[below] = 2 * support_lower_bound[below] - x[below]
                         #
                         t = t + actual_time_step
-                    t = t0 + j * time_step # moderate numerical precision errors
+                    t = t0 + j * time_step  # moderate numerical precision errors
                     N[i] = n
                     X[i] = x
                     T[i] = t
                     i += 1
             else:
                 # reference code
-                for j in range(1,_lifetime):
-                    for _ in range(minor_step_count+1):
+                for j in range(1, _lifetime):
+                    for _ in range(minor_step_count + 1):
                         D = diffusivity(x, t)
                         A = drift(x, t, D)
-                        dx = actual_time_step * A + \
-                            np.sqrt(actual_time_step * 2. * D) * np.random.randn(dim)
+                        dx = actual_time_step * A + np.sqrt(
+                            actual_time_step * 2.0 * D
+                        ) * np.random.randn(dim)
                         x = x + dx
                         t = t + actual_time_step
-                    t = t0 + j * time_step # moderate numerical precision errors
+                    t = t0 + j * time_step  # moderate numerical precision errors
                     N[i] = n
                     X[i] = x
                     T[i] = t
                     i += 1
     # format the data as a dataframe
-    columns = 'xyz'
+    columns = "xyz"
     if dim <= 3:
-        xcols = [ d for d in columns[:dim] ]
+        xcols = [d for d in columns[:dim]]
     else:
-        xcols = [ 'x'+str(i) for i in range(dim) ]
-    points = pd.DataFrame(N, columns=['n']).join(
-        pd.DataFrame(X, columns=xcols)).join(
-        pd.DataFrame(T, columns=['t']))
+        xcols = ["x" + str(i) for i in range(dim)]
+    points = (
+        pd.DataFrame(N, columns=["n"])
+        .join(pd.DataFrame(X, columns=xcols))
+        .join(pd.DataFrame(T, columns=["t"]))
+    )
     # post-process
     if not full and not reflect:
         points = crop(points, _box)
-        points = points.loc[points['t'] <= duration+time_step*.1]
+        points = points.loc[points["t"] <= duration + time_step * 0.1]
         if not single:
-            n, count = np.unique(points['n'].values, return_counts=True)
+            n, count = np.unique(points["n"].values, return_counts=True)
             n = n[count == 1]
             if n.size:
-                points = points.loc[~points['n'].isin(n)]
+                points = points.loc[~points["n"].isin(n)]
         points.index = np.arange(points.shape[0])
     return points
 
 
 def add_noise(points, sigma, copy=False):
-    columns = [ c for c in points.columns if c not in ('n', 't') ]
+    columns = [c for c in points.columns if c not in ("n", "t")]
     dim = len(columns)
     npoints = points.shape[0]
     if copy:
@@ -341,6 +374,7 @@ def truth(cells, t=None, diffusivity=None, force=None, potential=None, **kwargs)
         cells.cells
     except AttributeError:
         import tramway.inference as ti
+
         cells = ti.distributed(cells, **kwargs)
     I, DVF = [], []
     for i in cells.cells:
@@ -371,11 +405,9 @@ def truth(cells, t=None, diffusivity=None, force=None, potential=None, **kwargs)
     if diffusivity is None:
         columns = []
     else:
-        columns = [ 'diffusivity' ]
+        columns = ["diffusivity"]
     if potential is not None:
-        columns.append('potential')
+        columns.append("potential")
     if force is not None:
-        columns += [ 'force x' + str(col+1) for col in range(dim) ]
-    return pd.DataFrame(index=I, data=DVF, columns = columns)
-
-
+        columns += ["force x" + str(col + 1) for col in range(dim)]
+    return pd.DataFrame(index=I, data=DVF, columns=columns)

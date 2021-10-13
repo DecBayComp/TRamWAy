@@ -23,10 +23,19 @@ class Mpl(AnalyzerNode):
     """
     Matplotlib plotting utilities for 2D data; no time support.
     """
+
     __slots__ = ()
-    def plot(self, tessellation, locations=None, axes=None,
-            voronoi_options=dict(), delaunay_options=None,
-            location_options=dict(), **kwargs):
+
+    def plot(
+        self,
+        tessellation,
+        locations=None,
+        axes=None,
+        voronoi_options=dict(),
+        delaunay_options=None,
+        location_options=dict(),
+        **kwargs
+    ):
         """
         Plot the particle locations and the Voronoi graph
         (or tessellation).
@@ -35,19 +44,23 @@ class Mpl(AnalyzerNode):
         and can be safely called with no side effect.
         """
         from tramway.helper.tessellation import cell_plot
+
         try:
-            voronoi_options = dict(centroid_style=None, color='rrrr') | voronoi_options
-            location_options = dict(alpha=.2, color='k') | location_options
-            kwargs = dict(aspect='equal', show=False) | kwargs
-        except TypeError: # Python < 3.9
-            voronoi_options, _options = dict(centroid_style=None, color='rrrr'), voronoi_options
+            voronoi_options = dict(centroid_style=None, color="rrrr") | voronoi_options
+            location_options = dict(alpha=0.2, color="k") | location_options
+            kwargs = dict(aspect="equal", show=False) | kwargs
+        except TypeError:  # Python < 3.9
+            voronoi_options, _options = (
+                dict(centroid_style=None, color="rrrr"),
+                voronoi_options,
+            )
             voronoi_options.update(_options)
-            location_options, _options = dict(alpha=.2, color='k'), location_options
+            location_options, _options = dict(alpha=0.2, color="k"), location_options
             location_options.update(_options)
-            kwargs, _kwargs = dict(aspect='equal', show=False), kwargs
+            kwargs, _kwargs = dict(aspect="equal", show=False), kwargs
             kwargs.update(_kwargs)
         if axes is not None:
-            kwargs['axes'] = axes
+            kwargs["axes"] = axes
         if isinstance(tessellation, Analysis):
             tessellation = tessellation.data
         if isinstance(tessellation, Partition):
@@ -61,18 +74,32 @@ class Mpl(AnalyzerNode):
             sampling = None
         if isinstance(tessellation, TimeLattice):
             if tessellation.spatial_mesh is None:
-                raise TypeError('no tessellation found; only time segments')
+                raise TypeError("no tessellation found; only time segments")
             tessellation = tessellation.spatial_mesh
         if isinstance(tessellation, Voronoi):
             if sampling is None:
                 sampling = Partition(locations, tessellation)
         else:
-            raise TypeError('tessellation type not supported: {}'.format(type(tessellation)))
-        return cell_plot(sampling, voronoi=voronoi_options, locations=location_options,
-                delaunay=delaunay_options, **kwargs)
+            raise TypeError(
+                "tessellation type not supported: {}".format(type(tessellation))
+            )
+        return cell_plot(
+            sampling,
+            voronoi=voronoi_options,
+            locations=location_options,
+            delaunay=delaunay_options,
+            **kwargs
+        )
 
-    def animate(self, fig, sampling, axes=None,
-            voronoi_options=dict(), location_options=dict(), **kwargs):
+    def animate(
+        self,
+        fig,
+        sampling,
+        axes=None,
+        voronoi_options=dict(),
+        location_options=dict(),
+        **kwargs
+    ):
         """
         As this method is of limited interest, it has been poorly tested.
 
@@ -80,6 +107,7 @@ class Mpl(AnalyzerNode):
         """
         from matplotlib import animation
         from tramway.plot import mesh as tplt
+
         if axes is None:
             axes = fig.gca()
         #
@@ -87,8 +115,13 @@ class Mpl(AnalyzerNode):
             sampling = sampling.data
         nsegments = self._eldest_parent.time.n_time_segments(sampling)
         # copied/pasted from mapper.mpl.Mpl.animate
-        anim_kwargs = dict(blit=True, cache_frame_data=False, save_count=nsegments,
-                repeat=False, interval=600)
+        anim_kwargs = dict(
+            blit=True,
+            cache_frame_data=False,
+            save_count=nsegments,
+            repeat=False,
+            interval=600,
+        )
         more_kwargs = dict(repeat_delay=None, fargs=None)
         more_kwargs.update(anim_kwargs)
         for kw in more_kwargs:
@@ -97,56 +130,78 @@ class Mpl(AnalyzerNode):
             except KeyError:
                 pass
             else:
-                if kw == 'interval' and arg in ('rt', 'realtime', 'real-time'):
+                if kw == "interval" and arg in ("rt", "realtime", "real-time"):
                     arg = self._eldest_parent.time.window_shift * 1e3
                 anim_kwargs[kw] = arg
         #
         _iter = self._eldest_parent.time.as_time_segments
         #
         try:
-            voronoi_options = dict(centroid_style=None, color='rrrr') | voronoi_options
-            location_options = dict(alpha=.2, color='k') | location_options
-        except TypeError: # Python < 3.9
-            voronoi_options, _options = dict(centroid_style=None, color='rrrr'), voronoi_options
+            voronoi_options = dict(centroid_style=None, color="rrrr") | voronoi_options
+            location_options = dict(alpha=0.2, color="k") | location_options
+        except TypeError:  # Python < 3.9
+            voronoi_options, _options = (
+                dict(centroid_style=None, color="rrrr"),
+                voronoi_options,
+            )
             voronoi_options.update(_options)
-            location_options, _options = dict(alpha=.2, color='k'), location_options
+            location_options, _options = dict(alpha=0.2, color="k"), location_options
             location_options.update(_options)
-        location_options['markersize'] = location_options.pop('size', 3) # for plot
-        #location_options['s'] = location_options.pop('size', 8) # for scatter
+        location_options["markersize"] = location_options.pop("size", 3)  # for plot
+        # location_options['s'] = location_options.pop('size', 8) # for scatter
         #
         first_segment = first(_iter(sampling, return_times=False))
-        x, y = [ sampling.points[col].values for col in 'xy' ]
-        glyphs, = axes.plot(x, y, '.', **location_options)
+        x, y = [sampling.points[col].values for col in "xy"]
+        (glyphs,) = axes.plot(x, y, ".", **location_options)
         tplt.plot_voronoi(first_segment, axes=axes, **voronoi_options)
-        axes.set_aspect(kwargs.get('aspect', 'equal'))
+        axes.set_aspect(kwargs.get("aspect", "equal"))
+
         def init():
-            return glyphs,
+            return (glyphs,)
+
         def draw_segment(sampling):
             if isinstance(sampling, tuple):
                 times, sampling = sampling
             else:
                 times = None
-            x, y = [ sampling.points[col].values for col in 'xy' ]
+            x, y = [sampling.points[col].values for col in "xy"]
             glyphs.set_data(x, y)
-            #xy = sampling.points[list('xy')].values
-            #glyphs.set_array(xy)
-            return glyphs,
-        return animation.FuncAnimation(fig, draw_segment, init_func=init,
-                frames=_iter(sampling, return_times=True), **anim_kwargs)
+            # xy = sampling.points[list('xy')].values
+            # glyphs.set_array(xy)
+            return (glyphs,)
 
-    def plot_cell_indices(self, tessellation, axes=None,
-            voronoi_options=dict(), delaunay_options=None,
-            aspect='equal', title=None, **kwargs):
+        return animation.FuncAnimation(
+            fig,
+            draw_segment,
+            init_func=init,
+            frames=_iter(sampling, return_times=True),
+            **anim_kwargs
+        )
+
+    def plot_cell_indices(
+        self,
+        tessellation,
+        axes=None,
+        voronoi_options=dict(),
+        delaunay_options=None,
+        aspect="equal",
+        title=None,
+        **kwargs
+    ):
         """
         Plot the Voronoi graph and Voronoi cell indices.
 
         The placement of the text elements is not optimized.
         """
         from tramway.plot.mesh import plot_delaunay, plot_voronoi, plot_cell_indices
+
         try:
-            voronoi_options = dict(centroid_style=None, color='rrrr') | voronoi_options
-        except TypeError: # Python < 3.9
-            voronoi_options, _options = dict(centroid_style=None, color='rrrr'), voronoi_options
+            voronoi_options = dict(centroid_style=None, color="rrrr") | voronoi_options
+        except TypeError:  # Python < 3.9
+            voronoi_options, _options = (
+                dict(centroid_style=None, color="rrrr"),
+                voronoi_options,
+            )
             voronoi_options.update(_options)
         if isinstance(tessellation, Analysis):
             tessellation = tessellation.data
@@ -157,13 +212,15 @@ class Mpl(AnalyzerNode):
             sampling = None
         if isinstance(tessellation, TimeLattice):
             if tessellation.spatial_mesh is None:
-                raise TypeError('no tessellation found; only time segments')
+                raise TypeError("no tessellation found; only time segments")
             tessellation = tessellation.spatial_mesh
         if isinstance(tessellation, Voronoi):
             if sampling is None:
                 sampling = Partition(locations, tessellation)
         else:
-            raise TypeError('tessellation type not supported: {}'.format(type(tessellation)))
+            raise TypeError(
+                "tessellation type not supported: {}".format(type(tessellation))
+            )
         if delaunay_options:
             plot_delaunay(sampling, axes=axes, **delaunay_options)
         if voronoi_options:
@@ -175,5 +232,4 @@ class Mpl(AnalyzerNode):
             axes.set_aspect(aspect)
 
 
-__all__ = ['Mpl']
-
+__all__ = ["Mpl"]

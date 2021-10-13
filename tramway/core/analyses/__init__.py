@@ -1,7 +1,6 @@
-
 from .base import *
-try: # overwrite
+
+try:  # overwrite
     from .lazy import *
 except ImportError:
     pass
-

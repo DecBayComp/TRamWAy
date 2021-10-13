@@ -1,4 +1,3 @@
-
 from .collections import Collections
 import scipy.sparse as sparse
 import numpy as np
@@ -11,8 +10,10 @@ This module exports functions for the identification of regions of interest.
 def epanechnikov_density(xy, eval_at, target_pattern_size):
     from sklearn.neighbors import KernelDensity
 
-    bandwidth = .5 * target_pattern_size # the bandwidth is similar to a radius (not a diameter)
-    estimator = KernelDensity(kernel='epanechnikov', bandwidth=bandwidth)
+    bandwidth = (
+        0.5 * target_pattern_size
+    )  # the bandwidth is similar to a radius (not a diameter)
+    estimator = KernelDensity(kernel="epanechnikov", bandwidth=bandwidth)
 
     estimator.fit(xy)
     log_density = estimator.score_samples(eval_at)
@@ -20,12 +21,19 @@ def epanechnikov_density(xy, eval_at, target_pattern_size):
     return log_density
 
 
-def density_based_roi(locations, min_kernel_density=.1,
-        target_pattern_size=.3, step_size_factor=.1, dr=4,
-        kernel_density=epanechnikov_density):
-    xy = locations[['x','y']].values
-    
-    extent = np.ravel(np.r_[xy.min(axis=0, keepdims=True), xy.max(axis=0, keepdims=True)])
+def density_based_roi(
+    locations,
+    min_kernel_density=0.1,
+    target_pattern_size=0.3,
+    step_size_factor=0.1,
+    dr=4,
+    kernel_density=epanechnikov_density,
+):
+    xy = locations[["x", "y"]].values
+
+    extent = np.ravel(
+        np.r_[xy.min(axis=0, keepdims=True), xy.max(axis=0, keepdims=True)]
+    )
 
     step = step_size_factor * target_pattern_size
 
@@ -34,44 +42,63 @@ def density_based_roi(locations, min_kernel_density=.1,
     else:
         xymin, xymax = [extent[0], extent[1]], [extent[2], extent[3]]
 
-    grid_x, grid_y = np.arange(xymin[0], xymax[0], step), np.arange(xymin[1], xymax[1], step)
-    _x, _y = np.meshgrid(grid_x, grid_y, indexing='ij')
-    grid = np.c_[_x.reshape((-1,1)),_y.reshape((-1,1))]
+    grid_x, grid_y = np.arange(xymin[0], xymax[0], step), np.arange(
+        xymin[1], xymax[1], step
+    )
+    _x, _y = np.meshgrid(grid_x, grid_y, indexing="ij")
+    grid = np.c_[_x.reshape((-1, 1)), _y.reshape((-1, 1))]
 
     log_density = epanechnikov_density(xy, grid, target_pattern_size)
-    log_density = log_density.reshape(len(grid_x),len(grid_y))
-    
-     # find local maxima using logical convolution
-    sizx, sizy = log_density.shape[0]-2*dr, log_density.shape[1]-2*dr
-    _x = lambda x: (log_density.shape[0] if x==0 else x)
-    _y = lambda y: (log_density.shape[1] if y==0 else y)
+    log_density = log_density.reshape(len(grid_x), len(grid_y))
+
+    # find local maxima using logical convolution
+    sizx, sizy = log_density.shape[0] - 2 * dr, log_density.shape[1] - 2 * dr
+    _x = lambda x: (log_density.shape[0] if x == 0 else x)
+    _y = lambda y: (log_density.shape[1] if y == 0 else y)
     mask = np.ones((sizx, sizy), dtype=bool)
-    for dx in range(-dr,dr):
-        for dy in range(-dr,dr):
-            if (not (dx==0 and dy==0)) and (dx+dy <= dr):
-                mask = mask & \
-                        (log_density[dr+dx:_x(dx-dr),dr+dy:_y(dy-dr)] < log_density[dr:-dr,dr:-dr])
+    for dx in range(-dr, dr):
+        for dy in range(-dr, dr):
+            if (not (dx == 0 and dy == 0)) and (dx + dy <= dr):
+                mask = mask & (
+                    log_density[dr + dx : _x(dx - dr), dr + dy : _y(dy - dr)]
+                    < log_density[dr:-dr, dr:-dr]
+                )
 
     local_max = sparse.coo_matrix(mask)
-    selected_nz = np.log(min_kernel_density) <= log_density[local_max.row,local_max.col]
+    selected_nz = (
+        np.log(min_kernel_density) <= log_density[local_max.row, local_max.col]
+    )
     if not np.any(selected_nz):
-        print('global max density is below the threshold: {} < {}'.format(
-            np.exp(log_density[local_max.row,local_max.col].max()), min_kernel_density))
+        print(
+            "global max density is below the threshold: {} < {}".format(
+                np.exp(log_density[local_max.row, local_max.col].max()),
+                min_kernel_density,
+            )
+        )
     selected_i, selected_j = local_max.row[selected_nz], local_max.col[selected_nz]
 
     # define the roi as center points
-    roi_centers = [ np.r_[grid_x[dr+i],grid_y[dr+j]] for i,j in zip(selected_i, selected_j) ]
+    roi_centers = [
+        np.r_[grid_x[dr + i], grid_y[dr + j]] for i, j in zip(selected_i, selected_j)
+    ]
     if roi_centers:
-        if len(roi_centers)<10:
-            print('few roi found: {}'.format(len(roi_centers)))
+        if len(roi_centers) < 10:
+            print("few roi found: {}".format(len(roi_centers)))
     else:
-        raise RuntimeError('no roi found')
-        
+        raise RuntimeError("no roi found")
+
     return roi_centers
 
 
-def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_points,
-        min_segments=1, group_overlapping_roi=False, start_stop_min_points=None):
+def set_contiguous_time_support_by_count(
+    points,
+    space_bounds,
+    time_window,
+    min_points,
+    min_segments=1,
+    group_overlapping_roi=False,
+    start_stop_min_points=None,
+):
     """
     Arguments:
 
@@ -97,7 +124,7 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
     """
     noname = not isinstance(space_bounds, dict)
     if noname:
-        space_bounds = {'': tuple(space_bounds)}
+        space_bounds = {"": tuple(space_bounds)}
 
     roi = Collections(group_overlapping_roi)
     for label in space_bounds:
@@ -112,27 +139,31 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
     if start_stop_min_points is None:
         start_stop_min_points = min_points
 
-    n_space_dims = sum([ c in points.columns for c in 'xyz' ])
+    n_space_dims = sum([c in points.columns for c in "xyz"])
 
-    regions = { label: [] for label in roi }
+    regions = {label: [] for label in roi}
     for r in roi.regions:
         units = roi.regions.region_to_units(r)
 
-        region_weight = sum([ len(u) for u in units.values() ]) # TODO: relative surface area instead
+        region_weight = sum(
+            [len(u) for u in units.values()]
+        )  # TODO: relative surface area instead
         if not group_overlapping_roi:
             assert region_weight == 1
         threshold = start_stop_min_points * region_weight
 
-        times = roi.regions.crop(r, points)['t'].values
+        times = roi.regions.crop(r, points)["t"].values
         if min_points and len(times) < min_points * region_weight * min_segments:
             continue
 
         counts = np.zeros(times.size, dtype=np.int)
         for t in range(times.size):
-            counts[t] = np.sum(times[t]-duration<=times[max(0,t-threshold):t+1])
+            counts[t] = np.sum(
+                times[t] - duration <= times[max(0, t - threshold) : t + 1]
+            )
 
-        ok = np.flatnonzero(threshold<=counts)
-        if ok.size==0:
+        ok = np.flatnonzero(threshold <= counts)
+        if ok.size == 0:
             continue
 
         first_t, last_t = ok[0], ok[-1]
@@ -144,7 +175,7 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
             if min_points != start_stop_min_points:
                 threshold = min_points * region_weight
 
-                ok = threshold<=counts[first_t:last_t+1]
+                ok = threshold <= counts[first_t : last_t + 1]
 
                 assert ok[0] and ok[-1]
                 if not np.all(ok):
@@ -152,12 +183,12 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
                     ok_last = first_t + np.flatnonzero(ok[:1] & ~ok[1:])
                     gap = times[ok_first] - times[ok_last]
                     assert np.all(0 < gap)
-                    max_gap = window - 2 * shift # TODO: make it an input argument
+                    max_gap = window - 2 * shift  # TODO: make it an input argument
                     gap_ok = gap <= max_gap
                     if not np.all(gap_ok):
-                        first_t = np.r_[first_t,  ok_first[~gap_ok]]
+                        first_t = np.r_[first_t, ok_first[~gap_ok]]
                         last_t = np.r_[ok_last[~gap_ok], last_t]
-                        segment_dur = times[ok_last] - times[ok_first] # + window
+                        segment_dur = times[ok_last] - times[ok_first]  # + window
                         assert np.all(0 <= segment_dur)
                         segment_ok = min_duration <= segment_dur
                         if not np.all(segment_ok):
@@ -176,7 +207,7 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
             max_start_time = max(times[0], min_start_time)
 
             min_end_time = times[last_t]
-            if last_t+1 == times.size:
+            if last_t + 1 == times.size:
                 max_end_time = times[-max(1, threshold)] + duration
             else:
                 max_end_time = min_end_time
@@ -184,11 +215,13 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
             max_total_duration = max_end_time - min_start_time
             nsegments = np.floor((max_total_duration - duration) / shift) + 1
             total_duration = duration + (nsegments - 1) * shift
-            time_margin = .5 * (max_total_duration - total_duration)
+            time_margin = 0.5 * (max_total_duration - total_duration)
             start_time = min(min_start_time + time_margin, max_start_time)
-            end_time = max_end_time# - time_margin # no need to discard the trailing data
+            end_time = (
+                max_end_time  # - time_margin # no need to discard the trailing data
+            )
 
-            if nsegments<min_segments:
+            if nsegments < min_segments:
                 continue
 
             start_times.append(start_time)
@@ -199,26 +232,28 @@ def set_contiguous_time_support_by_count(points, space_bounds, time_window, min_
             new_bounds = regions[label]
             for i in units[label]:
                 for start_time, end_time in zip(start_times, end_times):
-                    lower_bounds, upper_bounds = [ np.r_[r, t]
-                        for r, t in zip(bounds[i], (start_time, end_time)) ]
+                    lower_bounds, upper_bounds = [
+                        np.r_[r, t] for r, t in zip(bounds[i], (start_time, end_time))
+                    ]
                     new_bounds.append((lower_bounds, upper_bounds))
 
     if noname:
-        return regions['']
+        return regions[""]
     else:
         return regions
 
 
 def _enumerate(it):
     for ix, elem in enumerate(it):
-        yield (ix,)+tuple(elem)
+        yield (ix,) + tuple(elem)
 
-def group_roi(a, *args, overlap=.75, return_matches_only=False):
-    """ Returns the smallest rectangles that contain the ROI grouped depending on whether
+
+def group_roi(a, *args, overlap=0.75, return_matches_only=False):
+    """Returns the smallest rectangles that contain the ROI grouped depending on whether
     they overlap or not.
 
     A ROI should be a pair (tuple) of `numpy.ndarray` for (lower-,upper-) bounds.
-    
+
     Time is handled just like any space coordinate.
     As a consequence, if time bounds are also specified, the corresponding values
     should be scaled so that time can be artificially related to space in the volume
@@ -227,7 +262,9 @@ def group_roi(a, *args, overlap=.75, return_matches_only=False):
     if args:
         b = args[0]
         if args[1:]:
-            raise ValueError('arguments `overlap` and `return_matches_only` should be keyworded')
+            raise ValueError(
+                "arguments `overlap` and `return_matches_only` should be keyworded"
+            )
     else:
         b = a
     intra_grouping = a is b
@@ -280,22 +317,26 @@ def distance_to_roi_center(roi_obj, sampling):
         ndarray: distance between each cell center and the ROI center
 
     """
-    a = roi_obj._eldest_parent # parent analyzer object
+    a = roi_obj._eldest_parent  # parent analyzer object
     roi_center = (roi_obj.bounding_box[0] + roi_obj.bounding_box[1]) / 2
     cell_centers = a.time.get_spatial_segmentation(sampling).cell_centers
     if cell_centers.shape[1] < roi_center.size:
         if cell_centers.shape[1] == roi_center.size - 1:
             roi_center = roi_center[:-1]
         else:
-            raise ValueError('too many dimensions for roi boundaries')
-    r = cell_centers - roi_center[np.newaxis,:]
+            raise ValueError("too many dimensions for roi boundaries")
+    r = cell_centers - roi_center[np.newaxis, :]
     dist = np.sqrt(np.sum(r * r, axis=1))
     return dist
 
 
-#def iter_maps
+# def iter_maps
 
 
-__all__ = [ 'set_contiguous_time_support_by_count', 'epanechnikov_density', 'density_based_roi',
-        'group_roi', 'distance_to_roi_center' ]
-
+__all__ = [
+    "set_contiguous_time_support_by_count",
+    "epanechnikov_density",
+    "density_based_roi",
+    "group_roi",
+    "distance_to_roi_center",
+]

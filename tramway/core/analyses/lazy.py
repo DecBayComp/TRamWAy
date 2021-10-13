@@ -18,7 +18,7 @@ from . import abc
 
 class InstancesView(base.InstancesView):
 
-    __slots__ = ('peek', )
+    __slots__ = ("peek",)
 
     def __init__(self, analyses, peek=False):
         base.InstancesView.__init__(self, analyses)
@@ -49,7 +49,9 @@ class InstancesView(base.InstancesView):
         return instance
 
     def pop(self, label, default=None):
-        return rwa.lazyvalue(base.InstancesView.pop(self, label, default), deep=self.peek)
+        return rwa.lazyvalue(
+            base.InstancesView.pop(self, label, default), deep=self.peek
+        )
 
 
 class Analyses(base.Analyses):
@@ -117,6 +119,7 @@ class Analyses(base.Analyses):
         """
         Close the opened file if any and delete all the handles.
         """
+
         def _terminate(obj, ok=False):
             if rwa.islazy(obj):
                 if ok:
@@ -126,12 +129,13 @@ class Analyses(base.Analyses):
                     ok = True
             elif isinstance(obj, abc.Analyses):
                 obj = obj._instances
-                if isinstance(obj, dict): # implicit: not rwa.islazy(obj)
+                if isinstance(obj, dict):  # implicit: not rwa.islazy(obj)
                     for k in obj:
                         ok |= _terminate(obj[k], ok)
                 else:
                     ok |= _terminate(obj, ok)
             return ok
+
         _terminate(self)
 
     def __delitem__(self, label):
@@ -144,7 +148,6 @@ class Analyses(base.Analyses):
             self._comments.__delitem__(label)
         except KeyError:
             pass
-
 
 
 def label_paths(analyses, filter, lazy=False):
@@ -179,7 +182,9 @@ def label_paths(analyses, filter, lazy=False):
     return base.label_paths(analyses, filter)
 
 
-def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False, return_subtree=False):
+def find_artefacts(
+    analyses, filters, labels=None, quantifiers=None, lazy=False, return_subtree=False
+):
     """
     Find related artefacts.
 
@@ -220,13 +225,15 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False,
     """
     if not isinstance(filters, (tuple, list)):
         filters = (filters,)
-    fullnode = lazy or all( isinstance(f, (type, tuple, list)) for f in filters )
+    fullnode = lazy or all(isinstance(f, (type, tuple, list)) for f in filters)
     if fullnode:
         # force closure at definition time (otherwise `t` and `f` are overwritten)
         def typefilter(t):
             return lambda a: issubclass(rwa.lazytype(a._data), t)
+
         def directfilter(f):
             return lambda a: f(rwa.lazyvalue(a, deep=True))
+
         _filters = []
         for _filter in filters:
             if isinstance(_filter, (type, tuple, list)):
@@ -236,25 +243,24 @@ def find_artefacts(analyses, filters, labels=None, quantifiers=None, lazy=False,
                 _filter = directfilter(_filter)
             _filters.append(_filter)
         filters = _filters
-    artefacts = base.find_artefacts(analyses, filters, labels, quantifiers, fullnode,
-        return_subtree)
+    artefacts = base.find_artefacts(
+        analyses, filters, labels, quantifiers, fullnode, return_subtree
+    )
     if lazy:
         return artefacts
     else:
         if return_subtree:
             artefacts = list(artefacts)
             subtree = artefacts.pop()
-        artefacts = [ rwa.lazyvalue(a, deep=True) for a in artefacts ]
+        artefacts = [rwa.lazyvalue(a, deep=True) for a in artefacts]
         if return_subtree:
             artefacts.append(subtree)
         return tuple(artefacts)
 
 
 __all__ = [
-    'InstancesView',
-    'Analyses',
-    'find_artefacts',
-    'label_paths',
-    ]
-
-
+    "InstancesView",
+    "Analyses",
+    "find_artefacts",
+    "label_paths",
+]

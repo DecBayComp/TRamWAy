@@ -21,15 +21,101 @@ from copy import deepcopy
 import scipy.sparse as sparse
 from scipy.spatial.distance import cdist
 from ..core import *
-from ..tessellation.base import dict_to_sparse, format_cell_index, nearest_cell, Partition, Tessellation
+from ..tessellation.base import (
+    dict_to_sparse,
+    format_cell_index,
+    nearest_cell,
+    Partition,
+    Tessellation,
+)
 import traceback
 from collections import defaultdict
 
 
-__colors__ = ['darkgreen', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen', 'darkslateblue', 'darkslategray', 'darkviolet', 'deeppink', 'deepskyblue', 'dodgerblue', 'firebrick', 'forestgreen', 'gold', 'goldenrod', 'hotpink', 'indianred', 'indigo', 'lightblue', 'lightcoral', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightsteelblue', 'limegreen', 'maroon', 'mediumaquamarine', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'navajowhite', 'navy', 'olive', 'olivedrab', 'orange', 'orangered', 'orchid', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', '#663399', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'sienna', 'skyblue', 'slateblue', 'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'yellowgreen']
+__colors__ = [
+    "darkgreen",
+    "darkkhaki",
+    "darkmagenta",
+    "darkolivegreen",
+    "darkorange",
+    "darkorchid",
+    "darkred",
+    "darksalmon",
+    "darkseagreen",
+    "darkslateblue",
+    "darkslategray",
+    "darkviolet",
+    "deeppink",
+    "deepskyblue",
+    "dodgerblue",
+    "firebrick",
+    "forestgreen",
+    "gold",
+    "goldenrod",
+    "hotpink",
+    "indianred",
+    "indigo",
+    "lightblue",
+    "lightcoral",
+    "lightpink",
+    "lightsalmon",
+    "lightseagreen",
+    "lightskyblue",
+    "lightsteelblue",
+    "limegreen",
+    "maroon",
+    "mediumaquamarine",
+    "mediumorchid",
+    "mediumpurple",
+    "mediumseagreen",
+    "mediumslateblue",
+    "mediumspringgreen",
+    "mediumturquoise",
+    "mediumvioletred",
+    "midnightblue",
+    "navajowhite",
+    "navy",
+    "olive",
+    "olivedrab",
+    "orange",
+    "orangered",
+    "orchid",
+    "palegreen",
+    "paleturquoise",
+    "palevioletred",
+    "papayawhip",
+    "peachpuff",
+    "peru",
+    "pink",
+    "plum",
+    "powderblue",
+    "purple",
+    "#663399",
+    "rosybrown",
+    "royalblue",
+    "saddlebrown",
+    "salmon",
+    "sandybrown",
+    "seagreen",
+    "sienna",
+    "skyblue",
+    "slateblue",
+    "springgreen",
+    "steelblue",
+    "tan",
+    "teal",
+    "thistle",
+    "tomato",
+    "turquoise",
+    "violet",
+    "wheat",
+    "yellowgreen",
+]
 
 
-def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None, **kwargs):
+def plot_points(
+    cells, min_count=None, style=".", size=8, color=None, axes=None, **kwargs
+):
     """
     Plot 2D points coloured by associated cell.
 
@@ -58,6 +144,7 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
     """
     if axes is None:
         import matplotlib.pyplot as plt
+
         axes = plt
     if isinstance(cells, np.ndarray):
         points = cells
@@ -70,73 +157,89 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
         # if label is not a single index vector, convert it following
         # tessellation.base.Delaunay.cell_index with `preferred`='force index'.
         merge = nearest_cell(points, cells.tessellation.cell_centers)
-        label = format_cell_index(cells.cell_index, format='array', \
-            select=merge, shape=(npts, ncells))
+        label = format_cell_index(
+            cells.cell_index, format="array", select=merge, shape=(npts, ncells)
+        )
         if min_count:
             cell_mask = min_count <= cells.location_count
-            label = np.array(label) # copy
+            label = np.array(label)  # copy
             label[np.logical_not(cell_mask[cells.cell_index])] = -1
-            #label = cell_mask[cells.cell_index]
-    else:#if isinstance(cells, FiniteElements):
+            # label = cell_mask[cells.cell_index]
+    else:  # if isinstance(cells, FiniteElements):
 
         # fully distinct implementation
         handles = []
-        if color == 'light' and 'alpha' not in kwargs:
-            kwargs['alpha'] = .2
+        if color == "light" and "alpha" not in kwargs:
+            kwargs["alpha"] = 0.2
         color = __colors__
         color = list(itertools.islice(itertools.cycle(color), len(cells)))
         for i in cells:
             points = cells[i].origins
             if isinstance(points, pd.DataFrame):
-                points = points[['x', 'y']].values
-            h = axes.plot(points[:,0], points[:,1], style, color=color[i],
-                markersize=size, **kwargs)
+                points = points[["x", "y"]].values
+            h = axes.plot(
+                points[:, 0],
+                points[:, 1],
+                style,
+                color=color[i],
+                markersize=size,
+                **kwargs
+            )
             assert not h[1:]
             handles.append(h[0])
         return handles
 
-
     # original implementation for the not-FiniteElements case
 
     if isstructured(points):
-        x = points['x']
-        y = points['y']
+        x = points["x"]
+        y = points["y"]
     else:
-        x = points[:,0]
-        y = points[:,1]
+        x = points[:, 0]
+        y = points[:, 1]
 
     handles = []
 
-    if label is None or (isinstance(color, str) and len(color)==1):
+    if label is None or (isinstance(color, str) and len(color) == 1):
         if color is None:
-            color = 'k'
+            color = "k"
         elif isinstance(color, (pd.Series, pd.DataFrame)):
             color = np.asarray(color)
         if isinstance(color, np.ndarray):
             cmin, cmax = np.min(color), np.max(color)
             color = (color - cmin) / (cmax - cmin)
             cmap = plt.get_cmap()
-            color = [ cmap(c) for c in color ]
+            color = [cmap(c) for c in color]
         handles.append(axes.scatter(x, y, color=color, marker=style, s=size, **kwargs))
     else:
         L = np.unique(label)
-        if color in [None, 'light']:
-            if color == 'light' and 'alpha' not in kwargs:
-                kwargs['alpha'] = .2
+        if color in [None, "light"]:
+            if color == "light" and "alpha" not in kwargs:
+                kwargs["alpha"] = 0.2
             if 2 < len(L):
                 color = __colors__
-                color = ['gray'] + \
-                    list(itertools.islice(itertools.cycle(color), len(L)))
+                color = ["gray"] + list(
+                    itertools.islice(itertools.cycle(color), len(L))
+                )
             elif len(L) == 2:
-                color = ['gray', 'k']
-            else:   color = 'k'
+                color = ["gray", "k"]
+            else:
+                color = "k"
         for i, l in enumerate(L):
-            handles.append(axes.plot(x[label == l], y[label == l],
-                style, color=color[i], markersize=size, **kwargs))
+            handles.append(
+                axes.plot(
+                    x[label == l],
+                    y[label == l],
+                    style,
+                    color=color[i],
+                    markersize=size,
+                    **kwargs
+                )
+            )
 
     # resize window
     try:
-        axes.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
+        axes.axis(cells.bounding_box[["x", "y"]].values.flatten("F"))
     except AttributeError:
         pass
     except ValueError:
@@ -145,8 +248,18 @@ def plot_points(cells, min_count=None, style='.', size=8, color=None, axes=None,
     return handles
 
 
-def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
-        linewidth=1, fallback_color='gray', verbose=True, axes=None):
+def plot_voronoi(
+    cells,
+    labels=None,
+    color=None,
+    style="-",
+    centroid_style="g+",
+    negative=None,
+    linewidth=1,
+    fallback_color="gray",
+    verbose=True,
+    axes=None,
+):
     """
     Voronoi plot.
 
@@ -189,47 +302,51 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
     """
     if axes is None:
         import matplotlib.pyplot as plt
+
         axes = plt
     vertices = cells.tessellation.vertices
     labels, color = _graph_theme(cells.tessellation, labels, color, negative)
     try:
-        color += 'w'
+        color += "w"
     except TypeError:
         if not isinstance(color, list):
             color = [color]
-        color.append('w')
+        color.append("w")
     try:
         special_edges = cells.tessellation.candidate_edges
-        #points = cells.descriptors(cells.points, asarray=True)
+        # points = cells.descriptors(cells.points, asarray=True)
     except:
         special_edges = {}
-    c = 0 # if cells.tessellation.adjacency_label is None
-    fallback_clr = 'k'
+    c = 0  # if cells.tessellation.adjacency_label is None
+    fallback_clr = "k"
     edge_handles, centroid_handle = [], None
     # plot voronoi
-    #plt.plot(vertices[:,0], vertices[:,1], 'b+')
+    # plt.plot(vertices[:,0], vertices[:,1], 'b+')
     if cells.tessellation.adjacency_label is not None or special_edges:
         n_cells = cells.tessellation._cell_centers.shape[0]
         n_vertices = vertices.shape[0]
-        cell_vertex = dict_to_sparse(cells.tessellation.cell_vertices, \
-                shape=(n_cells, n_vertices)).tocsc()
+        cell_vertex = dict_to_sparse(
+            cells.tessellation.cell_vertices, shape=(n_cells, n_vertices)
+        ).tocsc()
         adjacency = cells.tessellation.cell_adjacency.tocsr()
-    Av = sparse.tril(cells.tessellation.vertex_adjacency, format='coo')
-    d2 = np.sum((vertices[Av.row[0]] - vertices[Av.col[0]])**2)
+    Av = sparse.tril(cells.tessellation.vertex_adjacency, format="coo")
+    d2 = np.sum((vertices[Av.row[0]] - vertices[Av.col[0]]) ** 2)
     for u, v in zip(Av.row, Av.col):
         x, y = vertices[[u, v]].T
         if cells.tessellation.adjacency_label is not None or special_edges:
             try:
-                a, b = set(cell_vertex[:,u].indices) & set(cell_vertex[:,v].indices)
+                a, b = set(cell_vertex[:, u].indices) & set(cell_vertex[:, v].indices)
                 # adjacency may contain explicit zeros
-                js = list(adjacency.indices[adjacency.indptr[a]:adjacency.indptr[a+1]])
+                js = list(
+                    adjacency.indices[adjacency.indptr[a] : adjacency.indptr[a + 1]]
+                )
                 # js.index(b) will fail if a and b are not adjacent
-                edge_ix = adjacency.data[adjacency.indptr[a]+js.index(b)]
+                edge_ix = adjacency.data[adjacency.indptr[a] + js.index(b)]
             except (ValueError, IndexError):
                 if verbose:
                     print("vertices {} and {} do not match with a ridge".format(u, v))
                     print(traceback.format_exc())
-                #continue
+                # continue
                 c = -1
             else:
                 if cells.tessellation.adjacency_label is not None:
@@ -242,7 +359,11 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
                 _clr = color[c]
             except IndexError:
                 import warnings
-                warnings.warn("too few colours: '{}'; index {:d} out of range".format(color, c), RuntimeWarning)
+
+                warnings.warn(
+                    "too few colours: '{}'; index {:d} out of range".format(color, c),
+                    RuntimeWarning,
+                )
                 _clr = fallback_color
         else:
             _clr = fallback_color
@@ -252,30 +373,35 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
 
         # extra debug steps
         if special_edges and edge_ix in special_edges:
-            #i, j, ii, jj = special_edges[edge_ix]
-            #try:
+            # i, j, ii, jj = special_edges[edge_ix]
+            # try:
             #       i = points[cells.cell_index == i][ii]
             #       j = points[cells.cell_index == j][jj]
-            #except IndexError as e:
+            # except IndexError as e:
             #       print(e)
             #       continue
             i, j = special_edges[edge_ix]
             x_, y_ = zip(i, j)
-            axes.plot(x_, y_, 'c-')
+            axes.plot(x_, y_, "c-")
             x_, y_ = (i + j) / 2
-            axes.text(x_, y_, str(edge_ix), \
-                horizontalalignment='center', verticalalignment='center')
+            axes.text(
+                x_,
+                y_,
+                str(edge_ix),
+                horizontalalignment="center",
+                verticalalignment="center",
+            )
 
     centroids = cells.tessellation.cell_centers
     # plot cell centers
     if centroid_style:
-        h = axes.plot(centroids[:,0], centroids[:,1], centroid_style)
+        h = axes.plot(centroids[:, 0], centroids[:, 1], centroid_style)
         assert not h[1:]
         centroid_handle = h[0]
 
     # resize window
     try:
-        axes.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
+        axes.axis(cells.bounding_box[["x", "y"]].values.flatten("F"))
     except AttributeError:
         pass
     except ValueError:
@@ -284,8 +410,18 @@ def plot_voronoi(cells, labels=None, color=None, style='-', centroid_style='g+',
     return edge_handles, centroid_handle
 
 
-def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+', negative=None,
-        axes=None, linewidth=1, individual=False, fallback_color='gray'):
+def plot_delaunay(
+    cells,
+    labels=None,
+    color=None,
+    style="-",
+    centroid_style="g+",
+    negative=None,
+    axes=None,
+    linewidth=1,
+    individual=False,
+    fallback_color="gray",
+):
     """
     Delaunay plot.
 
@@ -330,6 +466,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
     """
     if axes is None:
         import matplotlib.pyplot as plt
+
         axes = plt
     try:
         tessellation = cells.tessellation
@@ -337,21 +474,21 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
         tessellation = cells
 
     vertices = tessellation.cell_centers
-    if negative == 'voronoi':
+    if negative == "voronoi":
         voronoi = tessellation.cell_vertices
 
     labels, color = _graph_theme(tessellation, labels, color, negative)
 
     # if asymetric, can be either triu or tril
-    A = sparse.triu(tessellation.cell_adjacency, format='coo')
+    A = sparse.triu(tessellation.cell_adjacency, format="coo")
     I, J, K = A.row, A.col, A.data
     if not I.size:
-        A = sparse.tril(tessellation.cell_adjacency, format='coo')
+        A = sparse.tril(tessellation.cell_adjacency, format="coo")
         I, J, K = A.row, A.col, A.data
 
     if not individual:
         by_color = defaultdict(list)
-    edge_handles, centroid_handle = [], None # handles
+    edge_handles, centroid_handle = [], None  # handles
 
     # plot delaunay
     for i, j, k in zip(I, J, K):
@@ -365,9 +502,11 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
             except ValueError:
                 continue
             if label <= 0:
-                if negative == 'voronoi':
+                if negative == "voronoi":
                     try:
-                        vert_ids = set(tessellation.cell_vertices.get(i, [])) & set(tessellation.cell_vertices.get(j, []))
+                        vert_ids = set(tessellation.cell_vertices.get(i, [])) & set(
+                            tessellation.cell_vertices.get(j, [])
+                        )
                         x, y = voronoi[vert_ids].T
                     except ValueError:
                         continue
@@ -388,7 +527,7 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
             Y[:] = np.nan
             i = 0
             for x, y in xy:
-                I = slice(i*3, i*3+2)
+                I = slice(i * 3, i * 3 + 2)
                 X[I], Y[I] = x, y
                 i += 1
             if color[1:]:
@@ -396,7 +535,11 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
                     _clr = color[c]
                 except IndexError:
                     import warnings
-                    warnings.warn('too few specified colours; at least {:d} needed'.format(c), RuntimeWarning)
+
+                    warnings.warn(
+                        "too few specified colours; at least {:d} needed".format(c),
+                        RuntimeWarning,
+                    )
                     _clr = fallback_color
             h = axes.plot(X, Y, style, color=_clr, linewidth=linewidth)
             assert not h[1:]
@@ -404,13 +547,13 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 
     # plot cell centers
     if centroid_style:
-        h = axes.plot(vertices[:,0], vertices[:,1], centroid_style)
+        h = axes.plot(vertices[:, 0], vertices[:, 1], centroid_style)
         assert not h[1:]
         centroid_handle = h[0]
 
     # resize window
     try:
-        axes.axis(cells.bounding_box[['x', 'y']].values.flatten('F'))
+        axes.axis(cells.bounding_box[["x", "y"]].values.flatten("F"))
     except AttributeError:
         pass
     except ValueError:
@@ -422,26 +565,32 @@ def plot_delaunay(cells, labels=None, color=None, style='-', centroid_style='g+'
 def _graph_theme(tess, labels, color, negative):
     if tess.adjacency_label is None:
         if not color:
-            color = 'r'
+            color = "r"
     else:
         if labels is None:
             labels = np.unique(tess.adjacency_label).tolist()
     if labels is not None:
         if negative is None:
-            labels = [ l for l in labels if 0 < l ]
+            labels = [l for l in labels if 0 < l]
             nnp = 0
         else:
-            nnp = len([ l for l in labels if l <= 0 ]) # number of non-positive labels
+            nnp = len([l for l in labels if l <= 0])  # number of non-positive labels
     if not color:
-        neg_color = 'cym'
-        pos_color = 'rgb'
+        neg_color = "cym"
+        pos_color = "rgb"
         labels.sort()
         color = neg_color[:nnp] + pos_color
     return (labels, color)
 
 
-def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
-        arrow_size=5, arrow_color='y'):
+def plot_distributed(
+    cells,
+    vertex_color="g",
+    vertex_style="x",
+    edge_color="r",
+    arrow_size=5,
+    arrow_color="y",
+):
     """
     Plot a :class:`~tramway.inference.base.FiniteElements` object as a mesh.
 
@@ -470,13 +619,13 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
     """
     import matplotlib.pyplot as plt
 
-    centers = np.vstack([ cells[i].center for i in cells ])
+    centers = np.vstack([cells[i].center for i in cells])
     _min, _max = np.min(centers), np.max(centers)
 
     plot_arrows = arrow_size is not None and 0 < arrow_size and arrow_color is not None
     if plot_arrows:
         arrow_size = float(arrow_size) * 1e-3 * (_max - _min)
-        half_base = arrow_size / sqrt(5.)
+        half_base = arrow_size / sqrt(5.0)
 
     edges, arrows, vertices = [], [], None
     plotted = defaultdict(list)
@@ -487,7 +636,7 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
 
             # edge
             if j not in plotted[i]:
-                h = plt.plot([x[0], y[0]], [x[1], y[1]], edge_color+'-')
+                h = plt.plot([x[0], y[0]], [x[1], y[1]], edge_color + "-")
                 assert not h[1:]
                 edges.append(h[0])
                 plotted[i].append(j)
@@ -495,19 +644,23 @@ def plot_distributed(cells, vertex_color='g', vertex_style='x', edge_color='r',
             # arrow
             if plot_arrows:
                 dr = y - x
-                top = x + .6667 * dr
+                top = x + 0.6667 * dr
                 dr /= sqrt(np.sum(dr * dr))
                 bottom = top - arrow_size * dr
                 n = np.array([-dr[1], dr[0]])
                 left, right = bottom + half_base * n, bottom - half_base * n
-                h = plt.plot([left[0], top[0], right[0]], [left[1], top[1], right[1]], arrow_color+'-')
+                h = plt.plot(
+                    [left[0], top[0], right[0]],
+                    [left[1], top[1], right[1]],
+                    arrow_color + "-",
+                )
                 assert not h[1:]
                 arrows.append(h[0])
 
     # cell centers
     plot_vertices = vertex_color and vertex_style
     if plot_vertices:
-        h = plt.plot(centers[:,0], centers[:,1], vertex_color+vertex_style)
+        h = plt.plot(centers[:, 0], centers[:, 1], vertex_color + vertex_style)
         assert not h[1:]
         vertices = h[0]
 
@@ -540,8 +693,9 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, axes=None, **kwa
     """
     if axes is None:
         import matplotlib.pyplot as plt
+
         axes = plt
-    kwargs['fontsize'] = kwargs.get('fontsize', font_size)
+    kwargs["fontsize"] = kwargs.get("fontsize", font_size)
     handles = []
     if isinstance(cells, Partition):
         cells = cells.tessellation
@@ -549,24 +703,27 @@ def plot_cell_indices(cells, font_size=12, shift_indices=False, axes=None, **kwa
     def text(x, y, i):
         if np.isnan(x) or np.isnan(y):
             import warnings
-            warnings.warn('nan coordinate', RuntimeWarning)
+
+            warnings.warn("nan coordinate", RuntimeWarning)
             return
         elif np.isinf(x) or np.isinf(y):
             import warnings
-            warnings.warn('inf coordinate', RuntimeWarning)
+
+            warnings.warn("inf coordinate", RuntimeWarning)
             return
-        h = axes.text(x, y, str(i+1 if shift_indices else i), **kwargs)
+        h = axes.text(x, y, str(i + 1 if shift_indices else i), **kwargs)
         handles.append(h)
+
     # Partition and Tessellation
     if isinstance(cells, Tessellation):
         i = 0
-        for x,y in cells.cell_centers:
+        for x, y in cells.cell_centers:
             text(x, y, i)
             i += 1
     # FiniteElements
-    else:#if isinstance(cells, FiniteElements):
+    else:  # if isinstance(cells, FiniteElements):
         for i in cells:
-            x,y = cells[i].center
+            x, y = cells[i].center
             text(x, y, i)
     return handles
 
@@ -580,5 +737,12 @@ def plot_indices(*args, **kwargs):
     return plot_cell_indices(*args, **kwargs)
 
 
-__all__ = ['__colors__', 'plot_points', 'plot_voronoi', 'plot_delaunay', 'plot_distributed', 'plot_indices', 'plot_cell_indices']
-
+__all__ = [
+    "__colors__",
+    "plot_points",
+    "plot_voronoi",
+    "plot_delaunay",
+    "plot_distributed",
+    "plot_indices",
+    "plot_cell_indices",
+]
