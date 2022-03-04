@@ -155,6 +155,7 @@ def download_non_tracking_test_data():
     test_data_dir = os.path.join(basic_tutorials_dir, '..', 'data-examples')
     if not os.path.isdir(test_data_dir):
         data_archive = 'http://dl.pasteur.fr/fop/ZrVgcQi5/data-examples.tar.bz2'
+        data_archive = 'https://gitlab.pasteur.fr/flaurent/tramway-artefacts/-/raw/main/notebooks/data-examples.tar.bz2?inline=false'
         try:
             from urllib.request import urlretrieve
         except: # Python2
