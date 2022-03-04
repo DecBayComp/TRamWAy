@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ubuntu:xenial
+From: ubuntu:focal
 
 %help
 TRamWAy is available in the python3.8 environment:
@@ -24,7 +24,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     if [ -d $LOCAL ]; then
        CONTAINED=${SINGULARITY_ROOTFS}/root/TRamWAy
        mkdir -p ${CONTAINED}
-       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/requirements.txt ${LOCAL}/README.rst
+       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/requirements.txt ${LOCAL}/README.md
        cp -ru -t ${CONTAINED}/ ${LOCAL}/tramway ${LOCAL}/scripts
     fi
 
@@ -34,7 +34,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     apt-get update -y
     apt-get install -y --no-install-recommends locales
     locale-gen
-    apt-get install -y --no-install-recommends libhdf5-10 ffmpeg
+    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg
 
     # Python 2.7
     #apt-get install -y --no-install-recommends \
@@ -42,18 +42,18 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     #apt-get install -y --no-install-recommends \
     #   python-h5py python-tables python-pandas python-matplotlib
     apt-get install -y --no-install-recommends \
-        build-essential git software-properties-common python-software-properties
+        build-essential git software-properties-common
     #apt-get install -y --no-install-recommends \
     #   python-setuptools python-wheel python-dev
 
     # Python 3.8
     add-apt-repository -y ppa:deadsnakes/ppa
     apt-get update -y
-        apt-get install -y --no-install-recommends python3.8 python3.8-venv
+    apt-get install -y --no-install-recommends python3.8 python3.8-venv
     python3.8 /root/get-pip.py
     export LC_ALL=C
-    #pip3.8 install --upgrade pip
-    pip3.8 uninstall -qy tramway || true
+    #python3.8 -m pip install --upgrade pip
+    python3.8 -m pip uninstall -qy tramway || true
 
     # (2.) and (3.)
     cd /root
@@ -61,12 +61,12 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
         git clone git://github.com/DecBayComp/TRamWAy -b master
     fi
     cd TRamWAy
-    pip3.8 install .[hpc-minimal,animate]
+    python3.8 -m pip install .[hpc-minimal,animate]
 
     # (1.)
-    #pip3.8 install tramway[hpc-minimal,animate]
+    #python3.8 -m pip install tramway[hpc-minimal,animate]
 
-    pip3.8 install scikit-learn
+    python3.8 -m pip install scikit-learn
 
     mkdir -p /pasteur
 
