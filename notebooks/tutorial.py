@@ -26,14 +26,13 @@ def download_RWAnalyzer_tour_data():
     any_data_file = os.path.join(tutorial_data_dir, 'demo1.rwa')
     if not os.path.isfile(any_data_file):
         data_archive = 'http://dl.pasteur.fr/fop/9IDHYMQJ/RWAnalyzer_tour_data.tar.bz2'
-        data_archive = 'https://gitlab.pasteur.fr/flaurent/tramway-artefacts/-/blob/256acd1614bafb65ed74f776710ea59e18bc8f3e/RWAnalyzer_tour_data.tar.bz2'
+        data_archive = 'https://gitlab.pasteur.fr/flaurent/tramway-artefacts/-/raw/main/notebooks/RWAnalyzer_tour_data.tar.bz2?inline=false'
         tutorial_data_file = data_archive.split('/')[-1]
         try:
             from urllib.request import urlretrieve
         except: # Python2
             from urllib import urlretrieve
         urlretrieve(data_archive, tutorial_data_file)
-        print(tutorial_data_file)
         import tarfile
         with tarfile.open(tutorial_data_file) as archive:
             archive.extractall(os.path.dirname(tutorial_data_dir))

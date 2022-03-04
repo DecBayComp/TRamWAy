@@ -23,12 +23,12 @@ tests_require = ['pytest']
 pwd = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(pwd, 'README.rst'), encoding='utf-8') as f:
+with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
     name = 'tramway',
-    version = '0.6.3',
+    version = '0.6.4',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
