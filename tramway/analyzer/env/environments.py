@@ -229,7 +229,7 @@ class Env(AnalyzerNode):
         assert self.worker_side
         return self.selectors["stage_index"]
 
-    def early_setup(self, *argv):
+    def early_setup(self, *argv, create_working_directory=True):
         """
         Determines which side is running and sets the `submit_side`/`worker_side` attributes.
 
@@ -294,23 +294,27 @@ class Env(AnalyzerNode):
                 break
         if valid_arguments:
             # worker side
-            _valid_arguments = dict(valid_arguments)  # copy
+            #_valid_arguments = dict(valid_arguments)  # copy
+            _valid_arguments = valid_arguments # no copy
             self.wd = _valid_arguments.pop("working_directory", self.wd)
             self.selectors = _valid_arguments
+        elif create_working_directory:
+            self.make_working_directory()
+            self.logger.info("working directory: " + self.wd)
         return valid_arguments
 
-    def setup(self, *argv, create_working_directory=True):
+    def setup(self, *argv, **kwargs):
         """
         Determines which side is running and alters iterators of the main
         :class:`~tramway.analyzer.RWAnalyzer` attributes.
 
         Takes command-line arguments (``sys.argv``).
         """
-        valid_arguments = self.early_setup(*argv)
+        valid_arguments = self.early_setup(*argv, **kwargs)
         if valid_arguments:
             # worker side
-            self.wd = valid_arguments.pop("working_directory", self.wd)
-            self.selectors = valid_arguments
+            #self.wd = valid_arguments.pop("working_directory", self.wd)
+            #self.selectors = valid_arguments
             # self.logger.debug('the following selectors apply to the current job:\n\t{}'.format(self.selectors))
             #
             if self.script is not None and self.script.endswith(".ipynb"):
@@ -348,9 +352,6 @@ class Env(AnalyzerNode):
                     "candidate script: {} (in {})".format(self.script, os.getcwd())
                 )
             raise ValueError("attribute `script` is not set")
-        elif create_working_directory:
-            self.make_working_directory()
-            self.logger.info("working directory: " + self.wd)
 
     def spt_data_selector(self, spt_data_attr):
         """
@@ -2197,7 +2198,7 @@ class SingularitySlurm(SlurmOverSSH):
                     f.write(
                         r"""#!/bin/bash
 
-for ((minor=10;6<=minor;minor--)); do
+for ((minor=11;6<=minor;minor--)); do
 py=python3.$minor
 if [ -x "$(command -v $py)" ]; then
 if [ -z "$($py -m pip show -q tramway 2>&1)" ]; then
@@ -2286,7 +2287,9 @@ exit 1
         try:
             p = parts.index("PYTHON")
         except ValueError:
-            p = parts.index("python")
+            for p, part in enumerate(parts):
+                if part.startswith("python"):
+                    break
         return parts[p - 1]
 
     @container.setter
@@ -2295,7 +2298,9 @@ exit 1
         try:
             p = parts.index("PYTHON")
         except ValueError:
-            p = parts.index("python")
+            for p, part in enumerate(parts):
+                if part.startswith("python"):
+                    break
         self.interpreter = " ".join(parts[: p - 1] + [path] + parts[p:])
 
     def get_container_url(self, container=None):
@@ -2309,9 +2314,9 @@ exit 1
     def default_container(cls, python_version=PYVER):
         return f"tramway-hpc-220304-py{python_version}.sif"
 
-    def setup(self, *argv, **kwargs):
-        SlurmOverSSH.setup(self, *argv, **kwargs)
-        if self.submit_side:
+    def early_setup(self, *argv, ensure_container=True, **kwargs):
+        SlurmOverSSH.early_setup(self, *argv, **kwargs)
+        if self.submit_side and ensure_container:
             self.ssh.download_if_missing(
                 self.container, self.get_container_url(), self.logger
             )
@@ -2382,7 +2387,7 @@ class Maestro(SingularitySlurm):
 
     @classmethod
     def scratch(cls, username):
-        return "/".join(("/pasteur/sonic/scratch/users", username))
+        return "/".join(("/pasteur/appa/scratch", username))
 
     @classmethod
     def singularity_options(cls):
