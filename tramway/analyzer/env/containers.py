@@ -27,4 +27,9 @@ singularity_containers = {
     "tramway-hpc-220304-py38.sif": "http://dl.pasteur.fr/fop/MQJcDlK3/tramway-hpc-220304-py38.sif",
     "tramway-hpc-220304-py39.sif": "http://dl.pasteur.fr/fop/NSQFnS35/tramway-hpc-220304-py39.sif",
     "tramway-hpc-220304-py310.sif": "http://dl.pasteur.fr/fop/0TTD1Gdt/tramway-hpc-220304-py310.sif",
+    "tramway-hpc-220307-py36.sif": "http://dl.pasteur.fr/fop/oFDIOaWQ/tramway-hpc-220307-py36.sif",
+    "tramway-hpc-220307-py37.sif": "http://dl.pasteur.fr/fop/Wwh4N4ri/tramway-hpc-220307-py37.sif",
+    "tramway-hpc-220307-py38.sif": "http://dl.pasteur.fr/fop/WYOBPXUf/tramway-hpc-220307-py38.sif",
+    "tramway-hpc-220307-py39.sif": "http://dl.pasteur.fr/fop/UrtgnGss/tramway-hpc-220307-py39.sif",
+    "tramway-hpc-220307-py310.sif": "http://dl.pasteur.fr/fop/G0Orpfeo/tramway-hpc-220307-py310.sif",
 }

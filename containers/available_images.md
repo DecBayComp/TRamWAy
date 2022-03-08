@@ -215,7 +215,7 @@ tqdm==4.62.2
 ``
 
 
-* tramway-hpc-220304-py3{[6](http://dl.pasteur.fr/fop/yTprQicW/tramway-hpc-220304-py36.sif),[7](http://dl.pasteur.fr/fop/96IFTAWD/tramway-hpc-220304-py37.sif),[8](http://dl.pasteur.fr/fop/MQJcDlK3/tramway-hpc-220304-py38.sif),[9](http://dl.pasteur.fr/fop/NSQFnS35/tramway-hpc-220304-py39.sif),[10](http://dl.pasteur.fr/fop/0TTD1Gdt/tramway-hpc-220304-py310.sif)}.sif
+* tramway-hpc-220307-py3{[6](http://dl.pasteur.fr/fop/oFDIOaWQ/tramway-hpc-220304-py36.sif),[7](http://dl.pasteur.fr/fop/Wwh4N4ri/tramway-hpc-220304-py37.sif),[8](http://dl.pasteur.fr/fop/WYOBPXUf/tramway-hpc-220304-py38.sif),[9](http://dl.pasteur.fr/fop/UrtgnGss/tramway-hpc-220304-py39.sif),[10](http://dl.pasteur.fr/fop/G0Orpfeo/tramway-hpc-220304-py310.sif)}.sif
 
   *tramway0.6.4* image with targets *hpc-minimal* and *animate*, and *scikit-learn* as an additional package.
   Python is available as *python3.x*, with *x* any of *6*, *7*, *8*, *9*, *10* depending on the container file.
@@ -245,7 +245,7 @@ matplotlib==3.3.4 # py36 only
 matplotlib==3.5.1 # >=py37
 networkx==2.5.1 # py36 only
 networkx==2.6.3 # py37 only
-networkx==2.7 # >=py38
+networkx==2.7.1 # >=py38
 numpy==1.19.5 # py36 only
 numpy==1.21.5 # py37 only
 numpy==1.22.2 # >=py38
@@ -266,7 +266,7 @@ PyWavelets==1.1.1 # py36 only
 PyWavelets==1.2.0 # >=py37
 requests==2.22.0
 requests-unixsocket==0.2.0
-rwa-python==0.8.5
+rwa-python==0.9.0
 scikit-image==0.17.2 # py36 only
 scikit-image==0.19.2 # >=py37
 scikit-learn==0.24.2 # py36 only
@@ -282,5 +282,5 @@ tifffile==2021.11.2 # py37 only
 tifffile==2022.2.9 # >=py38
 tqdm==4.63.0
 urllib3==1.25.8
-zipp==3.6.0 # py37 only
+zipp==3.6.0 # py36 only
 ``
