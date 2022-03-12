@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2020-2021, Institut Pasteur
+# Copyright © 2020-2022, Institut Pasteur
 #   Contributor: François Laurent
 
 # This file is part of the TRamWAy software available at
@@ -313,10 +313,6 @@ class Env(AnalyzerNode):
         valid_arguments = self.early_setup(*argv, **kwargs)
         if valid_arguments:
             # worker side
-            #self.wd = valid_arguments.pop("working_directory", self.wd)
-            #self.selectors = valid_arguments
-            # self.logger.debug('the following selectors apply to the current job:\n\t{}'.format(self.selectors))
-            #
             if self.script is not None and self.script.endswith(".ipynb"):
                 self.script = self.script[:-5] + "py"
             #
@@ -332,11 +328,8 @@ class Env(AnalyzerNode):
                 self.selectors["source"] = sources
                 # self.logger.debug('selecting source: '+', '.join((sources,) if isinstance(sources, str) else sources))
             #
-            for (
-                f
-            ) in (
-                self.analyzer.spt_data
-            ):  # TODO: check why self.spt_data_selector(..) does not work
+            for f in self.analyzer.spt_data:
+                # TODO: check why self.spt_data_selector(..) does not work
                 f._analyses.rwa_file = lambda: self.make_temporary_file(
                     suffix=".rwa", output=True
                 )
@@ -2158,7 +2151,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-220307-py3?.sif*.
+    The current default Singularity container is *tramway-hpc-220312-py3?.sif*.
     See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -2312,14 +2305,15 @@ exit 1
 
     @classmethod
     def default_container(cls, python_version=PYVER):
-        return f"tramway-hpc-220307-py{python_version}.sif"
+        return f"tramway-hpc-220312-py{python_version}.sif"
 
     def early_setup(self, *argv, ensure_container=True, **kwargs):
-        SlurmOverSSH.early_setup(self, *argv, **kwargs)
+        ret = SlurmOverSSH.early_setup(self, *argv, **kwargs)
         if self.submit_side and ensure_container:
             self.ssh.download_if_missing(
                 self.container, self.get_container_url(), self.logger
             )
+        return ret
 
     @property
     def working_directory(self):

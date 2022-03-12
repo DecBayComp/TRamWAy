@@ -17,7 +17,7 @@ from ..artefact import *
 from ..roi import HasROI
 from .abc import *
 from collections.abc import Sequence, Set
-import os.path
+import os
 from tramway.core.xyt import load_xyt, load_mat, discard_static_trajectories
 from tramway.core.analyses import base, lazy
 from tramway.core.analyses.auto import Analyses, AutosaveCapable
@@ -1589,8 +1589,12 @@ class _RWAFile(SPTFile):
                 filepath = self.filepath
             else:
                 filepath = os.path.splitext(self.source)[0] + ".rwa"
-        if not os.path.isfile(os.path.expanduser(filepath)):
-            raise FileNotFoundError(filepath)
+        filepath_ = os.path.expanduser(filepath)
+        if not os.path.exists(filepath_):
+            if os.path.basename(filepath) in [f.name for f in os.scandir(os.path.dirname(filepath_))]:
+                self.logger.debug('standard library bug: file found by os.scandir but not found by os.path.exists')
+            else:
+                raise FileNotFoundError(filepath)
         # favor the most specialized type
         if isinstance(self, cls):
             cls = type(self)
