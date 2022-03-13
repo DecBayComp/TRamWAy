@@ -1795,8 +1795,13 @@ class SlurmOverSSH(Slurm, RemoteHost):
     wd_is_available = RemoteHost.wd_is_available
     make_working_directory = RemoteHost.make_working_directory
 
-    def setup(self, *argv, **kwargs):
-        Slurm.setup(self, *argv, **kwargs)
+    def early_setup(self, *argv, connect=False, **kwargs):
+        if not connect:
+            kwargs['create_working_directory'] = False
+        return Slurm.early_setup(self, *argv, **kwargs)
+
+    def setup(self, *argv, connect=True, **kwargs):
+        Slurm.setup(self, *argv, connect=connect, **kwargs)
         RemoteHost.setup(self, *argv)
 
     def dispatch(self, **kwargs):
@@ -2140,7 +2145,7 @@ Environment.register(SlurmOverSSH)
 
 def select_python_version(major, minor, *args):
     if major == 3:
-        minor = min(9, minor)
+        minor = max(6, min(10, minor))
     return major, minor
 
 
@@ -2307,9 +2312,9 @@ exit 1
     def default_container(cls, python_version=PYVER):
         return f"tramway-hpc-220312-py{python_version}.sif"
 
-    def early_setup(self, *argv, ensure_container=True, **kwargs):
-        ret = SlurmOverSSH.early_setup(self, *argv, **kwargs)
-        if self.submit_side and ensure_container:
+    def early_setup(self, *argv, connect=False, ensure_container=True, **kwargs):
+        ret = SlurmOverSSH.early_setup(self, *argv, connect=connect, **kwargs)
+        if self.submit_side and connect and ensure_container:
             self.ssh.download_if_missing(
                 self.container, self.get_container_url(), self.logger
             )
