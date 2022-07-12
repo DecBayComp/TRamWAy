@@ -29,7 +29,7 @@ If the tests fail but no noticeable change can be found, the data archive
 should be updated.
 """
 
-py2_hash, py3_hash = 'MGtbXz14', 'MYJg7Cy6'
+py2_hash, py3_hash = 'MGtbXz14', 'A4l6MXDG'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
 data_update = '210816'#'210628'#'210126'#'200909'
 data_file = 'glycine_receptor.trxyt'

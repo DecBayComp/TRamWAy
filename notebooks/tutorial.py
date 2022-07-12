@@ -25,7 +25,6 @@ def download_RWAnalyzer_tour_data():
     """
     any_data_file = os.path.join(tutorial_data_dir, 'demo1.rwa')
     if not os.path.isfile(any_data_file):
-        data_archive = 'http://dl.pasteur.fr/fop/9IDHYMQJ/RWAnalyzer_tour_data.tar.bz2'
         data_archive = 'https://gitlab.pasteur.fr/flaurent/tramway-artefacts/-/raw/main/notebooks/RWAnalyzer_tour_data.tar.bz2?inline=false'
         tutorial_data_file = data_archive.split('/')[-1]
         try:
