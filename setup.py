@@ -5,7 +5,7 @@ from codecs import open
 from os import path
 
 # requirements moved to requirements.txt
-install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
+install_requires = ['python<=3.9', 'six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
         'roi':  ['polytope', 'cvxopt', 'tqdm'],
@@ -42,7 +42,6 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
     ],
     keywords = '',
     package_dir = {'tramway': 'tramway'},
