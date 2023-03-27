@@ -5,7 +5,7 @@ from codecs import open
 from os import path
 
 # requirements moved to requirements.txt
-install_requires = ['python<=3.9', 'six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
+install_requires = ['python<3.10', 'six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
         'roi':  ['polytope', 'cvxopt', 'tqdm'],
