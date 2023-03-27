@@ -315,7 +315,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
             pxsize = 1.0
 
         if self.loc_offset is None:
-            offset = np.zeros((1, 2), dtype=np.float)
+            offset = np.zeros((1, 2), dtype=float)
         else:
             offset = np.asarray(self.loc_offset)
             if not offset.shape[1:]:
@@ -326,12 +326,12 @@ class _RawImage(AnalyzerNode, ImageParameters):
             xy0 = None
             t0 = None
         elif isinstance(origin, np.ndarray):
-            xy0 = origin.reshape((1, 2)).astype(np.float)
+            xy0 = origin.reshape((1, 2)).astype(float)
             t0 = None
         else:  # if isinstance(origin, pd.Series):
-            xy0 = origin[list("xy")].values[np.newaxis, :].astype(np.float)
+            xy0 = origin[list("xy")].values[np.newaxis, :].astype(float)
             try:
-                t0 = origin["t"].astype(np.float)
+                t0 = origin["t"].astype(float)
             except KeyError:
                 t0 = None
 
@@ -360,7 +360,7 @@ class _RawImage(AnalyzerNode, ImageParameters):
         else:
             color_scale = int(np.round(1.0 / light_intensity))
 
-        marker_color = line_color = np.array([[1, 0, 0]], dtype=np.float)  # red
+        marker_color = line_color = np.array([[1, 0, 0]], dtype=float)  # red
         if locations is not None:
             if callable(locations):
                 locations = locations()
@@ -533,8 +533,8 @@ class _RawImage(AnalyzerNode, ImageParameters):
                 else:
                     xy_f = (xy[list("xy")].values - xy0) / vid_pxsize + mag_offset
                 for j, i in xy_f:
-                    i = np.array([_floor(i), _ceil(i)], dtype=np.int)
-                    j = np.array([_floor(j), _ceil(j)], dtype=np.int)
+                    i = np.array([_floor(i), _ceil(i)], dtype=int)
+                    j = np.array([_floor(j), _ceil(j)], dtype=int)
                     if np.any(i < 0) or np.any(j < 0):
                         continue
                     i, j = np.meshgrid(

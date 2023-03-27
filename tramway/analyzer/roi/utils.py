@@ -156,7 +156,7 @@ def set_contiguous_time_support_by_count(
         if min_points and len(times) < min_points * region_weight * min_segments:
             continue
 
-        counts = np.zeros(times.size, dtype=np.int)
+        counts = np.zeros(times.size, dtype=int)
         for t in range(times.size):
             counts[t] = np.sum(
                 times[t] - duration <= times[max(0, t - threshold) : t + 1]

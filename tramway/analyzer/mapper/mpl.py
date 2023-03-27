@@ -77,13 +77,13 @@ class PatchCollection(object):
                 pd.DataFrame([], columns=list("nxyt")),
                 mesh,
                 location_count=np.full(
-                    mesh.number_of_cells, np.iinfo(np.int).max, dtype=np.int
+                    mesh.number_of_cells, np.iinfo(int).max, dtype=int
                 ),
                 bounding_box=bounding_box,
             )
         self.glyphs, self.bin_indices = scalar_map_2d(
             mesh,
-            pd.Series(np.zeros(mesh.number_of_cells, dtype=np.float)),
+            pd.Series(np.zeros(mesh.number_of_cells, dtype=float)),
             axes=ax,
             return_patches=True,
             **kwargs,
@@ -131,7 +131,7 @@ class PatchCollection(object):
         n = self.bin_indices.max()
         if map.index.size:
             n = max(map.index.max(), n)
-        values = np.full(n + 1, np.nan, dtype=np.float)
+        values = np.full(n + 1, np.nan, dtype=float)
         values[map.index] = map.values
         self.glyphs.set_array(values[self.bin_indices])
         ret = [self.glyphs]

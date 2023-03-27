@@ -374,7 +374,7 @@ class GasMesh(Voronoi):
                                 k, i, xi.shape[0], j, xj.shape[0]
                             )
                         )
-            sparsity = np.float(np.sum(self._adjacency_label == 2)) / np.float(
+            sparsity = float(np.sum(self._adjacency_label == 2)) / float(
                 np.sum(0 < self._adjacency_label)
             )
             if 0.5 < sparsity:

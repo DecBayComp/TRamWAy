@@ -263,7 +263,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
         return lg_B(n) - sign * lg_B_threshold
 
     min_n = scipy.optimize.brentq(solve_me, n_interval[0], n_interval[1], xtol=xtol, rtol=rtol)
-    min_n = np.int(np.ceil(min_n))
+    min_n = int(np.ceil(min_n))
 
     return min_n
 
