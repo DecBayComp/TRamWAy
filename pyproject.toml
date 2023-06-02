@@ -34,6 +34,36 @@ scikit-image = "^0.20.0"
 tqdm = "^4.65.0"
 
 
+
+[tool.poetry.group.roi.dependencies]
+polytope = "^0.2.3"
+tqdm = "^4.65.0"
+
+
+[tool.poetry.group.animate.dependencies]
+opencv-python = "^4.7.0.72"
+scikit-image = "^0.20.0"
+tqdm = "^4.65.0"
+
+
+[tool.poetry.group.webui.dependencies]
+bokeh = ">=2.0.2,<2.3.0"
+selenium = "^4.9.1"
+plotly = "^5.14.1"
+nbformat = "^5.9.0"
+
+
+[tool.poetry.group.hpc-minimal.dependencies]
+polytope = "^0.2.3"
+stopit = "^1.1.2"
+
+
+[tool.poetry.group.hpc.dependencies]
+polytope = "^0.2.3"
+paramiko = "^3.2.0"
+stopit = "^1.1.2"
+nbconvert = "^7.4.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
