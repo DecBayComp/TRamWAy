@@ -604,7 +604,7 @@ def reindex_trajectories(trajectories, trajnum_colname="n", dt=None):
                 dt = traj["dt"].min()
             else:
                 dt = traj["t"].diff().min()
-            if dt.size == 0:
+            if isinstance(dt, np.ndarray) and dt.size == 0:
                 dt = None
             elif np.isclose(dt, 0):
                 raise ValueError("multiple rows for the same time point and trajectory")

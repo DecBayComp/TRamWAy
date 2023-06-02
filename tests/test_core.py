@@ -131,8 +131,8 @@ class TestXyt(object):
                 tested_result.dtypes.tolist() == expected_result.dtypes.tolist() and \
                 numpy.all(tested_result.index == expected_result.index) and \
                 numpy.allclose(tested_result, expected_result)
-        return pandas.DataFrame([[1,.1,.1,.05],[1,.45,.45,.1],[1,.85,.65,.12],[2,.6,.9,.25],[2,.4,.5,.3]], columns=list('nxyt'))
-        assert crop(self.example_nxyt(), self.example_bbox(), add_deltas=False).equals(expected_result[list('nxyt')])
+        #return pandas.DataFrame([[1,.1,.1,.05],[1,.45,.45,.1],[1,.85,.65,.12],[2,.6,.9,.25],[2,.4,.5,.3]], columns=list('nxyt'))
+        #assert crop(self.example_nxyt(), self.example_bbox(), add_deltas=False).equals(expected_result[list('nxyt')])
 
     def test_reindex(self):
         from io import StringIO
