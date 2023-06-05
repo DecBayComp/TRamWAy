@@ -1,11 +1,11 @@
 
-name: Unit tests and code coverage
+name: Unit tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, dev ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, dev ]
 
 jobs:
   unittests:
@@ -18,8 +18,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
           - windows-latest
-        #python-version: [3.6, 3.7, 3.8, 3.9]
-        python-version: [3.6, 3.8, 3.9]
+        python-version: ["3.8", "3.9", "3.10"]
       fail-fast: true
 
     steps:
@@ -62,26 +61,3 @@ jobs:
         pytest
         tests/test_core.py
         tests/test_analyzer.py
-
-  coverage:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
-      with:
-        python-version: 3.8
-    - name: Install dependencies and run tests
-      run: |
-        sudo apt-get update
-        sudo apt-get install h5utils
-        python -m pip install --upgrade pip
-        python -m pip install pytest-cov
-        python -m pip install .[roi]
-        python -m pytest --cov=./ \
-          tests/test_core.py \
-          tests/test_analyzer.py
-    - uses: codecov/codecov-action@v1
-      with:
-        fail_ci_if_error: true

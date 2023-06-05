@@ -8,12 +8,12 @@ from os import path
 install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
-        'roi':  ['polytope', 'cvxopt', 'tqdm'],
+        'roi':  ['polytope', 'tqdm'],
         'webui':    ['bokeh >=2.0.2, <2.3.0', 'selenium', 'plotly', 'nbformat'],
-        'hpc-minimal':  ['polytope', 'cvxopt', 'stopit'],
-        'hpc':  ['polytope', 'cvxopt', 'paramiko', 'stopit', 'nbconvert'],
+        'hpc-minimal':  ['polytope', 'stopit'],
+        'hpc':  ['polytope', 'paramiko', 'stopit', 'nbconvert'],
         'full':  [
-            'polytope', 'cvxopt', 'paramiko', 'stopit', 'nbconvert',
+            'polytope', 'paramiko', 'stopit', 'nbconvert',
             'bokeh >=2.0.2, <2.3.0', 'selenium', 'plotly', 'nbformat',
             'opencv-python', 'scikit-image', 'tqdm',
             ]}
@@ -28,7 +28,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.6.5',
+    version = '0.6.6',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',

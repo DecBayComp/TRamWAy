@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "tramway"
+version = "0.6.6"
+description = ""
+authors = ["François Laurent <francois.laurent@pasteur.fr>"]
+license = "CECILL-2.1"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.12"
+six = "^1.16.0"
+numpy = "^1.24.3"
+scipy = "<1.9.2"
+pandas = "^2.0.2"
+matplotlib = "^3.7.1"
+rwa-python = "^0.9.3"
+
+polytope = { version = "^0.2.3", optional = true }
+paramiko = { version = "^3.2.0", optional = true }
+stopit = { version = "^1.1.2", optional = true }
+nbconvert = { version = "^7.4.0", optional = true }
+bokeh = { version = ">=2.0.2,<2.3.0", optional = true }
+selenium = { version = "^4.9.1", optional = true }
+plotly = { version = "^5.14.1", optional = true }
+nbformat = { version = "^5.9.0", optional = true }
+opencv-python = { version = "^4.7.0.72", optional = true }
+scikit-image = { version = "^0.20.0", optional = true }
+tqdm = { version = "^4.65.0", optional = true }
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+
+
+[tool.poetry.extras]
+# `full` is for backward compatibility; use --all-extras instead
+full = ["polytope", "paramiko", "stopit", "nbconvert", "bokeh", "selenium", "plotly", "nbformat", "opencv-python", "scikit-image", "tqdm"]
+roi = ["polytope", "tqdm"]
+animate = ["opencv-python", "scikit-image", "tqdm"]
+webui = ["bokeh", "selenium", "plotly", "nbformat"]
+hpc-minimal = ["polytope", "stopit"]
+hpc = ["polytope", "paramiko", "stopit", "nbconvert"]
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

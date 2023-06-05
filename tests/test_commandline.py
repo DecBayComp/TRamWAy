@@ -29,9 +29,9 @@ If the tests fail but no noticeable change can be found, the data archive
 should be updated.
 """
 
-py2_hash, py3_hash = 'MGtbXz14', 'A4l6MXDG'
+py2_hash, py3_hash = 'MGtbXz14', 'R0Wpvakg'
 data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '210816'#'210628'#'210126'#'200909'
+data_update = '230602'#'210816'#'210628'#'210126'#'200909'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
@@ -68,24 +68,24 @@ def datadir(tmpdir, request):
             try:
                 with tarfile.open(dest) as archive:
                     def is_within_directory(directory, target):
-                        
+
                         abs_directory = os.path.abspath(directory)
                         abs_target = os.path.abspath(target)
-                    
+
                         prefix = os.path.commonprefix([abs_directory, abs_target])
-                        
+
                         return prefix == abs_directory
-                    
+
                     def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-                    
+
                         for member in tar.getmembers():
                             member_path = os.path.join(path, member.name)
                             if not is_within_directory(path, member_path):
                                 raise Exception("Attempted Path Traversal in Tar File")
-                    
-                        tar.extractall(path, members, numeric_owner=numeric_owner) 
-                        
-                    
+
+                        tar.extractall(path, members, numeric_owner=numeric_owner)
+
+
                     safe_extract(archive, tests_dir)
             except:
                 _print(tmpdir, '[failed]')
