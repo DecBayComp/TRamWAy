@@ -322,22 +322,35 @@ class TestPipeline(object):
         env = "a.env = environments.LocalHost"
         run_script0(tmpdir, dynamicmesh, env)
 
-    def test_Maestro0(self, tmpdir, dynamicmesh):
-        with open(os.path.join(os.path.dirname(__file__), 'maestro.credentials'), 'r') as f:
-            username = f.readline().rstrip()
-            password = f.readline().rstrip()
-        #
-        env = """\
+    def prepare_Maestro(self, dynamicmesh):
+        try:
+            with open(os.path.join(os.path.dirname(__file__), 'maestro.credentials'), 'r') as f:
+                username = f.readline().rstrip()
+                password = f.readline().rstrip()
+        except FileNotFoundError:
+            username = os.environ['USER']
+            env = f"""\
+a.env = environments.Maestro
+a.env.username = '{username}'
+a.env.sbatch_options.update(dict(p='dbc_pmo', qos='dbc'))\
+"""
+        else:
+            #
+            env = f"""\
 a.env = environments.Maestro
 a.env.username = '{username}'
 a.env.ssh._password = '{password}'
 a.env.sbatch_options.update(dict(p='dbc_pmo', qos='dbc'))\
-""".format(username=username, password=password)
+"""
         #
         input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
-        input_file = '~/Projects/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
-        run_script0(tmpdir, input_file, env)
+        #input_file = '~/Projects/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
+        return input_file, env
 
+    def test_Maestro0(self, tmpdir, dynamicmesh):
+        run_script0(tmpdir, *self.prepare_Maestro(dynamicmesh))
+
+    @pytest.mark.skip(reason="GPUlab has retired")
     def test_GPULab0(self, tmpdir, dynamicmesh):
         with open(os.path.join(os.path.dirname(__file__), 'gpulab.credentials'), 'r') as f:
             username = f.readline().rstrip()
@@ -359,21 +372,9 @@ a.env.sbatch_options.update(dict(p='dbc'))\
         run_script1(tmpdir, dynamicmesh, env)
 
     def test_Maestro1(self, tmpdir, dynamicmesh):
-        with open(os.path.join(os.path.dirname(__file__), 'maestro.credentials'), 'r') as f:
-            username = f.readline().rstrip()
-            password = f.readline().rstrip()
-        #
-        env = """\
-a.env = environments.Maestro
-a.env.username = '{username}'
-a.env.ssh._password = '{password}'
-#a.env.container = 'tramway-hpc-test.sif'
-a.env.sbatch_options.update(dict(p='dbc_pmo', qos='dbc'))\
-""".format(username=username, password=password)
-        #
-        input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
-        run_script1(tmpdir, input_file, env)
+        run_script1(tmpdir, *self.prepare_Maestro(dynamicmesh))
 
+    @pytest.mark.skip(reason="GPUlab has retired")
     def test_GPULab1(self, tmpdir, dynamicmesh):
         with open(os.path.join(os.path.dirname(__file__), 'gpulab.credentials'), 'r') as f:
             username = f.readline().rstrip()
@@ -394,21 +395,9 @@ a.env.sbatch_options.update(dict(p='dbc'))\
         run_script2(tmpdir, dynamicmesh, env)
 
     def test_Maestro2(self, tmpdir, dynamicmesh):
-        with open(os.path.join(os.path.dirname(__file__), 'maestro.credentials'), 'r') as f:
-            username = f.readline().rstrip()
-            password = f.readline().rstrip()
-        #
-        env = """\
-a.env = environments.Maestro
-a.env.username = '{username}'
-a.env.ssh._password = '{password}'
-a.env.sbatch_options.update(dict(p='dbc_pmo', qos='dbc'))\
-""".format(username=username, password=password)
-        #
-        input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
-        input_file = '~/Projects/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
-        run_script2(tmpdir, input_file, env)
+        run_script2(tmpdir, *self.prepare_Maestro(dynamicmesh))
 
+    @pytest.mark.skip(reason="GPUlab has retired")
     def test_GPULab2(self, tmpdir, dynamicmesh):
         with open(os.path.join(os.path.dirname(__file__), 'gpulab.credentials'), 'r') as f:
             username = f.readline().rstrip()
