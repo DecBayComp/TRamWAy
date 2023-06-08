@@ -2172,16 +2172,21 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
 
     @classmethod
+    def singularity_executable(cls):
+        return "singularity"
+
+    @classmethod
     def singularity_options(cls):
         return ""
 
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
+        singularity_exec = self.singularity_executable()
         singularity_options = self.singularity_options()
         if singularity_options and singularity_options[0] != " ":
             singularity_options = " " + singularity_options
         default_container = self.default_container()
-        self._interpreter = f"singularity exec -H $HOME{singularity_options} {default_container} PYTHON -s"
+        self._interpreter = f"{singularity_exec} exec -H $HOME{singularity_options} {default_container} PYTHON -s"
         self.ssh.host = self.hostname()
 
     @property
@@ -2389,12 +2394,16 @@ class Maestro(SingularitySlurm):
         return "/".join(("/pasteur/appa/scratch", username))
 
     @classmethod
+    def singularity_executable(cls):
+        return "apptainer"
+
+    @classmethod
     def singularity_options(cls):
         return " -B /pasteur"
 
     @classmethod
     def remote_dependencies(cls):
-        return "module load singularity"
+        return "module load apptainer"
 
 
 __all__ = ["Environment", "LocalHost", "SlurmOverSSH", "Tars", "GPULab", "Maestro"]
