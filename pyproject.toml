@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tramway"
-version = "0.6.6"
+version = "0.6.7"
 description = ""
 authors = ["François Laurent <francois.laurent@pasteur.fr>"]
 license = "CECILL-2.1"

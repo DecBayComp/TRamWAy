@@ -4,7 +4,7 @@ From: ubuntu:focal
 %help
 TRamWAy is available in the python3.9 environment:
     python3.9 -m tramway
-The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
+The container OS is Ubuntu Focal Fossa.
 
 %setup
 
@@ -34,7 +34,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     apt-get update -y
     apt-get install -y --no-install-recommends locales
     locale-gen
-    apt-get install -y --no-install-recommends libhdf5-10 3ffmpeg
+    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg
 
     # Python 2.7
     #apt-get install -y --no-install-recommends \
@@ -50,6 +50,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     add-apt-repository -y ppa:deadsnakes/ppa
     apt-get update -y
     apt-get install -y --no-install-recommends python3.9 python3.9-venv
+    rm -rf /var/lib/apt/lists/*
     python3.9 /root/get-pip.py
     export LC_ALL=C
     #python3.9 -m pip install --upgrade pip
@@ -58,7 +59,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     # (2.) and (3.)
     cd /root
     if ! [ -d TRamWAy ]; then
-        git clone git://github.com/DecBayComp/TRamWAy -b master
+        git clone https://github.com/DecBayComp/TRamWAy -b dev --single-branch --depth 1 --no-tags
     fi
     cd TRamWAy
     python3.9 -m pip install .[hpc-minimal,animate]
@@ -69,9 +70,6 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     python3.9 -m pip install scikit-learn
 
     mkdir -p /pasteur
-
-    # if any such limit exists, it should not be set by the contained OS
-    ulimit -n 1048576
 
 %runscript
 

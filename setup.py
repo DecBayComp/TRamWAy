@@ -28,7 +28,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.6.6',
+    version = '0.6.7',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -38,8 +38,6 @@ setup(
     classifiers = [
         'Intended Audience :: Science/Research',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
