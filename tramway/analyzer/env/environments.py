@@ -2156,8 +2156,8 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-220312-py3?.sif*.
-    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
+    The current default Singularity container is *tramway-hpc-230609-py3?.sif*.
+    See also `available_images.md <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.md>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
     They can be defined as standard methods or class methods.
@@ -2315,7 +2315,7 @@ exit 1
 
     @classmethod
     def default_container(cls, python_version=PYVER):
-        return f"tramway-hpc-220312-py{python_version}.sif"
+        return f"tramway-hpc-230609-py{python_version}.sif"
 
     def early_setup(self, *argv, connect=False, ensure_container=True, **kwargs):
         ret = SlurmOverSSH.early_setup(self, *argv, connect=connect, **kwargs)

@@ -284,3 +284,56 @@ tqdm==4.63.0
 urllib3==1.25.8
 zipp==3.6.0 # py36 only
 ```
+
+* tramway-hpc-230609-py3{[8](https://dl.pasteur.fr/fop/74lfEWxO/tramway-hpc-230609-py38.sif),[9](https://dl.pasteur.fr/fop/XgQ06STg/tramway-hpc-230609-py39.sif),[10](https://dl.pasteur.fr/fop/cjIlKNPy/tramway-hpc-230609-py310.sif),[11](https://dl.pasteur.fr/fop/fIpRkzfG/tramway-hpc-230609-py311.sif)}.sif
+
+  *tramway0.6.7* image with targets *hpc-minimal* and *animate*, and *scikit-learn* as an additional package.
+  Python is available as *python3.x*, with *x* any of *8*, *9*, *10*, *11* depending on the container file.
+  The run command admits option *-s*, passed to Python,
+  resulting in command (e.g.) `python3.8 -s -m tramway $@`.
+  The included Python dependencies are the following:
+
+```
+certifi==2019.11.28
+chardet==3.0.4
+contourpy==1.0.7
+cycler==0.11.0
+dbus-python==1.2.16
+fonttools==4.39.4
+h5py==3.8.0
+idna==2.8
+imageio==2.31.0
+importlib-resources==5.12.0 # py<310
+joblib==1.2.0
+kiwisolver==1.4.4
+lazy_loader==0.2
+matplotlib==3.7.1
+networkx==3.1
+numpy==1.24.3
+opencv-python==4.7.0.72
+packaging==23.1
+pandas==2.0.2
+Pillow==9.5.0
+polytope==0.2.3
+PyGObject==3.36.0
+pyparsing==3.0.9
+python-apt==2.0.1+ubuntu0.20.4.1
+python-dateutil==2.8.2
+pytz==2023.3
+PyWavelets==1.4.1
+requests==2.22.0
+requests-unixsocket==0.2.0
+rwa-python==0.9.3
+scikit-image==0.20.0
+scikit-learn==1.2.2
+scipy==1.9.1 # py<310
+scipy==1.10.1 # py>39
+six==1.16.0
+stopit==1.1.2
+threadpoolctl==3.1.0
+tifffile==2023.4.12
+tqdm==4.65.0
+tzdata==2023.3
+urllib3==1.25.8
+zipp==3.15.0 # py<310
+```

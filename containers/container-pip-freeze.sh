@@ -15,6 +15,7 @@ else
 fi
 
 PYTHON=$($SINGULARITY exec "$CONTAINER" ./detect_python.sh)
+echo $PYTHON
 
 $SINGULARITY exec "$CONTAINER" $PYTHON -s -m pip freeze
 
