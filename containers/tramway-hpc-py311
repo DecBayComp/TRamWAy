@@ -35,7 +35,7 @@ The container OS is Ubuntu Focal Fossa.
     apt-get install -y --no-install-recommends locales
     locale-gen
     apt-get install -y --no-install-recommends libhdf5-103 ffmpeg \
-        build-essential git software-properties-common libopenblas0
+        build-essential git software-properties-common libopenblas0 glpk-utils
 
     # Python 3.11
     add-apt-repository -y ppa:deadsnakes/ppa

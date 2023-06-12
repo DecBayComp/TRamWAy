@@ -8,12 +8,12 @@ from os import path
 install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
-        'roi':  ['polytope', 'tqdm'],
+        'roi':  ['polytope', 'cvxopt', 'tqdm'],
         'webui':    ['bokeh >=2.0.2, <2.3.0', 'selenium', 'plotly', 'nbformat'],
-        'hpc-minimal':  ['polytope', 'stopit'],
-        'hpc':  ['polytope', 'paramiko', 'stopit', 'nbconvert'],
+        'hpc-minimal':  ['polytope', 'cvxopt', 'stopit'],
+        'hpc':  ['polytope', 'cvxopt', 'paramiko', 'stopit', 'nbconvert'],
         'full':  [
-            'polytope', 'paramiko', 'stopit', 'nbconvert',
+            'polytope', 'cvxopt', 'paramiko', 'stopit', 'nbconvert',
             'bokeh >=2.0.2, <2.3.0', 'selenium', 'plotly', 'nbformat',
             'opencv-python', 'scikit-image', 'tqdm',
             ]}

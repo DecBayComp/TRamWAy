@@ -2145,7 +2145,7 @@ Environment.register(SlurmOverSSH)
 
 def select_python_version(major, minor, *args):
     if major == 3:
-        minor = max(6, min(10, minor))
+        minor = max(6, min(11, minor))
     return major, minor
 
 
