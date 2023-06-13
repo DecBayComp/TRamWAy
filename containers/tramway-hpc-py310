@@ -34,17 +34,8 @@ The container OS is Ubuntu Focal Fossa.
     apt-get update -y
     apt-get install -y --no-install-recommends locales
     locale-gen
-    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg
-
-    # Python 2.7
-    #apt-get install -y --no-install-recommends \
-    #   python python-pip python-numpy python-scipy
-    #apt-get install -y --no-install-recommends \
-    #   python-h5py python-tables python-pandas python-matplotlib
-    apt-get install -y --no-install-recommends \
-        build-essential git software-properties-common
-    #apt-get install -y --no-install-recommends \
-    #   python-setuptools python-wheel python-dev
+    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg \
+        build-essential git software-properties-common libopenblas0 glpk-utils
 
     # Python 3.10
     add-apt-repository -y ppa:deadsnakes/ppa

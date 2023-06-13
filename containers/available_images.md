@@ -297,12 +297,13 @@ zipp==3.6.0 # py36 only
 certifi==2019.11.28
 chardet==3.0.4
 contourpy==1.0.7
+cvxopt==1.3.1
 cycler==0.11.0
 dbus-python==1.2.16
-fonttools==4.39.4
+fonttools==4.40.0
 h5py==3.8.0
 idna==2.8
-imageio==2.31.0
+imageio==2.31.1
 importlib-resources==5.12.0 # py<310
 joblib==1.2.0
 kiwisolver==1.4.4
