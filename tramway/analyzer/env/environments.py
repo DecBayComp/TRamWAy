@@ -2145,7 +2145,7 @@ Environment.register(SlurmOverSSH)
 
 def select_python_version(major, minor, *args):
     if major == 3:
-        minor = max(6, min(10, minor))
+        minor = max(6, min(11, minor))
     return major, minor
 
 
@@ -2156,8 +2156,8 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-220312-py3?.sif*.
-    See also `available_images.rst <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.rst>`_.
+    The current default Singularity container is *tramway-hpc-230609-py3?.sif*.
+    See also `available_images.md <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.md>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
     They can be defined as standard methods or class methods.
@@ -2172,16 +2172,21 @@ class SingularitySlurm(SlurmOverSSH):
         raise NotImplementedError
 
     @classmethod
+    def singularity_executable(cls):
+        return "singularity"
+
+    @classmethod
     def singularity_options(cls):
         return ""
 
     def __init__(self, **kwargs):
         SlurmOverSSH.__init__(self, **kwargs)
+        singularity_exec = self.singularity_executable()
         singularity_options = self.singularity_options()
         if singularity_options and singularity_options[0] != " ":
             singularity_options = " " + singularity_options
         default_container = self.default_container()
-        self._interpreter = f"singularity exec -H $HOME{singularity_options} {default_container} PYTHON -s"
+        self._interpreter = f"{singularity_exec} exec -H $HOME{singularity_options} {default_container} PYTHON -s"
         self.ssh.host = self.hostname()
 
     @property
@@ -2310,7 +2315,7 @@ exit 1
 
     @classmethod
     def default_container(cls, python_version=PYVER):
-        return f"tramway-hpc-220312-py{python_version}.sif"
+        return f"tramway-hpc-230609-py{python_version}.sif"
 
     def early_setup(self, *argv, connect=False, ensure_container=True, **kwargs):
         ret = SlurmOverSSH.early_setup(self, *argv, connect=connect, **kwargs)
@@ -2389,12 +2394,16 @@ class Maestro(SingularitySlurm):
         return "/".join(("/pasteur/appa/scratch", username))
 
     @classmethod
+    def singularity_executable(cls):
+        return "apptainer"
+
+    @classmethod
     def singularity_options(cls):
         return " -B /pasteur"
 
     @classmethod
     def remote_dependencies(cls):
-        return "module load singularity"
+        return "module load apptainer"
 
 
 __all__ = ["Environment", "LocalHost", "SlurmOverSSH", "Tars", "GPULab", "Maestro"]

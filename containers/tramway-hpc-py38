@@ -4,7 +4,7 @@ From: ubuntu:focal
 %help
 TRamWAy is available in the python3.8 environment:
     python3.8 -m tramway
-The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
+The container OS is Ubuntu Focal Fossa.
 
 %setup
 
@@ -34,22 +34,14 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     apt-get update -y
     apt-get install -y --no-install-recommends locales
     locale-gen
-    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg
-
-    # Python 2.7
-    #apt-get install -y --no-install-recommends \
-    #   python python-pip python-numpy python-scipy
-    #apt-get install -y --no-install-recommends \
-    #   python-h5py python-tables python-pandas python-matplotlib
-    apt-get install -y --no-install-recommends \
-        build-essential git software-properties-common
-    #apt-get install -y --no-install-recommends \
-    #   python-setuptools python-wheel python-dev
+    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg \
+        build-essential git software-properties-common libopenblas0 glpk-utils
 
     # Python 3.8
     add-apt-repository -y ppa:deadsnakes/ppa
     apt-get update -y
     apt-get install -y --no-install-recommends python3.8 python3.8-venv
+    rm -rf /var/lib/apt/lists/*
     python3.8 /root/get-pip.py
     export LC_ALL=C
     #python3.8 -m pip install --upgrade pip
@@ -58,7 +50,7 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     # (2.) and (3.)
     cd /root
     if ! [ -d TRamWAy ]; then
-        git clone git://github.com/DecBayComp/TRamWAy -b master
+        git clone https://github.com/DecBayComp/TRamWAy -b dev --single-branch --depth 1 --no-tags
     fi
     cd TRamWAy
     python3.8 -m pip install .[hpc-minimal,animate]
@@ -69,9 +61,6 @@ The container OS is Ubuntu Xenial and can run on top of old OSes like CentOS6.
     python3.8 -m pip install scikit-learn
 
     mkdir -p /pasteur
-
-    # if any such limit exists, it should not be set by the contained OS
-    ulimit -n 1048576
 
 %runscript
 
