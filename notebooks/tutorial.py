@@ -18,14 +18,17 @@ def _exists(f):
     except FileNotFoundError:
         return False
 
-def download_RWAnalyzer_tour_data():
+def download_RWAnalyzer_tour_data(extra=False):
     """
     Checks for the availability of the *demo1.rwa* file
     and downloads all the data files if missing.
     """
     any_data_file = os.path.join(tutorial_data_dir, 'demo1.rwa')
     if not os.path.isfile(any_data_file):
-        data_archive = 'https://gitlab.pasteur.fr/flaurent/tramway-artefacts/-/raw/main/notebooks/RWAnalyzer_tour_data_extra.tar.bz2?inline=false'
+        if extra:
+            data_archive = 'https://gitlab.pasteur.fr/flaurent/tramway-artefacts/-/raw/main/notebooks/RWAnalyzer_tour_data_extra.tar.bz2?inline=false'
+        else:
+            data_archive = 'https://gitlab.pasteur.fr/flaurent/tramway-artefacts/-/raw/main/notebooks/RWAnalyzer_tour_data.tar.bz2?inline=false'
         tutorial_data_file = data_archive.split('/')[-1].split('?')[0]
         try:
             from urllib.request import urlretrieve
