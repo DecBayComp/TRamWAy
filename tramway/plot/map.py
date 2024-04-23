@@ -493,7 +493,7 @@ def scalar_map_2d(
                 vertices, voronoi, bb, rp = cell_to_polygon(
                     c, xy, voronoi, bb, rp, True
                 )
-                polygons.append(Polygon(vertices, True))
+                polygons.append(Polygon(vertices, closed=True))
 
     elif isinstance(cells, Partition) and isinstance(cells.tessellation, Voronoi):
 
@@ -546,7 +546,7 @@ def scalar_map_2d(
             )
             for extra_ix, extra_vs in extra_polygons:
                 ids.append(extra_ix)
-                polygons.append(Polygon(extra_vs, True))
+                polygons.append(Polygon(extra_vs, closed=True))
     else:
         _type = repr(type(cells))
         if _type.endswith("'>"):
@@ -862,7 +862,7 @@ def field_map_2d(
         ortho = np.dot(t, f)
         vertices = np.stack((vertex, base + ortho, base - ortho), axis=0)
         # vertices[:,0] = center[0] + aspect_ratio * (vertices[:,0] - center[0])
-        markers.append(Polygon(vertices, True))
+        markers.append(Polygon(vertices, closed=True))
 
     patches = PatchCollection(
         markers,
