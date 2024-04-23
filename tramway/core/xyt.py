@@ -354,7 +354,7 @@ def load_xyt(
     # if 'n' not in columns:
     #    raise ValueError("trajectory index should be denoted 'n'")
     if "sep" not in kwargs and "delimiter" not in kwargs:
-        kwargs["delim_whitespace"] = True
+        kwargs['sep'] = '\s+'
     if not isinstance(path, list):
         path = [path]
     paths = []

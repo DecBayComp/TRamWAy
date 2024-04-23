@@ -119,7 +119,7 @@ class HexagonalMesh(Voronoi):
                 points = pts = np.dot(points, rot.T)
         #
         x0, y0 = (lower_bound + upper_bound) * 0.5
-        size = upper_bound - lower_bound
+        size = np.asarray(upper_bound - lower_bound)
         hex_sin, hex_cos = sin(pi / 6.0), cos(pi / 6.0)
         if self.avg_probability:
             desired_n_cells = n_cells = 1.0 / self.avg_probability
