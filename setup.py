@@ -5,7 +5,7 @@ from codecs import open
 from os import path
 
 # requirements moved to requirements.txt
-install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8']
+install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8', 'setuptools']
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
         'roi':  ['polytope', 'tqdm'],
@@ -28,7 +28,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.6.7',
+    version = '0.6.8',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -42,6 +42,7 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
     ],
     keywords = '',
     package_dir = {'tramway': 'tramway'},

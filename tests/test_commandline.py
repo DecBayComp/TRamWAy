@@ -29,13 +29,15 @@ If the tests fail but no noticeable change can be found, the data archive
 should be updated.
 """
 
-py2_hash, py3_hash = 'MGtbXz14', 'R0Wpvakg'
-data_server = 'http://dl.pasteur.fr/fop/{}/'.format(py2_hash if sys.version_info[0] == 2 else py3_hash)
-data_update = '230602'#'210816'#'210628'#'210126'#'200909'
+assert sys.version_info[0] == 3
+
+py3_hash = '9X87jkdA'
+data_server = f'http://dl.pasteur.fr/fop/{py3_hash}/'
+data_update = '240213'
 data_file = 'glycine_receptor.trxyt'
 
-data_dir = '{}_py{}_{}'.format('test_commandline', sys.version_info[0], data_update)
-data_archive = '{}.tar.bz2'.format(data_dir)
+data_dir = f'test_commandline_py3_{data_update}'
+data_archive = f'{data_dir}.tar.bz2'
 
 seed = 4294947105
 
