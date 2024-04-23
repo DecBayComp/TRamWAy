@@ -124,7 +124,7 @@ urllib3==1.25.8
 zipp==3.15.0 # py<310
 ```
 
-* tramway-hpc-240423-py3{[8](),[9](),[10](),[11](),[12]()}.sif
+* tramway-hpc-240423-py3{[8](https://dl.pasteur.fr/fop/B3LCHpTL/tramway-hpc-240423-py38.sif),[9](https://dl.pasteur.fr/fop/crbAgtuu/tramway-hpc-240423-py39.sif),[10](https://dl.pasteur.fr/fop/zZ2nrnKP/tramway-hpc-240423-py310.sif),[11](https://dl.pasteur.fr/fop/7F8PPD7j/tramway-hpc-240423-py311.sif),[12](https://dl.pasteur.fr/fop/lRWEB8oR/tramway-hpc-240423-py312.sif)}.sif
 
   *tramway0.6.8* image with targets *hpc-minimal* and *animate*, and *scikit-learn* as an additional package.
   Python is available as *python3.x*, with *x* any of *8*, *9*, *10*, *11*, *12* depending on the container file.
