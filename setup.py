@@ -28,7 +28,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.6.8',
+    version = '0.6.9',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -43,6 +43,7 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ],
     keywords = '',
     package_dir = {'tramway': 'tramway'},
