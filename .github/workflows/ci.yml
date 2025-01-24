@@ -46,14 +46,11 @@ jobs:
         rm "${{ github.workspace }}\hdf\HDF5-1.10.7-win64.msi"
         rm "${{ github.workspace }}\msi.log"
         }
-    - name: Install HDF5 (macOS)
+    - name: Install HDF5 and CVXOPT dependencies (macOS)
       if: ${{ runner.os == 'macOS' }}
       env:
-        CVXOPT_SUITESPARSE_LIB_DIR: /opt/homebrew/lib
-        CVXOPT_SUITESPARSE_INC_DIR: /opt/homebrew/include/suitesparse
-        CVXOPT_BLAS_LIB_DIR: /opt/homebrew/opt/openblas/lib
-        CVXOPT_BLAS_LIB: openblas
-        CVXOPT_LAPACK_LIB: openblas
+        LDFLAGS: -L/opt/homebrew/opt/openblas/lib
+        CPPFLAGS: -I/opt/homebrew/opt/openblas/include
       run: |
         brew --prefix
         brew install hdf5 openblas gsl fftw suite-sparse glpk
