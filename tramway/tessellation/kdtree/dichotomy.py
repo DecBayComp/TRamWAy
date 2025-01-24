@@ -131,7 +131,7 @@ class Dichotomy(object):
             lower = dict()
             for i, step in enumerate(self.unit_hypercube):  # could be parallelized
                 lower[i] = (
-                    origin + np.float_(step) * self.reference_length[depth]
+                    origin + np.float64(step) * self.reference_length[depth]
                 )  # new origin
                 upper = (
                     lower[i] + self.reference_length[depth]

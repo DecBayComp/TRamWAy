@@ -7,10 +7,10 @@ license = "CECILL-2.1"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.13"
+python = ">=3.8,<4"
 setuptools = ">=69.1.0,<99"
 six = ">=1.16,<2"
-numpy = ">=1.24.3,<2"
+numpy = ">=1.24.3,<3"
 scipy = ">=1.9.1,<2"
 pandas = ">=2.0.2,<3"
 matplotlib = ">=3.7.1,<4"
@@ -28,6 +28,7 @@ nbformat = { version = ">=5.9.0,<6", optional = true }
 opencv-python = { version = ">=4.7.0.72,<5", optional = true }
 scikit-image = { version = ">=0.20.0,<1", optional = true }
 tqdm = { version = ">=4.65.0,<5", optional = true }
+ipykernel = "^6.29.5"
 
 
 [tool.poetry.group.dev.dependencies]

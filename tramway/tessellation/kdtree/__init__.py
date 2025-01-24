@@ -211,7 +211,7 @@ class KDTreeMesh(Voronoi):
         for i, v1 in enumerate(self.dichotomy.unit_hypercube):
             vertices.append(
                 origin
-                + np.float_(v1) * self.dichotomy.reference_length[level[:, np.newaxis]]
+                + np.float64(v1) * self.dichotomy.reference_length[level[:, np.newaxis]]
             )
             for jj, v2 in enumerate(self.dichotomy.unit_hypercube[i + 1 :]):
                 if np.sum(v1 != v2) == 1:  # neighbors in the voronoi
@@ -229,6 +229,8 @@ class KDTreeMesh(Voronoi):
         vertices, I = unique_rows(np.concatenate(vertices, axis=0), return_inverse=True)
         self._vertices = vertices
         self._lazy["vertices"] = False
+        if 1 < len(I.shape):
+            I = I.flatten()
         ridge_vertices = I[np.concatenate(ridge_vertices, axis=0)]
         u, v = ridge_vertices.T
         nverts = vertices.shape[0]
