@@ -1504,7 +1504,7 @@ class Voronoi(Delaunay):
     def cell_volume(self):
         if self._cell_volume is None:
             adjacency = self.vertex_adjacency.tocsr()
-            cell_volume = np.full(len(self._cell_centers), np.NaN)
+            cell_volume = np.full(len(self._cell_centers), np.nan)
             for i, u in enumerate(self._cell_centers):
                 js = _js = self.cell_vertices[i]  # vertex indices
 

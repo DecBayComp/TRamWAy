@@ -9,13 +9,17 @@ CONTAINER=$1
 shift
 
 if [ -z $1 ]; then
-  SINGULARITY="singularity"
+  SINGULARITY="singularity exec"
 else
-  SINGULARITY=$1
+  SINGULARITY="$1 exec"
 fi
 
-PYTHON=$($SINGULARITY exec "$CONTAINER" ./detect_python.sh)
+if [ -d /pasteur ]; then
+  SINGULARITY="$SINGULARITY -B /pasteur"
+fi
+
+PYTHON=$($SINGULARITY "$CONTAINER" ./detect_python.sh)
 echo $PYTHON
 
-$SINGULARITY exec "$CONTAINER" $PYTHON -s -m pip freeze
+$SINGULARITY "$CONTAINER" $PYTHON -s -m pip freeze
 

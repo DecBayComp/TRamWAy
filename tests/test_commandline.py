@@ -31,9 +31,9 @@ should be updated.
 
 assert sys.version_info[0] == 3
 
-py3_hash = '9X87jkdA'
+py3_hash = 'zUhBbH55'
 data_server = f'http://dl.pasteur.fr/fop/{py3_hash}/'
-data_update = '240213'
+data_update = '250124'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = f'test_commandline_py3_{data_update}'

@@ -3,7 +3,7 @@
 Installation
 ============
 
-You will need Python >= 3.6.
+You will need Python >= 3.8.
 
 Windows users
 -------------
@@ -22,9 +22,9 @@ From PyPI
 Note that the HDF5 library can usually be installed using any OS' package manager.
 Only Windows users may have to :ref:`manually download and install the HDF5 library <hdf5_install>`, if they do not wish to use Conda instead of pip.
 
-Several installation targets are available, including ``full``, that install optional dependencies::
+Several installation targets are available; they install optional dependencies. For example (recommended)::
 
-        pip install tramway[full]
+        pip install tramway[roi,animate]
 
 Most of the functionalities and code examples described in this documentation will run without the optional dependencies this target installs in addition to the required dependencies.
 It is safe to first install |tramway| with minimal requirements and then ``pip install`` the missing dependencies as you hit ``ImportError`` while using |tramway|.
@@ -47,7 +47,7 @@ Initial install::
 
 	git clone https://github.com/DecBayComp/TRamWAy
 	cd TRamWAy
-	pip install -e .
+	pip install -e .[roi,animate]
 
 Can be updated with ``git pull`` run in the local repository.
 
@@ -63,9 +63,3 @@ The generated documentation will be available at ``_build/html/index.html`` from
 
 Building the documentation requires Sphinx.
 
-
-OS and version specific notes
------------------------------
-
-Some modules require *Python>=3.7*.
-These are *bayes_factor* for force “detection” based on Bayesian statistics, *snr* that extracts signal-to-noise ratios required by the *bayes_factor* module, and *d.conj_prior* which estimates the diffusion similarly to *ddrift* with no regularization but with additional confidence intervals.

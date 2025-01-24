@@ -1,16 +1,16 @@
 [tool.poetry]
 name = "tramway"
-version = "0.6.8"
+version = "0.6.9"
 description = ""
 authors = ["François Laurent <francois.laurent@pasteur.fr>"]
 license = "CECILL-2.1"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.13"
+python = ">=3.8,<4"
 setuptools = ">=69.1.0,<99"
 six = ">=1.16,<2"
-numpy = ">=1.24.3,<2"
+numpy = ">=1.24.3,<3"
 scipy = ">=1.9.1,<2"
 pandas = ">=2.0.2,<3"
 matplotlib = ">=3.7.1,<4"

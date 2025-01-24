@@ -189,3 +189,80 @@ urllib3==1.25.8
 wheel==0.43.0 # py312 only
 zipp==3.18.1 # py<310 only
 ```
+
+* tramway-hpc-250124-py3{[8](https://dl.pasteur.fr/fop/xVjMGhTa/tramway-hpc-2501024-py38.sif),[9](https://dl.pasteur.fr/fop/AyK3JTC0/tramway-hpc-2501024-py39.sif),[10](https://dl.pasteur.fr/fop/jEmrwWhp/tramway-hpc-2501024-py310.sif),[11](https://dl.pasteur.fr/fop/QmL7TE6w/tramway-hpc-2501024-py311.sif),[12](https://dl.pasteur.fr/fop/elytCrRB/tramway-hpc-2501024-py312.sif),[13](https://dl.pasteur.fr/fop/hSeIMslv/tramway-hpc-2501024-py313.sif)}.sif
+
+  *tramway0.6.9* image with targets *hpc-minimal* and *animate*, and *scikit-learn* as an additional package.
+  Python is available as *python3.x*, with *x* any of *8*, *9*, *10*, *11*, *12*, *13* depending on the container file.
+  The run command admits option *-s*, passed to Python,
+  resulting in command (e.g.) `python3.x -s -m tramway $@`.
+  The included Python dependencies are the following:
+
+```
+certifi==2019.11.28
+chardet==3.0.4
+contourpy==1.1.1 # py == 3.8
+contourpy==1.3.0 # py == 3.9
+contourpy==1.3.1 # py >= 3.10
+cvxopt==1.3.2
+cycler==0.12.1
+dbus-python==1.2.16
+fonttools==4.55.5
+h5py==3.11.0 # py == 3.8
+h5py==3.12.1 # py >= 3.9
+idna==2.8
+imageio==2.35.1 # py == 3.8
+imageio==2.37.0 # py >= 3.9
+importlib_resources==6.4.5 # py == 3.8
+importlib_resources==6.5.2 # py == 3.9
+joblib==1.4.2
+kiwisolver==1.4.7 # py <= 3.9
+kiwisolver==1.4.8 # py >= 3.10
+lazy_loader==0.4
+matplotlib==3.7.5 # py == 3.8
+matplotlib==3.9.4 # py == 3.9
+matplotlib==3.10.0 # py >= 3.10
+networkx==3.1 # py == 3.8
+networkx==3.2.1 # py == 3.9
+networkx==3.4.2 # py >= 3.10
+numpy==1.24.4 # py == 3.8
+numpy==2.0.2 # py == 3.9
+numpy==2.2.2 # py >= 3.10
+opencv-python==4.11.0.86
+packaging==24.2
+pandas==2.0.3 # py == 3.8
+pandas==2.2.3 # py >= 3.9
+pillow==10.4.0 # py == 3.8
+pillow==11.1.0 # py >= 3.9
+polytope==0.2.5
+PyGObject==3.36.0
+pyparsing==3.1.4 # py == 3.8
+pyparsing==3.2.1 # py >= 3.9
+python-apt==2.0.1+ubuntu0.20.4.1
+python-dateutil==2.9.0.post0
+pytz==2024.2
+requests==2.22.0
+requests-unixsocket==0.2.0
+rwa-python==0.9.5
+scikit-image==0.21.0 # py == 3.8
+scikit-image==0.24.0 # py == 3.9
+scikit-image==0.25.0 # py >= 3.10
+scikit-learn==1.3.2 # py == 3.8
+scikit-learn==1.6.1 # py >= 3.9
+scipy==1.10.1 # py == 3.8
+scipy==1.13.1 # py == 3.9
+scipy==1.15.1 # py >= 3.10
+setuptools==75.8.0 # py >= 3.11
+six==1.17.0
+stopit==1.1.2
+threadpoolctl==3.5.0
+tifffile==2023.7.10 # py == 3.8
+tifffile==2024.8.30 # py == 3.9
+tifffile==2025.1.10 # py >= 3.10
+tqdm==4.67.1
+tzdata==2025.1
+urllib3==1.25.8
+zipp==3.20.2 # py == 3.8
+zipp==3.21.0 # py == 3.9
+```
+

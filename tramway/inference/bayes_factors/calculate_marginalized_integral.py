@@ -16,7 +16,7 @@ from scipy.special import gamma, gammainc, gammaln
 
 
 def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error, zeta_a=[0, 0], factor_za=0, lamb='int'):
-    """
+    r"""
     Calculate the marginalized lambda integral
     >>>
     Integrate[gamma_inc[p, arg * rel_loc_error] * arg ** (-p), {lambda, 0, 1}]
@@ -24,9 +24,9 @@ def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error, zet
     for the given values of zeta_t and zeta_sp.
 
     Here:
-    arg = (v + factor_za * zeta_a**2 + E * (zeta_t - zeta_a - lambda * zeta_sp)**2);
+    :math:`arg = (v + factor_za * zeta_a**2 + E * (zeta_t - zeta_a - lambda * zeta_sp)**2)`;
     IMPORTANT: gamma_inc --- is the normalized lower incomplete gamma function;
-    rel_loc_error = n * V / (4 * sigma_L^2) --- inverse relative localization error,
+    :math:`rel_loc_error = n * V / (4 * sigma_L^2)` --- inverse relative localization error,
 
 
     Input:
@@ -137,9 +137,9 @@ def calculate_any_lambda_integral(func, break_points=[]):
 
 
 def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, rel_loc_error, break_points=[], lamb='marg', rtol=1e-6, atol=1e-32):
-    """
+    r"""
     Calculate the ratio of two similar lambda integrals, each of which has the form
-    \int_0^1 d\lambda arg_func(\lambda)**(-pow) * gammainc(pow, rel_loc_error * arg_func(\lambda))
+    :math:`\int_0^1 d\lambda arg_func(\lambda)**(-pow) * gammainc(pow, rel_loc_error * arg_func(\lambda))`
 
     Input:
     v --- zeta-independent term inside the argument functions. Must be the same upstairs and downstairs. In Bayes factor calculations, this is v := (1 + n_pi * V_pi / n / V).
@@ -194,9 +194,9 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
             return f, ln_prefactor
 
     def ln_integral_with_loc_error(arg_func, pow, x0):
-        """Calculate the following expression for a marginalized or fixed lambda:
-        v**k / Gamma[k] * \int_0^1 d l q(l)**(-k) gammainc(k, q(l) * rel_loc_error),
-        with q(l) = arg_func(l)
+        r"""Calculate the following expression for a marginalized or fixed lambda:
+        :math:`v**k / Gamma[k] * \int_0^1 d l q(l)**(-k) gammainc(k, q(l) * rel_loc_error)`
+        with :math:`q(l) = arg_func(l)`
         """
         f, ln_prefactor = get_f_with_loc_error(arg_func, pow, x0)
         if lamb == 'marg':
