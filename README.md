@@ -9,7 +9,7 @@ An attempt to rewrite the project documentation is available as a [separate proj
 
 ## Installation
 
-You will need Python >= 3.6.
+You will need Python >= 3.8.
 
 ### Windows users
 
@@ -26,10 +26,10 @@ pip install tramway
 Note that the HDF5 library can usually be installed using any OS' package manager.
 Only Windows users may have to [manually download and install the HDF5 library](https://tramway.readthedocs.io/en/latest/libhdf5.html), if they do not wish to use Conda instead of pip.
 
-Several installation targets are available, including `full`, that install optional dependencies:
+Several installation targets are available; they install optional dependencies. For example (recommended):
 
 ```
-pip install tramway[full]
+pip install tramway[roi,animate]
 ```
 
 Most of the functionalities and code examples described in the documentation will run without optional dependencies.
