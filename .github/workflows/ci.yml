@@ -50,7 +50,7 @@ jobs:
       if: ${{ runner.os == 'macOS' }}
       run: |
         brew update
-        brew install hdf5 gcc
+        brew install hdf5 gcc suite-sparse
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
