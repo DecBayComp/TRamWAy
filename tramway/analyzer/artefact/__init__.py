@@ -19,7 +19,7 @@ from tramway.core.analyses import abc
 # from tramway.core.analyses.base import Analyses
 from tramway.core.analyses.lazy import Analyses
 
-import pkg_resources
+import importlib.metadata
 import platform
 import time
 
@@ -28,7 +28,7 @@ def standard_metadata():
     return dict(
         os=platform.system(),
         python=platform.python_version(),
-        tramway=pkg_resources.get_distribution("tramway").version,
+        tramway=importlib.metadata.version("tramway"),
         datetime=time.strftime("%Y-%m-%d %H:%M:%S UTC%z"),
     )
 

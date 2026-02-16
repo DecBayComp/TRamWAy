@@ -8,6 +8,8 @@ __pycache__/
 dist/
 build/
 _build/
+poetry.lock
+uv.lock
 
 # anything hidden should be manually added
 .*
@@ -28,6 +30,7 @@ _build/
 
 # notebooks
 *.ipynb
+notebooks/data-examples/
 
 # singularity containers
 *.sif

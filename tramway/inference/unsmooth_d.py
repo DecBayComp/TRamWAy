@@ -88,7 +88,7 @@ def d_neg_posterior(
     d_neg_posterior = n * log(pi) + np.sum(np.log(D_dt))  # sum(log(4*pi*Dtot*dt))
     d_neg_posterior += np.sum(cell.cache / D_dt)  # sum((dx**2+dy**2+..)/(4*Dtot*dt))
     if jeffreys_prior:
-        d_neg_posterior += 2.0 * log(diffusivity * dt_mean + sigma2)
+        d_neg_posterior += 2.0 * np.log(diffusivity * dt_mean + sigma2)
     return d_neg_posterior
 
 

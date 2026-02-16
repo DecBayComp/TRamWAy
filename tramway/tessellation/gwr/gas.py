@@ -202,14 +202,14 @@ class Gas(Graph):
             float or array: habituation.
         """
         return self.habituation_initial - (
-            1 - exp(-self.habituation_alpha[i] * t / self.habituation_tau[i])
+            1 - np.exp(-self.habituation_alpha[i] * t / self.habituation_tau[i])
         ) / (self.habituation_alpha[i])
 
     def habituation(self, node, i=0):
         """Returns the habituation of a node. Set ``i=0`` for the nearest node,
         ``i=1`` for a neighbor of the nearest node."""
         return self.habituation_function(
-            float(self.get_node_attr(node, "habituation_counter")), i
+            self.get_node_attr(node, "habituation_counter").astype(float), i
         )
 
     def plot_habituation(self):
@@ -622,7 +622,7 @@ class Gas(Graph):
                     fit = 0
                 else:
                     fit = 1 / (
-                        1 + exp((0.1 - regression.pvalues[1]) / 0.01)
+                        1 + np.exp((0.1 - regression.pvalues[1]) / 0.01)
                     )  # invert p-value
                 do = tolerance < fit
             elif stopping_criterion == 2:

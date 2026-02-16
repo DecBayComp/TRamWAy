@@ -1741,24 +1741,25 @@ print('{}'+';'.join(files))\
         # last line is "[analyzer].run()\n"
         call = line.find(".run()")
         if 0 < call:
-            analyzer_var = line[:call]
+            start = 0
+            while line[start].isspace():
+                start += 1
+            indent = line[:start]
+            analyzer_var = line[start:call]
             # insert mapping for home directories
             filtered_content = filtered_content[:-1]
             filtered_content.append(
                 """
-if {1}.env.directory_mapping is None:
-    {1}.env.directory_mapping = {{}}
-if '{0}' not in {1}.env.directory_mapping:
-    {1}.env.directory_mapping['{0}'] = '~'
-""".format(
-                    os.path.expanduser("~").replace("\\", r"\\"), analyzer_var
-                )
-            )
+{2}if {1}.env.directory_mapping is None:
+{2}    {1}.env.directory_mapping = {{}}
+{2}if '{0}' not in {1}.env.directory_mapping:
+{2}    {1}.env.directory_mapping['{0}'] = '~'
+""".format(os.path.expanduser("~").replace("\\", r"\\"), analyzer_var, indent))
             filtered_content.append(line)
             # append output listing
             filtered_content.append(
-                "\nprint({0}.env.collectible_prefix()+';'.join({0}.env.format_collectibles()))\n".format(
-                    analyzer_var
+                "\n{1}print({0}.env.collectible_prefix()+';'.join({0}.env.format_collectibles()))\n".format(
+                    analyzer_var, indent
                 )
             )
         #
@@ -2145,7 +2146,7 @@ Environment.register(SlurmOverSSH)
 
 def select_python_version(major, minor, *args):
     if major == 3:
-        minor = max(6, min(13, minor))
+        minor = max(6, min(14, minor))
     return major, minor
 
 
@@ -2201,7 +2202,7 @@ class SingularitySlurm(SlurmOverSSH):
                     f.write(
                         r"""#!/bin/bash
 
-for ((minor=12;6<=minor;minor--)); do
+for ((minor=14;6<=minor;minor--)); do
 py=python3.$minor
 if [ -x "$(command -v $py)" ]; then
 if [ -z "$($py -m pip show -q tramway 2>&1)" ]; then

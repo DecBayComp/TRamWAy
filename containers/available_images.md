@@ -190,7 +190,7 @@ wheel==0.43.0 # py312 only
 zipp==3.18.1 # py<310 only
 ```
 
-* tramway-hpc-250124-py3{[8](https://dl.pasteur.fr/fop/xVjMGhTa/tramway-hpc-2501024-py38.sif),[9](https://dl.pasteur.fr/fop/AyK3JTC0/tramway-hpc-2501024-py39.sif),[10](https://dl.pasteur.fr/fop/jEmrwWhp/tramway-hpc-2501024-py310.sif),[11](https://dl.pasteur.fr/fop/QmL7TE6w/tramway-hpc-2501024-py311.sif),[12](https://dl.pasteur.fr/fop/elytCrRB/tramway-hpc-2501024-py312.sif),[13](https://dl.pasteur.fr/fop/hSeIMslv/tramway-hpc-2501024-py313.sif)}.sif
+* tramway-hpc-250124-py3{[8](https://dl.pasteur.fr/fop/fnQY9aI4/tramway-hpc-250124-py38.sif),[9](https://dl.pasteur.fr/fop/bqIvcQOu/tramway-hpc-250124-py39.sif),[10](https://dl.pasteur.fr/fop/CGSBWArs/tramway-hpc-250124-py310.sif),[11](https://dl.pasteur.fr/fop/AFE8uuyA/tramway-hpc-250124-py311.sif),[12](https://dl.pasteur.fr/fop/4KuTx4gX/tramway-hpc-250124-py312.sif),[13](https://dl.pasteur.fr/fop/5XftLW2h/tramway-hpc-250124-py313.sif)}.sif
 
   *tramway0.6.9* image with targets *hpc-minimal* and *animate*, and *scikit-learn* as an additional package.
   Python is available as *python3.x*, with *x* any of *8*, *9*, *10*, *11*, *12*, *13* depending on the container file.

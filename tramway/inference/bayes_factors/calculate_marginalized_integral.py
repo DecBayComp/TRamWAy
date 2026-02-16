@@ -15,6 +15,13 @@ from scipy.special import gamma, gammainc, gammaln
 # max_terms = int(1e5)
 
 
+def asscalar(x):
+    if isinstance(x, np.ndarray):
+        assert len(x) == 1
+        x = x[0]
+    return x
+
+
 def calculate_marginalized_integral(zeta_t, zeta_sp, p, v, E, rel_loc_error, zeta_a=[0, 0], factor_za=0, lamb='int'):
     r"""
     Calculate the marginalized lambda integral
@@ -200,7 +207,7 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
         """
         f, ln_prefactor = get_f_with_loc_error(arg_func, pow, x0)
         if lamb == 'marg':
-            ln_res = log(integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0])
+            ln_res = log(integrate.quad(lambda x: asscalar(f(x)), 0, 1, points=break_points, epsrel=rtol)[0])
         else:
             ln_res = log(f(lamb))
         return ln_res + ln_prefactor
@@ -213,7 +220,7 @@ def calculate_integral_ratio(arg_func_up, arg_func_down, pow_up, pow_down, v, re
             return -pow * log(arg_func(l) / x0)
 
         def f(l):
-            return exp(ln_f(l))
+            return asscalar(exp(ln_f(l)))
         if lamb == 'marg':
             ln_res = integrate.quad(f, 0, 1, points=break_points, epsrel=rtol)[0]
             ln_res = log(ln_res)

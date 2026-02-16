@@ -392,7 +392,7 @@ class Pipeline(AnalyzerNode):
                                     raise NotImplementedError
                         self.logger.info("\njobs ready")
                         #### IMPORTANT ####
-                        # any change below may be to be also applied to `env.SlurmOverSSH.resume`
+                        # any change below may have to be also applied to `env.SlurmOverSSH.resume`
                         ###################
                         try:
                             self.env.submit_jobs()

@@ -367,9 +367,11 @@ class Scheduler(object):
         self.global_timeout = max_runtime
         self.task_timeout = task_timeout
         if worker_count is None:
-            worker_count = multiprocessing.cpu_count() - 1
+            worker_count = multiprocessing.cpu_count() - 2
         elif worker_count < 0:
             worker_count = multiprocessing.cpu_count() + worker_count
+        elif worker_count < 1:
+            worker_count = round(multiprocessing.cpu_count() * worker_count)
         kwargs = dict(kwargs)  # copy
         kwargs.update(_kwargs)
         if worker_count:
@@ -502,7 +504,11 @@ class Scheduler(object):
         while True:
             # module_logger.debug('get_processed_step: waiting...') # DEBUG
             # note: `get` does not raise TimeoutError
-            step, status = self.return_queue.get(timeout=self.timeout)
+            try:
+                step, status = self.return_queue.get(timeout=self.timeout)
+            except queue.Empty:
+                self.logger.critical('Abnormal termination: empty queue; consider decreasing the number of workers')
+                return False
             # module_logger.debug('get_processed_step: received {}'.format(self.active[step.resource_id])) # DEBUG
             if step is None:
                 if isinstance(status, WorkerNearDeathException):
@@ -513,8 +519,6 @@ class Scheduler(object):
                         print("error: {}".format(status))
                     if not self.workers:
                         return False
-                else:
-                    return self.stop(None, None, status)
             else:
                 break
         # step.set_workspace(self.workspace) # reload workspace
@@ -696,7 +700,7 @@ class EpochScheduler(Scheduler):
     ):
         epoch_length = len(tasks) if epoch_length is None else epoch_length
         if not soft_epochs and not worker_count:
-            worker_count = min(epoch_length, multiprocessing.cpu_count() - 1)
+            worker_count = min(epoch_length, multiprocessing.cpu_count() - 2)
         Scheduler.__init__(
             self,
             workspace,

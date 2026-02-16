@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
+# for tests deported onto Maestro, first copy the test data:
+# scp -r tests/test_analyzer_200803 maestro:~/Projects/Tramway/TRamWAy/tests/
 
 def run_script0(tmpdir, dynamicmesh, env='', options=''):
     tmpdir = tmpdir.strpath
@@ -29,28 +31,18 @@ import tempfile
 import os
 import numpy
 import pandas
-a=RWAnalyzer()
-logger = a.logger
-a._logger = BasicLogger() # let subprocess.check_output catch the log output
-assert os.path.isfile(os.path.expanduser('{input}'))
-a.spt_data.from_ascii_file('{input}')
-a.spt_data.localization_precision = 1e-4
-roi = [[.2,-.1],[-.3,.3],[0.,.1],[-.2,-0.]]
-a.roi.from_squares(numpy.array(roi), .2, group_overlapping_roi=True)
-assert len(list(a.roi.as_support_regions()))==2
-a.tesseller = tessellers.Hexagons
-a.time.from_sliding_window(30)
+
 def infer(cells):
     i, n = zip(*[ (cell.index, len(cell)) for cell in cells.values() ])
     return pandas.DataFrame(dict(n=list(n)), index=list(i))
-a.mapper.from_plugin(infer)
-{env}
+
 def fresh_start(self):
     for f in self.spt_data:
         try:
             os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
         except FileNotFoundError:
             pass
+
 def tessellate(self):
     dry_run = True
     for f in self.spt_data:
@@ -69,9 +61,11 @@ def tessellate(self):
     if dry_run:
         self.logger.info('stage skipped')
         assert False
+
 def reload(self):
     #self.logger.debug(os.path.splitext(self.spt_data.source)[0]+'.rwa')
     self.spt_data.reload_from_rwa_files()
+
 def map(self):
     dry_run = True
     for r in self.roi.as_support_regions():
@@ -88,12 +82,26 @@ def map(self):
     if dry_run:
         self.logger.info('stage skipped')
         assert False
+
+a = RWAnalyzer()
+logger = a.logger
+a._logger = BasicLogger() # let subprocess.check_output catch the log output
+assert os.path.isfile(os.path.expanduser('{input}'))
+a.spt_data.from_ascii_file('{input}')
+a.spt_data.localization_precision = 1e-4
+roi = [[.2,-.1],[-.3,.3],[0.,.1],[-.2,-0.]]
+a.roi.from_squares(numpy.array(roi), .2, group_overlapping_roi=True)
+assert len(list(a.roi.as_support_regions()))==2
+a.tesseller = tessellers.Hexagons
+a.time.from_sliding_window(30)
+a.mapper.from_plugin(infer)
+{env}
 a.pipeline.append_stage(fresh_start, run_everywhere=True)
 a.pipeline.append_stage(tessellate, granularity='roi')
 a.pipeline.append_stage(reload, requires_mutability=True)
 a.pipeline.append_stage(map, granularity='time segment'{options})
 """.format(input=dynamicmesh.replace('\\','/'), env=env, options=options)
-        #
+    #
 
     #
     test = """
@@ -112,8 +120,11 @@ a.env.script = __file__
     #
 
     with open(script_name, 'w') as f:
+        f.write('from multiprocessing import freeze_support\n')
         f.write(script(env))
-        f.write('a.run()\n')
+        f.write("if __name__ == '__main__':\n")
+        f.write('    freeze_support()\n')
+        f.write('    a.run()\n')
     out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=360)
     logger.info(out)
     with open(script_name, 'w') as f:
@@ -156,7 +167,15 @@ from tramway.core.xyt import *
 import os.path
 import numpy
 import pandas
-a=RWAnalyzer()
+
+def fresh_start(self):
+    for f in self.spt_data:
+        try:
+            os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
+        except FileNotFoundError:
+            pass
+
+a = RWAnalyzer()
 logger = a.logger
 a._logger = BasicLogger() # let subprocess.check_output catch the log output
 assert os.path.isfile(os.path.expanduser('{input}'))
@@ -165,6 +184,7 @@ a.spt_data.localization_precision = 1e-4
 a.tesseller = tessellers.GWR
 a.time.from_sliding_window(20)
 a.time.window_shift = 10
+
 translocations = single(a.spt_data).dataframe
 trajectories = translocations_to_trajectories(translocations)
 def infer(cells):
@@ -179,14 +199,9 @@ def infer(cells):
             ids.append(i)
             tlen.append(numpy.mean(traj_ls))
     return pandas.DataFrame({{'traj. len.': tlen}}, index=ids)
+
 a.mapper.from_plugin(infer)
 {env}
-def fresh_start(self):
-    for f in self.spt_data:
-        try:
-            os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
-        except FileNotFoundError:
-            pass
 a.pipeline.append_stage(fresh_start, run_everywhere=True)
 a.pipeline.append_stage(stages.tessellate(label='gwr'))
 a.pipeline.append_stage(stages.reload())
@@ -207,8 +222,11 @@ a.env.script = __file__
     #
 
     with open(script_name, 'w') as f:
+        f.write('from multiprocessing import freeze_support\n')
         f.write(script(env))
-        f.write('a.run()\n')
+        f.write("if __name__ == '__main__':\n")
+        f.write('    freeze_support()\n')
+        f.write('    a.run()\n')
     out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=360)
     logger.info(out)
     with open(script_name, 'w') as f:
@@ -240,7 +258,19 @@ import tempfile
 import os
 import numpy
 import pandas
-a=RWAnalyzer()
+
+def infer(cells):
+    i, n = zip(*[ (cell.index, len(cell)) for cell in cells.values() ])
+    return pandas.DataFrame(dict(n=list(n)), index=list(i))
+
+def fresh_start(self):
+    for f in self.spt_data:
+        try:
+            os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
+        except FileNotFoundError:
+            pass
+
+a = RWAnalyzer()
 logger = a.logger
 a._logger = BasicLogger() # let subprocess.check_output catch the log output
 assert os.path.isfile(os.path.expanduser('{input}'))
@@ -251,21 +281,12 @@ a.roi.from_squares(numpy.array(roi), .2, group_overlapping_roi=True)
 assert len(list(a.roi.as_support_regions()))==2
 a.tesseller = tessellers.Hexagons
 a.time.from_sliding_window(30)
-def infer(cells):
-    i, n = zip(*[ (cell.index, len(cell)) for cell in cells.values() ])
-    return pandas.DataFrame(dict(n=list(n)), index=list(i))
 a.mapper.from_plugin(infer)
 {env}
-def fresh_start(self):
-    for f in self.spt_data:
-        try:
-            os.unlink(os.path.expanduser(f.source[:-3]+'rwa'))
-        except FileNotFoundError:
-            pass
 a.pipeline.append_stage(stages.tessellate_and_infer(map_label='n', overwrite={overwrite}))
 """.format(input=dynamicmesh.replace('\\','/'), env=env, options=options,
         overwrite=overwrite)
-        #
+    #
 
     #
     test = """
@@ -280,8 +301,11 @@ a.env.script = __file__
     #
 
     with open(script_name, 'w') as f:
+        f.write('from multiprocessing import freeze_support\n')
         f.write(script(env))
-        f.write('a.run()\n')
+        f.write("if __name__ == '__main__':\n")
+        f.write('    freeze_support()\n')
+        f.write('    a.run()\n')
     out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=360)
     logger.info(out)
     with open(script_name, 'w') as f:
@@ -323,28 +347,26 @@ class TestPipeline(object):
         run_script0(tmpdir, dynamicmesh, env)
 
     def prepare_Maestro(self, dynamicmesh):
-        try:
-            with open(os.path.join(os.path.dirname(__file__), 'maestro.credentials'), 'r') as f:
+        credential_file = os.path.join(os.path.dirname(__file__), 'maestro.credentials')
+        if os.path.isfile(credential_file):
+            with open(credential_file, 'r') as f:
                 username = f.readline().rstrip()
                 password = f.readline().rstrip()
-        except FileNotFoundError:
-            username = os.environ['USER']
-            env = f"""\
-a.env = environments.Maestro
-a.env.username = '{username}'
-a.env.sbatch_options.update(dict(p='dbc_pmo', qos='dbc'))\
-"""
-        else:
-            #
             env = f"""\
 a.env = environments.Maestro
 a.env.username = '{username}'
 a.env.ssh._password = '{password}'
-a.env.sbatch_options.update(dict(p='dbc_pmo', qos='dbc'))\
+a.env.sbatch_options.update(dict(p='dbc', qos='dbc'))\
 """
-        #
+        else:
+            username = os.environ['USER']
+            env = f"""\
+a.env = environments.Maestro
+a.env.username = '{username}'
+a.env.container = 'tramway-hpc-250124-py313.sif'
+a.env.sbatch_options.update(dict(p='dbc', qos='dbc'))\
+"""
         input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))
-        #input_file = '~/Projects/TRamWAy/tests/test_analyzer_200803/test04_moving_potential_sink.txt'
         return input_file, env
 
     def test_Maestro0(self, tmpdir, dynamicmesh):
