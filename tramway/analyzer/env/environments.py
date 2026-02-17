@@ -22,7 +22,7 @@ from ..time.abc import Time
 import os
 import sys
 import time
-import multiprocessing
+import multiprocess as mp
 import subprocess
 import tempfile
 import shutil
@@ -952,9 +952,9 @@ class LocalHost(Env):
     @worker_count.setter
     def worker_count(self, wc):
         if wc is None:
-            wc = max(1, multiprocessing.cpu_count() - 1)
+            wc = max(1, mp.cpu_count() - 1)
         elif wc < 0:
-            wc = max(1, multiprocessing.cpu_count() + wc)
+            wc = max(1, mp.cpu_count() + wc)
         self._worker_count = wc
 
     def submit_jobs(self):

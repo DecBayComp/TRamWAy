@@ -120,10 +120,8 @@ a.env.script = __file__
     #
 
     with open(script_name, 'w') as f:
-        f.write('from multiprocessing import freeze_support\n')
         f.write(script(env))
         f.write("if __name__ == '__main__':\n")
-        f.write('    freeze_support()\n')
         f.write('    a.run()\n')
     out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=360)
     logger.info(out)
@@ -222,10 +220,8 @@ a.env.script = __file__
     #
 
     with open(script_name, 'w') as f:
-        f.write('from multiprocessing import freeze_support\n')
         f.write(script(env))
         f.write("if __name__ == '__main__':\n")
-        f.write('    freeze_support()\n')
         f.write('    a.run()\n')
     out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=360)
     logger.info(out)
@@ -301,10 +297,8 @@ a.env.script = __file__
     #
 
     with open(script_name, 'w') as f:
-        f.write('from multiprocessing import freeze_support\n')
         f.write(script(env))
         f.write("if __name__ == '__main__':\n")
-        f.write('    freeze_support()\n')
         f.write('    a.run()\n')
     out = subprocess.check_output([sys.executable, script_name], encoding='utf8', timeout=360)
     logger.info(out)

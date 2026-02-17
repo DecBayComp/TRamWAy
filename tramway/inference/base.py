@@ -28,7 +28,7 @@ try:
     import cloudpickle
 except ImportError:
     pass
-from multiprocessing import Pool, Lock
+from multiprocess import Pool, Lock
 
 import os  # for os.name
 import six
