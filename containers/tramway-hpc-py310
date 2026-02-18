@@ -1,10 +1,10 @@
 Bootstrap: docker
-From: ubuntu:focal
+From: ubuntu:22.04
 
 %help
 TRamWAy is available in the python3.10 environment:
     python3.10 -m tramway
-The container OS is Ubuntu Focal Fossa.
+The container OS is Ubuntu 22.04.
 
 %setup
 
@@ -24,7 +24,7 @@ The container OS is Ubuntu Focal Fossa.
     if [ -d $LOCAL ]; then
        CONTAINED=${SINGULARITY_ROOTFS}/root/TRamWAy
        mkdir -p ${CONTAINED}
-       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/requirements.txt ${LOCAL}/README.md
+       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/pyproject.toml ${LOCAL}/README.md
        cp -ru -t ${CONTAINED}/ ${LOCAL}/tramway ${LOCAL}/scripts
     fi
 
@@ -34,12 +34,10 @@ The container OS is Ubuntu Focal Fossa.
     apt-get update -y
     apt-get install -y --no-install-recommends locales
     locale-gen
-    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg \
+    apt-get install -y --no-install-recommends libhdf5-openmpi-dev ffmpeg \
         build-essential git software-properties-common libopenblas0 glpk-utils
 
     # Python 3.10
-    add-apt-repository -y ppa:deadsnakes/ppa
-    apt-get update -y
     apt-get install -y --no-install-recommends python3.10 python3.10-venv
     rm -rf /var/lib/apt/lists/*
     python3.10 /root/get-pip.py

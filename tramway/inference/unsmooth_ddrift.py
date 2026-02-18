@@ -66,7 +66,7 @@ def dd_neg_posterior(x, dd, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivi
         n * log(pi) + np.sum(np.log(denominator)) + np.sum(ndsd / denominator)
     )
     if jeffreys_prior:
-        neg_posterior += 2.0 * log(D * dt_mean + sigma2)
+        neg_posterior += 2.0 * np.log(D * dt_mean + sigma2)
     return neg_posterior
 
 

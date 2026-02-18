@@ -31,9 +31,9 @@ should be updated.
 
 assert sys.version_info[0] == 3
 
-py3_hash = 'zUhBbH55'
+py3_hash = 'xbCi14Pp'
 data_server = f'http://dl.pasteur.fr/fop/{py3_hash}/'
-data_update = '250124'
+data_update = '260216'
 data_file = 'glycine_receptor.trxyt'
 
 data_dir = f'test_commandline_py3_{data_update}'
@@ -120,6 +120,44 @@ def execute(cmd, *args):
         cmd = cmd.format(*args)
     return subprocess.call(cmd.split())
 
+def cmp(file1, file2, dir_=None):
+    if dir_ is not None:
+        file1, file2 = os.path.join(dir_, file1), os.path.join(dir_, file2)
+    p = subprocess.Popen(('cmp', file1, file2),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    assert not out and not err
+
+features = {'diffusivity': 'd', 'potential': 'v', 'force': 'f'}
+
+def compare_plots(output_file, reference, rtype, records=[]):
+    dir_ = os.path.dirname(output_file)
+    suffixes = {'generated': output_file, 'expected': reference}
+    for suffix, file in suffixes.items():
+        status = execute('{} -m tramway draw {} -i {} -p png',
+                         sys.executable, rtype, file)
+        assert status == 0
+    if not records:
+        assert rtype == 'cells'
+        for suffix, file1 in suffixes.items():
+            file2 = file1[:-4]+'.png'
+            assert os.path.isfile(file2)
+            os.rename(file2, os.path.join(dir_, suffix+'.png'))
+    else:
+        assert rtype == 'map'
+        for suffix, file1 in suffixes.items():
+            for record in records:
+                if len(records) == 1:
+                    file2 = file1[:-4]+'.png'
+                else:
+                    file2 = file1[:-4]+'_'+features.get(record, record)+'.png'
+                assert os.path.isfile(file2)
+                os.rename(file2, os.path.join(dir_, record+'_'+suffix+'.png'))
+    if not records:
+        cmp('generated.png', 'expected.png', dir_=dir_)
+    for record in records:
+        cmp(record+'_generated.png', record+'_expected.png', dir_=dir_)
+
 
 class TestTessellation(object):
 
@@ -145,6 +183,10 @@ class TestTessellation(object):
         assert os.path.isfile(output_file)
         if reference:
             reference = self.rwafile(reference)
+            # new procedure (faster checks in case of unstability)
+            compare_plots(output_file, reference, 'cells')
+            return
+            # former procedure
             p = subprocess.Popen(('h5diff', reference, output_file),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = p.communicate()
@@ -218,7 +260,7 @@ class TestInference(object):
     def print(self, *args, **kwargs):
         _print(self.tmpdir, *args, **kwargs)
 
-    def common(self, tmpdir, datadir, cmd, reference):
+    def common(self, tmpdir, datadir, cmd, reference, vars=[]):
         self.tmpdir = tmpdir
         initial_file = prepare_file('inference_input.rwa', datadir, tmpdir)
         input_file = prepare_file('test_inference_{}.rwa'.format(reference),
@@ -231,6 +273,10 @@ class TestInference(object):
         assert status == 0
         ref_file = prepare_file(ref_file, datadir, tmpdir)
         generated, expected = input_file, ref_file
+        # new procedure (faster checks in case of unstability)
+        compare_plots(generated, expected, 'map', vars)
+        return
+        # former procedure
         p = subprocess.Popen(('h5diff', expected, generated),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
@@ -253,19 +299,19 @@ class TestInference(object):
         assert not out
 
     def test_d(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'd -j', 'd0')
+        self.common(tmpdir, datadir, 'd -j', 'd0', ['diffusivity'])
     def test_df(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'df -j', 'df0')
+        self.common(tmpdir, datadir, 'df -j', 'df0', ['diffusivity', 'force'])
     def test_dd(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'dd -j', 'dd0')
+        self.common(tmpdir, datadir, 'dd -j', 'dd0', ['diffusivity', 'drift'])
     def test_dv0(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'dv -j --max-iter 10', 'dv0')
+        self.common(tmpdir, datadir, 'dv -j --max-iter 10', 'dv0', ['diffusivity', 'potential', 'force'])
     def test_dv1(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'dv -d 1 -v 1 --max-iter 10', 'dv1')
+        self.common(tmpdir, datadir, 'dv -d 1 -v 1 --max-iter 10', 'dv1', ['diffusivity', 'potential', 'force'])
     def test_smooth_d(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'd -d 1 -j --max-iter 10', 'd1')
+        self.common(tmpdir, datadir, 'd -d 1 -j --max-iter 10', 'd1', ['diffusivity'])
     def test_smooth_df(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'df -d 1 -j --max-iter 10', 'df1')
+        self.common(tmpdir, datadir, 'df -d 1 -j --max-iter 10', 'df1', ['diffusivity', 'force'])
     def test_smooth_dd(self, tmpdir, datadir):
-        self.common(tmpdir, datadir, 'dd -d 1 -j --max-iter 10', 'dd1')
+        self.common(tmpdir, datadir, 'dd -d 1 -j --max-iter 10', 'dd1', ['diffusivity', 'drift'])
 

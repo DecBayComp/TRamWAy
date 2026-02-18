@@ -148,7 +148,7 @@ class TestXyt(object):
 796888  193576  30.150600  30.155199  518.280029
 842499  204282  30.147100  30.192900  541.239990
 907067  219796  30.189301  30.164801  570.400024\
-"""), delim_whitespace=True)
+"""), sep='\s+')
         df = reindex_trajectories(df)
         assert numpy.all(df['n'].values == numpy.r_[1,1,2,3,3,3,4,5,6,7])
         reindex_trajectories(pandas.DataFrame([], columns=list('nxyt')))

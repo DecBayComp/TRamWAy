@@ -12,7 +12,8 @@ import scipy.optimize
 from numpy.linalg import norm
 
 from .calculate_marginalized_integral import (calculate_integral_ratio,
-                                              calculate_marginalized_integral)
+                                              calculate_marginalized_integral,
+                                              asscalar)
 from .calculate_posteriors import get_lambda_MAP
 from .convenience_functions import n_pi_func
 from .convenience_functions import p as pow
@@ -131,7 +132,7 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
 
         # Report error if any
         try:
-            logging.warn(
+            logging.warning(
                 "A NaN value was present in the input parameters for the following cells: {nan_cells_list}.\nBayes factor calculations were skipped for them".format(nan_cells_list=nan_cells_list))
         except NameError:
             pass
@@ -208,6 +209,7 @@ def calculate_minimal_n(zeta_t, zeta_sp, n0, V, V_pi, loc_error, dim=2, B_thresh
     Return - 1 if unable to find the min_n
     """
 
+    n0, V, V_pi = asscalar(n0), asscalar(V), asscalar(V_pi)
     test = check_for_nan(zeta_t, zeta_sp, n0, V, V_pi, loc_error)
     if test != 'ok':
         logging.warning(

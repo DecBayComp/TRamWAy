@@ -24,7 +24,7 @@ The container OS is Ubuntu Focal Fossa.
     if [ -d $LOCAL ]; then
        CONTAINED=${SINGULARITY_ROOTFS}/root/TRamWAy
        mkdir -p ${CONTAINED}
-       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/requirements.txt ${LOCAL}/README.md
+       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/pyproject.toml ${LOCAL}/README.md
        cp -ru -t ${CONTAINED}/ ${LOCAL}/tramway ${LOCAL}/scripts
     fi
 
@@ -35,7 +35,8 @@ The container OS is Ubuntu Focal Fossa.
     apt-get install -y --no-install-recommends locales
     locale-gen
     apt-get install -y --no-install-recommends libhdf5-103 ffmpeg \
-        build-essential git software-properties-common libopenblas0 glpk-utils
+        build-essential git software-properties-common libopenblas0 \
+        glpk-utils hdf5-tools
 
     # Python 3.9
     add-apt-repository -y ppa:deadsnakes/ppa
@@ -58,7 +59,7 @@ The container OS is Ubuntu Focal Fossa.
     # (1.)
     #python3.9 -m pip install tramway[hpc-minimal,animate]
 
-    python3.9 -m pip install scikit-learn
+    python3.9 -m pip install scikit-learn pytest
 
     mkdir -p /pasteur
 

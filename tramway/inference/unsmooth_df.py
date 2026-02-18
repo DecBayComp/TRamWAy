@@ -90,7 +90,7 @@ def df_neg_posterior(x, df, cell, sigma2, jeffreys_prior, dt_mean, min_diffusivi
     )
     if jeffreys_prior:
         try:
-            neg_posterior += 2.0 * (log(D * dt_mean + sigma2) - log(D))
+            neg_posterior += 2.0 * (log(D * dt_mean + sigma2) - np.log(D))
         except ValueError as e:  # math domain error
             warn(DiffusivityWarning(e))
     return neg_posterior

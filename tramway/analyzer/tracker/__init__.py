@@ -213,10 +213,10 @@ class NonTrackingTracker(BaseTracker):
             if currently_assigned:
                 source_ = movie_per_frame[frame_index]
                 destination = movie_per_frame[frame_index + 1]
-                row_to_col = np.full(len(source_), -1, dtype=int)
-                row_to_col[row] = col
                 if row.size == 1:
                     row, col = _tolist(row), _tolist(col)
+                row_to_col = np.full(len(source_), -1, dtype=int)
+                row_to_col[row] = col
                 newly_assigned = set(row)
                 new_assignment = np.zeros(len(destination), dtype=np.uint32)
                 growing_trajectory = currently_assigned & newly_assigned

@@ -6,7 +6,7 @@
 import logging
 import math
 import unittest
-from multiprocessing import freeze_support
+# from multiprocessing import freeze_support
 
 import numpy as np
 from scipy.integrate import dblquad, quad
@@ -167,7 +167,7 @@ class bayes_test(unittest.TestCase):
         true_B = 0.2974282533
 
         # Check value
-        self.assertTrue(np.isclose(10**lg_Bs[0], true_B, rtol=self.rel_tol, atol=self.tol),
+        self.assertTrue(np.isclose(10**lg_Bs[0, 0], true_B, rtol=self.rel_tol, atol=self.tol),
                         "Bayes factor calculation failed for one bin. The obtained B = %.8g does not match the expected B = %.8g" % (10**lg_Bs[0, 0], true_B))
         # Check force presence
         self.assertTrue((true_B >= self.B_threshold) ==
@@ -193,8 +193,8 @@ class bayes_test(unittest.TestCase):
 
         for i in range(N):
             # Check value
-            self.assertTrue(np.isclose(10**lg_Bs[i], true_Bs[i], rtol=self.rel_tol, atol=self.tol),
-                            "Bayes factor calculation failed for one bin. For bin no. %i, the obtained B = %.8g does not match the expected B = %.8g" % (i + 1, 10**lg_Bs[i], true_Bs[i]))
+            self.assertTrue(np.isclose(10**lg_Bs[i, 0], true_Bs[i], rtol=self.rel_tol, atol=self.tol),
+                            "Bayes factor calculation failed for one bin. For bin no. %i, the obtained B = %.8g does not match the expected B = %.8g" % (i + 1, 10**lg_Bs[i, 0], true_Bs[i]))
             # Check force presence
             true_forces = (1 * (np.log10(true_Bs[i]) >= np.log10(self.B_threshold)) -
                            1 * (np.log10(true_Bs[i]) <= -np.log10(self.B_threshold)))

@@ -16,7 +16,7 @@ try:
     import cloudpickle
 except ImportError:
     pass
-import multiprocessing
+import multiprocess as mp
 
 try:
     import queue
@@ -53,7 +53,7 @@ class StarQueue(object):
 
     __slots__ = ("deck",)
 
-    def __init__(self, n, variant=multiprocessing.Queue, **kwargs):
+    def __init__(self, n, variant=mp.Queue, **kwargs):
         self.deck = []
         queues = [variant(**kwargs) for _ in range(n)]
         others = []
@@ -78,7 +78,7 @@ class StarConn(object):
 
     @property
     def joinable(self):
-        return isinstance(self.input, multiprocessing.JoinableQueue)
+        return isinstance(self.input, mp.JoinableQueue)
 
     @property
     def variant(self):
@@ -157,7 +157,7 @@ class WorkerNearDeathException(Exception):
         )
 
 
-class Worker(multiprocessing.Process):
+class Worker(mp.Process):
     """Worker that runs job steps.
 
     The :meth:`target` method may be implemented following the pattern below:
@@ -197,7 +197,7 @@ class Worker(multiprocessing.Process):
             __kwargs = {}
         else:
             __kwargs = dict(daemon=daemon)
-        multiprocessing.Process.__init__(self, name=name, **__kwargs)
+        mp.Process.__init__(self, name=name, **__kwargs)
         self._id = _id
         self.workspace = workspace
         self.tasks = task_queue
@@ -354,7 +354,7 @@ class Scheduler(object):
         """
         try:
             # in Python 3.8.10, daemon mode was default
-            multiprocessing.process.current_process()._config["daemon"] = False
+            mp.process.current_process()._config["daemon"] = False
         except Exception:
             warn("failed to force-disable daemon mode")
         self.workspace = workspace
@@ -367,14 +367,16 @@ class Scheduler(object):
         self.global_timeout = max_runtime
         self.task_timeout = task_timeout
         if worker_count is None:
-            worker_count = multiprocessing.cpu_count() - 1
+            worker_count = mp.cpu_count() - 2
         elif worker_count < 0:
-            worker_count = multiprocessing.cpu_count() + worker_count
+            worker_count = mp.cpu_count() + worker_count
+        elif worker_count < 1:
+            worker_count = round(mp.cpu_count() * worker_count)
         kwargs = dict(kwargs)  # copy
         kwargs.update(_kwargs)
         if worker_count:
-            self.task_queue = multiprocessing.Queue()
-            self.return_queue = multiprocessing.Queue()
+            self.task_queue = mp.Queue()
+            self.return_queue = mp.Queue()
             if worker_count == 1:
                 self.workers = {
                     0: self.worker(
@@ -502,7 +504,11 @@ class Scheduler(object):
         while True:
             # module_logger.debug('get_processed_step: waiting...') # DEBUG
             # note: `get` does not raise TimeoutError
-            step, status = self.return_queue.get(timeout=self.timeout)
+            try:
+                step, status = self.return_queue.get(timeout=self.timeout)
+            except queue.Empty:
+                self.logger.critical('Abnormal termination: empty queue; consider decreasing the number of workers')
+                return False
             # module_logger.debug('get_processed_step: received {}'.format(self.active[step.resource_id])) # DEBUG
             if step is None:
                 if isinstance(status, WorkerNearDeathException):
@@ -513,8 +519,6 @@ class Scheduler(object):
                         print("error: {}".format(status))
                     if not self.workers:
                         return False
-                else:
-                    return self.stop(None, None, status)
             else:
                 break
         # step.set_workspace(self.workspace) # reload workspace
@@ -627,7 +631,7 @@ class Scheduler(object):
                 if self.global_timeout and self.global_timeout <= (
                     time.time() - self.start_time
                 ):
-                    # raise multiprocessing.TimeoutError
+                    # raise mp.TimeoutError
                     break
                 if postponed:
                     for i in list(postponed):
@@ -641,7 +645,7 @@ class Scheduler(object):
                 if not postponed:
                     k = self.fill_slots(k, postponed)
             ret = True
-        except (SystemExit, KeyboardInterrupt, multiprocessing.TimeoutError):
+        except (SystemExit, KeyboardInterrupt, mp.TimeoutError):
             ret = False
         for w in self.workers.values():
             try:
@@ -696,7 +700,7 @@ class EpochScheduler(Scheduler):
     ):
         epoch_length = len(tasks) if epoch_length is None else epoch_length
         if not soft_epochs and not worker_count:
-            worker_count = min(epoch_length, multiprocessing.cpu_count() - 1)
+            worker_count = min(epoch_length, mp.cpu_count() - 2)
         Scheduler.__init__(
             self,
             workspace,

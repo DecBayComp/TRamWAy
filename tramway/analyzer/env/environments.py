@@ -22,7 +22,7 @@ from ..time.abc import Time
 import os
 import sys
 import time
-import multiprocessing
+import multiprocess as mp
 import subprocess
 import tempfile
 import shutil
@@ -952,9 +952,9 @@ class LocalHost(Env):
     @worker_count.setter
     def worker_count(self, wc):
         if wc is None:
-            wc = max(1, multiprocessing.cpu_count() - 1)
+            wc = max(1, mp.cpu_count() - 1)
         elif wc < 0:
-            wc = max(1, multiprocessing.cpu_count() + wc)
+            wc = max(1, mp.cpu_count() + wc)
         self._worker_count = wc
 
     def submit_jobs(self):
@@ -1741,24 +1741,25 @@ print('{}'+';'.join(files))\
         # last line is "[analyzer].run()\n"
         call = line.find(".run()")
         if 0 < call:
-            analyzer_var = line[:call]
+            start = 0
+            while line[start].isspace():
+                start += 1
+            indent = line[:start]
+            analyzer_var = line[start:call]
             # insert mapping for home directories
             filtered_content = filtered_content[:-1]
             filtered_content.append(
                 """
-if {1}.env.directory_mapping is None:
-    {1}.env.directory_mapping = {{}}
-if '{0}' not in {1}.env.directory_mapping:
-    {1}.env.directory_mapping['{0}'] = '~'
-""".format(
-                    os.path.expanduser("~").replace("\\", r"\\"), analyzer_var
-                )
-            )
+{2}if {1}.env.directory_mapping is None:
+{2}    {1}.env.directory_mapping = {{}}
+{2}if '{0}' not in {1}.env.directory_mapping:
+{2}    {1}.env.directory_mapping['{0}'] = '~'
+""".format(os.path.expanduser("~").replace("\\", r"\\"), analyzer_var, indent))
             filtered_content.append(line)
             # append output listing
             filtered_content.append(
-                "\nprint({0}.env.collectible_prefix()+';'.join({0}.env.format_collectibles()))\n".format(
-                    analyzer_var
+                "\n{1}print({0}.env.collectible_prefix()+';'.join({0}.env.format_collectibles()))\n".format(
+                    analyzer_var, indent
                 )
             )
         #
@@ -2145,7 +2146,7 @@ Environment.register(SlurmOverSSH)
 
 def select_python_version(major, minor, *args):
     if major == 3:
-        minor = max(6, min(13, minor))
+        minor = max(6, min(14, minor))
     return major, minor
 
 
@@ -2156,7 +2157,7 @@ class SingularitySlurm(SlurmOverSSH):
     """
     Runs TRamWAy jobs as Slurm jobs in a Singularity container.
 
-    The current default Singularity container is *tramway-hpc-250124-py3?.sif*.
+    The current default Singularity container is *tramway-hpc-260217-py3?.sif*.
     See also `available_images.md <https://github.com/DecBayComp/TRamWAy/blob/master/containers/available_images.md>`_.
 
     Children classes should define the :meth:`hostname` and :meth:`scratch` methods.
@@ -2201,7 +2202,7 @@ class SingularitySlurm(SlurmOverSSH):
                     f.write(
                         r"""#!/bin/bash
 
-for ((minor=12;6<=minor;minor--)); do
+for ((minor=14;6<=minor;minor--)); do
 py=python3.$minor
 if [ -x "$(command -v $py)" ]; then
 if [ -z "$($py -m pip show -q tramway 2>&1)" ]; then
@@ -2315,7 +2316,7 @@ exit 1
 
     @classmethod
     def default_container(cls, python_version=PYVER):
-        return f"tramway-hpc-250124-py{python_version}.sif"
+        return f"tramway-hpc-260217-py{python_version}.sif"
 
     def early_setup(self, *argv, connect=False, ensure_container=True, **kwargs):
         ret = SlurmOverSSH.early_setup(self, *argv, connect=connect, **kwargs)

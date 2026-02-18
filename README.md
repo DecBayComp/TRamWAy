@@ -9,7 +9,7 @@ An attempt to rewrite the project documentation is available as a [separate proj
 
 ## Installation
 
-You will need Python >= 3.8.
+You will need Python >= 3.9.
 
 ### Windows users
 

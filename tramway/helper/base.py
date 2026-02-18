@@ -17,7 +17,7 @@ from ..core.analyses import abc
 import os.path
 import six
 import pandas as pd
-import pkg_resources
+import importlib.metadata
 import platform
 import time
 
@@ -44,11 +44,11 @@ class HelperBase(object):
         if "python" not in analysis.metadata:
             analysis.metadata["python"] = platform.python_version()
         for pkg in pkg_version:
-            analysis.metadata["pkg"] = pkg_resources.get_distribution(pkg).version
+            analysis.metadata["pkg"] = importlib.metadata.version(pkg)
         if "tramway" not in analysis.metadata:
-            analysis.metadata["tramway"] = pkg_resources.get_distribution(
+            analysis.metadata["tramway"] = importlib.metadata.version(
                 "tramway"
-            ).version
+            )
         if "datetime" not in analysis.metadata:
             analysis.metadata["datetime"] = time.strftime("%Y-%m-%d %H:%M:%S UTC%z")
 

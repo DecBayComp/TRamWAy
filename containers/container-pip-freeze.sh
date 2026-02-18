@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -z $1 ]; then
-  echo "usage: $0 CONTAINER_FILE [PATH_TO_SINGULARITY]"
+  echo "usage: $0 CONTAINER_FILE [PATH_TO_APPTAINER]" >&2
   exit 1
 fi
 
@@ -9,7 +9,7 @@ CONTAINER=$1
 shift
 
 if [ -z $1 ]; then
-  SINGULARITY="singularity exec"
+  SINGULARITY="apptainer exec"
 else
   SINGULARITY="$1 exec"
 fi
