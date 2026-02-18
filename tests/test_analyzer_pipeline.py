@@ -357,7 +357,6 @@ a.env.sbatch_options.update(dict(p='dbc', qos='dbc'))\
             env = f"""\
 a.env = environments.Maestro
 a.env.username = '{username}'
-a.env.container = 'tramway-hpc-250124-py313.sif'
 a.env.sbatch_options.update(dict(p='dbc', qos='dbc'))\
 """
         input_file = os.path.join('~', os.path.relpath(dynamicmesh, os.path.expanduser('~')))

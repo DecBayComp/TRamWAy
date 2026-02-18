@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for ((minor=13;6<=minor;minor--)); do
+for ((minor=14;6<=minor;minor--)); do
 py=python3.$minor
 if command -v $py &>/dev/null; then
 if $py -m pip freeze | grep tramway &>/dev/null; then
