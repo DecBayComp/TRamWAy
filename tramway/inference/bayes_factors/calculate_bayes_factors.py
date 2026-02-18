@@ -132,7 +132,7 @@ def calculate_bayes_factors(zeta_ts, zeta_sps, ns, Vs, Vs_pi, loc_error, dim=2, 
 
         # Report error if any
         try:
-            logging.warn(
+            logging.warning(
                 "A NaN value was present in the input parameters for the following cells: {nan_cells_list}.\nBayes factor calculations were skipped for them".format(nan_cells_list=nan_cells_list))
         except NameError:
             pass

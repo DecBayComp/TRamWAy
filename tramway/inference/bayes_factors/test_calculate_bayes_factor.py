@@ -6,7 +6,7 @@
 import logging
 import math
 import unittest
-from multiprocessing import freeze_support
+# from multiprocessing import freeze_support
 
 import numpy as np
 from scipy.integrate import dblquad, quad

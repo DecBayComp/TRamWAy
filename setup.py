@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup
-from codecs import open
 from os import path
 
-# requirements moved to requirements.txt
 install_requires = ['six', 'numpy', 'scipy', 'pandas', 'matplotlib', 'rwa-python>=0.8', 'setuptools', 'multiprocess']
 extras_require = {
         'animate':  ['opencv-python', 'scikit-image', 'tqdm'],
@@ -26,7 +24,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name = 'tramway',
-    version = '0.6.10',
+    version = '0.7',
     description = 'TRamWAy',
     long_description = long_description,
     url = 'https://github.com/DecBayComp/TRamWAy',
@@ -36,7 +34,6 @@ setup(
     classifiers = [
         'Intended Audience :: Science/Research',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',

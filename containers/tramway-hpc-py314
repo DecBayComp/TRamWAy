@@ -1,10 +1,10 @@
 Bootstrap: docker
-From: ubuntu:focal
+From: ubuntu:22.04
 
 %help
-TRamWAy is available in the python3.8 environment:
-    python3.8 -m tramway
-The container OS is Ubuntu Focal Fossa.
+TRamWAy is available in the python3.14 environment:
+    python3.14 -m tramway
+The container OS is Ubuntu 22.04.
 
 %setup
 
@@ -24,7 +24,7 @@ The container OS is Ubuntu Focal Fossa.
     if [ -d $LOCAL ]; then
        CONTAINED=${SINGULARITY_ROOTFS}/root/TRamWAy
        mkdir -p ${CONTAINED}
-       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/requirements.txt ${LOCAL}/README.md
+       cp -u  -t ${CONTAINED}/ ${LOCAL}/setup.py ${LOCAL}/pyproject.toml ${LOCAL}/README.md
        cp -ru -t ${CONTAINED}/ ${LOCAL}/tramway ${LOCAL}/scripts
     fi
 
@@ -34,18 +34,19 @@ The container OS is Ubuntu Focal Fossa.
     apt-get update -y
     apt-get install -y --no-install-recommends locales
     locale-gen
-    apt-get install -y --no-install-recommends libhdf5-103 ffmpeg \
-        build-essential git software-properties-common libopenblas0 glpk-utils
+    apt-get install -y --no-install-recommends libhdf5-openmpi-dev ffmpeg \
+        build-essential git software-properties-common libopenblas0 \
+        glpk-utils gpg-agent
 
-    # Python 3.8
+    # Python 3.14
     add-apt-repository -y ppa:deadsnakes/ppa
     apt-get update -y
-    apt-get install -y --no-install-recommends python3.8 python3.8-venv
+    apt-get install -y --no-install-recommends python3.14 python3.14-venv
     rm -rf /var/lib/apt/lists/*
-    python3.8 /root/get-pip.py
+    python3.14 /root/get-pip.py
     export LC_ALL=C
-    #python3.8 -m pip install --upgrade pip
-    python3.8 -m pip uninstall -qy tramway || true
+    #pip3.14 install --upgrade pip
+    pip3.14 uninstall -qy tramway || true
 
     # (2.) and (3.)
     cd /root
@@ -53,19 +54,19 @@ The container OS is Ubuntu Focal Fossa.
         git clone https://github.com/DecBayComp/TRamWAy -b dev --single-branch --depth 1 --no-tags
     fi
     cd TRamWAy
-    python3.8 -m pip install .[hpc-minimal,animate]
+    pip3.14 install .[hpc-minimal,animate]
 
     # (1.)
-    #python3.8 -m pip install tramway[hpc-minimal,animate]
+    #pip3.14 install tramway[hpc-minimal,animate]
 
-    python3.8 -m pip install scikit-learn
+    pip3.14 install scikit-learn
 
     mkdir -p /pasteur
 
 %runscript
 
     cmd="tramway"
-    python="python3.8"
+    python="python3.14"
     if [ -n "$1" -a "$1" = "-s" ]; then
        cmd="${python} -s -m tramway"
        shift
